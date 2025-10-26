@@ -1,0 +1,263 @@
+.page {
+  display: flex;
+  flex-direction: column;
+   height:100vh; 
+  background: #e7eaef;
+}
+
+.map-wrap {
+  position: relative;
+  flex: 1;
+  width: 100%;
+}
+
+.map-canvas {
+  width: 100%;
+  height:100vh;
+}
+
+.center-pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  margin-left: -9px;
+  margin-top: -18px;
+  border-radius: 50%;
+  background: rgba(0, 122, 255, 0.9);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.center-pin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: rgba(0, 122, 255, 0.9);
+}
+
+.preflight-overlay {
+  position: absolute;
+  top: 48rpx;
+  left: 16rpx;
+  width: 460rpx;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.preflight-card {
+  position: relative;
+  padding: 32rpx 36rpx 28rpx;
+  color: #fff;
+  /* 透明，让真正的背景由 ::before 绘制 */
+  background: transparent;
+}
+
+.preflight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  right: 0rpx;              /* 三角延伸的宽度 */
+  border-radius: 24rpx 0 0 24rpx;
+  background: rgba(2, 2, 2, 0.35);
+  /* box-shadow: 0 12rpx 30rpx rgba(0,0,0,0); */
+  clip-path: polygon(
+    0% 0%,
+    78% 0%,
+    100% 50%,
+    78% 100%,
+    0% 100%
+  );
+  z-index: -1;
+}
+
+
+.preflight-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.preflight-row {
+  display: flex;
+  align-items: center;
+  column-gap: 10rpx;
+  margin-bottom: 10rpx;
+}
+
+.preflight-label {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.preflight-value {
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.preflight-value.tone-safe {
+  color: #4cd964;
+}
+
+.preflight-value.tone-warn {
+  color: #ffd270;
+}
+
+.preflight-value.tone-alert {
+  color: #ff5e57;
+}
+
+.preflight-value.tone-neutral {
+  color: #fff;
+}
+
+.preflight-extra {
+  display: block;
+  margin: -6rpx 0 24rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.4;
+}
+
+.drone-picker {
+  flex: 1;
+  min-width: 140rpx;
+}
+
+.picker-text {
+  display: inline-flex;
+  align-items: center;
+  font-size: 26rpx;
+  color: #fff;
+}
+
+.status-hint {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* 靠左 */
+  gap: 18rpx;
+}
+
+.locate-wrapper {
+  flex-shrink: 0;
+}
+
+button.locate-circle {
+/* 重置小程序 button 的默认行为 */
+display: inline-flex;          /* 避免被 flex 拉伸 */
+flex: none;                    /* 禁止伸缩 */
+box-sizing: border-box;
+padding: 0;
+margin: 0;
+min-width: 0;
+line-height: 72rpx;            /* iOS 防基线撑高 */
+background: rgba(255,255,255,0.08);
+border: 2rpx solid rgba(255,255,255,0.85);
+
+/* 正圆尺寸 */
+width: 72rpx;
+height: 72rpx;
+border-radius: 50%;
+
+/* 居中图标 */
+align-items: center;
+justify-content: center;
+
+/* 动效 */
+transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
+overflow: hidden;
+pointer-events: auto;
+}
+
+button.locate-circle::after {
+  border: 0; content: none; 
+}
+
+.locate-icon {
+  width: 38rpx;
+  height: 38rpx;
+}
+
+button.locate-hover {
+  transform: scale(0.94);
+  background: rgba(255,255,255,0.18);
+  box-shadow: 0 8rpx 20rpx rgba(0,0,0,.18) inset, 0 6rpx 14rpx rgba(0,0,0,.10);
+}
+
+/* 可选：悬浮视觉（模拟 hover，移动端看不太出来，留着无害） */
+button.locate-circle:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+/* .search-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  border: 2rpx solid rgba(255, 255, 255, 0.85);
+  border-radius: 999rpx;
+  padding: 12rpx 16rpx;
+  background: rgba(255, 255, 255, 0.08);
+} */
+
+/* .search-field {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 26rpx;
+  line-height: 40rpx;
+  padding: 0;
+  margin-right: 10rpx;
+} */
+
+/* .search-field::placeholder {
+  color: rgba(255, 255, 255, 0.85);
+} */
+
+/* .search-icon-wrap {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 50%;
+  border: 2rpx solid rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 12rpx;
+  position: relative;
+  padding: 0;
+  background: transparent;
+} */
+
+/* .search-ring {
+  width: 26rpx;
+  height: 26rpx;
+  border-radius: 50%;
+  border: 2rpx solid #fff;
+} */
+
+/* .search-handle {
+  width: 18rpx;
+  height: 2rpx;
+  background: #fff;
+  position: absolute;
+  right: 6rpx;
+  bottom: 10rpx;
+  transform: rotate(45deg);
+  transform-origin: right center;
+} */

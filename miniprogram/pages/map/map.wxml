@@ -1,0 +1,73 @@
+<view class="page">
+  <view class="map-wrap">
+    <map
+      id="main-map"
+      class="map-canvas"
+      longitude="{{center.longitude}}"
+      latitude="{{center.latitude}}"
+      scale="{{scale}}"
+      show-location="true"
+      markers="{{markers}}"
+      polygons="{{polygons}}"
+      circles="{{circles}}"
+      bindregionchange="onRegionChange"
+      bindupdated="onMapUpdated"
+    />
+    <view class="center-pin"></view>
+
+    <view class="preflight-overlay">
+      <view class="preflight-card">
+        <view class="preflight-title">飞前安全准备</view>
+        <view class="preflight-row">
+          <text class="preflight-label">机型：</text>
+          <picker
+            class="drone-picker"
+            mode="selector"
+            range="{{droneNames}}"
+            value="{{selectedDroneIndex}}"
+            bindchange="onDronePickerChange"
+          >
+            <text class="preflight-value picker-text">{{selectedDroneName}}</text>
+          </picker>
+        </view>
+        <view class="preflight-row">
+          <text class="preflight-label">位于 UOM 划分：</text>
+          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
+        </view>
+        <view class="preflight-row">
+          <text class="preflight-label">位于大疆划分：</text>
+          <text class="preflight-value {{'tone-' + djiTone}}">{{djiStatus}}</text>
+        </view>
+        <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
+
+        <view class="control-row">
+          <view class="locate-wrapper">
+            <button class="locate-circle"
+        hover-class="locate-hover"
+        hover-start-time="10"
+        hover-stay-time="60"
+        bindtap="onLocateTap">
+  <image class="locate-icon" src="/assets/location.png" mode="widthFix" />
+</button>
+          </view>
+          <view class="search-pill">
+            <input
+              class="search-field"
+              type="text"
+              placeholder="搜索地点..."
+              placeholder-style="color:#f5f5f5"
+              value="{{keyword}}"
+              bindinput="onKeywordInput"
+              confirm-type="search"
+              bindconfirm="onSearchConfirm"
+            />
+            <button class="search-icon-wrap" hover-class="none" bindtap="onSearchTap">
+              <view class="search-ring"></view>
+              <view class="search-handle"></view>
+            </button>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,22 @@
+{
+  "pages": [
+    "pages/map/map"
+  ],
+  "window": {
+    "navigationBarTitleText": "Tencent Map Airspace",
+    "navigationBarBackgroundColor": "#007AFF",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F2F2F2",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "permission": {
+    "scope.userLocation": {
+      "desc": "用于定位当前位置并展示附近空域/禁飞区"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ]
+}
