@@ -58,7 +58,12 @@ Page({
     uomTone: "neutral",
     djiStatus: "评估中",
     djiTone: "neutral",
-    djiStatusExtra: ""
+    djiStatusExtra: "",
+    searchSuggestions: [],
+    searchSuggestLoading: false,
+    searchSuggestError: "",
+    dronePickerVisible: false,
+    pendingDroneIndex: null
   },
 
   onLoad() {
@@ -71,6 +76,7 @@ Page({
     this._currentWmsTiles = [];
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
+    this._suggestTimer = null;
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.updateStatusPanel();
@@ -83,7 +89,27 @@ Page({
   },
 
   onKeywordInput(e) {
-    this.setData({ keyword: e.detail.value || "" });
+    const keyword = e.detail.value || "";
+    this.setData({ keyword }, () => {
+      if (!keyword.trim()) {
+        if (this._suggestTimer) {
+          clearTimeout(this._suggestTimer);
+          this._suggestTimer = null;
+        }
+        this.setData({
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: ""
+        });
+        return;
+      }
+      this.setData({
+        searchSuggestLoading: true,
+        searchSuggestError: "",
+        searchSuggestions: []
+      });
+      this.scheduleSearchSuggest();
+    });
   },
 
   onSearchConfirm() {
@@ -149,12 +175,137 @@ Page({
       })
       .finally(() => {
         wx.hideLoading();
+        this.setData({
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: ""
+        });
       });
   },
 
-  onDronePickerChange(e) {
-    const idx = Number(e.detail.value) || 0;
-    this.applyDroneByIndex(idx);
+  scheduleSearchSuggest() {
+    if (this._suggestTimer) clearTimeout(this._suggestTimer);
+    this._suggestTimer = setTimeout(() => {
+      this._suggestTimer = null;
+      this.fetchSearchSuggestions();
+    }, 250);
+  },
+
+  fetchSearchSuggestions() {
+    const keyword = this.data.keyword.trim();
+    if (!keyword) {
+      this.setData({
+        searchSuggestions: [],
+        searchSuggestLoading: false,
+        searchSuggestError: ""
+      });
+      return;
+    }
+    const centerWgs = gcj02ToWgs84(
+      this.data.center.longitude,
+      this.data.center.latitude
+    );
+    const snapshot = keyword;
+    searchPlaces(keyword, {
+      latitude: centerWgs.lat,
+      longitude: centerWgs.lng
+    })
+      .then((results) => {
+        if (snapshot !== this.data.keyword.trim()) return;
+        const suggestions = (results || [])
+          .slice(0, 10)
+          .map((poi, index) => {
+            const lat = Number(poi.location?.lat);
+            const lng = Number(poi.location?.lng);
+            return {
+              id: poi.id || poi.adcode || index,
+              title: poi.title || "",
+              address: poi.address || poi.category || "",
+              latitude: lat,
+              longitude: lng
+            };
+          })
+          .filter(
+            (item) =>
+              item.title &&
+              Number.isFinite(item.latitude) &&
+              Number.isFinite(item.longitude)
+          );
+        this.setData({
+          searchSuggestions: suggestions,
+          searchSuggestLoading: false,
+          searchSuggestError: suggestions.length ? "" : "没有匹配的地点"
+        });
+      })
+      .catch((err) => {
+        console.warn("Suggest failed", err);
+        if (snapshot !== this.data.keyword.trim()) return;
+        this.setData({
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: "提示获取失败，请稍后重试"
+        });
+      });
+  },
+
+  onSuggestionTap(e) {
+    const idx = Number(e.currentTarget.dataset.index);
+    const suggestion = this.data.searchSuggestions?.[idx];
+    if (!suggestion) return;
+    const { latitude, longitude } = suggestion;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    const marker = {
+      id: Date.now(),
+      latitude,
+      longitude,
+      title: suggestion.title,
+      width: 24,
+      height: 24
+    };
+    if (suggestion.address) {
+      marker.callout = {
+        content: `${suggestion.title}\n${suggestion.address}`,
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    this.setData({
+      keyword: suggestion.title,
+      markers: [marker],
+      searchSuggestions: [],
+      searchSuggestLoading: false,
+      searchSuggestError: ""
+    });
+    this.centerOnPoint({ latitude, longitude }, 15);
+  },
+
+  openDronePicker() {
+    this.setData({
+      dronePickerVisible: true,
+      pendingDroneIndex: this.data.selectedDroneIndex
+    });
+  },
+
+  closeDronePicker() {
+    this.setData({
+      dronePickerVisible: false,
+      pendingDroneIndex: null
+    });
+  },
+
+  onSelectDroneOption(e) {
+    const idx = Number(e.currentTarget.dataset.index);
+    if (!Number.isFinite(idx)) return;
+    this.setData({ pendingDroneIndex: idx });
+  },
+
+  confirmDronePicker() {
+    const idx = this.data.pendingDroneIndex;
+    if (typeof idx === "number" && idx >= 0) {
+      this.applyDroneByIndex(idx);
+    }
+    this.closeDronePicker();
   },
 
   applyDroneByIndex(idx) {

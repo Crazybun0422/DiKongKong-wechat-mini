@@ -2,7 +2,8 @@ const {
   tileXYToBBOX3857,
   mercatorToLonLat,
   lonLatToMercator,
-  wgs84ToGcj02
+  wgs84ToGcj02,
+  gcj02ToWgs84
 } = require("./coords");
 const { CAAC_TOKEN } = require("./config");
 
@@ -35,8 +36,10 @@ function buildWmsOverlay(center, zoom, region) {
   if (region && region.northeast && region.southwest) {
     const ne = region.northeast;
     const sw = region.southwest;
-    const tNE = lonLatToTile(ne.longitude, ne.latitude, zoom);
-    const tSW = lonLatToTile(sw.longitude, sw.latitude, zoom);
+    const wgsNE = gcj02ToWgs84(ne.longitude, ne.latitude);
+    const wgsSW = gcj02ToWgs84(sw.longitude, sw.latitude);
+    const tNE = lonLatToTile(wgsNE.lng, wgsNE.lat, zoom);
+    const tSW = lonLatToTile(wgsSW.lng, wgsSW.lat, zoom);
     xMin = Math.min(tNE.x, tSW.x);
     xMax = Math.max(tNE.x, tSW.x);
     yMin = Math.min(tNE.y, tSW.y);
@@ -46,7 +49,8 @@ function buildWmsOverlay(center, zoom, region) {
     if (yMax - yMin > 6) yMax = yMin + 6;
   } else {
     const { longitude: lng, latitude: lat } = center;
-    const t = lonLatToTile(lng, lat, zoom);
+    const wgsCenter = gcj02ToWgs84(lng, lat);
+    const t = lonLatToTile(wgsCenter.lng, wgsCenter.lat, zoom);
     xMin = t.x - 1; xMax = t.x + 1;
     yMin = t.y - 1; yMax = t.y + 1;
   }
@@ -81,8 +85,8 @@ function buildWmsOverlay(center, zoom, region) {
       });
 
       // Bounds for overlay must be in GCJ-02
-      const wgsSW = mercatorToLonLat(bbox[0], bbox[1]);
-      const wgsNE = mercatorToLonLat(bbox[2], bbox[3]);
+      const wgsSW = mercatorToLonLat(reqBBox[0], reqBBox[1]);
+      const wgsNE = mercatorToLonLat(reqBBox[2], reqBBox[3]);
       const gcjSW = wgs84ToGcj02(wgsSW.lng, wgsSW.lat);
       const gcjNE = wgs84ToGcj02(wgsNE.lng, wgsNE.lat);
 

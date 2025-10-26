@@ -30,7 +30,7 @@
       "outputPath": ""
     }
   },
-  "libVersion": "latest",
+  "libVersion": "3.8.10",
   "description": "Converted from vue map demo to WeChat Mini Program.",
   "packOptions": {
     "ignore": [],
