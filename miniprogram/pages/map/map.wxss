@@ -66,7 +66,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  right: 0rpx;              /* 三角延伸的宽度 */
+  right: -100rpx;              /* 三角延伸的宽度 */
   border-radius: 24rpx 0 0 24rpx;
   background: rgba(2, 2, 2, 0.35);
   /* box-shadow: 0 12rpx 30rpx rgba(0,0,0,0); */
@@ -205,59 +205,61 @@ button.locate-circle:hover {
   background: rgba(255,255,255,0.14);
 }
 
-/* .search-pill {
+.search-pill {
   flex: 1;
   display: flex;
   align-items: center;
-  border: 2rpx solid rgba(255, 255, 255, 0.85);
+  border: 2rpx solid rgba(255, 255, 255, 0.95);
   border-radius: 999rpx;
-  padding: 12rpx 16rpx;
-  background: rgba(255, 255, 255, 0.08);
-} */
+  height: 72rpx;
+  padding-left: 28rpx;
+  background: rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+  box-shadow: 0 12rpx 24rpx rgba(0, 0, 0, 0.22) inset;
+}
 
-/* .search-field {
+.search-field {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   color: #fff;
-  font-size: 26rpx;
-  line-height: 40rpx;
+  font-size: 28rpx;
+  line-height: 1;
   padding: 0;
-  margin-right: 10rpx;
-} */
+}
 
-/* .search-field::placeholder {
+.search-field::placeholder {
   color: rgba(255, 255, 255, 0.85);
-} */
+}
 
-/* .search-icon-wrap {
-  width: 52rpx;
-  height: 52rpx;
+button.search-btn {
+  flex-shrink: 0;
+  width: 70rpx;
+  height: 70rpx;
+  margin-left: 16rpx;
   border-radius: 50%;
-  border: 2rpx solid rgba(255, 255, 255, 0.9);
+  border: 2rpx solid rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 12rpx;
-  position: relative;
   padding: 0;
-  background: transparent;
-} */
+  transition: transform 0.12s ease, background-color 0.12s ease;
+  pointer-events: auto;
+}
 
-/* .search-ring {
-  width: 26rpx;
-  height: 26rpx;
-  border-radius: 50%;
-  border: 2rpx solid #fff;
-} */
+button.search-btn::after {
+  border: 0;
+  content: none;
+}
 
-/* .search-handle {
-  width: 18rpx;
-  height: 2rpx;
-  background: #fff;
-  position: absolute;
-  right: 6rpx;
-  bottom: 10rpx;
-  transform: rotate(45deg);
-  transform-origin: right center;
-} */
+.search-btn-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.search-btn-hover {
+  transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.18);
+}

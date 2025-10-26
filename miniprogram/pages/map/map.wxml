@@ -54,16 +54,21 @@
             <input
               class="search-field"
               type="text"
-              placeholder="搜索地点..."
-              placeholder-style="color:#f5f5f5"
+              placeholder="搜索"
+              placeholder-style="color:#f1f1f1"
               value="{{keyword}}"
               bindinput="onKeywordInput"
               confirm-type="search"
               bindconfirm="onSearchConfirm"
             />
-            <button class="search-icon-wrap" hover-class="none" bindtap="onSearchTap">
-              <view class="search-ring"></view>
-              <view class="search-handle"></view>
+            <button
+              class="search-btn"
+              hover-class="search-btn-hover"
+              hover-start-time="10"
+              hover-stay-time="80"
+              bindtap="onSearchTap"
+            >
+              <image class="search-btn-icon" src="/assets/search.png" mode="aspectFit" />
             </button>
           </view>
         </view>
