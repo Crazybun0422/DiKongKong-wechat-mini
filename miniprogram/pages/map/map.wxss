@@ -68,7 +68,7 @@
   inset: 0;
   right: -100rpx;              /* 三角延伸的宽度 */
   border-radius: 24rpx 0 0 24rpx;
-  background: rgba(2, 2, 2, 0.35);
+  background: rgba(2, 43, 131, 0.35);
   /* box-shadow: 0 12rpx 30rpx rgba(0,0,0,0); */
   clip-path: polygon(
     0% 0%,
@@ -185,7 +185,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 36;
+  z-index: 40;
   background: #fff;
   border-radius: 32rpx 32rpx 0 0;
   padding: 32rpx 34rpx 40rpx;
