@@ -40,15 +40,19 @@ const NFZ_CENTER_COLORS = {
 };
 
 const MAP_MIN_SCALE = 3;
-const MAP_MAX_SCALE = 20;
-const DEFAULT_MAP_SCALE = 17;
+const MAP_MAX_SCALE = 16;
+const DEFAULT_MAP_SCALE = 15;
 
-const MIN_FETCH_RADIUS = 50000;
+const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
-const DEFAULT_FETCH_RADIUS = 50000;
+const DEFAULT_FETCH_RADIUS = 80000;
 
-const clampMapScale = (value) =>
-  Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, value || DEFAULT_MAP_SCALE));
+const clampMapScale = (value) => {
+  const numeric = Number(value);
+  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
+  const rounded = Math.round(base);
+  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
+};
 
 Page({
   data: {
@@ -76,7 +80,8 @@ Page({
     searchSuggestLoading: false,
     searchSuggestError: "",
     dronePickerVisible: false,
-    pendingDroneIndex: null
+    pendingDroneIndex: null,
+    showDashboardPanel: true
   },
 
   onLoad() {
@@ -131,6 +136,33 @@ Page({
 
   onSearchTap() {
     this.performSearch();
+  },
+
+  toggleDashboardPanel() {
+    this.setData({ showDashboardPanel: !this.data.showDashboardPanel });
+  },
+
+  onChatButtonTap() {
+    this.showPlaceholderToast("聊天功能开发中");
+  },
+
+  onMenuHomeTap() {
+    this.showPlaceholderToast("首页功能开发中");
+  },
+
+  onMenuProfileTap() {
+    this.showPlaceholderToast("我的内容待定");
+  },
+
+  onMarkerButtonTap() {
+    this.showPlaceholderToast("标记功能开发中");
+  },
+
+  showPlaceholderToast(message) {
+    console.log(`[placeholder] ${message}`);
+    if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
+      wx.showToast({ title: message, icon: "none" });
+    }
   },
 
   performSearch() {
@@ -447,6 +479,7 @@ Page({
         const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
         this._centerOverride = newCenter;
         const scale = clampMapScale(e.detail.scale || this.data.scale);
+        console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
         this._currentRadius = clampRadius(radius);
@@ -472,7 +505,7 @@ Page({
     }
   },
 
-  onMapUpdated() {},
+  onMapUpdated() { },
 
   updateCenterAndRadius(detail) {
     this.mapCtx.getCenterLocation({
@@ -555,11 +588,11 @@ Page({
       : this.currentGcjRect();
     const rectChanged = prev.rect
       ? (
-          Math.abs((gcjRect.ltlng || 0) - (prev.rect.ltlng || 0)) > 0.005 ||
-          Math.abs((gcjRect.ltlat || 0) - (prev.rect.ltlat || 0)) > 0.005 ||
-          Math.abs((gcjRect.rblng || 0) - (prev.rect.rblng || 0)) > 0.005 ||
-          Math.abs((gcjRect.rblat || 0) - (prev.rect.rblat || 0)) > 0.005
-        )
+        Math.abs((gcjRect.ltlng || 0) - (prev.rect.ltlng || 0)) > 0.005 ||
+        Math.abs((gcjRect.ltlat || 0) - (prev.rect.ltlat || 0)) > 0.005 ||
+        Math.abs((gcjRect.rblng || 0) - (prev.rect.rblng || 0)) > 0.005 ||
+        Math.abs((gcjRect.rblat || 0) - (prev.rect.rblat || 0)) > 0.005
+      )
       : true;
     if (!force && !moved && !radiusDiff && !rectChanged) return;
 
@@ -769,7 +802,7 @@ Page({
     prev.forEach((handle) => {
       ctx.removeGroundOverlay({
         id: handle.id,
-        fail: () => {}
+        fail: () => { }
       });
     });
     this._wmsOverlayHandles = [];
@@ -805,7 +838,7 @@ Page({
     handles.forEach((handle) => {
       this.mapCtx.removeGroundOverlay({
         id: handle.id,
-        fail: () => {}
+        fail: () => { }
       });
     });
     this._wmsOverlayHandles = [];
@@ -814,6 +847,9 @@ Page({
   },
 
   buildBoundsRect(region, center, radius) {
+    if (typeof radius === "number" && Number.isFinite(radius)) {
+      return this.circleRectFromCenter(center, radius);
+    }
     if (region?.northeast && region?.southwest) {
       const { northeast, southwest } = region;
       return {

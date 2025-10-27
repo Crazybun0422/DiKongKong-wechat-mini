@@ -17,7 +17,7 @@
     />
     <view class="center-pin"></view>
 
-    <view class="preflight-overlay">
+    <view class="preflight-overlay" wx:if="{{showDashboardPanel}}">
       <view class="preflight-card">
         <view class="preflight-title">飞前安全准备</view>
         <view class="drone-picker-block">
@@ -91,6 +91,43 @@
           </view>
         </view>
       </view>
+    </view>
+
+    <view class="floating-controls">
+      <button
+        class="dashboard-toggle {{showDashboardPanel ? 'is-active' : ''}}"
+        hover-class="dashboard-toggle-hover"
+        bindtap="toggleDashboardPanel"
+      >
+        <image class="dashboard-toggle-icon" src="/assets/dashboard.png" mode="aspectFit" />
+      </button>
+      <button
+        class="marker-button"
+        hover-class="marker-button-hover"
+        bindtap="onMarkerButtonTap"
+      >
+        <image class="marker-button-icon" src="/assets/target.png" mode="aspectFit" />
+      </button>
+    </view>
+
+    <view class="bottom-controls">
+      <view class="bottom-menu">
+        <button class="menu-btn" bindtap="onMenuHomeTap">
+          <image class="menu-icon" src="/assets/home.png" mode="aspectFit" />
+
+        </button>
+        <button class="menu-btn" bindtap="onMenuProfileTap">
+          <image class="menu-icon" src="/assets/profile.png" mode="aspectFit" />
+        </button>
+      </view>
+
+      <button
+        class="chat-fab"
+        hover-class="chat-fab-hover"
+        bindtap="onChatButtonTap"
+      >
+        <image class="chat-fab-icon" src="/assets/ai-chat.png" mode="aspectFit" />
+      </button>
     </view>
     <block wx:if="{{dronePickerVisible}}">
       <view class="drone-picker-mask" bindtap="closeDronePicker"></view>
