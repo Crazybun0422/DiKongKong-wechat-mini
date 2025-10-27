@@ -112,11 +112,10 @@
 
     <view class="bottom-controls">
       <view class="bottom-menu">
-        <button class="menu-btn" bindtap="onMenuHomeTap">
+        <button class="menu-btn {{activeTab === 'home' ? 'is-active' : ''}}" bindtap="onMenuHomeTap">
           <image class="menu-icon" src="/assets/home.png" mode="aspectFit" />
-
         </button>
-        <button class="menu-btn" bindtap="onMenuProfileTap">
+        <button class="menu-btn {{activeTab === 'profile' ? 'is-active' : ''}}" bindtap="onMenuProfileTap">
           <image class="menu-icon" src="/assets/profile.png" mode="aspectFit" />
         </button>
       </view>

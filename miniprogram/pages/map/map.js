@@ -81,7 +81,8 @@ Page({
     searchSuggestError: "",
     dronePickerVisible: false,
     pendingDroneIndex: null,
-    showDashboardPanel: true
+    showDashboardPanel: true,
+    activeTab: "home"
   },
 
   onLoad() {
@@ -147,10 +148,21 @@ Page({
   },
 
   onMenuHomeTap() {
-    this.showPlaceholderToast("首页功能开发中");
+    if (this.data.activeTab === "home") {
+      this.showPlaceholderToast("已在首页");
+      return;
+    }
+    this.setData({ activeTab: "home" }, () => {
+      if (typeof wx !== "undefined" && typeof wx.reLaunch === "function") {
+        wx.reLaunch({ url: "/pages/map/map" });
+      }
+    });
   },
 
   onMenuProfileTap() {
+    if (this.data.activeTab !== "profile") {
+      this.setData({ activeTab: "profile" });
+    }
     this.showPlaceholderToast("我的内容待定");
   },
 
@@ -478,7 +490,9 @@ Page({
       if (region && region.northeast && region.southwest && cl) {
         const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
         this._centerOverride = newCenter;
-        const scale = clampMapScale(e.detail.scale || this.data.scale);
+        const prevScale = this.data.scale;
+        const scale = clampMapScale(e.detail.scale || prevScale);
+        const scaleChanged = scale !== prevScale;
         console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
@@ -487,16 +501,16 @@ Page({
         const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
         const diffLng = Math.abs((this.data.center?.longitude || 0) - newCenter.longitude);
         const shouldSync = diffLat > 1e-5 || diffLng > 1e-5 || scale !== this.data.scale;
-        const run = () => {
+        const run = (forceRefresh) => {
           this.refreshWmsOverlay(newCenter, scale, region);
-          this.requestDjiZones(true, newCenter, region, scale);
+          this.requestDjiZones(forceRefresh, newCenter, region, scale);
           this.updateStatusPanel(this._lastAreas);
         };
         if (shouldSync) {
           this._suppressRegionOnce = true;
-          this.setData({ center: newCenter, scale }, run);
+          this.setData({ center: newCenter, scale }, () => run(scaleChanged));
         } else {
-          run();
+          run(scaleChanged);
         }
         return;
       }

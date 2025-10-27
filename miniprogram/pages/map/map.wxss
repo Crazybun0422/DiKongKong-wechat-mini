@@ -470,8 +470,8 @@ button.marker-button::after,
 .marker-button-icon,
 .menu-icon,
 .chat-fab-icon {
-  width: 48rpx;
-  height: 48rpx;
+  width: 64rpx;
+  height: 64rpx;
   transition: filter 0.2s ease;
 }
 
@@ -483,7 +483,7 @@ button.marker-button::after,
 }
 
 .dashboard-toggle.is-active .dashboard-toggle-icon {
-  filter: brightness(0) saturate(100%) invert(64%) sepia(24%) saturate(626%) hue-rotate(75deg) brightness(94%) contrast(101%);
+  filter: brightness(0) saturate(100%) invert(26%) sepia(81%) saturate(2342%) hue-rotate(203deg) brightness(95%) contrast(92%);
 }
 
 .bottom-controls {
@@ -493,7 +493,7 @@ button.marker-button::after,
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: -20rpx;
+  gap: 0rpx;
   z-index: 38;
 }
 
@@ -530,12 +530,21 @@ button.marker-button::after,
 }
 
 .menu-icon {
-  width: 42rpx;
-  height: 42rpx;
+  width: 64rpx;
+  height: 64rpx;
 }
 
 .menu-label {
   font-size: 22rpx;
+}
+
+.menu-btn.is-active .menu-label {
+  color: #1976ff;
+  font-weight: 600;
+}
+
+.menu-btn.is-active .menu-icon {
+  filter: brightness(0) saturate(100%) invert(26%) sepia(81%) saturate(2342%) hue-rotate(203deg) brightness(95%) contrast(92%);
 }
 
 .chat-fab {
