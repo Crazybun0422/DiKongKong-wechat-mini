@@ -6,6 +6,8 @@
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
+      min-scale="{{minScale}}"
+      max-scale="{{maxScale}}"
       show-location="true"
       markers="{{markers}}"
       polygons="{{polygons}}"

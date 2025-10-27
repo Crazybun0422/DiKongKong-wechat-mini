@@ -113,7 +113,7 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
 }
 
 function clampRadius(r) {
-  return Math.round(Math.min(Math.max(1000, r), 80000));
+  return Math.round(Math.min(Math.max(50000, r), 80000));
 }
 
 function lonLatToMercator(lng, lat) {

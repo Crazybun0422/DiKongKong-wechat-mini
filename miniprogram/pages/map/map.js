@@ -39,12 +39,25 @@ const NFZ_CENTER_COLORS = {
   10: "#A9D86E"
 };
 
+const MAP_MIN_SCALE = 3;
+const MAP_MAX_SCALE = 20;
+const DEFAULT_MAP_SCALE = 17;
+
+const MIN_FETCH_RADIUS = 50000;
+const MAX_FETCH_RADIUS = 80000;
+const DEFAULT_FETCH_RADIUS = 50000;
+
+const clampMapScale = (value) =>
+  Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, value || DEFAULT_MAP_SCALE));
+
 Page({
   data: {
     keyword: "",
     djiMsg: "",
     center: DEFAULT_CENTER,
-    scale: 12,
+    scale: DEFAULT_MAP_SCALE,
+    minScale: MAP_MIN_SCALE,
+    maxScale: MAP_MAX_SCALE,
     markers: [],
     polygons: [],
     circles: [],
@@ -69,7 +82,7 @@ Page({
   onLoad() {
     this.mapCtx = wx.createMapContext("main-map");
     this._fetchTimer = null;
-    this._currentRadius = 30000;
+    this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
     this._suppressRegionOnce = false;
     this._centerOverride = this.data.center;
@@ -341,9 +354,10 @@ Page({
       isHighAccuracy: true,
       highAccuracyExpireTime: 8000,
       success: (res) => {
+        const targetScale = clampMapScale(options.scale || this.data.scale);
         this.centerOnPoint(
           { latitude: res.latitude, longitude: res.longitude },
-          options.scale || 14,
+          targetScale,
           !!options.silent
         );
       },
@@ -354,14 +368,15 @@ Page({
     });
   },
 
-  centerOnPoint(point, scale = 14, silent = false) {
+  centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false) {
     if (!point) return;
     this._suppressRegionOnce = true;
     this._centerOverride = point;
+    const targetScale = clampMapScale(scale);
     this.setData(
       {
         center: point,
-        scale
+        scale: targetScale
       },
       () => {
         this._currentBounds = null;
@@ -431,7 +446,7 @@ Page({
       if (region && region.northeast && region.southwest && cl) {
         const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
         this._centerOverride = newCenter;
-        const scale = e.detail.scale || this.data.scale;
+        const scale = clampMapScale(e.detail.scale || this.data.scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
         this._currentRadius = clampRadius(radius);
@@ -468,7 +483,7 @@ Page({
           longitude: res.longitude
         };
         this._centerOverride = newCenter;
-        const scale = detail?.scale || this.data.scale;
+        const scale = clampMapScale(detail?.scale || this.data.scale);
         // cache region for WMS tiling
         this._lastRegion = detail?.region || null;
         const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
@@ -509,10 +524,10 @@ Page({
           southwest.latitude,
           southwest.longitude
         );
-        return Math.max(1000, Math.min(80000, diag / 2));
+        return Math.max(MIN_FETCH_RADIUS, Math.min(MAX_FETCH_RADIUS, diag / 2));
       }
     }
-    return 30000;
+    return clampRadius(DEFAULT_FETCH_RADIUS);
   },
 
   scheduleFetchDji(delay = 300, force = false) {
@@ -525,7 +540,7 @@ Page({
 
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
     const center = centerOverride || this.data.center;
-    const radius = this._currentRadius || 30000;
+    const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
     const prev = this._lastFetch || {};
     const moved =
       haversineMeters(
@@ -724,7 +739,7 @@ Page({
 
   refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
     const center = centerOverride || this.data.center;
-    const scale = scaleOverride || this.data.scale;
+    const scale = clampMapScale(scaleOverride || this.data.scale);
     if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
       this.clearMapOverlays();
       this._currentWmsTiles = [];
@@ -814,7 +829,7 @@ Page({
   circleRectFromCenter(center, radius) {
     if (!center) return null;
     const metersLat = 111320;
-    const useRadius = clampRadius(radius || 30000);
+    const useRadius = clampRadius(radius || DEFAULT_FETCH_RADIUS);
     const latDelta = useRadius / metersLat;
     const cosLat = Math.cos((center.latitude * Math.PI) / 180);
     const metersLng = metersLat * Math.max(cosLat, 0.01);
@@ -839,7 +854,7 @@ Page({
     if (this._currentBounds) return this._currentBounds;
     const rect = this.circleRectFromCenter(
       this.data.center || DEFAULT_CENTER,
-      this._currentRadius || 30000
+      this._currentRadius || DEFAULT_FETCH_RADIUS
     );
     this._currentBounds = rect;
     return rect;

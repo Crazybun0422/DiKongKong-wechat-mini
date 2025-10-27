@@ -8,7 +8,7 @@ const {
 const { CAAC_TOKEN } = require("./config");
 
 const WMS_MIN_ZOOM = 5;
-const WMS_MAX_ZOOM = 16;
+const WMS_MAX_ZOOM = 20;
 
 function lonLatToTile(lng, lat, zoom) {
   const scale = Math.pow(2, zoom);
