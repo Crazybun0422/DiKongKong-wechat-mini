@@ -93,7 +93,8 @@ Page({
     permissionChecklistLoading: false,
     showProfileFill: false,
     tempNickname: "",
-    tempAvatarUrl: DEFAULT_AVATAR_PATH
+    tempAvatarUrl: DEFAULT_AVATAR_PATH,
+    activeTab: "home"
   },
 
   onLoad() {
@@ -114,6 +115,12 @@ Page({
     this.scheduleFetchDji(0);
     this.updateStatusPanel();
     this.requestInitialLocation();
+  },
+
+  onShow() {
+    if (this.data.activeTab !== "home") {
+      this.setData({ activeTab: "home" });
+    }
   },
 
   onUnload() {
@@ -162,10 +169,16 @@ Page({
   },
 
   onMenuHomeTap() {
+    if (this.data.activeTab !== "home") {
+      this.setData({ activeTab: "home" });
+    }
     this.showPlaceholderToast("已在首页");
   },
 
   onMenuProfileTap() {
+    if (this.data.activeTab !== "profile") {
+      this.setData({ activeTab: "profile" });
+    }
     this.ensureProfileAuthenticated()
       .then(() => {
         if (this.data.showDashboardPanel) {
@@ -176,6 +189,7 @@ Page({
         }
       })
       .catch((err) => {
+        this.setData({ activeTab: "home" });
         if (err && err.message === "user-cancel") {
           return;
         }
@@ -480,7 +494,7 @@ Page({
     const showLoading = typeof wx.showLoading === "function";
     const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
     return ensureProfile.then((profile) => {
-      if (showLoading) wx.showLoading({ title: "授权�?..", mask: true });
+      if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
       return this.ensureAccessToken({ profileOverride: profile || {} })
         .then(() => {
           hideLoading();
