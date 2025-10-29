@@ -6,11 +6,17 @@ const {
   WMS_MIN_ZOOM,
   WMS_MAX_ZOOM
 } = require("../../utils/wms");
+const { haversineMeters, clampRadius, gcj02ToWgs84 } = require("../../utils/coords");
 const {
-  haversineMeters,
-  clampRadius,
-  gcj02ToWgs84
-} = require("../../utils/coords");
+  DEFAULT_AVATAR_PATH,
+  extractAvatarFileName: extractAvatarFileNameUtil,
+  buildAvatarDownloadUrl: buildAvatarDownloadUrlUtil,
+  prepareAvatarForUpload: prepareAvatarForUploadUtil,
+  uploadAvatarFile: uploadAvatarFileUtil,
+  loadStoredProfile: loadStoredProfileUtil,
+  persistProfileLocally: persistProfileLocallyUtil,
+  hasStoredProfile: hasStoredProfileUtil
+} = require("../../utils/profile");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -28,8 +34,6 @@ const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
 };
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
-const USER_PROFILE_STORAGE_KEY = "userProfile";
-const DEFAULT_AVATAR_PATH = "/assets/default-avatar.png";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#1088F2",
@@ -85,7 +89,6 @@ Page({
     dronePickerVisible: false,
     pendingDroneIndex: null,
     showDashboardPanel: true,
-    activeTab: "home",
     showPermissionChecklistPanel: false,
     permissionChecklistLoading: false,
     showProfileFill: false,
@@ -159,49 +162,25 @@ Page({
   },
 
   onMenuHomeTap() {
-    if (this.data.activeTab === "home") {
-      this.showPlaceholderToast("已在首页");
-      return;
-    }
-    this.setData({ activeTab: "home" }, () => {
-      if (typeof wx !== "undefined" && typeof wx.reLaunch === "function") {
-        wx.reLaunch({ url: "/pages/map/map" });
-      }
-    });
+    this.showPlaceholderToast("已在首页");
   },
 
   onMenuProfileTap() {
-    if (this.data.activeTab !== "profile") {
-      this.setData({ activeTab: "profile" });
-    }
-    if (this.hasAccessToken()) {
-      this.showPlaceholderToast("我的内容待定");
-      return;
-    }
-    const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
-    const ensureProfile = this.hasProfileInfo() ? Promise.resolve(this.loadStoredProfile()) : this.openProfileFill();
-    ensureProfile
-      .then((profile) => {
-        if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
-        return this.ensureAccessToken({ profileOverride: profile || {} })
-          .then(() => {
-            hideLoading();
-            this.showPlaceholderToast("我的内容待定");
-          })
-          .catch((err) => {
-            hideLoading();
-            throw err;
-          });
+    this.ensureProfileAuthenticated()
+      .then(() => {
+        if (this.data.showDashboardPanel) {
+          this.setData({ showDashboardPanel: false });
+        }
+        if (typeof wx.navigateTo === "function") {
+          wx.navigateTo({ url: "/pages/profile/profile" });
+        }
       })
       .catch((err) => {
         if (err && err.message === "user-cancel") {
-          wx.showToast({ title: "已取消", icon: "none" });
           return;
         }
-        console.warn("登录失败", err);
-        if (typeof wx.showToast === "function") {
-          wx.showToast({ title: "登录失败，请稍后再试", icon: "none" });
+        if (err && err.message === "login-unavailable") {
+          this.showPlaceholderToast("暂时无法打开我的页面");
         }
       });
   },
@@ -486,14 +465,40 @@ Page({
     return (app && app.globalData && app.globalData.apiBase) || "";
   },
 
-  buildAvatarDownloadUrl(value) {
-    if (!value) return DEFAULT_AVATAR_PATH;
-    if (typeof value === "string" && (/^https?:\/\//.test(value) || value.startsWith("wxfile://"))) {
-      return value;
+  getAuthToken() {
+    const app = getApp ? getApp() : null;
+    return (app && app.globalData && app.globalData.token) || "";
+  },
+
+  ensureProfileAuthenticated() {
+    if (this.hasAccessToken()) {
+      return Promise.resolve(this.loadStoredProfile());
     }
-    const base = this.getApiBase();
-    if (!base) return value;
-    return `${base}/api/files/download/${encodeURIComponent(value)}`;
+    const ensureProfile = this.hasProfileInfo()
+      ? Promise.resolve(this.loadStoredProfile())
+      : this.openProfileFill();
+    const showLoading = typeof wx.showLoading === "function";
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    return ensureProfile.then((profile) => {
+      if (showLoading) wx.showLoading({ title: "授权�?..", mask: true });
+      return this.ensureAccessToken({ profileOverride: profile || {} })
+        .then(() => {
+          hideLoading();
+          return profile;
+        })
+        .catch((err) => {
+          hideLoading();
+          throw err;
+        });
+    });
+  },
+
+  extractAvatarFileName(value) {
+    return extractAvatarFileNameUtil(value);
+  },
+
+  buildAvatarDownloadUrl(value) {
+    return buildAvatarDownloadUrlUtil(value, { apiBase: this.getApiBase() });
   },
 
   hasAccessToken() {
@@ -514,37 +519,11 @@ Page({
   },
 
   loadStoredProfile() {
-    const app = getApp ? getApp() : null;
-    const fromGlobal = app && app.globalData && app.globalData.userProfile;
-    const globalNickname = fromGlobal && (fromGlobal.nickName || fromGlobal.nickname || "");
-    const globalAvatar = fromGlobal && fromGlobal.avatarUrl;
-    if (globalNickname || globalAvatar) {
-      return {
-        nickname: (globalNickname || "").trim(),
-        avatarUrl: globalAvatar || ""
-      };
-    }
-    try {
-      const cached = wx.getStorageSync(USER_PROFILE_STORAGE_KEY);
-      if (cached && typeof cached === "object") {
-        const nickname = cached.nickname || cached.nickName || "";
-        const avatarUrl = cached.avatarUrl || "";
-        if (nickname || avatarUrl) {
-          if (app && app.globalData) {
-            app.globalData.userProfile = { nickName: nickname, avatarUrl };
-          }
-          return { nickname: nickname.trim(), avatarUrl };
-        }
-      }
-    } catch (err) {
-      console.warn("读取用户资料缓存失败", err);
-    }
-    return null;
+    return loadStoredProfileUtil();
   },
 
   hasProfileInfo() {
-    const profile = this.loadStoredProfile();
-    return !!(profile && profile.nickname);
+    return hasStoredProfileUtil();
   },
 
   openPermissionChecklist(options = {}) {
@@ -704,56 +683,12 @@ Page({
   },
 
   prepareAvatarForUpload(src) {
-    const source = src || DEFAULT_AVATAR_PATH;
-    return new Promise((resolve, reject) => {
-      if (source.startsWith("wxfile://") || source.startsWith(wx.env.USER_DATA_PATH)) {
-        resolve(source);
-        return;
-      }
-      if (source.startsWith("http://") || source.startsWith("https://")) {
-        wx.downloadFile({
-          url: source,
-          success: (res) => {
-            if (res.tempFilePath) resolve(res.tempFilePath);
-            else reject(new Error("download-avatar-empty"));
-          },
-          fail: (err) => reject(err)
-        });
-        return;
-      }
-      wx.getImageInfo({
-        src: source,
-        success: (info) => {
-          if (info && info.path) resolve(info.path);
-          else reject(new Error("image-info-missing"));
-        },
-        fail: (err) => reject(err)
-      });
-    });
+    return prepareAvatarForUploadUtil(src);
   },
 
   uploadAvatarFile(filePath) {
-    const base = this.getApiBase();
-    if (!base) return Promise.reject(new Error("missing-api-base"));
-    return new Promise((resolve, reject) => {
-      wx.uploadFile({
-        url: `${base}/api/files/upload`,
-        filePath,
-        name: "file",
-        success: (res) => {
-          try {
-            const body = JSON.parse(res?.data || "{}");
-            if (body && body.data) {
-              resolve(body.data);
-              return;
-            }
-          } catch (err) {
-            console.warn("解析上传响应失败", err);
-          }
-          reject(new Error("upload-avatar-failed"));
-        },
-        fail: (err) => reject(err)
-      });
+    return uploadAvatarFileUtil(filePath, {
+      apiBase: this.getApiBase()
     });
   },
 
@@ -769,19 +704,22 @@ Page({
     const app = getApp ? getApp() : null;
 
     const persistProfile = (avatarFileName) => {
-      const profile = { nickname, avatarUrl: avatarFileName };
-      if (app && app.globalData) {
-        app.globalData.userProfile = { nickName: nickname, avatarUrl: avatarFileName };
-      }
-      try {
-        wx.setStorageSync(USER_PROFILE_STORAGE_KEY, profile);
-      } catch (err) {
-        console.warn("缓存头像昵称失败", err);
-      }
-      this._selectedAvatarFileName = avatarFileName;
-      this._selectedAvatarSource = this.buildAvatarDownloadUrl(avatarFileName);
+      const rawValue = typeof avatarFileName === "string" ? avatarFileName.trim() : avatarFileName;
+      const normalized =
+        (typeof rawValue === "string" && /^https?:\/\//.test(rawValue))
+          ? rawValue
+          : this.extractAvatarFileName(rawValue) || (typeof rawValue === "string" ? rawValue : "");
+      persistProfileLocallyUtil({
+        nickname,
+        avatarUrl: normalized
+      });
+      this._selectedAvatarFileName = normalized;
+      this._selectedAvatarSource = this.buildAvatarDownloadUrl(normalized);
       this._avatarChanged = false;
-      return profile;
+      return {
+        nickname,
+        avatarUrl: normalized
+      };
     };
 
     const finish = (profile) => {

@@ -1,6 +1,7 @@
 {
   "pages": [
-    "pages/map/map"
+    "pages/map/map",
+    "pages/profile/profile"
   ],
   "window": {
     "navigationBarTitleText": "低空空",

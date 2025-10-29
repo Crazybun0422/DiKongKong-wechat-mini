@@ -135,6 +135,7 @@ paths:
   /api/user/profile:
     get:
       summary: 获取用户资料
+      description: 返回用户基础信息以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
       responses:
         '200':
           description: OK
@@ -161,6 +162,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
     put:
       summary: 修改用户资料
+      description: 仅允许更新邮箱、手机号和头像，FLP 点数需通过专用接口调整，无法在此处修改。
       requestBody:
         required: true
         content:
@@ -268,6 +270,10 @@ components:
           type: string
         online:
           type: boolean
+        flpBalance:
+          type: integer
+          format: int64
+          description: 来自 FLP 余额表的只读虚拟代币余额。
     ApiResponseAdminProfileResponse:
       type: object
       properties:
