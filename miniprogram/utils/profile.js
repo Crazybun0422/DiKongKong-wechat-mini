@@ -227,7 +227,7 @@ function normalizeProfileData(raw = {}, options = {}) {
   } else if (typeof avatarCandidate === "string" && /^https?:\/\//.test(avatarCandidate)) {
     displayAvatar = avatarCandidate;
   }
-  const flpRaw = raw.flp ?? raw.FLP ?? stored.flpValue ?? stored.flp;
+  const flpRaw = raw.flp ?? raw.FLP ?? raw.flpBalance ?? stored.flpValue ?? stored.flp;
   let flpValue = null;
   if (typeof flpRaw === "number" && isFinite(flpRaw)) {
     flpValue = flpRaw;

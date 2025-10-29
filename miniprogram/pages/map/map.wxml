@@ -93,7 +93,7 @@
       </view>
     </view>
 
-    <view class="floating-controls">
+    <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
       <button
         class="dashboard-toggle {{showDashboardPanel ? 'is-active' : ''}}"
         hover-class="dashboard-toggle-hover"
