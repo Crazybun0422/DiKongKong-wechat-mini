@@ -180,7 +180,7 @@ function updateUserProfile(payload = {}, options = {}) {
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
-    path: "/api/weapp/login",
+    path: "/api/user/profile",
     method: "PUT",
     data: payload
   }).then((body) => body?.data || {});
