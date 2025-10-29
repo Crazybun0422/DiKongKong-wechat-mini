@@ -1,0 +1,75 @@
+openapi: 3.0.1
+info:
+  title: File APIs
+  description: 文件上传和下载接口。
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /api/files/upload:
+    post:
+      summary: 上传文件
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 上传结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+  /api/files/download/{objectName}:
+    get:
+      summary: 下载文件
+      parameters:
+        - in: path
+          name: objectName
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 文件内容
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  schemas:
+    ApiResponseString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: string
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true

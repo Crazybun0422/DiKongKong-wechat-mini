@@ -1,0 +1,373 @@
+openapi: 3.0.1
+info:
+  title: Auth APIs
+  description: 管理员与普通用户的注册、登录以及个人资料接口。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/auth/register:
+    post:
+      summary: 注册管理员
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/auth/login:
+    post:
+      summary: 登录获取JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAuthResponse'
+  /api/auth/profile:
+    get:
+      summary: 获取管理员资料
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAdminProfileResponse'
+    put:
+      summary: 修改管理员资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAdminProfileResponse'
+  /api/auth/weapp/config:
+    get:
+      summary: 获取小程序相关密钥
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappConfigResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 设置小程序相关密钥
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/register:
+    post:
+      summary: 注册普通用户
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegisterRequest'
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/login:
+    post:
+      summary: 用户登录获取JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAuthResponse'
+  /api/user/profile:
+    get:
+      summary: 获取用户资料
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserProfileResponse'
+  /api/weapp/login:
+    post:
+      summary: 小程序用户登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappLoginRequest'
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
+    put:
+      summary: 修改用户资料
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateProfileRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserProfileResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        email:
+          type: string
+        avatarUrl:
+          type: string
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    UpdateProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        avatarUrl:
+          type: string
+    UserRegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        inviteCode:
+          type: string
+    UserUpdateProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+    AdminProfileResponse:
+      type: object
+      properties:
+        username:
+          type: string
+        role:
+          type: string
+        avatarUrl:
+          type: string
+        email:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        loginSeq:
+          type: string
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        featureCode:
+          type: string
+        status:
+          type: string
+        online:
+          type: boolean
+    ApiResponseAdminProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/AdminProfileResponse'
+    ApiResponseAuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/AuthResponse'
+    ApiResponseUserProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserProfileResponse'
+    ApiResponseWeappLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+        data:
+          $ref: '#/components/schemas/WeappLoginResponse'
+    WeappLoginRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+    WeappLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        featureCode:
+          type: string
+    WeappConfigRequest:
+      type: object
+      properties:
+        appId:
+          type: string
+        secret:
+          type: string
+        jwtSecret:
+          type: string
+    WeappConfigResponse:
+      type: object
+      properties:
+        appId:
+          type: string
+        secret:
+          type: string
+        jwtSecret:
+          type: string
+    ApiResponseWeappConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappConfigResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true

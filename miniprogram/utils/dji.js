@@ -81,7 +81,7 @@ const NFZ_PALETTE = {
 };
 
 function styleForLevel(level) {
-  console.log("color:",level)
+  // console.log("color:", level)
   const color = NFZ_PALETTE[level] || NFZ_DEFAULT_COLOR;
   return {
     strokeColor: color,
@@ -189,14 +189,14 @@ function samePolygon(a, b) {
 }
 
 function drawSingleArea(area, style, polygons, circles) {
-  console.log("area",area);
+  // console.log("area",area);
   let base = normalizeHex(style.strokeColor);
   const fillScale = style.fillAlphaScale || 1;
   const fillOpacity = levelFillOpacity(style.level || area.level, fillScale);
   const strokeColor = colorWithAlpha(base, NFZ_STROKE_OPACITY);
 
-  if(base!==area.color){
-      base = area.color
+  if (base !== area.color) {
+    base = area.color
   }
   const fillColor = colorWithAlpha(base, fillOpacity);
   if (
