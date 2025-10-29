@@ -6,11 +6,17 @@ const {
   WMS_MIN_ZOOM,
   WMS_MAX_ZOOM
 } = require("../../utils/wms");
+const { haversineMeters, clampRadius, gcj02ToWgs84 } = require("../../utils/coords");
 const {
-  haversineMeters,
-  clampRadius,
-  gcj02ToWgs84
-} = require("../../utils/coords");
+  DEFAULT_AVATAR_PATH,
+  extractAvatarFileName: extractAvatarFileNameUtil,
+  buildAvatarDownloadUrl: buildAvatarDownloadUrlUtil,
+  prepareAvatarForUpload: prepareAvatarForUploadUtil,
+  uploadAvatarFile: uploadAvatarFileUtil,
+  loadStoredProfile: loadStoredProfileUtil,
+  persistProfileLocally: persistProfileLocallyUtil,
+  hasStoredProfile: hasStoredProfileUtil
+} = require("../../utils/profile");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -27,6 +33,7 @@ const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
   slug: ""
 };
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
+const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#1088F2",
@@ -39,12 +46,29 @@ const NFZ_CENTER_COLORS = {
   10: "#A9D86E"
 };
 
+const MAP_MIN_SCALE = 3;
+const MAP_MAX_SCALE = 16;
+const DEFAULT_MAP_SCALE = 15;
+
+const MIN_FETCH_RADIUS = 80000;
+const MAX_FETCH_RADIUS = 80000;
+const DEFAULT_FETCH_RADIUS = 80000;
+
+const clampMapScale = (value) => {
+  const numeric = Number(value);
+  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
+  const rounded = Math.round(base);
+  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
+};
+
 Page({
   data: {
     keyword: "",
     djiMsg: "",
     center: DEFAULT_CENTER,
-    scale: 12,
+    scale: DEFAULT_MAP_SCALE,
+    minScale: MAP_MIN_SCALE,
+    maxScale: MAP_MAX_SCALE,
     markers: [],
     polygons: [],
     circles: [],
@@ -63,13 +87,19 @@ Page({
     searchSuggestLoading: false,
     searchSuggestError: "",
     dronePickerVisible: false,
-    pendingDroneIndex: null
+    pendingDroneIndex: null,
+    showDashboardPanel: true,
+    showPermissionChecklistPanel: false,
+    permissionChecklistLoading: false,
+    showProfileFill: false,
+    tempNickname: "",
+    tempAvatarUrl: DEFAULT_AVATAR_PATH
   },
 
   onLoad() {
     this.mapCtx = wx.createMapContext("main-map");
     this._fetchTimer = null;
-    this._currentRadius = 30000;
+    this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
     this._suppressRegionOnce = false;
     this._centerOverride = this.data.center;
@@ -77,6 +107,9 @@ Page({
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
     this._suggestTimer = null;
+    this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
+    this._selectedAvatarFileName = "";
+    this._avatarChanged = false;
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.updateStatusPanel();
@@ -118,6 +151,78 @@ Page({
 
   onSearchTap() {
     this.performSearch();
+  },
+
+  toggleDashboardPanel() {
+    this.setData({ showDashboardPanel: !this.data.showDashboardPanel });
+  },
+
+  onChatButtonTap() {
+    this.showPlaceholderToast("聊天功能开发中");
+  },
+
+  onMenuHomeTap() {
+    this.showPlaceholderToast("已在首页");
+  },
+
+  onMenuProfileTap() {
+    this.ensureProfileAuthenticated()
+      .then(() => {
+        if (this.data.showDashboardPanel) {
+          this.setData({ showDashboardPanel: false });
+        }
+        if (typeof wx.navigateTo === "function") {
+          wx.navigateTo({ url: "/pages/profile/profile" });
+        }
+      })
+      .catch((err) => {
+        if (err && err.message === "user-cancel") {
+          return;
+        }
+        if (err && err.message === "login-unavailable") {
+          this.showPlaceholderToast("暂时无法打开我的页面");
+        }
+      });
+  },
+
+  onMarkerButtonTap() {
+    if (this.hasAccessToken()) {
+      this.showPlaceholderToast("标记功能开发中");
+      return;
+    }
+    const showLoading = typeof wx.showLoading === "function";
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    const ensureProfile = this.hasProfileInfo() ? Promise.resolve(this.loadStoredProfile()) : this.openProfileFill();
+    ensureProfile
+      .then((profile) => {
+        if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
+        return this.ensureAccessToken({ profileOverride: profile || {} })
+          .then(() => {
+            hideLoading();
+            this.showPlaceholderToast("标记功能开发中");
+          })
+          .catch((err) => {
+            hideLoading();
+            throw err;
+          });
+      })
+      .catch((err) => {
+        if (err && err.message === "user-cancel") {
+          wx.showToast({ title: "已取消", icon: "none" });
+          return;
+        }
+        console.warn("登录失败", err);
+        if (typeof wx.showToast === "function") {
+          wx.showToast({ title: "登录失败，请稍后再试", icon: "none" });
+        }
+      });
+  },
+
+  showPlaceholderToast(message) {
+    console.log(`[placeholder] ${message}`);
+    if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
+      wx.showToast({ title: message, icon: "none" });
+    }
   },
 
   performSearch() {
@@ -341,9 +446,10 @@ Page({
       isHighAccuracy: true,
       highAccuracyExpireTime: 8000,
       success: (res) => {
+        const targetScale = clampMapScale(options.scale || this.data.scale);
         this.centerOnPoint(
           { latitude: res.latitude, longitude: res.longitude },
-          options.scale || 14,
+          targetScale,
           !!options.silent
         );
       },
@@ -354,14 +460,107 @@ Page({
     });
   },
 
-  centerOnPoint(point, scale = 14, silent = false) {
+  getApiBase() {
+    const app = getApp ? getApp() : null;
+    return (app && app.globalData && app.globalData.apiBase) || "";
+  },
+
+  getAuthToken() {
+    const app = getApp ? getApp() : null;
+    return (app && app.globalData && app.globalData.token) || "";
+  },
+
+  ensureProfileAuthenticated() {
+    if (this.hasAccessToken()) {
+      return Promise.resolve(this.loadStoredProfile());
+    }
+    const ensureProfile = this.hasProfileInfo()
+      ? Promise.resolve(this.loadStoredProfile())
+      : this.openProfileFill();
+    const showLoading = typeof wx.showLoading === "function";
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    return ensureProfile.then((profile) => {
+      if (showLoading) wx.showLoading({ title: "授权�?..", mask: true });
+      return this.ensureAccessToken({ profileOverride: profile || {} })
+        .then(() => {
+          hideLoading();
+          return profile;
+        })
+        .catch((err) => {
+          hideLoading();
+          throw err;
+        });
+    });
+  },
+
+  extractAvatarFileName(value) {
+    return extractAvatarFileNameUtil(value);
+  },
+
+  buildAvatarDownloadUrl(value) {
+    return buildAvatarDownloadUrlUtil(value, { apiBase: this.getApiBase() });
+  },
+
+  hasAccessToken() {
+    const app = getApp ? getApp() : null;
+    if (app && app.globalData && app.globalData.token) {
+      return true;
+    }
+    try {
+      const token = wx.getStorageSync(ACCESS_TOKEN_STORAGE_KEY);
+      if (token && typeof token === "string") {
+        if (app && app.globalData) app.globalData.token = token;
+        return true;
+      }
+    } catch (err) {
+      console.warn("读取 accessToken 失败", err);
+    }
+    return false;
+  },
+
+  loadStoredProfile() {
+    return loadStoredProfileUtil();
+  },
+
+  hasProfileInfo() {
+    return hasStoredProfileUtil();
+  },
+
+  openPermissionChecklist(options = {}) {
+    const { includeProfile = false, resolve, reject } = options;
+    this._pendingLocationPermission = {
+      resolve,
+      reject,
+      includeProfile: !!includeProfile
+    };
+    this.setData({
+      showPermissionChecklistPanel: true,
+      permissionChecklistLoading: false
+    });
+  },
+
+  closePermissionChecklist(success) {
+    if (this._pendingLocationPermission && success && typeof this._pendingLocationPermission.resolve === "function") {
+      this._pendingLocationPermission.resolve();
+    } else if (this._pendingLocationPermission && !success && typeof this._pendingLocationPermission.reject === "function") {
+      this._pendingLocationPermission.reject(new Error("user-cancel"));
+    }
+    this._pendingLocationPermission = null;
+    this.setData({
+      showPermissionChecklistPanel: false,
+      permissionChecklistLoading: false
+    });
+  },
+
+  centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false) {
     if (!point) return;
     this._suppressRegionOnce = true;
     this._centerOverride = point;
+    const targetScale = clampMapScale(scale);
     this.setData(
       {
         center: point,
-        scale
+        scale: targetScale
       },
       () => {
         this._currentBounds = null;
@@ -381,34 +580,231 @@ Page({
             resolve();
             return;
           }
-          wx.authorize({
-            scope: "scope.userLocation",
-            success: () => resolve(),
-            fail: () => {
-              wx.showModal({
-                title: "需要定位权限",
-                content: "用于定位当前位置并展示附近空域/禁飞区，是否前往开启？",
-                confirmText: "去开启",
-                success: (r) => {
-                  if (r.confirm) {
-                    wx.openSetting({
-                      success: (st) => {
-                        if (st.authSetting && st.authSetting["scope.userLocation"]) resolve();
-                        else reject();
-                      },
-                      fail: reject
-                    });
-                  } else {
-                    reject();
-                  }
-                }
-              });
-            }
+          const needsProfile = !this.hasProfileInfo();
+          this.openPermissionChecklist({
+            includeProfile: needsProfile,
+            resolve,
+            reject
           });
         },
         fail: reject
       });
     });
+  },
+
+  authorizeLocation() {
+    return new Promise((resolve, reject) => {
+      wx.authorize({
+        scope: "scope.userLocation",
+        success: () => resolve(),
+        fail: () => {
+          wx.openSetting({
+            success: (st) => {
+              const granted = !!(st.authSetting && st.authSetting["scope.userLocation"]);
+              if (granted) resolve();
+              else reject(new Error("permission-denied"));
+            },
+            fail: (err) => reject(err)
+          });
+        }
+      });
+    });
+  },
+
+  ensureAccessToken(options = {}) {
+    if (this.hasAccessToken()) return Promise.resolve();
+    if (this._ensureLoginPromise) return this._ensureLoginPromise;
+    const app = getApp ? getApp() : null;
+    if (!app || typeof app.loginWithProfile !== "function") {
+      return Promise.reject(new Error("login-unavailable"));
+    }
+    const override = options && options.profileOverride;
+    const profile = override || this.loadStoredProfile() || {};
+    this._ensureLoginPromise = app.loginWithProfile(profile)
+      .catch((err) => {
+        throw err || new Error("login-failed");
+      })
+      .finally(() => {
+        this._ensureLoginPromise = null;
+      });
+    return this._ensureLoginPromise;
+  },
+
+  onPermissionChecklistCancel() {
+    if (this.data.permissionChecklistLoading) return;
+    this.closePermissionChecklist(false);
+  },
+
+  openProfileFill() {
+    const existing = this.loadStoredProfile();
+    const nickname = existing?.nickname || "";
+    const avatarFileName = existing?.avatarUrl || "";
+    this._selectedAvatarFileName = avatarFileName || "";
+    this._avatarChanged = false;
+    const preview = avatarFileName ? this.buildAvatarDownloadUrl(avatarFileName) : DEFAULT_AVATAR_PATH;
+    this._selectedAvatarSource = preview;
+    return new Promise((resolve, reject) => {
+      this._profileFillResolve = resolve;
+      this._profileFillReject = reject;
+      this.setData({
+        showProfileFill: true,
+        tempNickname: nickname,
+        tempAvatarUrl: preview
+      });
+    });
+  },
+
+  onProfileFillCancel() {
+    const rej = this._profileFillReject;
+    this._profileFillResolve = null;
+    this._profileFillReject = null;
+    this._avatarChanged = false;
+    this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
+    this._selectedAvatarFileName = "";
+    this.setData({
+      showProfileFill: false,
+      tempNickname: "",
+      tempAvatarUrl: DEFAULT_AVATAR_PATH
+    });
+    if (typeof rej === "function") rej(new Error("user-cancel"));
+  },
+
+  onChooseAvatar(e) {
+    const { avatarUrl } = e.detail || {};
+    if (avatarUrl) {
+      this._selectedAvatarSource = avatarUrl;
+      this._avatarChanged = true;
+      this.setData({ tempAvatarUrl: avatarUrl });
+    }
+  },
+
+  onNicknameInput(e) {
+    this.setData({ tempNickname: (e.detail && e.detail.value) || "" });
+  },
+
+  prepareAvatarForUpload(src) {
+    return prepareAvatarForUploadUtil(src);
+  },
+
+  uploadAvatarFile(filePath) {
+    return uploadAvatarFileUtil(filePath, {
+      apiBase: this.getApiBase()
+    });
+  },
+
+  onProfileFillSubmit(e) {
+    const nickname = ((e.detail && e.detail.value && e.detail.value.nickname) || this.data.tempNickname || "").trim();
+    if (!nickname) {
+      wx.showToast({ title: "请填写昵称", icon: "none" });
+      return;
+    }
+    const hasExistingFile = !!this._selectedAvatarFileName;
+    const source = this._selectedAvatarSource || DEFAULT_AVATAR_PATH;
+    const needsUpload = this._avatarChanged || !hasExistingFile;
+    const app = getApp ? getApp() : null;
+
+    const persistProfile = (avatarFileName) => {
+      const rawValue = typeof avatarFileName === "string" ? avatarFileName.trim() : avatarFileName;
+      const normalized =
+        (typeof rawValue === "string" && /^https?:\/\//.test(rawValue))
+          ? rawValue
+          : this.extractAvatarFileName(rawValue) || (typeof rawValue === "string" ? rawValue : "");
+      persistProfileLocallyUtil({
+        nickname,
+        avatarUrl: normalized
+      });
+      this._selectedAvatarFileName = normalized;
+      this._selectedAvatarSource = this.buildAvatarDownloadUrl(normalized);
+      this._avatarChanged = false;
+      return {
+        nickname,
+        avatarUrl: normalized
+      };
+    };
+
+    const finish = (profile) => {
+      const resolve = this._profileFillResolve;
+      this._profileFillResolve = null;
+      this._profileFillReject = null;
+      this.setData({
+        showProfileFill: false,
+        tempNickname: profile.nickname,
+        tempAvatarUrl: this.buildAvatarDownloadUrl(profile.avatarUrl)
+      });
+      if (typeof resolve === "function") resolve(profile);
+    };
+
+    const showLoading = typeof wx.showLoading === "function";
+    const hideLoading = typeof wx.hideLoading === "function"
+      ? () => wx.hideLoading()
+      : () => {};
+
+    const handleFailure = (err) => {
+      hideLoading();
+      console.warn("保存头像昵称失败", err);
+      wx.showToast({ title: "保存失败，请稍后再试", icon: "none" });
+      const rejecter = this._profileFillReject;
+      this._profileFillResolve = null;
+      this._profileFillReject = null;
+      this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
+      this._selectedAvatarFileName = "";
+      this._avatarChanged = false;
+      this.setData({
+        showProfileFill: false,
+        tempNickname: nickname,
+        tempAvatarUrl: DEFAULT_AVATAR_PATH
+      });
+      if (typeof rejecter === "function") rejecter(err || new Error("profile-save-failed"));
+    };
+
+    if (showLoading) wx.showLoading({ title: "保存中...", mask: true });
+
+    if (!needsUpload && this._selectedAvatarFileName) {
+      const profile = persistProfile(this._selectedAvatarFileName);
+      hideLoading();
+      finish(profile);
+      return;
+    }
+
+    this.prepareAvatarForUpload(source)
+      .then((filePath) => this.uploadAvatarFile(filePath))
+      .then((fileName) => {
+        const profile = persistProfile(fileName);
+        hideLoading();
+        finish(profile);
+      })
+      .catch((err) => {
+        handleFailure(err);
+      });
+  },
+
+  onPermissionChecklistConfirm() {
+    const pending = this._pendingLocationPermission;
+    if (!pending || this.data.permissionChecklistLoading) return;
+    this.setData({ permissionChecklistLoading: true });
+    const needProfile = !!pending.includeProfile && !this.hasProfileInfo();
+    const ensureProfile = needProfile ? this.openProfileFill() : Promise.resolve(this.loadStoredProfile());
+    ensureProfile
+      .then((profile) => this.ensureAccessToken({ profileOverride: profile }))
+      .then(() => this.authorizeLocation().catch((err) => {
+        const wrapped = err || new Error("location-failed");
+        wrapped._source = "location";
+        throw wrapped;
+      }))
+      .then(() => {
+        this.closePermissionChecklist(true);
+      })
+      .catch((err) => {
+        if (err && err.message === "user-cancel") {
+          wx.showToast({ title: "已取消", icon: "none" });
+        } else if (err && err._source === "location" && err.message === "permission-denied") {
+          wx.showToast({ title: "开启定位权限后才能继续", icon: "none" });
+        } else {
+          console.warn("权限流程失败", err);
+          wx.showToast({ title: "操作失败，请稍后再试", icon: "none" });
+        }
+        this.setData({ permissionChecklistLoading: false });
+      });
   },
 
   onRegionChange(e) {
@@ -431,7 +827,10 @@ Page({
       if (region && region.northeast && region.southwest && cl) {
         const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
         this._centerOverride = newCenter;
-        const scale = e.detail.scale || this.data.scale;
+        const prevScale = this.data.scale;
+        const scale = clampMapScale(e.detail.scale || prevScale);
+        const scaleChanged = scale !== prevScale;
+        console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
         this._currentRadius = clampRadius(radius);
@@ -439,16 +838,16 @@ Page({
         const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
         const diffLng = Math.abs((this.data.center?.longitude || 0) - newCenter.longitude);
         const shouldSync = diffLat > 1e-5 || diffLng > 1e-5 || scale !== this.data.scale;
-        const run = () => {
+        const run = (forceRefresh) => {
           this.refreshWmsOverlay(newCenter, scale, region);
-          this.requestDjiZones(true, newCenter, region, scale);
+          this.requestDjiZones(forceRefresh, newCenter, region, scale);
           this.updateStatusPanel(this._lastAreas);
         };
         if (shouldSync) {
           this._suppressRegionOnce = true;
-          this.setData({ center: newCenter, scale }, run);
+          this.setData({ center: newCenter, scale }, () => run(scaleChanged));
         } else {
-          run();
+          run(scaleChanged);
         }
         return;
       }
@@ -457,7 +856,7 @@ Page({
     }
   },
 
-  onMapUpdated() {},
+  onMapUpdated() { },
 
   updateCenterAndRadius(detail) {
     this.mapCtx.getCenterLocation({
@@ -468,7 +867,7 @@ Page({
           longitude: res.longitude
         };
         this._centerOverride = newCenter;
-        const scale = detail?.scale || this.data.scale;
+        const scale = clampMapScale(detail?.scale || this.data.scale);
         // cache region for WMS tiling
         this._lastRegion = detail?.region || null;
         const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
@@ -509,10 +908,10 @@ Page({
           southwest.latitude,
           southwest.longitude
         );
-        return Math.max(1000, Math.min(80000, diag / 2));
+        return Math.max(MIN_FETCH_RADIUS, Math.min(MAX_FETCH_RADIUS, diag / 2));
       }
     }
-    return 30000;
+    return clampRadius(DEFAULT_FETCH_RADIUS);
   },
 
   scheduleFetchDji(delay = 300, force = false) {
@@ -525,7 +924,7 @@ Page({
 
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
     const center = centerOverride || this.data.center;
-    const radius = this._currentRadius || 30000;
+    const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
     const prev = this._lastFetch || {};
     const moved =
       haversineMeters(
@@ -540,11 +939,11 @@ Page({
       : this.currentGcjRect();
     const rectChanged = prev.rect
       ? (
-          Math.abs((gcjRect.ltlng || 0) - (prev.rect.ltlng || 0)) > 0.005 ||
-          Math.abs((gcjRect.ltlat || 0) - (prev.rect.ltlat || 0)) > 0.005 ||
-          Math.abs((gcjRect.rblng || 0) - (prev.rect.rblng || 0)) > 0.005 ||
-          Math.abs((gcjRect.rblat || 0) - (prev.rect.rblat || 0)) > 0.005
-        )
+        Math.abs((gcjRect.ltlng || 0) - (prev.rect.ltlng || 0)) > 0.005 ||
+        Math.abs((gcjRect.ltlat || 0) - (prev.rect.ltlat || 0)) > 0.005 ||
+        Math.abs((gcjRect.rblng || 0) - (prev.rect.rblng || 0)) > 0.005 ||
+        Math.abs((gcjRect.rblat || 0) - (prev.rect.rblat || 0)) > 0.005
+      )
       : true;
     if (!force && !moved && !radiusDiff && !rectChanged) return;
 
@@ -653,7 +1052,7 @@ Page({
     const reason = target.area.reason || target.area.desc || target.area.description;
     if (reason) extraParts.push(reason);
     return {
-      status: this.labelForArea(target.area),
+      status: this.labelForArea(target.area, target.parent),
       extra: extraParts.join(" · "),
       tone: this.toneForLevel(Number(target.area.level))
     };
@@ -724,7 +1123,7 @@ Page({
 
   refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
     const center = centerOverride || this.data.center;
-    const scale = scaleOverride || this.data.scale;
+    const scale = clampMapScale(scaleOverride || this.data.scale);
     if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
       this.clearMapOverlays();
       this._currentWmsTiles = [];
@@ -754,7 +1153,7 @@ Page({
     prev.forEach((handle) => {
       ctx.removeGroundOverlay({
         id: handle.id,
-        fail: () => {}
+        fail: () => { }
       });
     });
     this._wmsOverlayHandles = [];
@@ -790,7 +1189,7 @@ Page({
     handles.forEach((handle) => {
       this.mapCtx.removeGroundOverlay({
         id: handle.id,
-        fail: () => {}
+        fail: () => { }
       });
     });
     this._wmsOverlayHandles = [];
@@ -799,6 +1198,9 @@ Page({
   },
 
   buildBoundsRect(region, center, radius) {
+    if (typeof radius === "number" && Number.isFinite(radius)) {
+      return this.circleRectFromCenter(center, radius);
+    }
     if (region?.northeast && region?.southwest) {
       const { northeast, southwest } = region;
       return {
@@ -814,7 +1216,7 @@ Page({
   circleRectFromCenter(center, radius) {
     if (!center) return null;
     const metersLat = 111320;
-    const useRadius = clampRadius(radius || 30000);
+    const useRadius = clampRadius(radius || DEFAULT_FETCH_RADIUS);
     const latDelta = useRadius / metersLat;
     const cosLat = Math.cos((center.latitude * Math.PI) / 180);
     const metersLng = metersLat * Math.max(cosLat, 0.01);
@@ -839,7 +1241,7 @@ Page({
     if (this._currentBounds) return this._currentBounds;
     const rect = this.circleRectFromCenter(
       this.data.center || DEFAULT_CENTER,
-      this._currentRadius || 30000
+      this._currentRadius || DEFAULT_FETCH_RADIUS
     );
     this._currentBounds = rect;
     return rect;
@@ -858,7 +1260,12 @@ Page({
     };
   },
 
-  labelForArea(area) {
+  labelForArea(area, parent) {
+    const height = this.effectiveHeight(area, parent);
+    if (typeof height === "number" && height > 0) {
+      area.level = 6;
+      return "高度限制区";
+    }
     const level = Number(area?.level);
     switch (level) {
       case 2: return "禁飞区";
