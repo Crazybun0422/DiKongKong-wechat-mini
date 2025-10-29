@@ -45,7 +45,7 @@
 }
 
 .edit-input {
-  width: 100%;
+  width: 90%;
   height: 88rpx;
   padding: 0 24rpx;
   border-radius: 16rpx;
@@ -76,6 +76,7 @@
   font-size: 30rpx;
   background: linear-gradient(135deg, #0f7bff, #45b2ff);
   box-shadow: 0 16rpx 30rpx rgba(15, 123, 255, 0.28);
+  padding: 0%;
 }
 
 .edit-submit[disabled="true"] {
