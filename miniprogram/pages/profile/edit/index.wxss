@@ -1,0 +1,84 @@
+.edit-page {
+  min-height: 100vh;
+  background: #f5f6f8;
+  padding: 48rpx 40rpx 120rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.edit-header {
+  margin-bottom: 48rpx;
+}
+
+.edit-title {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin-bottom: 12rpx;
+}
+
+.edit-subtitle {
+  display: block;
+  font-size: 26rpx;
+  color: #8a8a8a;
+}
+
+.edit-form {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 32rpx 36rpx 28rpx;
+  box-shadow: 0 12rpx 32rpx rgba(15, 39, 91, 0.06);
+}
+
+.edit-form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.edit-label {
+  font-size: 28rpx;
+  color: #404040;
+  font-weight: 500;
+}
+
+.edit-input {
+  width: 100%;
+  height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: 16rpx;
+  background: #f2f4f7;
+  font-size: 30rpx;
+  color: #1f1f1f;
+  border: 2rpx solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.edit-input:focus {
+  border-color: #007aff;
+  background: #ffffff;
+}
+
+.edit-helper {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: #a0a0a0;
+}
+
+.edit-submit {
+  margin-top: auto;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  background: linear-gradient(135deg, #0f7bff, #45b2ff);
+  box-shadow: 0 16rpx 30rpx rgba(15, 123, 255, 0.28);
+}
+
+.edit-submit[disabled="true"] {
+  opacity: 0.6;
+  box-shadow: none;
+}

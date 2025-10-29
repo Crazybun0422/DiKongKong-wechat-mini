@@ -1,0 +1,29 @@
+<view class="edit-page">
+  <view class="edit-header">
+    <text class="edit-title">完善个人资料</text>
+    <text class="edit-subtitle">更新昵称，让好友更容易找到你</text>
+  </view>
+
+  <view class="edit-form">
+    <view class="edit-form-item">
+      <text class="edit-label">昵称</text>
+      <input
+        class="edit-input"
+        maxlength="{{maxLength}}"
+        value="{{nickname}}"
+        placeholder="请输入昵称"
+        bindinput="onNicknameInput"
+        cursor-spacing="20"
+      />
+    </view>
+    <text class="edit-helper">昵称支持中英文、数字及常用符号，限 {{maxLength}} 个字符</text>
+  </view>
+
+  <button
+    class="edit-submit"
+    type="primary"
+    loading="{{saving}}"
+    disabled="{{saving}}"
+    bindtap="onSaveTap"
+  >保存</button>
+</view>
