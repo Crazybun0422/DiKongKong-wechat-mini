@@ -53,6 +53,7 @@ Page({
           storedProfile: this._storedProfileCache,
           apiBase: resolveApiBase()
         });
+        console.log("remoteProfile:",remoteProfile);
         this._storedProfileCache = persistProfileLocally({
           nickname: normalized.nickname,
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
