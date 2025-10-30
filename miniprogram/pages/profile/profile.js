@@ -271,7 +271,11 @@ Page({
       return;
     }
     if (action === "markers") {
-      wx.showToast({ title: "标记功能开发中", icon: "none" });
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/pages/markers/index" });
       return;
     }
     wx.showToast({ title: "敬请期待", icon: "none" });
