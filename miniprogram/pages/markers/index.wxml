@@ -48,21 +48,55 @@
       <view class="marker-list">
         <block wx:for="{{visibleMarkers}}" wx:key="id">
           <view class="marker-card" bindtap="onMarkerCardTap" data-id="{{item.id}}">
-            <view class="card-header">
-              <text class="marker-name">{{item.name || '未命名标记'}}</text>
-              <view class="status-badge {{item.reviewTone}}">{{item.reviewStatusLabel}}</view>
+            <view class="status-corner {{item.reviewTone}}">
+              <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
             </view>
-            <view class="card-meta">
-              <text class="meta-label">位置</text>
-              <text class="meta-value">{{item.locationText || '未填写位置'}}</text>
-            </view>
-            <view class="card-meta">
-              <text class="meta-label">提交时间</text>
-              <text class="meta-value">{{item.createdAtDisplay}}</text>
-            </view>
-            <view class="card-footer">
-              <text class="paid-label {{item.paid ? 'is-paid' : 'is-unpaid'}}">{{item.paidLabel}}</text>
-              <text class="card-arrow">›</text>
+            <view class="card-body">
+              <view class="card-top">
+                <view class="card-info">
+                  <text class="marker-name">{{item.name || '未命名标记'}}</text>
+                  <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
+                  <text class="marker-created">提交时间：{{item.createdAtDisplay}}</text>
+                </view>
+                <image
+                  class="marker-cover"
+                  src="{{item.coverImage || defaultCoverImage}}"
+                  mode="aspectFill"
+                />
+              </view>
+
+              <view class="card-stats">
+                <view class="stat-item">
+                  <image class="stat-icon" src="../../assets/exposure.png" mode="aspectFit" />
+                  <text class="stat-value">{{item.exposureCount}}</text>
+                </view>
+                <view class="stat-item">
+                  <image class="stat-icon" src="../../assets/telephone.png" mode="aspectFit" />
+                  <text class="stat-value">{{item.phoneCallCount}}</text>
+                </view>
+              </view>
+
+              <view class="card-divider"></view>
+
+              <view class="card-actions">
+                <view class="action-item" catchtap="onGoHomeTap" data-id="{{item.id}}">
+                  <image class="action-icon" src="../../assets/home.png" mode="aspectFit" />
+                  <text class="action-label">主页</text>
+                </view>
+                <view class="action-item" catchtap="onEditMarkerTap" data-id="{{item.id}}">
+                  <image class="action-icon" src="../../assets/modify.png" mode="aspectFit" />
+                  <text class="action-label">修改</text>
+                </view>
+                <view
+                  class="action-item"
+                  catchtap="onDeleteMarkerTap"
+                  data-id="{{item.id}}"
+                  data-name="{{item.name}}"
+                >
+                  <image class="action-icon" src="../../assets/delete.png" mode="aspectFit" />
+                  <text class="action-label">删除</text>
+                </view>
+              </view>
             </view>
           </view>
         </block>
@@ -485,7 +519,7 @@
         <block wx:elif="{{createStep === 3}}">
           <view class="result-card" wx:if="{{creationResult && creationResult.status === 'success'}}">
             <view class="result-icon success">✓</view>
-            <text class="result-title">提交成功</text>
+            <text class="result-title">{{creationResult.title || '提交成功'}}</text>
             <text class="result-desc">{{creationResult.message}}</text>
             <view class="result-info">
               <text>标记名称：{{creationResult.marker.name}}</text>
@@ -511,7 +545,7 @@
             loading="{{creationSubmitting}}"
             disabled="{{creationSubmitting}}"
           >
-            提交审核
+            {{submitButtonText}}
           </button>
         </block>
         <block wx:else>
