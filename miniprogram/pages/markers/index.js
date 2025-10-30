@@ -333,7 +333,7 @@ Page({
         locationPicked: (detail) => {
           if (!detail) return;
           this.setData({
-            "form.locationText": detail.address || "",
+            "form.locationText": detail.displayAddress || detail.address || "",
             "form.locationLatitude": detail.latitude,
             "form.locationLongitude": detail.longitude
           });

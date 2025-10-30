@@ -5,6 +5,7 @@
     latitude="{{latitude}}"
     longitude="{{longitude}}"
     scale="{{scale}}"
+    layer-style="1"
     show-location="{{showUserLocation}}"
     enable-overlooking="false"
     enable-3D="false"

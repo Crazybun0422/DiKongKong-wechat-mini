@@ -37,6 +37,11 @@ Page({
     this._reverseTimer = null;
     this._reverseToken = 0;
     this._currentGcj = null;
+    this._reverseDebounceDelay = 450;
+    this._reverseMinInterval = 1200;
+    this._lastReverseExecutedAt = 0;
+    this._lastReverseLocationKey = "";
+    this._pendingReverseLocationKey = "";
 
     if (typeof this.getOpenerEventChannel === "function") {
       const channel = this.getOpenerEventChannel();
@@ -141,6 +146,8 @@ Page({
     const selectedLatitude = normalizeCoord(wgs.lat);
     const selectedLongitude = normalizeCoord(wgs.lng);
     this._currentGcj = { latitude, longitude };
+    const locationKey = `${latitude},${longitude}`;
+    const isSameLocation = locationKey === this._lastReverseLocationKey;
 
     const nextData = {
       selectedLatitude,
@@ -152,12 +159,15 @@ Page({
       nextData.longitude = longitude;
     }
 
+    const shouldReverse = !skipReverse && !isSameLocation;
+
     if (presetAddress) {
       nextData.addressMain = presetAddress;
       nextData.addressDetail = presetAddress;
       nextData.addressError = "";
       nextData.addressLoading = false;
-    } else if (!skipReverse) {
+      this._lastReverseLocationKey = locationKey;
+    } else if (shouldReverse) {
       nextData.addressMain = "";
       nextData.addressDetail = "";
       nextData.addressError = "";
@@ -166,8 +176,11 @@ Page({
     nextData.canConfirm = this.computeCanConfirm(nextData);
     this.setData(nextData);
 
-    if (!skipReverse) {
-      this.scheduleReverseGeocode(latitude, longitude, { immediate: immediateReverse });
+    if (shouldReverse) {
+      this.scheduleReverseGeocode(latitude, longitude, {
+        immediate: immediateReverse,
+        locationKey
+      });
     }
   },
 
@@ -188,7 +201,7 @@ Page({
   },
 
   scheduleReverseGeocode(lat, lng, options = {}) {
-    const { immediate = false } = options;
+    const { immediate = false, locationKey = "" } = options;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     if (this._reverseTimer) {
       clearTimeout(this._reverseTimer);
@@ -196,7 +209,12 @@ Page({
     }
     const token = Date.now();
     this._reverseToken = token;
+    const key = locationKey || `${normalizeCoord(lat)},${normalizeCoord(lng)}`;
+    this._pendingReverseLocationKey = key;
     const execute = () => {
+      this._reverseTimer = null;
+      this._lastReverseExecutedAt = Date.now();
+      this._lastReverseLocationKey = this._pendingReverseLocationKey || key;
       reverseGeocode(lat, lng)
         .then((result) => {
           if (this._reverseToken !== token) return;
@@ -220,7 +238,10 @@ Page({
         })
         .catch((err) => {
           if (this._reverseToken !== token) return;
-          const message = err?.message || "无法获取地址，请稍后重试";
+          let message = err?.message || "无法获取地址，请稍后重试";
+          if (message.includes("请求量已达到上限")) {
+            message = "地址解析频率过快，请稍后重试";
+          }
           const latText = Number.isFinite(this.data.selectedLatitude) ? this.data.selectedLatitude.toFixed(6) : "";
           const lngText = Number.isFinite(this.data.selectedLongitude) ? this.data.selectedLongitude.toFixed(6) : "";
           const coordinateFallback =
@@ -237,10 +258,18 @@ Page({
         });
     };
 
-    if (immediate) {
+    const now = Date.now();
+    const sinceLast = now - (this._lastReverseExecutedAt || 0);
+    const throttleDelay = this._reverseMinInterval
+      ? Math.max(0, this._reverseMinInterval - sinceLast)
+      : 0;
+    const baseDelay = immediate ? 0 : this._reverseDebounceDelay;
+    const wait = Math.max(baseDelay, throttleDelay);
+
+    if (wait <= 0) {
       execute();
     } else {
-      this._reverseTimer = setTimeout(execute, 350);
+      this._reverseTimer = setTimeout(execute, wait);
     }
   },
 
