@@ -43,6 +43,12 @@ function buildFileDownloadUrl(fileName, options = {}) {
     if (/^https?:\/\//.test(trimmed) || trimmed.startsWith("wxfile://")) {
       return trimmed;
     }
+    const normalizedAssetsPath = trimmed.replace(/^\.\//, "");
+    if (/^\/?assets\//.test(normalizedAssetsPath)) {
+      return normalizedAssetsPath.startsWith("/")
+        ? normalizedAssetsPath
+        : `/${normalizedAssetsPath}`;
+    }
     const base = resolveApiBase(options.apiBase);
     if (!base) return trimmed;
     return `${base}/api/files/download/${encodeURIComponent(trimmed)}`;
