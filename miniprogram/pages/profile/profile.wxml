@@ -91,14 +91,12 @@
         bindtap="onMenuHomeTap"
       >
         <image class="menu-icon" src="/assets/home.png" mode="aspectFit" />
-        <text class="menu-label">首页</text>
       </button>
       <button
         class="menu-btn {{activeTab === 'profile' ? 'is-active' : ''}}"
         bindtap="onMenuProfileTap"
       >
         <image class="menu-icon" src="/assets/profile.png" mode="aspectFit" />
-        <text class="menu-label">我的</text>
       </button>
     </view>
 
