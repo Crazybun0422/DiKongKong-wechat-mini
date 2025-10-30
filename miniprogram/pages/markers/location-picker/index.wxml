@@ -11,7 +11,7 @@
     enable-3D="false"
     enable-zoom="true"
     enable-scroll="true"
-    enable-satellite="false"
+    enable-satellite="{{false}}"
     enable-traffic="false"
     bindregionchange="onRegionChange"
   >
