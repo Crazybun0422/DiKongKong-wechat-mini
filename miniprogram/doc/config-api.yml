@@ -1,0 +1,237 @@
+openapi: 3.0.1
+info:
+  title: 配置管理 APIs
+  description: 管理后台中的配置项接口，所有配置在数据库中仅保留一条记录。
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /api/config/invite:
+    get:
+      summary: 获取拉新管理配置
+      description: 普通用户可读取，返回好友注册与标记奖励配置；数据库中始终只有一条配置记录。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteConfigResponse'
+    put:
+      summary: 创建或更新拉新管理配置
+      description: 仅管理员可调用，用于创建或更新唯一的拉新管理配置记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/map-settlement:
+    get:
+      summary: 获取地图入驻配置
+      description: 普通用户可读取，返回与微信支付和 FLP 余额相关的价格配置；数据库中仅维护一条记录。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMapSettlementConfigResponse'
+    put:
+      summary: 创建或更新地图入驻配置
+      description: 仅管理员可调用，用于创建或更新唯一的地图入驻配置记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapSettlementConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMapSettlementConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/open-platform-copy:
+    get:
+      summary: 获取开放平台文案
+      description: 普通用户可读取，返回开放平台的富文本文案内容；数据库中仅维护一条记录。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOpenPlatformCopyResponse'
+    put:
+      summary: 创建或更新开放平台文案
+      description: 仅管理员可调用，用于创建或更新唯一的开放平台文案记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenPlatformCopyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOpenPlatformCopyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    InviteConfigRequest:
+      type: object
+      required:
+        - friendRegisterRewardFlp
+        - friendFirstMarkerFlp
+      properties:
+        friendRegisterRewardFlp:
+          type: number
+          format: double
+          description: 好友注册成功时给予的 FLP 奖励点数。
+        friendFirstMarkerFlp:
+          type: number
+          format: double
+          description: 好友首次标记时给予的 FLP 奖励点数。
+    InviteConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/InviteConfigRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseInviteConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/InviteConfigResponse'
+    MapSettlementConfigRequest:
+      type: object
+      required:
+        - wechatListPrice
+        - wechatNetPrice
+        - flpListPrice
+        - flpNetPrice
+      properties:
+        wechatListPrice:
+          type: number
+          format: double
+          description: 微信支付划线价。
+        wechatNetPrice:
+          type: number
+          format: double
+          description: 微信师傅实收价。
+        flpListPrice:
+          type: number
+          format: double
+          description: FLP 余额划线价。
+        flpNetPrice:
+          type: number
+          format: double
+          description: FLP 余额实收价。
+    MapSettlementConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/MapSettlementConfigRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseMapSettlementConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MapSettlementConfigResponse'
+    OpenPlatformCopyRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 开放平台富文本文案。
+    OpenPlatformCopyResponse:
+      allOf:
+        - $ref: '#/components/schemas/OpenPlatformCopyRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseOpenPlatformCopyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/OpenPlatformCopyResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true

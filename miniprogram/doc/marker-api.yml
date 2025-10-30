@@ -271,6 +271,14 @@ components:
             paid:
               type: boolean
               description: 付款标志，仅在 FLP 抵扣或微信支付成功后变为 true。
+            exposureCount:
+              type: integer
+              format: int64
+              description: 标记被曝光的次数。
+            phoneCallCount:
+              type: integer
+              format: int64
+              description: 标记被拨打电话的次数。
             createdAt:
               type: string
               format: date-time

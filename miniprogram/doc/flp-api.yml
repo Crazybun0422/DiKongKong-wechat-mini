@@ -88,9 +88,9 @@ components:
           type: string
           description: 用户特征码。
         amount:
-          type: integer
-          format: int64
-          description: 调整的点数，正整数。
+          type: number
+          format: double
+          description: 调整的点数，正数，可包含小数。
         operation:
           type: string
           description: 调整类型，取值 INCREASE 或 DECREASE。
@@ -103,11 +103,11 @@ components:
         featureCode:
           type: string
         balance:
-          type: integer
-          format: int64
+          type: number
+          format: double
         amount:
-          type: integer
-          format: int64
+          type: number
+          format: double
         operation:
           type: string
     FlpLogResponse:
@@ -121,8 +121,8 @@ components:
         operation:
           type: string
         amount:
-          type: integer
-          format: int64
+          type: number
+          format: double
         reason:
           type: string
         createdAt:

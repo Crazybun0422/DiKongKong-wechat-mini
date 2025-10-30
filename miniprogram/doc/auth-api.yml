@@ -271,8 +271,8 @@ components:
         online:
           type: boolean
         flpBalance:
-          type: integer
-          format: int64
+          type: number
+          format: double
           description: 来自 FLP 余额表的只读虚拟代币余额。
     ApiResponseAdminProfileResponse:
       type: object
