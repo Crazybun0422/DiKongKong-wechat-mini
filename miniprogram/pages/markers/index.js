@@ -1,6 +1,7 @@
 const {
   listMarkers,
   createMarker,
+  updateMarker,
   deleteMarker,
   uploadMarkerFile,
   buildFileDownloadUrl
@@ -9,15 +10,15 @@ const { resolveApiBase } = require("../../utils/profile");
 
 const STATUS_TABS = [
   { id: "ALL", label: "全部" },
-  { id: "PENDING", label: "待审核" },
-  { id: "APPROVED", label: "已通过" },
-  { id: "REJECTED", label: "已驳回" }
+  { id: "PENDING", label: "审核中" },
+  { id: "APPROVED", label: "在线" },
+  { id: "REJECTED", label: "被驳回" }
 ];
 
 const REVIEW_STATUS_META = {
-  PENDING: { label: "待审核", tone: "warning" },
-  APPROVED: { label: "已通过", tone: "success" },
-  REJECTED: { label: "已驳回", tone: "danger" }
+  PENDING: { label: "审核中", tone: "pending" },
+  APPROVED: { label: "在线", tone: "online" },
+  REJECTED: { label: "被驳回", tone: "danger" }
 };
 
 const PAYMENT_PLANS = [
@@ -85,7 +86,10 @@ Page({
     showDetail: false,
     activeMarker: null,
     deletingId: "",
-    hasLoaded: false
+    hasLoaded: false,
+    editingMarkerId: "",
+    defaultCoverImage: "../../assets/dashboard.png",
+    submitButtonText: "提交审核"
   },
 
   onLoad() {
@@ -159,6 +163,14 @@ Page({
       : [];
     const createdAtDisplay = this.formatDateTime(raw.createdAt);
     const updatedAtDisplay = this.formatDateTime(raw.updatedAt);
+    const exposureCount =
+      raw.exposureCount !== undefined && raw.exposureCount !== null
+        ? Number(raw.exposureCount)
+        : 0;
+    const phoneCallCount =
+      raw.phoneCallCount !== undefined && raw.phoneCallCount !== null
+        ? Number(raw.phoneCallCount)
+        : 0;
     return {
       id: raw.id || "",
       name: raw.name || "",
@@ -191,7 +203,10 @@ Page({
       paidLabel: raw.paid ? "已完成支付" : "待支付",
       featureCode: raw.featureCode || "",
       createdAtDisplay,
-      updatedAtDisplay
+      updatedAtDisplay,
+      exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
+      phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
+      coverImage: images.length ? images[0].url : ""
     };
   },
 
@@ -252,14 +267,110 @@ Page({
       selectedPlan: PAYMENT_PLANS[0],
       creationSubmitting: false,
       creationError: "",
-      creationResult: null
+      creationResult: null,
+      editingMarkerId: "",
+      submitButtonText: "提交审核"
     });
+  },
+
+  onGoHomeTap() {
+    if (typeof wx.switchTab === "function") {
+      wx.switchTab({ url: "/pages/map/map" });
+      return;
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: "/pages/map/map" });
+    }
+  },
+
+  onEditMarkerTap(e) {
+    const markerId = e?.currentTarget?.dataset?.id;
+    if (!markerId) return;
+    const marker = this.data.markers.find((item) => item.id === markerId);
+    if (!marker) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    const form = this.buildFormFromMarker(marker);
+    const selectedPlanId = this.data.selectedPlanId || PAYMENT_PLANS[0].id;
+    const selectedPlan =
+      this.data.paymentPlans.find((plan) => plan.id === selectedPlanId) || PAYMENT_PLANS[0];
+    this.setData({
+      showCreate: true,
+      createStep: 0,
+      maxStepReached: 0,
+      form,
+      tagInput: "",
+      videoInput: "",
+      selectedPlanId,
+      selectedPlan,
+      creationSubmitting: false,
+      creationError: "",
+      creationResult: null,
+      editingMarkerId: marker.id,
+      submitButtonText: "保存修改"
+    });
+  },
+
+  buildFormFromMarker(marker = {}) {
+    const form = createEmptyForm();
+    form.name = marker.name || "";
+    form.description = marker.description || "";
+    form.phone = marker.phone || "";
+    form.locationText = marker.locationText || "";
+    form.locationLatitude = marker.latitude ?? null;
+    form.locationLongitude = marker.longitude ?? null;
+    form.images = Array.isArray(marker.images)
+      ? marker.images.map((img) => ({
+          fileName: img.fileName || "",
+          url: img.url || "",
+          id: img.id
+        }))
+      : [];
+    form.businessLicense = marker.businessLicense
+      ? {
+          fileName: marker.businessLicense.fileName || "",
+          url: marker.businessLicense.url || ""
+        }
+      : null;
+    form.industryHonorTags = Array.isArray(marker.industryHonorTags)
+      ? marker.industryHonorTags.slice()
+      : [];
+    form.attachmentFiles = Array.isArray(marker.attachments)
+      ? marker.attachments.map((item) => ({
+          fileName: item.fileName || "",
+          url: item.url || "",
+          id: item.id
+        }))
+      : [];
+    form.qrCodeImages = Array.isArray(marker.qrCodes)
+      ? marker.qrCodes.map((item) => ({
+          fileName: item.fileName || "",
+          url: item.url || "",
+          id: item.id
+        }))
+      : [];
+    form.videoChannelUrls = Array.isArray(marker.videoChannelUrls)
+      ? marker.videoChannelUrls.slice()
+      : [];
+    form.adminInfo = {
+      name: marker.adminInfo?.name || "",
+      title: marker.adminInfo?.title || "",
+      phone: marker.adminInfo?.phone || ""
+    };
+    return form;
   },
 
   onCloseCreate() {
     if (this.data.creationSubmitting) return;
     if (this.data.createStep === 0 || this.data.createStep === 3) {
-      this.setData({ showCreate: false, creationResult: null, maxStepReached: 0 });
+      this.setData({
+        showCreate: false,
+        creationResult: null,
+        maxStepReached: 0,
+        editingMarkerId: "",
+        submitButtonText: "提交审核"
+      });
       return;
     }
     wx.showModal({
@@ -269,7 +380,13 @@ Page({
       confirmText: "退出",
       success: (res) => {
         if (res.confirm) {
-          this.setData({ showCreate: false, creationResult: null, maxStepReached: 0 });
+          this.setData({
+            showCreate: false,
+            creationResult: null,
+            maxStepReached: 0,
+            editingMarkerId: "",
+            submitButtonText: "提交审核"
+          });
         }
       }
     });
@@ -576,25 +693,46 @@ Page({
     if (!this.validateBasicStep() || !this.validateMediaStep()) return;
     this.setData({ creationSubmitting: true, creationError: "" });
     const payload = this.buildMarkerPayload();
-    createMarker(payload, { apiBase: this.apiBase })
+    const editingId = this.data.editingMarkerId;
+    const request = editingId
+      ? updateMarker(editingId, payload, { apiBase: this.apiBase })
+      : createMarker(payload, { apiBase: this.apiBase });
+    request
       .then((marker) => {
         const normalized = this.normalizeMarker(marker);
+        const resultTitle = editingId ? "更新成功" : "提交成功";
+        const resultMessage = editingId ? "标记信息已更新。" : "提交成功，请等待审核。";
+        const toastTitle = editingId ? "已保存" : "提交成功";
         this.setData({
           creationResult: {
             status: "success",
             marker: normalized,
-            message: "提交成功，请等待审核。"
+            message: resultMessage,
+            title: resultTitle
           },
           createStep: 3,
           maxStepReached: 3,
-          creationError: ""
+          creationError: "",
+          editingMarkerId: ""
         });
-        wx.showToast({ title: "提交成功", icon: "success" });
-        this.refreshMarkers({ silent: true });
+        wx.showToast({ title: toastTitle, icon: "success" });
+        if (editingId) {
+          const updated = this.data.markers.map((item) =>
+            item.id === normalized.id ? normalized : item
+          );
+          this.setData({ markers: updated });
+          this.applyFilters(updated, this.data.filterStatus);
+          if (this.data.showDetail && this.data.activeMarker?.id === normalized.id) {
+            this.setData({ activeMarker: normalized });
+          }
+        } else {
+          this.refreshMarkers({ silent: true });
+        }
       })
       .catch((err) => {
-        console.error("创建标记失败", err);
-        const message = err?.message || "创建失败，请稍后重试";
+        console.error(editingId ? "更新标记失败" : "创建标记失败", err);
+        const fallback = editingId ? "更新失败，请稍后重试" : "创建失败，请稍后重试";
+        const message = err?.message || fallback;
         this.setData({ creationError: message });
         wx.showToast({ title: message, icon: "none" });
       })
@@ -656,14 +794,27 @@ Page({
 
   onDeleteMarkerTap(e) {
     const markerId = e?.currentTarget?.dataset?.id;
+    const markerName = (e?.currentTarget?.dataset?.name || "").trim();
     if (!markerId) return;
+    const promptName = markerName || "标记名称";
     wx.showModal({
       title: "删除标记",
-      content: "确认删除该标记？删除后不可恢复。",
+      content: `请输入“${promptName}”确认删除。`,
+      editable: true,
+      placeholderText: promptName,
       confirmText: "删除",
       confirmColor: "#ff3b30",
       success: (res) => {
         if (res.confirm) {
+          const input = (res.content || "").trim();
+          if (markerName && input !== markerName) {
+            wx.showToast({ title: "输入名称不匹配", icon: "none" });
+            return;
+          }
+          if (!markerName && !input) {
+            wx.showToast({ title: "请输入确认名称", icon: "none" });
+            return;
+          }
           this.performDelete(markerId);
         }
       }
