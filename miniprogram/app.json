@@ -3,7 +3,8 @@
     "pages/map/map",
     "pages/profile/profile",
     "pages/profile/edit/index",
-    "pages/markers/index"
+    "pages/markers/index",
+    "pages/markers/location-picker/index"
   ],
   "window": {
     "navigationBarTitleText": "低空空",

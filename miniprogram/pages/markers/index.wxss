@@ -92,7 +92,10 @@
   border-radius: 28rpx;
   padding: 80rpx 40rpx;
   text-align: center;
+  display: flex;
+  flex-direction: column;        /* 一列排列 = 每个“占一行” */
   box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.08);
+  
 }
 
 .empty-icon {
@@ -218,21 +221,21 @@
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(15, 23, 42, 0.4);
   display: flex;
   justify-content: flex-end;
   z-index: 100;
 }
 
 .drawer {
-  width: 92vw;
-  max-width: 700rpx;
+  width: 100vw;
+  /* max-width: 700rpx; */
   background: #ffffff;
-  height: 100vh;
+  height: 95vh;
   display: flex;
   flex-direction: column;
-  border-radius: 32rpx 0 0 32rpx;
-  overflow: hidden;
+  border-radius: 32rpx 32rpx 32rpx 32rpx;
+  overflow: auto;
 }
 
 .drawer-header {
@@ -265,6 +268,7 @@
   flex: 1;
   padding: 24rpx 32rpx 160rpx;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .drawer-footer {
@@ -415,18 +419,41 @@
 .step-indicator {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   background: #f8fafc;
   border-radius: 24rpx;
   padding: 24rpx;
   margin-bottom: 32rpx;
 }
 
-.step-item {
+.step-item-wrapper {
   flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.step-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12rpx;
+  min-width: 120rpx;
+  flex-shrink: 0;
+  padding: 0 12rpx;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.step-item.is-current {
+  transform: scale(1.04);
+}
+
+.step-item.is-current .step-label {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.step-item.is-finished .step-label {
+  color: #047857;
 }
 
 .step-circle {
@@ -456,6 +483,18 @@
   font-size: 24rpx;
   color: #64748b;
   text-align: center;
+}
+
+.step-connector {
+  flex: 1;
+  height: 4rpx;
+  background: #dbe2ee;
+  border-radius: 2rpx;
+  margin: 0 12rpx 0 8rpx;
+}
+
+.step-connector.is-active {
+  background: linear-gradient(120deg, #007aff, #00a6f6);
 }
 
 .form-section {

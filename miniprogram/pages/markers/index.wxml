@@ -168,10 +168,7 @@
 
         <view
           class="detail-section"
-          wx:if="{{
-            activeMarker.adminInfo &&
-            (activeMarker.adminInfo.name || activeMarker.adminInfo.phone || activeMarker.adminInfo.title)
-          }}"
+          wx:if="{{activeMarker.adminInfo &&(activeMarker.adminInfo.name || activeMarker.adminInfo.phone || activeMarker.adminInfo.title)}}"
         >
           <text class="detail-title">管理员联系</text>
           <view class="detail-item">
@@ -209,12 +206,22 @@
       </view>
       <scroll-view scroll-y class="drawer-body">
         <view class="step-indicator">
-          <block wx:for="{{['填写信息','资质素材','套餐与支付','提交结果']}}" wx:key="index">
-            <view class="step-item">
-              <view class="step-circle {{createStep === index ? 'is-active' : (createStep > index ? 'is-finished' : '')}}">
-                <text>{{index + 1}}</text>
+          <block wx:for="{{createSteps}}" wx:key="label">
+            <view class="step-item-wrapper">
+              <view
+                class="step-item {{createStep === index ? 'is-current' : (createStep > index ? 'is-finished' : '')}}"
+                data-step="{{index}}"
+                bindtap="onStepIndicatorTap"
+              >
+                <view class="step-circle {{createStep === index ? 'is-active' : (createStep > index ? 'is-finished' : '')}}">
+                  <text>{{index + 1}}</text>
+                </view>
+                <text class="step-label">{{item.label}}</text>
               </view>
-              <text class="step-label">{{item}}</text>
+              <view
+                wx:if="{{index < createSteps.length - 1}}"
+                class="step-connector {{createStep > index ? 'is-active' : ''}}"
+              ></view>
             </view>
           </block>
         </view>

@@ -35,6 +35,13 @@ const PAYMENT_PLANS = [
   }
 ];
 
+const CREATE_STEPS = [
+  { label: "填写信息" },
+  { label: "资质素材" },
+  { label: "套餐与支付" },
+  { label: "提交结果" }
+];
+
 function createEmptyForm() {
   return {
     name: "",
@@ -64,6 +71,8 @@ Page({
     filterStatus: "ALL",
     showCreate: false,
     createStep: 0,
+    maxStepReached: 0,
+    createSteps: CREATE_STEPS,
     form: createEmptyForm(),
     tagInput: "",
     videoInput: "",
@@ -235,6 +244,7 @@ Page({
     this.setData({
       showCreate: true,
       createStep: 0,
+      maxStepReached: 0,
       form: createEmptyForm(),
       tagInput: "",
       videoInput: "",
@@ -249,7 +259,7 @@ Page({
   onCloseCreate() {
     if (this.data.creationSubmitting) return;
     if (this.data.createStep === 0 || this.data.createStep === 3) {
-      this.setData({ showCreate: false, creationResult: null });
+      this.setData({ showCreate: false, creationResult: null, maxStepReached: 0 });
       return;
     }
     wx.showModal({
@@ -259,7 +269,7 @@ Page({
       confirmText: "退出",
       success: (res) => {
         if (res.confirm) {
-          this.setData({ showCreate: false, creationResult: null });
+          this.setData({ showCreate: false, creationResult: null, maxStepReached: 0 });
         }
       }
     });
@@ -307,21 +317,32 @@ Page({
   },
 
   onChooseLocation() {
-    if (typeof wx.chooseLocation !== "function") {
+    if (typeof wx.navigateTo !== "function") {
       wx.showToast({ title: "当前版本不支持选择位置", icon: "none" });
       return;
     }
-    wx.chooseLocation({
-      success: (res) => {
-        this.setData({
-          "form.locationText": res.address || res.name || "",
-          "form.locationLatitude": res.latitude,
-          "form.locationLongitude": res.longitude
-        });
+    const form = this.data.form || {};
+    const payload = {
+      latitude: form.locationLatitude,
+      longitude: form.locationLongitude,
+      address: form.locationText
+    };
+    wx.navigateTo({
+      url: "/pages/markers/location-picker/index",
+      events: {
+        locationPicked: (detail) => {
+          if (!detail) return;
+          this.setData({
+            "form.locationText": detail.address || "",
+            "form.locationLatitude": detail.latitude,
+            "form.locationLongitude": detail.longitude
+          });
+        }
       },
-      fail: (err) => {
-        if (err && err.errMsg && /auth deny/i.test(err.errMsg)) {
-          wx.showToast({ title: "需要定位权限", icon: "none" });
+      success: (res) => {
+        const channel = res?.eventChannel;
+        if (channel && typeof channel.emit === "function") {
+          channel.emit("initLocation", payload);
         }
       }
     });
@@ -473,13 +494,47 @@ Page({
     if (step === 0 && !this.validateBasicStep()) return;
     if (step === 1 && !this.validateMediaStep()) return;
     const next = Math.min(step + 1, 3);
-    this.setData({ createStep: next });
+    const updatedMax = Math.max(this.data.maxStepReached, next);
+    this.setData({ createStep: next, maxStepReached: updatedMax });
   },
 
   goToPrevStep() {
     const step = this.data.createStep;
     const prev = Math.max(step - 1, 0);
     this.setData({ createStep: prev });
+  },
+
+  onStepIndicatorTap(e) {
+    const target = Number(e?.currentTarget?.dataset?.step);
+    if (!Number.isFinite(target)) return;
+    if (this.data.creationSubmitting) return;
+    if (target === 3 && this.data.maxStepReached < 3) {
+      wx.showToast({ title: "请先提交审核", icon: "none" });
+      return;
+    }
+    const current = this.data.createStep;
+    if (target === current) return;
+
+    const highestReached = Math.max(this.data.maxStepReached, current);
+    if (target > highestReached) {
+      let probe = current;
+      while (probe < target) {
+        if (probe === 0 && !this.validateBasicStep()) {
+          return;
+        }
+        if (probe === 1 && !this.validateMediaStep()) {
+          return;
+        }
+        probe += 1;
+      }
+      this.setData({
+        createStep: target,
+        maxStepReached: Math.max(this.data.maxStepReached, target)
+      });
+      return;
+    }
+
+    this.setData({ createStep: target });
   },
 
   validateBasicStep() {
@@ -531,6 +586,7 @@ Page({
             message: "提交成功，请等待审核。"
           },
           createStep: 3,
+          maxStepReached: 3,
           creationError: ""
         });
         wx.showToast({ title: "提交成功", icon: "success" });
