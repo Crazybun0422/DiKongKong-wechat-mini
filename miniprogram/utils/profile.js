@@ -456,6 +456,7 @@ module.exports = {
   normalizeProfileData,
   resolveApiBase,
   getAuthToken,
+  authorizedRequest,
   generateFeatureCode,
   ensureFeatureCode,
   persistProfileLocally,

@@ -2,7 +2,8 @@
   "pages": [
     "pages/map/map",
     "pages/profile/profile",
-    "pages/profile/edit/index"
+    "pages/profile/edit/index",
+    "pages/markers/index"
   ],
   "window": {
     "navigationBarTitleText": "低空空",
