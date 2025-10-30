@@ -4,6 +4,37 @@ const {
   getAuthToken
 } = require("./profile");
 
+function extractUploadedFileName(value) {
+  if (!value) return "";
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const extracted = extractUploadedFileName(item);
+      if (extracted) return extracted;
+    }
+    return "";
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const withoutFragment = trimmed.split("#")[0];
+    const withoutQuery = withoutFragment.split("?")[0];
+    const parts = withoutQuery.split(/[/\\]/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : withoutQuery;
+  }
+  if (typeof value === "object") {
+    const candidate =
+      value.fileName ||
+      value.filename ||
+      value.objectName ||
+      value.name ||
+      value.location ||
+      value.path ||
+      (typeof value.url === "string" ? value.url : "");
+    if (candidate) return extractUploadedFileName(candidate);
+  }
+  return "";
+}
+
 function buildFileDownloadUrl(fileName, options = {}) {
   if (!fileName) return "";
   if (typeof fileName === "string") {
@@ -98,16 +129,18 @@ function uploadMarkerFile(filePath, options = {}) {
         try {
           const body = JSON.parse(res?.data || "{}");
           if (body && body.data) {
+            const extracted = extractUploadedFileName(body.data);
+            if (extracted) {
+              resolve(extracted);
+              return;
+            }
             if (typeof body.data === "string" && body.data.trim()) {
+              const fallback = extractUploadedFileName(body.data.trim());
+              if (fallback) {
+                resolve(fallback);
+                return;
+              }
               resolve(body.data.trim());
-              return;
-            }
-            if (body.data.fileName) {
-              resolve(`${body.data.fileName}`.trim());
-              return;
-            }
-            if (body.data.objectName) {
-              resolve(`${body.data.objectName}`.trim());
               return;
             }
           }
