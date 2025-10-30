@@ -88,7 +88,7 @@ Page({
     deletingId: "",
     hasLoaded: false,
     editingMarkerId: "",
-    defaultCoverImage: "../../assets/dashboard.png",
+    defaultCoverImage: "/assets/dashboard.png",
     submitButtonText: "提交审核"
   },
 

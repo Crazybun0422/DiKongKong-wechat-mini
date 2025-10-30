@@ -67,11 +67,11 @@
 
               <view class="card-stats">
                 <view class="stat-item">
-                  <image class="stat-icon" src="../../assets/exposure.png" mode="aspectFit" />
+                  <image class="stat-icon" src="/assets/exposure.png" mode="aspectFit" />
                   <text class="stat-value">{{item.exposureCount}}</text>
                 </view>
                 <view class="stat-item">
-                  <image class="stat-icon" src="../../assets/telephone.png" mode="aspectFit" />
+                  <image class="stat-icon" src="/assets/telephone.png" mode="aspectFit" />
                   <text class="stat-value">{{item.phoneCallCount}}</text>
                 </view>
               </view>
@@ -80,12 +80,12 @@
 
               <view class="card-actions">
                 <view class="action-item" catchtap="onGoHomeTap" data-id="{{item.id}}">
-                  <image class="action-icon" src="../../assets/home.png" mode="aspectFit" />
-                  <text class="action-label">主页</text>
+                  <image class="action-icon" src="/assets/home.png" mode="aspectFit" />
+      
                 </view>
                 <view class="action-item" catchtap="onEditMarkerTap" data-id="{{item.id}}">
-                  <image class="action-icon" src="../../assets/modify.png" mode="aspectFit" />
-                  <text class="action-label">修改</text>
+                  <image class="action-icon" src="/assets/modify.png" mode="aspectFit" />
+      
                 </view>
                 <view
                   class="action-item"
@@ -93,8 +93,8 @@
                   data-id="{{item.id}}"
                   data-name="{{item.name}}"
                 >
-                  <image class="action-icon" src="../../assets/delete.png" mode="aspectFit" />
-                  <text class="action-label">删除</text>
+                  <image class="action-icon" src="/assets/delete.png" mode="aspectFit" />
+ 
                 </view>
               </view>
             </view>

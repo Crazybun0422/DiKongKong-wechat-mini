@@ -221,6 +221,7 @@
   font-size: 24rpx;
   color: #1f2937;
   padding: 12rpx 0;
+  display: block;
 }
 
 .action-item + .action-item {
@@ -255,8 +256,8 @@
   font-weight: 600;
   transform: rotate(45deg);
   transform-origin: center;
-  margin-right: -20rpx;
-  margin-top: 20rpx;
+  margin-right: -60rpx;
+  margin-top: -40rpx;
   letter-spacing: 4rpx;
   pointer-events: none;
 }
