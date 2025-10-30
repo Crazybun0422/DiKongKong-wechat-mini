@@ -8,6 +8,15 @@ const {
 } = require("../../utils/markers");
 const { resolveApiBase } = require("../../utils/profile");
 
+const STATIC_ASSETS = {
+  exposure: "../../assets/exposure.png",
+  telephone: "../../assets/telephone.png",
+  home: "../../assets/home.png",
+  modify: "../../assets/modify.png",
+  delete: "../../assets/delete.png",
+  defaultCover: "../../assets/dashboard.png"
+};
+
 const STATUS_TABS = [
   { id: "ALL", label: "全部" },
   { id: "PENDING", label: "审核中" },
@@ -88,7 +97,8 @@ Page({
     deletingId: "",
     hasLoaded: false,
     editingMarkerId: "",
-    defaultCoverImage: "/assets/dashboard.png",
+    assetPaths: STATIC_ASSETS,
+    defaultCoverImage: STATIC_ASSETS.defaultCover,
     submitButtonText: "提交审核"
   },
 
