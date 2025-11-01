@@ -160,11 +160,21 @@ function uploadMarkerFile(filePath, options = {}) {
   });
 }
 
+function fetchMapSettlementConfig(options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/config/map-settlement",
+    method: "GET"
+  }).then((body = {}) => body.data || {});
+}
+
 module.exports = {
   listMarkers,
   createMarker,
   updateMarker,
   deleteMarker,
   uploadMarkerFile,
-  buildFileDownloadUrl
+  buildFileDownloadUrl,
+  fetchMapSettlementConfig
 };
