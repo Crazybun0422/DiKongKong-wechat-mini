@@ -9,12 +9,13 @@ const {
 const { resolveApiBase } = require("../../utils/profile");
 
 const STATIC_ASSETS = {
-  exposure: "../../assets/exposure.png",
-  telephone: "../../assets/telephone.png",
-  home: "../../assets/home.png",
-  modify: "../../assets/modify.png",
-  delete: "../../assets/delete.png",
-  defaultCover: "../../assets/dashboard.png"
+  add: "/assets/add.png",
+  exposure: "/assets/exposure.png",
+  telephone: "/assets/telephone.png",
+  home: "/assets/home.png",
+  modify: "/assets/modify.png",
+  delete: "/assets/delete.png",
+  defaultCover: "/assets/dashboard.png"
 };
 
 const STATUS_TABS = [

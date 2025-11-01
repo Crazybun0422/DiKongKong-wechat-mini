@@ -36,7 +36,7 @@ const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
-  1: "#1088F2",
+  1: "#000000",
   2: "#DE4329",
   3: "#EE8815",
   4: "#FFCC00",
@@ -119,7 +119,8 @@ Page({
 
   onShow() {
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home" });
+      this.setData({ activeTab: "home" ,showDashboardPanel: true});
+      this.showDashboardPanel = true;
     }
   },
 
@@ -170,7 +171,7 @@ Page({
 
   onMenuHomeTap() {
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home" });
+      this.setData({ activeTab: "home"});
     }
     this.showPlaceholderToast("已在首页");
   },

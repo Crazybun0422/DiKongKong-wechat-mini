@@ -1,7 +1,7 @@
 .profile-page {
   position: relative;
   min-height: 100vh;
-  padding-top: env(safe-area-inset-top);
+  padding-top: calc(env(safe-area-inset-top) + 140rpx);
   padding-bottom: env(safe-area-inset-bottom);
   box-sizing: border-box;
   background: #f5f5f7;
@@ -28,7 +28,7 @@
 .profile-retry-btn {
   padding: 0 40rpx;
   line-height: 64rpx;
-  background: #1088f2;
+  background: #000000;
   color: #fff;
   border-radius: 999rpx;
 }
@@ -104,10 +104,10 @@
 
 .profile-code-copy {
   font-size: 24rpx;
-  color: #1088f2;
+  color: #000000;
   padding: 6rpx 20rpx;
   border-radius: 999rpx;
-  background: rgba(16, 136, 242, 0.08);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .profile-card {
@@ -172,7 +172,7 @@
 }
 
 .profile-list-item-hover {
-  background: rgba(16, 136, 242, 0.08);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .profile-list-left {
@@ -188,8 +188,8 @@
 
 .profile-list-tag {
   font-size: 22rpx;
-  color: #1088f2;
-  background: rgba(16, 136, 242, 0.12);
+  color: #000000;
+  background: rgba(0, 0, 0, 0.12);
   padding: 4rpx 14rpx;
   border-radius: 999rpx;
 }
@@ -208,7 +208,7 @@
 .bottom-controls {
   position: fixed;
   left: 55%;
-  bottom: 42rpx;
+  bottom: calc(env(safe-area-inset-bottom) + 42rpx);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -218,7 +218,7 @@
 
 .bottom-menu {
   flex: 0 0 420rpx;
-  width: 420rpx;
+  width: 220rpx;
   height: 120rpx;
   border-radius: 999rpx;
   margin-right: 40rpx;
@@ -239,7 +239,7 @@
   border: none;
   background: transparent;
   padding: 0;
-  color: #1d1d1f;
+  color: #000000;
   font-size: 22rpx;
   row-gap: 8rpx;
 }
@@ -251,20 +251,26 @@
 .menu-icon {
   width: 64rpx;
   height: 64rpx;
-  filter: brightness(0) saturate(100%) invert(28%) sepia(12%) saturate(676%) hue-rotate(177deg) brightness(92%) contrast(90%);
+  filter: brightness(0) saturate(100%);
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
 }
 
 .menu-label {
   font-size: 22rpx;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
 }
 
 .menu-btn.is-active .menu-label {
-  color: #1976ff;
+  color: #000000;
   font-weight: 600;
+  opacity: 1;
 }
 
 .menu-btn.is-active .menu-icon {
-  filter: brightness(0) saturate(100%) invert(26%) sepia(81%) saturate(2342%) hue-rotate(203deg) brightness(95%) contrast(92%);
+  filter: brightness(0) saturate(100%);
+  opacity: 1;
 }
 
 .chat-fab {
@@ -290,7 +296,7 @@
 .chat-fab-icon {
   width: 64rpx;
   height: 64rpx;
-  filter: brightness(0) saturate(100%) invert(28%) sepia(12%) saturate(676%) hue-rotate(177deg) brightness(92%) contrast(90%);
+  filter: brightness(0) saturate(100%);
 }
 
 .chat-fab-hover {

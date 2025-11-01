@@ -57,7 +57,7 @@
 }
 
 .edit-input:focus {
-  border-color: #007aff;
+  border-color: #000000;
   background: #ffffff;
 }
 
@@ -74,8 +74,8 @@
   line-height: 88rpx;
   border-radius: 44rpx;
   font-size: 30rpx;
-  background: linear-gradient(135deg, #0f7bff, #45b2ff);
-  box-shadow: 0 16rpx 30rpx rgba(15, 123, 255, 0.28);
+  background: linear-gradient(135deg, #000000, #333333);
+  box-shadow: 0 16rpx 30rpx rgba(0, 0, 0, 0.28);
   padding: 0%;
 }
 

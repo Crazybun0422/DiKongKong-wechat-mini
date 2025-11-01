@@ -8,12 +8,13 @@
     bindrefresherrefresh="onPullDownRefresh"
   >
     <view class="page-header">
-      <view class="title-area">
-        <text class="page-title">我的标记</text>
-        <text class="page-subtitle">管理地图标记申报与审核进度</text>
-      </view>
-      <button class="create-btn" bindtap="onCreateTap">新建标记</button>
+      <button class="create-btn" bindtap="onCreateTap">
+        <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+        <text class="create-btn-text">新增</text>
+      </button>
+
     </view>
+
 
     <view class="status-tabs">
       <block wx:for="{{statusTabs}}" wx:key="id">
@@ -66,11 +67,11 @@
               </view>
 
               <view class="card-stats">
-                <view class="stat-item">
+                <view class="stat-item" >
                   <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
                   <text class="stat-value">{{item.exposureCount}}</text>
                 </view>
-                <view class="stat-item">
+                <view class="stat-item" >
                   <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
                   <text class="stat-value">{{item.phoneCallCount}}</text>
                 </view>
@@ -79,22 +80,30 @@
               <view class="card-divider"></view>
 
               <view class="card-actions">
-                <view class="action-item" catchtap="onGoHomeTap" data-id="{{item.id}}">
+                <view
+                  class="action-item"
+                  hover-class="action-item-hover"
+                  catchtap="onGoHomeTap"
+                  data-id="{{item.id}}"
+                >
                   <image class="action-icon" src="{{assetPaths.home}}" mode="aspectFit" />
-      
-                </view>
-                <view class="action-item" catchtap="onEditMarkerTap" data-id="{{item.id}}">
-                  <image class="action-icon" src="{{assetPaths.modify}}" mode="aspectFit" />
-      
                 </view>
                 <view
                   class="action-item"
+                  hover-class="action-item-hover"
+                  catchtap="onEditMarkerTap"
+                  data-id="{{item.id}}"
+                >
+                  <image class="action-icon" src="{{assetPaths.modify}}" mode="aspectFit" />
+                </view>
+                <view
+                  class="action-item"
+                  hover-class="action-item-hover"
                   catchtap="onDeleteMarkerTap"
                   data-id="{{item.id}}"
                   data-name="{{item.name}}"
                 >
                   <image class="action-icon" src="{{assetPaths.delete}}" mode="aspectFit" />
- 
                 </view>
               </view>
             </view>
@@ -219,7 +228,7 @@
           </view>
         </view>
 
-        <button
+        <!-- <button
           class="danger-btn"
           data-id="{{activeMarker.id}}"
           bindtap="onDeleteMarkerTap"
@@ -227,7 +236,7 @@
           disabled="{{deletingId === activeMarker.id}}"
         >
           删除标记
-        </button>
+        </button> -->
       </scroll-view>
     </view>
   </view>

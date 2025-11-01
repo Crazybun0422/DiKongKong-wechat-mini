@@ -7,8 +7,6 @@
     "pages/markers/location-picker/index"
   ],
   "window": {
-    "navigationBarTitleText": "低空空",
-    "navigationBarBackgroundColor": "#007AFF",
     "navigationBarTextStyle": "white",
     "backgroundColor": "#F2F2F2",
     "backgroundTextStyle": "light"
@@ -17,7 +15,7 @@
   "lazyCodeLoading": "requiredComponents",
   "permission": {
     "scope.userLocation": {
-      "desc": "用于定位当前位置并展示附近空域/禁飞区"
+      "desc": "321321"
     }
   },
   "requiredPrivateInfos": [
