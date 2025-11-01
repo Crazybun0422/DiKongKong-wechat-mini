@@ -525,10 +525,10 @@
                 </view>
               </block>
             </view>
-            <view class="payment-summary">
+            <!-- <view class="payment-summary">
               <text class="payment-summary-item" wx:if="{{wechatPriceDisplay}}">{{wechatPriceDisplay}}</text>
               <text class="payment-summary-item" wx:if="{{flpPriceDisplay}}">{{flpPriceDisplay}}</text>
-            </view>
+            </view> -->
           </view>
 
           <block wx:if="{{creationError}}">
