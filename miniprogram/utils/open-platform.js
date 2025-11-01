@@ -4,6 +4,21 @@ const {
   buildAvatarDownloadUrl
 } = require("./profile");
 
+function normalizeUrl(value = "") {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim().replace(/&amp;/gi, "&");
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return "";
+  }
+  const lower = trimmed.toLowerCase();
+  if (/(\.)(?:js|css|png|jpg|jpeg|gif|svg|webp|ico)(?:[?#].*)?$/i.test(lower)) {
+    return "";
+  }
+  return trimmed;
+}
+
 function fetchOpenPlatformCopy(options = {}) {
   const base = resolveApiBase(options.apiBase);
   if (!base) {
@@ -182,9 +197,76 @@ function extractImageUrls(html = "", options = {}) {
   return Array.from(new Set(urls));
 }
 
+function extractExternalPageUrl(html = "", options = {}) {
+  const htmlString = typeof html === "string" ? html : "";
+  const candidates = [];
+
+  if (typeof options?.directUrl === "string") {
+    candidates.push(options.directUrl);
+  }
+
+  if (Array.isArray(options?.fallbackUrls)) {
+    for (const item of options.fallbackUrls) {
+      if (typeof item === "string") {
+        candidates.push(item);
+      }
+    }
+  }
+
+  if (htmlString) {
+    const canonicalMatch = htmlString.match(
+      /<link[^>]+rel=['"]?(?:canonical|alternate)['"]?[^>]*href=['"]([^'"]+)['"]/i
+    );
+    if (canonicalMatch && canonicalMatch[1]) {
+      candidates.push(canonicalMatch[1]);
+    }
+
+    const ogUrlMatch = htmlString.match(
+      /<meta[^>]+property=['"]og:url['"][^>]*content=['"]([^'"]+)['"]/i
+    );
+    if (ogUrlMatch && ogUrlMatch[1]) {
+      candidates.push(ogUrlMatch[1]);
+    }
+
+    const metaUrlMatch = htmlString.match(
+      /<meta[^>]+name=['"]og:url['"][^>]*content=['"]([^'"]+)['"]/i
+    );
+    if (metaUrlMatch && metaUrlMatch[1]) {
+      candidates.push(metaUrlMatch[1]);
+    }
+
+    const refreshMatch = htmlString.match(
+      /<meta[^>]+http-equiv=['"]refresh['"][^>]*content=['"][^;]*;\s*url=([^'"]+)['"]/i
+    );
+    if (refreshMatch && refreshMatch[1]) {
+      candidates.push(refreshMatch[1]);
+    }
+
+    const dataUrlMatch = htmlString.match(/data-open-platform-url=['"]([^'"]+)['"]/i);
+    if (dataUrlMatch && dataUrlMatch[1]) {
+      candidates.push(dataUrlMatch[1]);
+    }
+
+    const firstHttpMatch = htmlString.match(/https?:\/\/[^"'<>\s]+/i);
+    if (firstHttpMatch && firstHttpMatch[0]) {
+      candidates.push(firstHttpMatch[0]);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const normalized = normalizeUrl(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
 module.exports = {
   fetchOpenPlatformCopy,
   transformHtmlContent,
   resolveAssetUrl,
-  extractImageUrls
+  extractImageUrls,
+  extractExternalPageUrl
 };
