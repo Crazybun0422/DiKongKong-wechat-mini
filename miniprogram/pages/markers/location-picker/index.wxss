@@ -6,9 +6,15 @@
   background-color: #f5f5f5;
 }
 
-.picker-map {
+.picker-map-wrap {
+  position: relative;
   flex: 1;
   width: 100%;
+}
+
+.picker-map {
+  width: 100%;
+  height: 100%;
 }
 
 .center-pin {
