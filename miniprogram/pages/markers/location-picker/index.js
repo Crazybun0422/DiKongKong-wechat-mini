@@ -51,6 +51,15 @@ function normalizeSuggestions(list = [], limit = 10) {
   return suggestions.slice(0, limit);
 }
 
+function isZeroCoordinate(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  return Math.abs(lat) <= 1e-6 && Math.abs(lng) <= 1e-6;
+}
+
+function hasValidCoordinate(lat, lng) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && !isZeroCoordinate(lat, lng);
+}
+
 Page({
   data: {
     latitude: DEFAULT_CENTER.latitude,
@@ -113,9 +122,7 @@ Page({
       const { latitude, longitude } = this._pendingMoveTo;
       this.queueMapMove(latitude, longitude);
     }
-    if (!this.applyInitialPayload(this._initialPayload)) {
-      this.requestCurrentLocation();
-    }
+    this.requestInitialLocation();
   },
 
   onUnload() {
@@ -137,12 +144,79 @@ Page({
     this._eventChannel = null;
   },
 
+  requestInitialLocation() {
+    if (this.applyInitialPayload(this._initialPayload)) {
+      return;
+    }
+    const fallback = () => {
+      this.requestCurrentLocation({ silent: true });
+    };
+    this.ensureLocationPermission().then(fallback).catch(fallback);
+  },
+
+  ensureLocationPermission() {
+    return new Promise((resolve, reject) => {
+      if (typeof wx === "undefined" || typeof wx.getSetting !== "function") {
+        resolve();
+        return;
+      }
+      wx.getSetting({
+        success: (res) => {
+          const granted = !!(res.authSetting && res.authSetting["scope.userLocation"]);
+          if (granted) {
+            resolve();
+            return;
+          }
+          this.authorizeLocation().then(resolve).catch(reject);
+        },
+        fail: reject
+      });
+    });
+  },
+
+  authorizeLocation() {
+    return new Promise((resolve, reject) => {
+      if (typeof wx === "undefined") {
+        resolve();
+        return;
+      }
+      const openSetting = () => {
+        if (typeof wx.openSetting !== "function") {
+          reject(new Error("permission-denied"));
+          return;
+        }
+        wx.openSetting({
+          success: (st) => {
+            const granted = !!(st.authSetting && st.authSetting["scope.userLocation"]);
+            if (granted) {
+              resolve();
+            } else {
+              reject(new Error("permission-denied"));
+            }
+          },
+          fail: reject
+        });
+      };
+      if (typeof wx.authorize !== "function") {
+        openSetting();
+        return;
+      }
+      wx.authorize({
+        scope: "scope.userLocation",
+        success: () => resolve(),
+        fail: () => {
+          openSetting();
+        }
+      });
+    });
+  },
+
   applyInitialPayload(payload) {
     if (!payload) return false;
     const rawLat = Number(payload.latitude);
     const rawLng = Number(payload.longitude);
     const address = payload.address || "";
-    if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) {
+    if (!hasValidCoordinate(rawLat, rawLng)) {
       if (address) {
         const nextData = {
           addressMain: address,
@@ -171,11 +245,17 @@ Page({
 
   requestCurrentLocation(options = {}) {
     const silent = !!options.silent;
-    if (typeof wx.getLocation !== "function") {
+    const handleFailure = () => {
+      if (!silent && typeof wx !== "undefined" && typeof wx.showToast === "function") {
+        wx.showToast({ title: "定位失败，请手动选择", icon: "none" });
+      }
       this.handleCenterChange(DEFAULT_CENTER.latitude, DEFAULT_CENTER.longitude, {
         updateMapCenter: true,
         immediateReverse: true
       });
+    };
+    if (typeof wx.getLocation !== "function") {
+      handleFailure();
       return;
     }
     wx.getLocation({
@@ -183,20 +263,18 @@ Page({
       isHighAccuracy: true,
       highAccuracyExpireTime: 8000,
       success: (res) => {
-        this.handleCenterChange(res.latitude, res.longitude, {
+        const gcjLat = Number(res.latitude);
+        const gcjLng = Number(res.longitude);
+        if (!hasValidCoordinate(gcjLat, gcjLng)) {
+          handleFailure();
+          return;
+        }
+        this.handleCenterChange(gcjLat, gcjLng, {
           updateMapCenter: true,
           immediateReverse: true
         });
       },
-      fail: () => {
-        if (!silent) {
-          wx.showToast({ title: "定位失败，请手动选择", icon: "none" });
-        }
-        this.handleCenterChange(DEFAULT_CENTER.latitude, DEFAULT_CENTER.longitude, {
-          updateMapCenter: true,
-          immediateReverse: true
-        });
-      }
+      fail: handleFailure
     });
   },
 
@@ -433,7 +511,13 @@ Page({
   },
 
   onLocateTap() {
-    this.requestCurrentLocation();
+    this.ensureLocationPermission()
+      .then(() => {
+        this.requestCurrentLocation();
+      })
+      .catch(() => {
+        wx.showToast({ title: "未授权定位权限", icon: "none" });
+      });
   },
 
   scheduleSearchSuggest() {
