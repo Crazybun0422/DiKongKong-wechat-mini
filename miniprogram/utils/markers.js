@@ -169,6 +169,37 @@ function fetchMapSettlementConfig(options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function fetchOpenPlatformContent(options = {}) {
+  return new Promise((resolve, reject) => {
+    const base = resolveApiBase(options.apiBase);
+    if (!base) {
+      reject(new Error("missing-api-base"));
+      return;
+    }
+    const header = { "content-type": "application/json" };
+    const token = options.token || getAuthToken();
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
+    wx.request({
+      url: `${base}/api/config/open-platform-copy`,
+      method: "GET",
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data?.data || {});
+        } else if (res.statusCode === 401 || res.statusCode === 403) {
+          reject(new Error("missing-token"));
+        } else {
+          const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
+          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+        }
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 module.exports = {
   listMarkers,
   createMarker,
@@ -176,5 +207,6 @@ module.exports = {
   deleteMarker,
   uploadMarkerFile,
   buildFileDownloadUrl,
-  fetchMapSettlementConfig
+  fetchMapSettlementConfig,
+  fetchOpenPlatformContent
 };

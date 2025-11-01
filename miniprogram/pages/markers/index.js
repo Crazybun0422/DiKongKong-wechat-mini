@@ -524,21 +524,40 @@ Page({
       }
     }
     if (type === "attachments") {
-      if (typeof wx.chooseMessageFile !== "function") {
-        wx.showToast({ title: "当前版本不支持附件上传", icon: "none" });
+      const remainingCount = Math.max(1, 5 - this.data.form.attachmentFiles.length);
+      const handleSuccess = (res) => {
+        const files = Array.isArray(res?.tempFiles) ? res.tempFiles : [];
+        let paths = files.map((file) => file.path || file.tempFilePath).filter(Boolean);
+        let labels = files.map((file) => file.name || "附件");
+        if (!paths.length) {
+          const fallbackPaths = Array.isArray(res?.tempFilePaths)
+            ? res.tempFilePaths.filter(Boolean)
+            : [];
+          if (!fallbackPaths.length) return;
+          paths = fallbackPaths;
+          labels = fallbackPaths.map(() => "附件");
+        }
+        this.uploadFiles(type, paths, labels);
+      };
+
+      if (typeof wx.chooseFile === "function") {
+        wx.chooseFile({
+          count: remainingCount,
+          success: handleSuccess
+        });
         return;
       }
-      wx.chooseMessageFile({
-        count: Math.max(1, 5 - this.data.form.attachmentFiles.length),
-        type: "all",
-        success: (res) => {
-          const files = res?.tempFiles || [];
-          const paths = files.map((file) => file.path).filter(Boolean);
-          const labels = files.map((file) => file.name || "附件");
-          if (!paths.length) return;
-          this.uploadFiles(type, paths, labels);
-        }
-      });
+
+      if (typeof wx.chooseMessageFile === "function") {
+        wx.chooseMessageFile({
+          count: remainingCount,
+          type: "all",
+          success: handleSuccess
+        });
+        return;
+      }
+
+      wx.showToast({ title: "当前版本不支持附件上传", icon: "none" });
       return;
     }
     if (typeof wx.chooseImage !== "function") {

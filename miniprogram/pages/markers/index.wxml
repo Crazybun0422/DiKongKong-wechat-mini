@@ -398,6 +398,7 @@
 
           <view class="form-card">
             <view class="field-label">附件上传</view>
+            <view class="field-tip">请先将文件发送到微信文件传输助手对话框，再点击"上传附件"。</view>
             <view class="attachment-list">
               <block wx:for="{{form.attachmentFiles}}" wx:key="fileName">
                 <view class="attachment-item">
