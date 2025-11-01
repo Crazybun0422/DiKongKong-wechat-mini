@@ -169,7 +169,8 @@ Page({
     return true;
   },
 
-  requestCurrentLocation() {
+  requestCurrentLocation(options = {}) {
+    const silent = !!options.silent;
     if (typeof wx.getLocation !== "function") {
       this.handleCenterChange(DEFAULT_CENTER.latitude, DEFAULT_CENTER.longitude, {
         updateMapCenter: true,
@@ -179,6 +180,8 @@ Page({
     }
     wx.getLocation({
       type: "gcj02",
+      isHighAccuracy: true,
+      highAccuracyExpireTime: 8000,
       success: (res) => {
         this.handleCenterChange(res.latitude, res.longitude, {
           updateMapCenter: true,
@@ -186,7 +189,9 @@ Page({
         });
       },
       fail: () => {
-        wx.showToast({ title: "定位失败，请手动选择", icon: "none" });
+        if (!silent) {
+          wx.showToast({ title: "定位失败，请手动选择", icon: "none" });
+        }
         this.handleCenterChange(DEFAULT_CENTER.latitude, DEFAULT_CENTER.longitude, {
           updateMapCenter: true,
           immediateReverse: true
@@ -200,7 +205,13 @@ Page({
       return;
     }
     if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
-      this.mapCtx.moveToLocation({ latitude, longitude });
+      const moveOptions = { latitude, longitude };
+      moveOptions.fail = () => {
+        if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
+          this.mapCtx.moveToLocation();
+        }
+      };
+      this.mapCtx.moveToLocation(moveOptions);
       this._pendingMoveTo = null;
       return;
     }
@@ -232,10 +243,15 @@ Page({
       coordinateText: formatCoordinateText(selectedLatitude, selectedLongitude),
       hasLocation: true
     };
+    let moveAfterUpdate = null;
     if (updateMapCenter) {
+      const moveLatitude = latitude;
+      const moveLongitude = longitude;
       nextData.latitude = latitude;
       nextData.longitude = longitude;
-      this.queueMapMove(latitude, longitude);
+      moveAfterUpdate = () => {
+        this.queueMapMove(moveLatitude, moveLongitude);
+      };
     }
 
     const shouldReverse = !skipReverse && !isSameLocation;
@@ -253,7 +269,11 @@ Page({
       nextData.addressLoading = true;
     }
     nextData.canConfirm = this.computeCanConfirm(nextData);
-    this.setData(nextData);
+    this.setData(nextData, () => {
+      if (typeof moveAfterUpdate === "function") {
+        moveAfterUpdate();
+      }
+    });
 
     if (shouldReverse) {
       this.scheduleReverseGeocode(latitude, longitude, {
@@ -410,6 +430,10 @@ Page({
         });
         wx.showToast({ title: "搜索失败，请稍后重试", icon: "none" });
       });
+  },
+
+  onLocateTap() {
+    this.requestCurrentLocation();
   },
 
   scheduleSearchSuggest() {

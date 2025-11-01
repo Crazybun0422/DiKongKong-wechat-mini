@@ -87,12 +87,25 @@
   top: calc(env(safe-area-inset-top) + 32rpx);
   left: 32rpx;
   right: 32rpx;
-  max-width: 620rpx;
+  max-width: 760rpx;
+  display: flex;
+  flex-direction: column;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.search-stack {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 20rpx;
-  z-index: 60;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .search-box {
@@ -155,6 +168,43 @@
   border: 1rpx solid rgba(148, 163, 184, 0.12);
   overflow: hidden;
   max-height: 560rpx;
+}
+
+.locate-circle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1rpx solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 20rpx 40rpx rgba(15, 23, 42, 0.16);
+  padding: 0;
+  margin: 0;
+  pointer-events: auto;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.locate-circle::after {
+  border: 0;
+  content: none;
+}
+
+.locate-icon {
+  width: 46rpx;
+  height: 46rpx;
+}
+
+.locate-hover {
+  transform: scale(0.94);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.2);
+}
+
+.locate-circle:hover {
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .search-suggest-loading,
