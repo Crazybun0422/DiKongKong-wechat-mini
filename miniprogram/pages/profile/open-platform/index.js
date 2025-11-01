@@ -1,7 +1,8 @@
 const {
   fetchOpenPlatformCopy,
   transformHtmlContent,
-  extractImageUrls
+  extractImageUrls,
+  extractExternalPageUrl
 } = require("../../../utils/open-platform");
 const { resolveApiBase } = require("../../../utils/profile");
 
@@ -11,6 +12,7 @@ const DEFAULT_ERROR_LOAD = "\u52a0\u8f7d\u5931\u8d25";
 const TOAST_LINK_COPIED = "\u94fe\u63a5\u5df2\u590d\u5236";
 const TOAST_COPY_FAIL = "\u590d\u5236\u5931\u8d25";
 const TOAST_CANNOT_OPEN = "\u65e0\u6cd5\u6253\u5f00\u94fe\u63a5";
+const TOAST_WEBVIEW_ERROR = "\u65e0\u6cd5\u6253\u5f00\u5f00\u653e\u5e73\u53f0\u9875\u9762";
 
 function buildKeyVariants(key) {
   if (typeof key !== "string" || !key) {
@@ -59,7 +61,8 @@ Page({
     error: "",
     contentNodes: "",
     title: DEFAULT_TITLE,
-    imageUrls: []
+    imageUrls: [],
+    webUrl: ""
   },
 
   onLoad() {
@@ -77,9 +80,9 @@ Page({
   loadContent(options = {}) {
     const { fromPullDown = false } = options;
     if (!fromPullDown) {
-      this.setData({ loading: true, error: "" });
+      this.setData({ loading: true, error: "", webUrl: "" });
     } else {
-      this.setData({ error: "" });
+      this.setData({ error: "", webUrl: "" });
     }
 
     const apiBase = resolveApiBase();
@@ -88,7 +91,8 @@ Page({
         loading: false,
         error: DEFAULT_ERROR_NO_BASE,
         contentNodes: "",
-        imageUrls: []
+        imageUrls: [],
+        webUrl: ""
       });
       if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
         wx.stopPullDownRefresh();
@@ -106,12 +110,25 @@ Page({
           wx.setNavigationBarTitle({ title });
         }
         const images = extractImageUrls(html, { apiBase });
+        const urlCandidates = [
+          payload?.url,
+          payload?.externalUrl,
+          payload?.pageUrl,
+          payload?.link
+        ]
+          .filter((item) => typeof item === "string" && item.trim())
+          .map((item) => item.trim());
+        const externalUrl = extractExternalPageUrl(html, {
+          directUrl: urlCandidates[0],
+          fallbackUrls: urlCandidates.slice(1)
+        });
         this.setData({
           contentNodes: transformed,
           loading: false,
           error: "",
           title,
-          imageUrls: images
+          imageUrls: images,
+          webUrl: externalUrl
         });
       })
       .catch((err = {}) => {
@@ -120,7 +137,8 @@ Page({
           error: message,
           loading: false,
           contentNodes: "",
-          imageUrls: []
+          imageUrls: [],
+          webUrl: ""
         });
       })
       .finally(() => {
@@ -128,6 +146,13 @@ Page({
           wx.stopPullDownRefresh();
         }
       });
+  },
+
+  onWebViewError() {
+    this.setData({ webUrl: "" });
+    if (typeof wx.showToast === "function") {
+      wx.showToast({ title: TOAST_WEBVIEW_ERROR, icon: "none" });
+    }
   },
 
   onRichTextTap(event) {
