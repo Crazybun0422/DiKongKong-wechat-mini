@@ -96,6 +96,46 @@ function replaceTag(html, fromTag, toTag, baseClass) {
   return output;
 }
 
+function sanitizeInlineStyles(styleText = "") {
+  if (typeof styleText !== "string" || !styleText.trim()) {
+    return [];
+  }
+  return styleText
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const lower = item.toLowerCase();
+      return !(
+        lower.startsWith("width:") ||
+        lower.startsWith("height:") ||
+        lower.startsWith("max-width") ||
+        lower.startsWith("min-width") ||
+        lower.startsWith("margin") ||
+        lower.startsWith("display")
+      );
+    });
+}
+
+function buildImageStyleAttribute(styleText = "") {
+  const preserved = sanitizeInlineStyles(styleText);
+  const enforced = [
+    "display:block",
+    "width:100%",
+    "max-width:100%",
+    "height:auto"
+  ];
+  const hasBorderRadius = preserved.some((item) => item.toLowerCase().startsWith("border-radius"));
+  if (!hasBorderRadius) {
+    enforced.push("border-radius:12rpx");
+  }
+  const hasMargin = preserved.some((item) => item.toLowerCase().startsWith("margin"));
+  if (!hasMargin) {
+    enforced.push("margin:32rpx 0");
+  }
+  return [...preserved, ...enforced].join("; ");
+}
+
 function transformHtmlContent(html = "", options = {}) {
   if (!html || typeof html !== "string") {
     return "";
@@ -160,15 +200,24 @@ function transformHtmlContent(html = "", options = {}) {
     }
     const resolved = resolveAssetUrl(src, options);
     const otherAttrs = attrs.replace(/src=['"][^'"]*['"]/i, "").trim();
+    const withoutSizeAttrs = otherAttrs
+      .replace(/\bwidth=['"][^'"]*['"]/gi, "")
+      .replace(/\bheight=['"][^'"]*['"]/gi, "")
+      .trim();
+    const styleMatch = withoutSizeAttrs.match(/style=['"]([^'"]*)['"]/i);
+    const remainingAttrs = withoutSizeAttrs.replace(/style=['"][^'"]*['"]/i, "").trim();
     const attrParts = [];
     if (resolved) {
       const safe = resolved.replace(/"/g, "&quot;");
       attrParts.push(`src="${safe}"`);
       attrParts.push(`data-op-image="${safe}"`);
     }
-    attrParts.push('mode="widthFix"');
-    if (otherAttrs) {
-      attrParts.push(otherAttrs);
+    const imageStyle = buildImageStyleAttribute(styleMatch ? styleMatch[1] : "");
+    if (imageStyle) {
+      attrParts.push(`style="${imageStyle.replace(/"/g, "&quot;")}"`);
+    }
+    if (remainingAttrs) {
+      attrParts.push(remainingAttrs);
     }
     const imageTag = `<img ${attrParts.join(" ")} />`;
     return `<div class="op-image-container">${imageTag}</div>`;
