@@ -14,7 +14,7 @@
 
 .picker-map {
   width: 100%;
-  height: 100%;
+  height: 100vh;
 }
 
 .center-pin {
@@ -33,7 +33,7 @@
 
 .address-panel {
   position: absolute;
-  top: 50%;
+  top: 40%;
   left: 50%;
   transform: translate(-50%, -260rpx);
   display: flex;
