@@ -608,8 +608,8 @@
 
 .field-input,
 .field-textarea {
-  width: 100%;
-  box-sizing: border-box;
+  width: 90%;
+  /* box-sizing: border-box; */
 }
 
 .field-tip {
@@ -756,8 +756,9 @@
 }
 
 .image-add-icon {
-  width: 48rpx;
-  height: 48rpx;
+  width: 54px;
+  height: 54rpx;
+  filter: brightness(0.6) saturate(100%);
 }
 
 .image-add-text {
