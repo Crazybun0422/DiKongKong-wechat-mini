@@ -1,4 +1,4 @@
-const {
+﻿const {
   DEFAULT_AVATAR_PATH,
   fetchUserProfile,
   normalizeProfileData,
@@ -267,18 +267,26 @@ Page({
   onListItemTap(e) {
     const action = e.currentTarget?.dataset?.action;
     if (action === "customer-service") {
-      wx.showToast({ title: "客服功能即将开放", icon: "none" });
+      wx.showToast({ title: "�ͷ����ܼ�������", icon: "none" });
       return;
     }
     if (action === "markers") {
       if (typeof wx.navigateTo !== "function") {
-        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        wx.showToast({ title: "��ǰ�汾�ݲ�֧��", icon: "none" });
         return;
       }
       wx.navigateTo({ url: "/pages/markers/index" });
       return;
     }
-    wx.showToast({ title: "敬请期待", icon: "none" });
+    if (action === "open-platform") {
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "��ǰ�汾�ݲ�֧��", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/pages/profile/open-platform/index" });
+      return;
+    }
+    wx.showToast({ title: "功能内暂未开放", icon: "none" });
   },
 
   onChatButtonTap() {

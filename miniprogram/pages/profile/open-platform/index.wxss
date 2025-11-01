@@ -1,0 +1,134 @@
+.open-platform-page {
+  min-height: 100vh;
+  background: #f5f6f8;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-box {
+  padding: 80rpx 40rpx;
+  text-align: center;
+  color: #4b5563;
+  font-size: 30rpx;
+}
+
+.status-box.status-error {
+  color: #b91c1c;
+}
+
+.retry-btn {
+  margin-top: 32rpx;
+  background: #000000;
+  color: #ffffff;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  padding: 18rpx 0;
+}
+
+.content-scroll {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 32rpx 28rpx 80rpx;
+}
+
+.rich-text-content {
+  display: block;
+  font-size: 30rpx;
+  color: #1f2937;
+  line-height: 1.7;
+}
+
+.rich-text-content p {
+  margin: 24rpx 0;
+}
+
+.rich-text-content h1,
+.rich-text-content h2,
+.rich-text-content h3,
+.rich-text-content h4,
+.rich-text-content h5,
+.rich-text-content h6 {
+  font-weight: 600;
+  margin: 32rpx 0 16rpx;
+}
+
+.rich-text-content ul,
+.rich-text-content ol {
+  padding-left: 40rpx;
+  margin: 20rpx 0;
+}
+
+.rich-text-content li {
+  margin-bottom: 12rpx;
+}
+
+.rich-text-content .op-checkbox {
+  display: inline-flex;
+  width: 30rpx;
+  height: 30rpx;
+  border: 2rpx solid #94a3b8;
+  border-radius: 6rpx;
+  margin-right: 12rpx;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.rich-text-content .op-checkbox.is-checked {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.rich-text-content .op-checkbox.is-checked::after {
+  content: "";
+  width: 16rpx;
+  height: 10rpx;
+  border-left: 3rpx solid #ffffff;
+  border-bottom: 3rpx solid #ffffff;
+  transform: rotate(-45deg);
+}
+
+.rich-text-content a {
+  color: #2563eb;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.rich-text-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 28rpx 0;
+  background: #ffffff;
+  border: 1rpx solid #e2e8f0;
+}
+
+.rich-text-content th,
+.rich-text-content td {
+  border: 1rpx solid #e2e8f0;
+  padding: 16rpx;
+  text-align: left;
+  font-size: 28rpx;
+  color: #1f2937;
+}
+
+.rich-text-content th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
+.rich-text-content figure {
+  margin: 32rpx 0;
+  text-align: center;
+}
+
+.rich-text-content figure img {
+  max-width: 100%;
+  border-radius: 12rpx;
+}
+
+.rich-text-content figcaption {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #64748b;
+}
