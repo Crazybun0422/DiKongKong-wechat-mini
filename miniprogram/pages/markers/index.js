@@ -4,7 +4,8 @@ const {
   updateMarker,
   deleteMarker,
   uploadMarkerFile,
-  buildFileDownloadUrl
+  buildFileDownloadUrl,
+  fetchMapSettlementConfig
 } = require("../../utils/markers");
 const { resolveApiBase } = require("../../utils/profile");
 
@@ -31,26 +32,17 @@ const REVIEW_STATUS_META = {
   REJECTED: { label: "被驳回", tone: "danger" }
 };
 
-const PAYMENT_PLANS = [
-  {
-    id: "basic",
-    name: "基础展示套餐",
-    price: 100,
-    description: "含地图标记展示、基础审核服务。"
-  },
-  {
-    id: "priority",
-    name: "优享推广套餐",
-    price: 200,
-    description: "含优先审核、专项宣传曝光与客服加急支持。"
-  }
+const CREATE_STEPS = [
+  { label: "基础信息" },
+  { label: "资质资料" },
+  { label: "支付提交" },
+  { label: "提交结果" }
 ];
 
-const CREATE_STEPS = [
-  { label: "填写信息" },
-  { label: "资质素材" },
-  { label: "套餐与支付" },
-  { label: "提交结果" }
+const PAYMENT_METHODS = [
+  { id: "WECHAT", label: "微信支付" },
+  { id: "FLP", label: "FLP余额抵扣（余额不足）" },
+  { id: "NONE", label: "暂不支付", note: "用于测试效果" }
 ];
 
 function createEmptyForm() {
@@ -66,7 +58,8 @@ function createEmptyForm() {
     industryHonorTags: [],
     attachmentFiles: [],
     qrCodeImages: [],
-    videoChannelUrls: [],
+    videoChannelId: "",
+    videoId: "",
     adminInfo: { name: "", title: "", phone: "" }
   };
 }
@@ -86,10 +79,13 @@ Page({
     createSteps: CREATE_STEPS,
     form: createEmptyForm(),
     tagInput: "",
-    videoInput: "",
-    selectedPlanId: PAYMENT_PLANS[0].id,
-    selectedPlan: PAYMENT_PLANS[0],
-    paymentPlans: PAYMENT_PLANS,
+    paymentMethods: PAYMENT_METHODS,
+    selectedPaymentMethod: PAYMENT_METHODS[0].id,
+    settlementConfig: null,
+    wechatPriceDisplay: "",
+    wechatListPriceDisplay: "",
+    flpPriceDisplay: "",
+    flpListPriceDisplay: "",
     creationSubmitting: false,
     creationError: "",
     creationResult: null,
@@ -106,6 +102,39 @@ Page({
   onLoad() {
     this.apiBase = resolveApiBase();
     this.refreshMarkers({ initial: true });
+    this.fetchSettlementConfig();
+  },
+
+  fetchSettlementConfig() {
+    fetchMapSettlementConfig({ apiBase: this.apiBase })
+      .then((config) => {
+        this.applySettlementConfig(config || {});
+      })
+      .catch((err) => {
+        console.warn("获取入驻配置失败", err);
+      });
+  },
+
+  applySettlementConfig(config = {}) {
+    const wechatNet = this.formatPriceValue(config.wechatNetPrice, "¥");
+    const wechatList = this.formatPriceValue(config.wechatListPrice, "¥");
+    const flpNet = this.formatPriceValue(config.flpNetPrice, "FLP");
+    const flpList = this.formatPriceValue(config.flpListPrice, "FLP");
+    this.setData({
+      settlementConfig: config,
+      wechatPriceDisplay: wechatNet,
+      wechatListPriceDisplay: wechatList,
+      flpPriceDisplay: flpNet,
+      flpListPriceDisplay: flpList
+    });
+  },
+
+  formatPriceValue(value, prefix = "") {
+    if (value === undefined || value === null || value === "") return "";
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "";
+    const formatted = number.toFixed(2).replace(/\.00$/, "");
+    return `${prefix}${formatted}`;
   },
 
   onPullDownRefresh() {
@@ -203,15 +232,15 @@ Page({
       industryHonorTags: Array.isArray(raw.industryHonorTags)
         ? raw.industryHonorTags.filter((tag) => typeof tag === "string" && tag.trim())
         : [],
-      videoChannelUrls: Array.isArray(raw.videoChannelUrls)
-        ? raw.videoChannelUrls.filter((url) => typeof url === "string" && url.trim())
-        : [],
+      videoChannelId: typeof raw.videoChannelId === "string" ? raw.videoChannelId : "",
+      videoId: typeof raw.videoId === "string" ? raw.videoId : "",
       adminInfo: raw.adminInfo || {},
       reviewStatus: raw.reviewStatus || "PENDING",
       reviewStatusLabel: statusMeta.label,
       reviewTone: statusMeta.tone,
       paid: !!raw.paid,
       paidLabel: raw.paid ? "已完成支付" : "待支付",
+      paymentMethod: raw.paymentMethod || "",
       featureCode: raw.featureCode || "",
       createdAtDisplay,
       updatedAtDisplay,
@@ -273,9 +302,7 @@ Page({
       maxStepReached: 0,
       form: createEmptyForm(),
       tagInput: "",
-      videoInput: "",
-      selectedPlanId: PAYMENT_PLANS[0].id,
-      selectedPlan: PAYMENT_PLANS[0],
+      selectedPaymentMethod: PAYMENT_METHODS[0].id,
       creationSubmitting: false,
       creationError: "",
       creationResult: null,
@@ -303,18 +330,14 @@ Page({
       return;
     }
     const form = this.buildFormFromMarker(marker);
-    const selectedPlanId = this.data.selectedPlanId || PAYMENT_PLANS[0].id;
-    const selectedPlan =
-      this.data.paymentPlans.find((plan) => plan.id === selectedPlanId) || PAYMENT_PLANS[0];
+    const selectedPaymentMethod = marker.paymentMethod || PAYMENT_METHODS[0].id;
     this.setData({
       showCreate: true,
       createStep: 0,
       maxStepReached: 0,
       form,
       tagInput: "",
-      videoInput: "",
-      selectedPlanId,
-      selectedPlan,
+      selectedPaymentMethod,
       creationSubmitting: false,
       creationError: "",
       creationResult: null,
@@ -361,9 +384,8 @@ Page({
           id: item.id
         }))
       : [];
-    form.videoChannelUrls = Array.isArray(marker.videoChannelUrls)
-      ? marker.videoChannelUrls.slice()
-      : [];
+    form.videoChannelId = marker.videoChannelId || "";
+    form.videoId = marker.videoId || "";
     form.adminInfo = {
       name: marker.adminInfo?.name || "",
       title: marker.adminInfo?.title || "",
@@ -591,32 +613,6 @@ Page({
     }
   },
 
-  onVideoInput(e) {
-    this.setData({ videoInput: e?.detail?.value || "" });
-  },
-
-  onAddVideoUrl() {
-    const url = (this.data.videoInput || "").trim();
-    if (!url) return;
-    const list = this.data.form.videoChannelUrls || [];
-    if (list.includes(url)) {
-      wx.showToast({ title: "链接已存在", icon: "none" });
-      return;
-    }
-    this.setData({
-      "form.videoChannelUrls": list.concat(url),
-      videoInput: ""
-    });
-  },
-
-  onRemoveVideoUrl(e) {
-    const index = e?.currentTarget?.dataset?.index;
-    if (index === undefined) return;
-    const list = this.data.form.videoChannelUrls.slice();
-    list.splice(index, 1);
-    this.setData({ "form.videoChannelUrls": list });
-  },
-
   goToNextStep() {
     const step = this.data.createStep;
     if (step === 0 && !this.validateBasicStep()) return;
@@ -653,6 +649,9 @@ Page({
         if (probe === 1 && !this.validateMediaStep()) {
           return;
         }
+        if (probe === 2 && !this.validateAdminStep()) {
+          return;
+        }
         probe += 1;
       }
       this.setData({
@@ -667,6 +666,10 @@ Page({
 
   validateBasicStep() {
     const form = this.data.form;
+    if (!form.images.length) {
+      wx.showToast({ title: "请上传图片", icon: "none" });
+      return false;
+    }
     if (!form.name.trim()) {
       wx.showToast({ title: "请填写标记名称", icon: "none" });
       return false;
@@ -688,10 +691,6 @@ Page({
 
   validateMediaStep() {
     const form = this.data.form;
-    if (!form.images.length) {
-      wx.showToast({ title: "请上传至少一张展示图", icon: "none" });
-      return false;
-    }
     if (!form.businessLicense) {
       wx.showToast({ title: "请上传营业执照", icon: "none" });
       return false;
@@ -699,9 +698,23 @@ Page({
     return true;
   },
 
+  validateAdminStep() {
+    const admin = this.data.form.adminInfo || {};
+    if (!admin.name || !admin.name.trim()) {
+      wx.showToast({ title: "请填写管理员姓名", icon: "none" });
+      return false;
+    }
+    if (!admin.phone || !admin.phone.trim()) {
+      wx.showToast({ title: "请填写管理员联系电话", icon: "none" });
+      return false;
+    }
+    return true;
+  },
+
   submitMarker() {
     if (this.data.creationSubmitting) return;
-    if (!this.validateBasicStep() || !this.validateMediaStep()) return;
+    if (!this.validateBasicStep() || !this.validateMediaStep() || !this.validateAdminStep())
+      return;
     this.setData({ creationSubmitting: true, creationError: "" });
     const payload = this.buildMarkerPayload();
     const editingId = this.data.editingMarkerId;
@@ -754,10 +767,6 @@ Page({
 
   buildMarkerPayload() {
     const form = this.data.form;
-    const sanitizeArray = (items) =>
-      (Array.isArray(items) ? items : [])
-        .map((item) => (typeof item === "string" ? item.trim() : ""))
-        .filter((item) => !!item);
     const payload = {
       name: form.name.trim(),
       description: form.description.trim(),
@@ -779,9 +788,11 @@ Page({
     if (form.qrCodeImages?.length) {
       payload.qrCodeUrls = form.qrCodeImages.map((item) => item.fileName);
     }
-    const videoChannels = sanitizeArray(form.videoChannelUrls);
-    if (videoChannels.length) {
-      payload.videoChannelUrls = videoChannels;
+    if (form.videoChannelId && form.videoChannelId.trim()) {
+      payload.videoChannelId = form.videoChannelId.trim();
+    }
+    if (form.videoId && form.videoId.trim()) {
+      payload.videoId = form.videoId.trim();
     }
     if (form.adminInfo && (form.adminInfo.name || form.adminInfo.title || form.adminInfo.phone)) {
       payload.adminInfo = {
@@ -790,17 +801,16 @@ Page({
         phone: (form.adminInfo.phone || "").trim()
       };
     }
+    if (this.data.selectedPaymentMethod) {
+      payload.paymentMethod = this.data.selectedPaymentMethod;
+    }
     return payload;
   },
 
-  onPlanSelect(e) {
-    const planId = e?.currentTarget?.dataset?.id;
-    if (!planId) return;
-    const plan = this.data.paymentPlans.find((item) => item.id === planId);
-    this.setData({
-      selectedPlanId: planId,
-      selectedPlan: plan || this.data.selectedPlan
-    });
+  onSelectPaymentMethod(e) {
+    const method = e?.currentTarget?.dataset?.method || e?.detail?.value;
+    if (!method) return;
+    this.setData({ selectedPaymentMethod: method });
   },
 
   onDeleteMarkerTap(e) {
