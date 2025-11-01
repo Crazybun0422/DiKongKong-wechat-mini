@@ -4,7 +4,6 @@
     "pages/profile/profile",
     "pages/profile/open-platform/index",
     "pages/profile/edit/index",
-    "pages/profile/open-platform/index",
     "pages/markers/index",
     "pages/markers/location-picker/index"
   ],

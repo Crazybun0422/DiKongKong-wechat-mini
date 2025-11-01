@@ -1,4 +1,8 @@
-const { resolveApiBase } = require("./profile");
+const {
+  resolveApiBase,
+  extractAvatarFileName,
+  buildAvatarDownloadUrl
+} = require("./profile");
 
 function fetchOpenPlatformCopy(options = {}) {
   const base = resolveApiBase(options.apiBase);
@@ -26,18 +30,25 @@ function fetchOpenPlatformCopy(options = {}) {
 function resolveAssetUrl(src = "", options = {}) {
   const value = typeof src === "string" ? src.trim() : "";
   if (!value) return "";
-  if (/^(https?:|data:|wxfile:)/i.test(value)) {
+  if (/^(data:|wxfile:)/i.test(value)) {
     return value;
   }
-  const base = resolveApiBase(options.apiBase);
-  if (!base) {
+
+  const apiBase = resolveApiBase(options.apiBase);
+  const fileName = extractAvatarFileName(value);
+  if (fileName) {
+    return buildAvatarDownloadUrl(fileName, { apiBase });
+  }
+
+  if (!apiBase) {
     return value;
   }
-  const normalizedBase = base.replace(/\/?$/, "");
+
+  const normalizedBase = apiBase.replace(/\/?$/, "");
   if (value.startsWith("/")) {
     return `${normalizedBase}${value}`;
   }
-  if (/^\.\.\//.test(value) || /^\.\//.test(value)) {
+  if (/^\.\.?\//.test(value)) {
     return `${normalizedBase}/${value.replace(/^\.+\//, "")}`;
   }
   if (value.includes("/")) {
@@ -76,9 +87,10 @@ function transformHtmlContent(html = "", options = {}) {
   }
   let output = html;
 
-  output = output.replace(/<input\\b[^>]*type=['"]?checkbox['"]?[^>]*>/gi, (tag) => {
+  output = output.replace(/<input\b[^>]*type=['"]?checkbox['"]?[^>]*>/gi, (tag) => {
     const checked = /\bchecked\b/i.test(tag);
-    return `<span class="op-checkbox${checked ? " is-checked" : ""}" data-op-checkbox="${checked ? "checked" : "unchecked"}">${checked ? "☑" : "☐"}</span>`;
+    const glyph = checked ? "[x]" : "[ ]";
+    return `<span class="op-checkbox${checked ? " is-checked" : ""}" data-op-checkbox="${checked ? "checked" : "unchecked"}">${glyph}</span>`;
   });
 
   output = replaceTag(output, "figure", "div", "op-figure");
@@ -94,7 +106,7 @@ function transformHtmlContent(html = "", options = {}) {
   output = output.replace(/<col[^>]*>/gi, "");
   output = output.replace(/<\/colgroup>/gi, "");
 
-  output = output.replace(/<a\\b([^>]*)>/gi, (match, attrs = "") => {
+  output = output.replace(/<a\b([^>]*)>/gi, (match, attrs = "") => {
     let href = "";
     const hrefMatch = attrs.match(/href=['"]([^'"]*)['"]/i);
     if (hrefMatch && hrefMatch[1]) {
@@ -113,7 +125,11 @@ function transformHtmlContent(html = "", options = {}) {
       attrParts.push(`class="${classes.join(" ")}"`);
     }
     if (href) {
-      attrParts.push(`data-op-link="${href.replace(/"/g, '&quot;')}"`);
+      const safeHref = href.replace(/"/g, "&quot;");
+      attrParts.push(`href="${safeHref}"`);
+      attrParts.push(`data-op-link="${safeHref}"`);
+    } else {
+      attrParts.push('href="javascript:void(0)"');
     }
     if (remaining) {
       attrParts.push(remaining);
@@ -121,7 +137,7 @@ function transformHtmlContent(html = "", options = {}) {
     return `<a ${attrParts.join(" ")}>`;
   });
 
-  output = output.replace(/<img\\b([^>]*)>/gi, (match, attrs = "") => {
+  output = output.replace(/<img\b([^>]*)>/gi, (match, attrs = "") => {
     let src = "";
     const srcMatch = attrs.match(/src=['"]([^'"]*)['"]/i);
     if (srcMatch && srcMatch[1]) {
@@ -131,15 +147,16 @@ function transformHtmlContent(html = "", options = {}) {
     const otherAttrs = attrs.replace(/src=['"][^'"]*['"]/i, "").trim();
     const attrParts = [];
     if (resolved) {
-      const safe = resolved.replace(/"/g, '&quot;');
+      const safe = resolved.replace(/"/g, "&quot;");
       attrParts.push(`src="${safe}"`);
       attrParts.push(`data-op-image="${safe}"`);
     }
-    attrParts.push("mode=\"widthFix\"");
+    attrParts.push('mode="widthFix"');
     if (otherAttrs) {
       attrParts.push(otherAttrs);
     }
-    return `<img ${attrParts.join(" ")} />`;
+    const imageTag = `<img ${attrParts.join(" ")} />`;
+    return `<div class="op-image-container">${imageTag}</div>`;
   });
 
   output = output.replace(/<br\s*>/gi, "<br />");
@@ -152,7 +169,7 @@ function extractImageUrls(html = "", options = {}) {
     return [];
   }
   const urls = [];
-  html.replace(/<img\\b([^>]*)>/gi, (match, attrs = "") => {
+  html.replace(/<img\b([^>]*)>/gi, (match, attrs = "") => {
     const srcMatch = attrs.match(/src=['"]([^'"]*)['"]/i);
     if (srcMatch && srcMatch[1]) {
       const resolved = resolveAssetUrl(srcMatch[1], options);

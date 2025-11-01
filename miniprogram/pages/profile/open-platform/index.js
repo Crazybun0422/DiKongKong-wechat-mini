@@ -5,18 +5,52 @@ const {
 } = require("../../../utils/open-platform");
 const { resolveApiBase } = require("../../../utils/profile");
 
-function formatUpdatedAt(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (date.toString() === "Invalid Date") {
-    return `${value}`;
+const DEFAULT_TITLE = "\u5f00\u653e\u5e73\u53f0";
+const DEFAULT_ERROR_NO_BASE = "\u672a\u914d\u7f6e\u670d\u52a1\u5730\u5740";
+const DEFAULT_ERROR_LOAD = "\u52a0\u8f7d\u5931\u8d25";
+const TOAST_LINK_COPIED = "\u94fe\u63a5\u5df2\u590d\u5236";
+const TOAST_COPY_FAIL = "\u590d\u5236\u5931\u8d25";
+const TOAST_CANNOT_OPEN = "\u65e0\u6cd5\u6253\u5f00\u94fe\u63a5";
+
+function buildKeyVariants(key) {
+  if (typeof key !== "string" || !key) {
+    return [key];
   }
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  const variants = new Set();
+  variants.add(key);
+  variants.add(key.toLowerCase());
+  variants.add(key.toUpperCase());
+  if (key.includes("-")) {
+    variants.add(key.replace(/-([a-z])/gi, (_, letter) => letter.toUpperCase()));
+    variants.add(key.replace(/-([a-z])/gi, (_, letter) => letter));
+  } else if (/[A-Z]/.test(key)) {
+    variants.add(key.replace(/([A-Z])/g, (_, letter) => `-${letter.toLowerCase()}`));
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+function getRichTextAttribute(event, keys = []) {
+  const sources = [
+    event?.target?.dataset,
+    event?.detail?.target?.dataset,
+    event?.detail?.dataset,
+    event?.detail?.node?.dataset,
+    event?.detail?.node?.attrs,
+    event?.mark,
+    event?.currentTarget?.dataset
+  ];
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of keys) {
+      const variants = buildKeyVariants(key);
+      for (const variant of variants) {
+        if (variant && Object.prototype.hasOwnProperty.call(source, variant)) {
+          return source[variant];
+        }
+      }
+    }
+  }
+  return "";
 }
 
 Page({
@@ -24,8 +58,7 @@ Page({
     loading: true,
     error: "",
     contentNodes: "",
-    updatedAt: "",
-    title: "开放平台",
+    title: DEFAULT_TITLE,
     imageUrls: []
   },
 
@@ -53,7 +86,7 @@ Page({
     if (!apiBase) {
       this.setData({
         loading: false,
-        error: "未配置服务地址",
+        error: DEFAULT_ERROR_NO_BASE,
         contentNodes: "",
         imageUrls: []
       });
@@ -68,7 +101,7 @@ Page({
         const html = typeof payload.content === "string" ? payload.content : "";
         const transformed = transformHtmlContent(html, { apiBase });
         const rawTitle = typeof payload.title === "string" ? payload.title.trim() : "";
-        const title = rawTitle || this.data.title || "开放平台";
+        const title = rawTitle || this.data.title || DEFAULT_TITLE;
         if (title && title !== this.data.title && typeof wx.setNavigationBarTitle === "function") {
           wx.setNavigationBarTitle({ title });
         }
@@ -77,13 +110,12 @@ Page({
           contentNodes: transformed,
           loading: false,
           error: "",
-          updatedAt: formatUpdatedAt(payload.updatedAt),
           title,
           imageUrls: images
         });
       })
       .catch((err = {}) => {
-        const message = err.message || "加载失败";
+        const message = err.message || DEFAULT_ERROR_LOAD;
         this.setData({
           error: message,
           loading: false,
@@ -99,10 +131,9 @@ Page({
   },
 
   onRichTextTap(event) {
-    const dataset = event?.target?.dataset || {};
-    const link = dataset.opLink || dataset.oplink;
+    const link = getRichTextAttribute(event, ["opLink", "data-op-link", "href"]);
     if (link) {
-      const url = `${link}`;
+      const url = String(link);
       const canOpen = typeof wx.openUrl === "function" && /^https?:\/\//i.test(url);
       if (canOpen) {
         wx.openUrl({ url });
@@ -112,21 +143,21 @@ Page({
         wx.setClipboardData({
           data: url,
           success: () => {
-            wx.showToast({ title: "链接已复制", icon: "success" });
+            wx.showToast({ title: TOAST_LINK_COPIED, icon: "success" });
           },
           fail: () => {
-            wx.showToast({ title: "复制失败", icon: "none" });
+            wx.showToast({ title: TOAST_COPY_FAIL, icon: "none" });
           }
         });
       } else {
-        wx.showToast({ title: "无法打开链接", icon: "none" });
+        wx.showToast({ title: TOAST_CANNOT_OPEN, icon: "none" });
       }
     }
 
-    const tappedImage = dataset.opImage || dataset.opimage;
+    const tappedImage = getRichTextAttribute(event, ["opImage", "data-op-image", "src"]);
     if (tappedImage) {
       const urls = this.data.imageUrls || [];
-      const current = `${tappedImage}`;
+      const current = String(tappedImage);
       if (typeof wx.previewImage === "function") {
         wx.previewImage({
           urls: urls.length ? urls : [current],
