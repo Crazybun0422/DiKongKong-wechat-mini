@@ -136,7 +136,11 @@
 
 .open-platform-content .op-figure image,
 .open-platform-content .op-figure img {
-  max-width: 100%;
+  display: block;
+  width: auto;
+  max-width: calc(100% - 100rpx);
+  height: auto;
+  margin: 50rpx auto;
   border-radius: 16rpx;
 }
 
@@ -151,27 +155,31 @@
   text-decoration: underline;
 }
 
+
 .open-platform-content .op-image-container {
-  margin: 50rpx 0;
-  padding: 0 50rpx;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
 .open-platform-content .op-image-container image,
 .open-platform-content .op-image-container img {
   display: block;
-  width: 100%;
-  max-width: 100%;
+  width: auto;
+  max-width: calc(100% - 100rpx);
   height: auto;
+  margin: 50rpx auto;
   border-radius: 12rpx;
 }
 
 .open-platform-content image,
 .open-platform-content img {
-  max-width: 100%;
-  border-radius: 12rpx;
   display: block;
-  margin: 0;
+  width: auto;
+  max-width: calc(100% - 100rpx);
+  height: auto;
+  margin: 50rpx auto;
+  border-radius: 12rpx;
 }
 
 .open-platform-content code {
