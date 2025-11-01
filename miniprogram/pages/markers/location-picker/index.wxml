@@ -14,21 +14,62 @@
     enable-traffic="{{false}}"
     bindregionchange="onRegionChange"
   >
-    <cover-view class="center-pin">
-      <cover-view class="pin-body"></cover-view>
-      <cover-view class="pin-shadow"></cover-view>
-    </cover-view>
-    <cover-view class="address-bubble">
-      <cover-view class="address-main">
-        <cover-view wx:if="{{addressLoading}}">正在获取详细地址...</cover-view>
-        <cover-view wx:elif="{{addressMain}}">{{addressMain}}</cover-view>
-        <cover-view wx:else>拖动地图选择目标位置</cover-view>
+    <cover-image class="center-pin" src="/assets/position.png" mode="widthFix" />
+    <cover-view class="address-panel">
+      <cover-view class="address-panel-body">
+        <cover-view class="address-line primary">
+          <cover-view wx:if="{{addressLoading}}">正在获取详细地址...</cover-view>
+          <cover-view wx:elif="{{addressMain}}">{{addressMain}}</cover-view>
+          <cover-view wx:else>拖动地图选择目标位置</cover-view>
+        </cover-view>
+        <cover-view class="address-line secondary" wx:if="{{!addressLoading && addressDetail}}">
+          {{addressDetail}}
+        </cover-view>
+        <cover-view class="address-line coordinate" wx:if="{{coordinateText}}">
+          {{coordinateText}}
+        </cover-view>
       </cover-view>
-      <cover-view class="address-detail" wx:if="{{!addressLoading && addressDetail}}">
-        {{addressDetail}}
-      </cover-view>
+      <cover-view class="address-panel-pointer"></cover-view>
     </cover-view>
   </map>
+  <view class="picker-search-panel">
+    <view class="search-box {{searchPanelFocused ? 'is-active' : ''}}">
+      <image class="search-icon" src="/assets/search.png" mode="aspectFit" />
+      <input
+        class="search-input"
+        type="text"
+        confirm-type="search"
+        placeholder="搜索地点、楼宇或关键字"
+        placeholder-style="color:#9ca3af"
+        value="{{searchKeyword}}"
+        maxlength="60"
+        bindinput="onSearchInput"
+        bindfocus="onSearchFocus"
+        bindblur="onSearchBlur"
+        bindconfirm="onSearchConfirm"
+      />
+      <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onSearchClear">×</view>
+    </view>
+    <view
+      class="search-suggest-card"
+      wx:if="{{(searchPanelFocused || searchSuggestions.length) && (searchSuggestions.length || searchSuggestLoading || searchSuggestError)}}"
+    >
+      <view class="search-suggest-loading" wx:if="{{searchSuggestLoading}}">
+        正在匹配周边地点...
+      </view>
+      <view class="search-suggest-empty" wx:elif="{{searchSuggestError}}">
+        {{searchSuggestError}}
+      </view>
+      <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
+        <block wx:for="{{searchSuggestions}}" wx:key="id">
+          <view class="search-suggest-item" data-index="{{index}}" bindtap="onSuggestionTap">
+            <view class="suggest-title">{{item.title}}</view>
+            <view class="suggest-address" wx:if="{{item.address}}">{{item.address}}</view>
+          </view>
+        </block>
+      </scroll-view>
+    </view>
+  </view>
   <view class="actions">
     <view class="error-text" wx:if="{{addressError}}">{{addressError}}</view>
     <button

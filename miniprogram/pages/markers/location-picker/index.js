@@ -1,5 +1,6 @@
 const { reverseGeocode } = require("../../../utils/geocoder");
 const { gcj02ToWgs84, wgs84ToGcj02 } = require("../../../utils/coords");
+const { searchPlaces } = require("../../../utils/search");
 
 const DEFAULT_CENTER = {
   latitude: 39.9042,
@@ -11,6 +12,43 @@ function normalizeCoord(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
   return Number(num.toFixed(6));
+}
+
+function formatCoordinateText(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+function normalizeSuggestions(list = [], limit = 10) {
+  const suggestions = [];
+  list.forEach((poi, index) => {
+    const lat = Number(poi?.location?.lat);
+    const lng = Number(poi?.location?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return;
+    }
+    const title = poi.title || poi.name || "";
+    const addressParts = [
+      poi.address,
+      poi.district,
+      poi.city,
+      poi.province,
+      poi.category
+    ]
+      .map((part) => (part || "").trim())
+      .filter(Boolean);
+    const address = addressParts.reduce((acc, part) => {
+      return acc.includes(part) ? acc : `${acc ? `${acc} · ` : ""}${part}`;
+    }, "");
+    suggestions.push({
+      id: poi.id || poi.adcode || `poi-${index}`,
+      title: title || address || "未命名地点",
+      address,
+      latitude: lat,
+      longitude: lng
+    });
+  });
+  return suggestions.slice(0, limit);
 }
 
 Page({
@@ -26,6 +64,12 @@ Page({
     hasLocation: false,
     selectedLatitude: null,
     selectedLongitude: null,
+    coordinateText: "",
+    searchKeyword: "",
+    searchSuggestions: [],
+    searchSuggestLoading: false,
+    searchSuggestError: "",
+    searchPanelFocused: false,
     canConfirm: false
   },
 
@@ -42,6 +86,11 @@ Page({
     this._lastReverseExecutedAt = 0;
     this._lastReverseLocationKey = "";
     this._pendingReverseLocationKey = "";
+    this._suggestTimer = null;
+    this._suggestDelay = 280;
+    this._latestSuggestKeyword = "";
+    this._pendingMoveTo = null;
+    this._searchBlurTimer = null;
 
     if (typeof this.getOpenerEventChannel === "function") {
       const channel = this.getOpenerEventChannel();
@@ -60,6 +109,10 @@ Page({
   onReady() {
     this.mapCtx = wx.createMapContext("picker-map", this);
     this._ready = true;
+    if (this._pendingMoveTo) {
+      const { latitude, longitude } = this._pendingMoveTo;
+      this.queueMapMove(latitude, longitude);
+    }
     if (!this.applyInitialPayload(this._initialPayload)) {
       this.requestCurrentLocation();
     }
@@ -69,6 +122,14 @@ Page({
     if (this._reverseTimer) {
       clearTimeout(this._reverseTimer);
       this._reverseTimer = null;
+    }
+    if (this._suggestTimer) {
+      clearTimeout(this._suggestTimer);
+      this._suggestTimer = null;
+    }
+    if (this._searchBlurTimer) {
+      clearTimeout(this._searchBlurTimer);
+      this._searchBlurTimer = null;
     }
     if (this._eventChannel && typeof this._eventChannel.off === "function") {
       this._eventChannel.off("initLocation");
@@ -87,7 +148,8 @@ Page({
           addressMain: address,
           addressDetail: address,
           addressError: "",
-          addressLoading: false
+          addressLoading: false,
+          searchKeyword: address
         };
         nextData.canConfirm = this.computeCanConfirm(nextData);
         this.setData(nextData);
@@ -101,6 +163,9 @@ Page({
       presetAddress: address,
       immediateReverse: !address
     });
+    if (address) {
+      this.setData({ searchKeyword: address });
+    }
     return true;
   },
 
@@ -130,6 +195,18 @@ Page({
     });
   },
 
+  queueMapMove(latitude, longitude) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+    if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
+      this.mapCtx.moveToLocation({ latitude, longitude });
+      this._pendingMoveTo = null;
+      return;
+    }
+    this._pendingMoveTo = { latitude, longitude };
+  },
+
   handleCenterChange(gcjLat, gcjLng, options = {}) {
     const {
       updateMapCenter = false,
@@ -152,11 +229,13 @@ Page({
     const nextData = {
       selectedLatitude,
       selectedLongitude,
+      coordinateText: formatCoordinateText(selectedLatitude, selectedLongitude),
       hasLocation: true
     };
     if (updateMapCenter) {
       nextData.latitude = latitude;
       nextData.longitude = longitude;
+      this.queueMapMove(latitude, longitude);
     }
 
     const shouldReverse = !skipReverse && !isSameLocation;
@@ -197,6 +276,264 @@ Page({
       success: (res) => {
         this.handleCenterChange(res.latitude, res.longitude);
       }
+    });
+  },
+
+  onSearchInput(e) {
+    const keyword = e?.detail?.value || "";
+    if (this._searchBlurTimer) {
+      clearTimeout(this._searchBlurTimer);
+      this._searchBlurTimer = null;
+    }
+    this.setData({ searchKeyword: keyword });
+    if (!keyword.trim()) {
+      if (this._suggestTimer) {
+        clearTimeout(this._suggestTimer);
+        this._suggestTimer = null;
+      }
+      this._latestSuggestKeyword = "";
+      this.setData({
+        searchSuggestions: [],
+        searchSuggestLoading: false,
+        searchSuggestError: ""
+      });
+      return;
+    }
+    this.setData({
+      searchSuggestLoading: true,
+      searchSuggestError: ""
+    });
+    this.scheduleSearchSuggest();
+  },
+
+  onSearchFocus() {
+    if (this._searchBlurTimer) {
+      clearTimeout(this._searchBlurTimer);
+      this._searchBlurTimer = null;
+    }
+    if (!this.data.searchPanelFocused) {
+      this.setData({ searchPanelFocused: true });
+    }
+  },
+
+  onSearchBlur() {
+    if (this._searchBlurTimer) {
+      clearTimeout(this._searchBlurTimer);
+    }
+    this._searchBlurTimer = setTimeout(() => {
+      this._searchBlurTimer = null;
+      this.setData({ searchPanelFocused: false });
+    }, 180);
+  },
+
+  onSearchClear() {
+    if (this._suggestTimer) {
+      clearTimeout(this._suggestTimer);
+      this._suggestTimer = null;
+    }
+    this._latestSuggestKeyword = "";
+    this.setData({
+      searchKeyword: "",
+      searchSuggestions: [],
+      searchSuggestLoading: false,
+      searchSuggestError: ""
+    });
+  },
+
+  onSearchConfirm() {
+    const keyword = (this.data.searchKeyword || "").trim();
+    if (!keyword) return;
+    if (this._suggestTimer) {
+      clearTimeout(this._suggestTimer);
+      this._suggestTimer = null;
+    }
+    this.setData({
+      searchSuggestLoading: true,
+      searchSuggestError: ""
+    });
+    const gcjCenter =
+      this._currentGcj &&
+      Number.isFinite(this._currentGcj.latitude) &&
+      Number.isFinite(this._currentGcj.longitude)
+        ? this._currentGcj
+        : (Number.isFinite(this.data.latitude) && Number.isFinite(this.data.longitude)
+            ? { latitude: this.data.latitude, longitude: this.data.longitude }
+            : null);
+    let searchPromise;
+    if (gcjCenter) {
+      try {
+        const centerWgs = gcj02ToWgs84(gcjCenter.longitude, gcjCenter.latitude);
+        searchPromise = searchPlaces(keyword, {
+          latitude: centerWgs.lat,
+          longitude: centerWgs.lng
+        });
+      } catch (err) {
+        console.warn("Failed to convert center for search", err);
+        searchPromise = searchPlaces(keyword);
+      }
+    } else {
+      searchPromise = searchPlaces(keyword);
+    }
+    const snapshot = keyword;
+    this._latestSuggestKeyword = snapshot;
+    searchPromise
+      .then((results) => {
+        if (this._latestSuggestKeyword !== snapshot) return;
+        const suggestions = normalizeSuggestions(results, 10);
+        if (!suggestions.length) {
+          this.setData({
+            searchSuggestions: [],
+            searchSuggestLoading: false,
+            searchSuggestError: "未找到匹配地点"
+          });
+          wx.showToast({ title: "未找到相关地点", icon: "none" });
+          return;
+        }
+        this.setData({
+          searchSuggestions: suggestions,
+          searchSuggestLoading: false,
+          searchSuggestError: ""
+        });
+        this.applySuggestion(suggestions[0], {
+          updateKeyword: true,
+          collapseSuggestions: false,
+          keepFocus: true
+        });
+      })
+      .catch((err) => {
+        console.warn("Location picker search failed", err);
+        if (this._latestSuggestKeyword !== snapshot) return;
+        this.setData({
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: "搜索失败，请稍后重试"
+        });
+        wx.showToast({ title: "搜索失败，请稍后重试", icon: "none" });
+      });
+  },
+
+  scheduleSearchSuggest() {
+    if (this._suggestTimer) {
+      clearTimeout(this._suggestTimer);
+    }
+    this._suggestTimer = setTimeout(() => {
+      this._suggestTimer = null;
+      this.fetchSearchSuggestions();
+    }, this._suggestDelay);
+  },
+
+  fetchSearchSuggestions() {
+    const keyword = (this.data.searchKeyword || "").trim();
+    if (!keyword) {
+      this.setData({
+        searchSuggestions: [],
+        searchSuggestLoading: false,
+        searchSuggestError: ""
+      });
+      return;
+    }
+    const gcjCenter =
+      this._currentGcj &&
+      Number.isFinite(this._currentGcj.latitude) &&
+      Number.isFinite(this._currentGcj.longitude)
+        ? this._currentGcj
+        : (Number.isFinite(this.data.latitude) && Number.isFinite(this.data.longitude)
+            ? { latitude: this.data.latitude, longitude: this.data.longitude }
+            : null);
+    let searchPromise;
+    if (gcjCenter) {
+      try {
+        const centerWgs = gcj02ToWgs84(gcjCenter.longitude, gcjCenter.latitude);
+        searchPromise = searchPlaces(keyword, {
+          latitude: centerWgs.lat,
+          longitude: centerWgs.lng
+        });
+      } catch (err) {
+        console.warn("Failed to convert center for suggestions", err);
+        searchPromise = searchPlaces(keyword);
+      }
+    } else {
+      searchPromise = searchPlaces(keyword);
+    }
+    const snapshot = keyword;
+    this._latestSuggestKeyword = snapshot;
+    searchPromise
+      .then((results) => {
+        if (this._latestSuggestKeyword !== snapshot) return;
+        const suggestions = normalizeSuggestions(results, 8);
+        this.setData({
+          searchSuggestions: suggestions,
+          searchSuggestLoading: false,
+          searchSuggestError: suggestions.length ? "" : "未找到匹配地点"
+        });
+      })
+      .catch((err) => {
+        console.warn("Location picker suggestion failed", err);
+        if (this._latestSuggestKeyword !== snapshot) return;
+        this.setData({
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: "搜索失败，请稍后重试"
+        });
+      });
+  },
+
+  applySuggestion(suggestion, options = {}) {
+    if (!suggestion) return;
+    const {
+      updateKeyword = true,
+      collapseSuggestions = true,
+      keepFocus = false
+    } = options;
+    const { latitude, longitude } = suggestion;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      wx.showToast({ title: "无法定位到该地址", icon: "none" });
+      return;
+    }
+    this.handleCenterChange(latitude, longitude, {
+      updateMapCenter: true,
+      immediateReverse: true
+    });
+    const displayMain = suggestion.title || suggestion.address || "已选地点";
+    let displayDetail = suggestion.address || "";
+    if (displayDetail === displayMain) {
+      displayDetail = "";
+    }
+    const addressData = {
+      addressMain: displayMain,
+      addressDetail: displayDetail,
+      addressError: "",
+      addressLoading: false
+    };
+    const updates = Object.assign({}, addressData);
+    updates.canConfirm = this.computeCanConfirm(addressData);
+    if (updateKeyword) {
+      updates.searchKeyword = displayMain;
+    }
+    if (collapseSuggestions) {
+      updates.searchSuggestions = [];
+      updates.searchSuggestLoading = false;
+      updates.searchSuggestError = "";
+    }
+    if (!keepFocus) {
+      updates.searchPanelFocused = false;
+    }
+    this.setData(updates);
+  },
+
+  onSuggestionTap(e) {
+    if (this._searchBlurTimer) {
+      clearTimeout(this._searchBlurTimer);
+      this._searchBlurTimer = null;
+    }
+    const idx = Number(e?.currentTarget?.dataset?.index);
+    if (!Number.isFinite(idx)) return;
+    const suggestion = this.data.searchSuggestions?.[idx];
+    if (!suggestion) return;
+    this.applySuggestion(suggestion, {
+      updateKeyword: true,
+      collapseSuggestions: true,
+      keepFocus: false
     });
   },
 

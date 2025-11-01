@@ -15,7 +15,7 @@
       bindregionchange="onRegionChange"
       bindupdated="onMapUpdated"
     />
-    <view class="center-pin"></view>
+    <image class="center-pin" src="/assets/position.png" mode="widthFix" />
 
     <view class="preflight-overlay" wx:if="{{showDashboardPanel}}">
       <view class="preflight-card">

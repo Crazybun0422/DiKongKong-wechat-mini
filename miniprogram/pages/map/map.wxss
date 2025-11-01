@@ -20,27 +20,14 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 15px;
-  height: 15px;
-  margin-left: -9px;
-  margin-top: -18px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.9);
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
+  width: 64rpx;
+  height: 64rpx;
+  transform: translate(-50%, -96%);
+  display: block;
   pointer-events: none;
   z-index: 20;
-}
-
-.center-pin::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  width: 2px;
-  height: 10px;
-  margin-left: -1px;
-  background: rgba(0, 0, 0, 0.9);
+  filter: brightness(0) saturate(100%) invert(27%) sepia(92%) saturate(2594%) hue-rotate(205deg) brightness(102%) contrast(104%) drop-shadow(0 10rpx 20rpx rgba(15, 23, 42, 0.25));
+  opacity: 0.95;
 }
 
 .preflight-overlay {
