@@ -53,6 +53,18 @@ paths:
             type: integer
             minimum: 1
           description: 每页条数，默认 10。
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED]
+          description: 根据审核状态筛选标记，可选参数。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 根据创建时间排序的方向，可选参数，默认 DESC（最新在前）。
       responses:
         '200':
           description: OK
@@ -62,6 +74,29 @@ paths:
                 $ref: '#/components/schemas/ApiResponseMarkerPageResponse'
         '401':
           description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/pending/count:
+    get:
+      summary: 查询待审核标记总数
+      description: 仅管理员可调用，返回待审核状态（PENDING）标记的数量。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerCountResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权访问
           content:
             application/json:
               schema:
@@ -245,11 +280,12 @@ components:
           description: 二维码 URL 列表。
           items:
             type: string
-        videoChannelUrls:
-          type: array
-          description: 视频号 URL 列表。
-          items:
-            type: string
+        videoChannelId:
+          type: string
+          description: 视频号 ID。
+        videoId:
+          type: string
+          description: 视频 ID。
         adminInfo:
           $ref: '#/components/schemas/MarkerAdminInfoDto'
     MarkerResponse:
@@ -362,6 +398,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/PageResponseMarkerResponse'
+    ApiResponseMarkerCountResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MarkerCountResponse'
     ApiResponseVoid:
       type: object
       properties:
@@ -386,3 +433,9 @@ components:
         data:
           nullable: true
           description: 错误响应时为空。
+    MarkerCountResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64
