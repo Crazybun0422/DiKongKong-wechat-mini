@@ -1,4 +1,9 @@
 {
+<<<<<<< HEAD
   "navigationBarTitleText": "开放平台",
   "enablePullDownRefresh": true
 }
+=======
+  "navigationBarTitleText": "开放平台"
+}
+>>>>>>> 24d4fd0424fb7107b18aa3f89fa13cf66d4dc455

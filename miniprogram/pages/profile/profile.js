@@ -280,13 +280,21 @@ Page({
     }
     if (action === "open-platform") {
       if (typeof wx.navigateTo !== "function") {
+<<<<<<< HEAD
         wx.showToast({ title: "��ǰ�汾�ݲ�֧��", icon: "none" });
+=======
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+>>>>>>> 24d4fd0424fb7107b18aa3f89fa13cf66d4dc455
         return;
       }
       wx.navigateTo({ url: "/pages/profile/open-platform/index" });
       return;
     }
+<<<<<<< HEAD
     wx.showToast({ title: "功能内暂未开放", icon: "none" });
+=======
+    wx.showToast({ title: "敬请期待", icon: "none" });
+>>>>>>> 24d4fd0424fb7107b18aa3f89fa13cf66d4dc455
   },
 
   onChatButtonTap() {
