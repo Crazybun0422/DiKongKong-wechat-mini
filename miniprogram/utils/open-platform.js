@@ -4,21 +4,6 @@ const {
   buildAvatarDownloadUrl
 } = require("./profile");
 
-function normalizeUrl(value = "") {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim().replace(/&amp;/gi, "&");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    return "";
-  }
-  const lower = trimmed.toLowerCase();
-  if (/(\.)(?:js|css|png|jpg|jpeg|gif|svg|webp|ico)(?:[?#].*)?$/i.test(lower)) {
-    return "";
-  }
-  return trimmed;
-}
-
 function fetchOpenPlatformCopy(options = {}) {
   const base = resolveApiBase(options.apiBase);
   if (!base) {
@@ -41,6 +26,7 @@ function fetchOpenPlatformCopy(options = {}) {
     });
   });
 }
+
 
 function resolveAssetUrl(src = "", options = {}) {
   const value = typeof src === "string" ? src.trim() : "";
@@ -94,46 +80,6 @@ function replaceTag(html, fromTag, toTag, baseClass) {
   });
   output = output.replace(closeTag, `</${toTag}>`);
   return output;
-}
-
-function sanitizeInlineStyles(styleText = "") {
-  if (typeof styleText !== "string" || !styleText.trim()) {
-    return [];
-  }
-  return styleText
-    .split(";")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .filter((item) => {
-      const lower = item.toLowerCase();
-      return !(
-        lower.startsWith("width:") ||
-        lower.startsWith("height:") ||
-        lower.startsWith("max-width") ||
-        lower.startsWith("min-width") ||
-        lower.startsWith("margin") ||
-        lower.startsWith("display")
-      );
-    });
-}
-
-function buildImageStyleAttribute(styleText = "") {
-  const preserved = sanitizeInlineStyles(styleText);
-  const enforced = [
-    "display:block",
-    "width:100%",
-    "max-width:100%",
-    "height:auto"
-  ];
-  const hasBorderRadius = preserved.some((item) => item.toLowerCase().startsWith("border-radius"));
-  if (!hasBorderRadius) {
-    enforced.push("border-radius:12rpx");
-  }
-  const hasMargin = preserved.some((item) => item.toLowerCase().startsWith("margin"));
-  if (!hasMargin) {
-    enforced.push("margin:32rpx 0");
-  }
-  return [...preserved, ...enforced].join("; ");
 }
 
 function transformHtmlContent(html = "", options = {}) {
@@ -192,41 +138,67 @@ function transformHtmlContent(html = "", options = {}) {
     return `<a ${attrParts.join(" ")}>`;
   });
 
-  output = output.replace(/<img\b([^>]*)>/gi, (match, attrs = "") => {
-    let src = "";
-    const srcMatch = attrs.match(/src=['"]([^'"]*)['"]/i);
-    if (srcMatch && srcMatch[1]) {
-      src = srcMatch[1].trim();
-    }
-    const resolved = resolveAssetUrl(src, options);
-    const otherAttrs = attrs.replace(/src=['"][^'"]*['"]/i, "").trim();
-    const withoutSizeAttrs = otherAttrs
-      .replace(/\bwidth=['"][^'"]*['"]/gi, "")
-      .replace(/\bheight=['"][^'"]*['"]/gi, "")
-      .trim();
-    const styleMatch = withoutSizeAttrs.match(/style=['"]([^'"]*)['"]/i);
-    const remainingAttrs = withoutSizeAttrs.replace(/style=['"][^'"]*['"]/i, "").trim();
-    const attrParts = [];
-    if (resolved) {
+  // output = output.replace(/<img\b([^>]*)>/gi, (match, attrs = "") => {
+  //   let src = "";
+  //   const srcMatch = attrs.match(/src=['"]([^'"]*)['"]/i);
+  //   if (srcMatch && srcMatch[1]) {
+  //     src = srcMatch[1].trim();
+  //   }
+  //   const resolved = resolveAssetUrl(src, options);
+    // const otherAttrs = attrs.replace(/src=['"][^'"]*['"]/i, "").trim();
+    // const attrParts = [];
+    // if (resolved) {
+    //   const safe = resolved.replace(/"/g, "&quot;");
+    //   attrParts.push(`src="${safe}"`);
+    //   attrParts.push(`data-op-image="${safe}"`);
+    // }
+    // attrParts.push('mode="widthFix"');
+    // if (otherAttrs) {
+    //   attrParts.push(otherAttrs);
+    // }
+  //   const baseStyle = "display:block;margin:24px auto;max-width:100%;height:auto;border-radius:12px;";
+  //   const finalStyle = (style ? style + ";" : "") + baseStyle;
+
+  //   const safe = resolved.replace(/"/g, "&quot;");
+  //   const imageTag = `<img ${attrParts.join(" ") }   style="${finalStyle}" data-op-image="${safe}" />`;
+  //   return `<div class="op-image-container">${imageTag}</div>`;
+  // });
+  //替换 transformHtmlContent 里处理 <img> 的那段
+    output = output.replace(/<img\b([^>]*)>/gi, (match, attrs = "") => {
+      // 1) 取 src，并转成可访问地址
+      let src = "";
+      const srcMatch = attrs.match(/\s(?:data-src|src)=['"]([^'"]+)['"]/i);
+      if (srcMatch && srcMatch[1]) src = srcMatch[1].trim();
+      const resolved =  resolveAssetUrl(src, options);
+
+      
+
+      // 2) 合并/清理属性：去掉 width/height/mode，合并行内 style
+      let style = "";
+      const styleMatch = attrs.match(/\sstyle=['"]([^'"]*)['"]/i);
+      if (styleMatch && styleMatch[1]) style = styleMatch[1].trim();
+
+      // 清掉可能写死的宽高/模式，避免和我们的 max-width 冲突
+      let rest = attrs
+        .replace(/\sstyle=['"][^'"]*['"]/i, "")
+        .replace(/\s(width|height|mode)=['"][^'"]*['"]/gi, "")
+        .replace(/src=['"][^'"]*['"]/i, "").trim();
+
+      // 3) 注入能在 rich-text 生效的“等比缩放 + 居中”样式（注意用 px，不用 rpx）
+      const baseStyle = "display:block;margin:24px auto;max-width:100%;height:auto;border-radius:12px;";
+      const finalStyle = (style ? style + ";" : "") + baseStyle;
+
       const safe = resolved.replace(/"/g, "&quot;");
-      attrParts.push(`src="${safe}"`);
-      attrParts.push(`data-op-image="${safe}"`);
-    }
-    const imageStyle = buildImageStyleAttribute(styleMatch ? styleMatch[1] : "");
-    if (imageStyle) {
-      attrParts.push(`style="${imageStyle.replace(/"/g, "&quot;")}"`);
-    }
-    if (remainingAttrs) {
-      attrParts.push(remainingAttrs);
-    }
-    const imageTag = `<img ${attrParts.join(" ")} />`;
-    return `<div class="op-image-container">${imageTag}</div>`;
-  });
 
-  output = output.replace(/<br\s*>/gi, "<br />");
+      console.log("safe",safe)
+      return `<img src="${safe}" style="${finalStyle}" data-op-image="${safe}" ${rest} />`;
+    });
 
-  return output;
-}
+    
+    output = output.replace(/<br\s*>/gi, "<br />");
+    console.log(output)
+    return output;
+  }
 
 function extractImageUrls(html = "", options = {}) {
   if (!html || typeof html !== "string") {
@@ -246,76 +218,9 @@ function extractImageUrls(html = "", options = {}) {
   return Array.from(new Set(urls));
 }
 
-function extractExternalPageUrl(html = "", options = {}) {
-  const htmlString = typeof html === "string" ? html : "";
-  const candidates = [];
-
-  if (typeof options?.directUrl === "string") {
-    candidates.push(options.directUrl);
-  }
-
-  if (Array.isArray(options?.fallbackUrls)) {
-    for (const item of options.fallbackUrls) {
-      if (typeof item === "string") {
-        candidates.push(item);
-      }
-    }
-  }
-
-  if (htmlString) {
-    const canonicalMatch = htmlString.match(
-      /<link[^>]+rel=['"]?(?:canonical|alternate)['"]?[^>]*href=['"]([^'"]+)['"]/i
-    );
-    if (canonicalMatch && canonicalMatch[1]) {
-      candidates.push(canonicalMatch[1]);
-    }
-
-    const ogUrlMatch = htmlString.match(
-      /<meta[^>]+property=['"]og:url['"][^>]*content=['"]([^'"]+)['"]/i
-    );
-    if (ogUrlMatch && ogUrlMatch[1]) {
-      candidates.push(ogUrlMatch[1]);
-    }
-
-    const metaUrlMatch = htmlString.match(
-      /<meta[^>]+name=['"]og:url['"][^>]*content=['"]([^'"]+)['"]/i
-    );
-    if (metaUrlMatch && metaUrlMatch[1]) {
-      candidates.push(metaUrlMatch[1]);
-    }
-
-    const refreshMatch = htmlString.match(
-      /<meta[^>]+http-equiv=['"]refresh['"][^>]*content=['"][^;]*;\s*url=([^'"]+)['"]/i
-    );
-    if (refreshMatch && refreshMatch[1]) {
-      candidates.push(refreshMatch[1]);
-    }
-
-    const dataUrlMatch = htmlString.match(/data-open-platform-url=['"]([^'"]+)['"]/i);
-    if (dataUrlMatch && dataUrlMatch[1]) {
-      candidates.push(dataUrlMatch[1]);
-    }
-
-    const firstHttpMatch = htmlString.match(/https?:\/\/[^"'<>\s]+/i);
-    if (firstHttpMatch && firstHttpMatch[0]) {
-      candidates.push(firstHttpMatch[0]);
-    }
-  }
-
-  for (const candidate of candidates) {
-    const normalized = normalizeUrl(candidate);
-    if (normalized) {
-      return normalized;
-    }
-  }
-
-  return "";
-}
-
 module.exports = {
   fetchOpenPlatformCopy,
   transformHtmlContent,
   resolveAssetUrl,
-  extractImageUrls,
-  extractExternalPageUrl
+  extractImageUrls
 };

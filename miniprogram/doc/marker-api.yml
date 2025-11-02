@@ -78,6 +78,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/nearby:
+    get:
+      summary: 查询附近标记
+      description: 普通用户查询指定经纬度方圆 N 公里内已支付且审核通过的标记。
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 查询中心点的纬度。
+        - in: query
+          name: longitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 查询中心点的经度。
+        - in: query
+          name: radiusInKilometers
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          description: 查询半径（公里）。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerList'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/markers/pending/count:
     get:
       summary: 查询待审核标记总数
@@ -398,6 +444,19 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/PageResponseMarkerResponse'
+    ApiResponseMarkerList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarkerResponse'
     ApiResponseMarkerCountResponse:
       type: object
       properties:
