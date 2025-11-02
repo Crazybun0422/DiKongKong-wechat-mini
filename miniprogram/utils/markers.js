@@ -79,6 +79,29 @@ function listMarkers(params = {}, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function fetchNearbyMarkers(params = {}, options = {}) {
+  const query = [];
+  const latitude = Number(params.latitude);
+  const longitude = Number(params.longitude);
+  const radius = Number(params.radiusInKilometers);
+  if (Number.isFinite(latitude)) {
+    query.push(`latitude=${encodeURIComponent(latitude.toFixed(6))}`);
+  }
+  if (Number.isFinite(longitude)) {
+    query.push(`longitude=${encodeURIComponent(longitude.toFixed(6))}`);
+  }
+  if (Number.isFinite(radius) && radius >= 0) {
+    query.push(`radiusInKilometers=${encodeURIComponent(radius.toFixed(3))}`);
+  }
+  const qs = query.length ? `?${query.join("&")}` : "";
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/markers/nearby${qs}`,
+    method: "GET"
+  }).then((body = {}) => body.data || []);
+}
+
 function createMarker(payload = {}, options = {}) {
   return authorizedRequest({
     apiBase: options.apiBase,
@@ -202,6 +225,7 @@ function fetchOpenPlatformContent(options = {}) {
 
 module.exports = {
   listMarkers,
+  fetchNearbyMarkers,
   createMarker,
   updateMarker,
   deleteMarker,
