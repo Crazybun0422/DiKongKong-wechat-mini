@@ -237,6 +237,7 @@
         catchtouchmove="onMarkerDetailTouchMove"
         catchtouchend="onMarkerDetailTouchEnd"
       >
+
         <view class="marker-detail-header">
           <view class="marker-detail-info">
             <text class="marker-detail-name">{{activeMarkerDetail.name || '未命名标记'}}</text>

@@ -990,7 +990,7 @@ button.marker-button::after,
   right: 0;
   bottom: 0;
   z-index: 60;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(24rpx);
   -webkit-backdrop-filter: blur(24rpx);
   border-radius: 36rpx 36rpx 0 0;
@@ -1001,7 +1001,7 @@ button.marker-button::after,
   gap: 32rpx;
   pointer-events: auto;
   transform: translateY(0);
-  animation: marker-detail-slide-up 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: marker-detail-slide-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .marker-detail-header {
@@ -1009,6 +1009,7 @@ button.marker-button::after,
   align-items: center;
   justify-content: space-between;
   gap: 24rpx;
+  pointer-events: auto;
 }
 
 .marker-detail-info {
@@ -1032,8 +1033,8 @@ button.marker-button::after,
 }
 
 .marker-detail-close {
-  width: 60rpx;
-  height: 60rpx;
+  width: 50rpx;
+  height: 50rpx;
   border-radius: 30rpx;
   background: rgba(148, 163, 184, 0.16);
   display: flex;
@@ -1046,8 +1047,8 @@ button.marker-button::after,
 }
 
 .marker-detail-close-icon {
-  width: 28rpx;
-  height: 28rpx;
+  width: 48rpx;
+  height: 48rpx;
 }
 
 .marker-detail-body {
