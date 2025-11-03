@@ -1,7 +1,7 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
-const { fetchNearbyMarkers } = require("../../utils/markers");
+const { fetchNearbyMarkers, buildFileDownloadUrl } = require("../../utils/markers");
 const {
   buildWmsOverlay,
   WMS_MIN_ZOOM,
@@ -50,6 +50,8 @@ const NFZ_CENTER_COLORS = {
 const MAP_MIN_SCALE = 3;
 const MAP_MAX_SCALE = 16;
 const DEFAULT_MAP_SCALE = 15;
+
+const DEFAULT_MARKER_COVER = "/assets/dialog_bak.png";
 
 const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
@@ -118,7 +120,10 @@ Page({
     showProfileFill: false,
     tempNickname: "",
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
-    activeTab: "home"
+    activeTab: "home",
+    showMarkerDetail: false,
+    markerDetail: null,
+    markerPhoneSheetVisible: false
   },
 
   onLoad() {
@@ -140,6 +145,7 @@ Page({
     this._lastNearbyFetch = null;
     this._nearbyMarkers = [];
     this._searchMarkers = [];
+    this._nearbyMarkerDetails = new Map();
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
@@ -292,6 +298,328 @@ Page({
     const combined = nearby.concat(search);
     this.setData({ markers: combined });
   },
+
+  normalizeNearbyMarkerDetail(raw = {}, defaults = {}) {
+    const download = (value) => buildFileDownloadUrl(value, { apiBase: this.getApiBase() });
+    const unique = (list = []) => {
+      const seen = new Set();
+      const result = [];
+      list.forEach((item) => {
+        if (!item) return;
+        const key = typeof item === "string" ? item : JSON.stringify(item);
+        if (seen.has(key)) return;
+        seen.add(key);
+        result.push(item);
+      });
+      return result;
+    };
+
+    const ensureUrl = (value) => {
+      if (!value) return "";
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return "";
+        const built = download(trimmed);
+        return built || trimmed;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.url ||
+          value.fileName ||
+          value.filename ||
+          value.path ||
+          value.objectName ||
+          value.imageUrl ||
+          value.location;
+        if (candidate) {
+          const built = download(candidate);
+          return built || candidate;
+        }
+      }
+      return "";
+    };
+
+    const resolveList = (value) => {
+      if (!value) return [];
+      if (Array.isArray(value)) return value;
+      return [value];
+    };
+
+    const name =
+      defaults.name ||
+      (typeof raw.name === "string" ? raw.name : "") ||
+      (typeof raw.title === "string" ? raw.title : "");
+    const subtitle =
+      typeof raw.subtitle === "string"
+        ? raw.subtitle
+        : typeof raw.operatorName === "string"
+        ? raw.operatorName
+        : typeof raw.category === "string"
+        ? raw.category
+        : typeof raw.organizationName === "string"
+        ? raw.organizationName
+        : typeof raw.tagline === "string"
+        ? raw.tagline
+        : "";
+    const locationText =
+      defaults.locationText ||
+      (typeof raw.locationText === "string" ? raw.locationText : "") ||
+      (typeof raw.address === "string" ? raw.address : "") ||
+      (typeof raw.location?.text === "string" ? raw.location.text : "") ||
+      (typeof raw.locationDescription === "string" ? raw.locationDescription : "");
+    const description =
+      typeof raw.description === "string"
+        ? raw.description
+        : typeof raw.introduction === "string"
+        ? raw.introduction
+        : typeof raw.brief === "string"
+        ? raw.brief
+        : typeof raw.summary === "string"
+        ? raw.summary
+        : "";
+    const adminInfo = raw.adminInfo || raw.contact || {};
+    const contactPhone =
+      typeof raw.phone === "string"
+        ? raw.phone
+        : typeof raw.telephone === "string"
+        ? raw.telephone
+        : typeof raw.contactPhone === "string"
+        ? raw.contactPhone
+        : typeof raw.servicePhone === "string"
+        ? raw.servicePhone
+        : typeof adminInfo?.phone === "string"
+        ? adminInfo.phone
+        : "";
+    const imageCandidates = unique([
+      ...(resolveList(raw.coverImage) || []),
+      ...(resolveList(raw.coverImageUrl) || []),
+      ...(Array.isArray(raw.images) ? raw.images : []),
+      ...(Array.isArray(raw.imageUrls) ? raw.imageUrls : []),
+    ]);
+    const gallery = imageCandidates
+      .map((item) => ensureUrl(item))
+      .filter((item) => typeof item === "string" && item);
+    const qrCandidates = unique([
+      ...(Array.isArray(raw.qrCodeUrls) ? raw.qrCodeUrls : []),
+      ...(Array.isArray(raw.qrCodes) ? raw.qrCodes : []),
+    ]);
+    const qrCodes = qrCandidates
+      .map((item) => ensureUrl(item))
+      .filter((item) => typeof item === "string" && item);
+    const servicesRaw = Array.isArray(raw.services)
+      ? raw.services
+      : Array.isArray(raw.serviceItems)
+      ? raw.serviceItems
+      : [];
+    const services = servicesRaw
+      .map((svc) => {
+        if (!svc) return "";
+        if (typeof svc === "string") return svc;
+        if (typeof svc.label === "string") return svc.label;
+        if (typeof svc.name === "string") return svc.name;
+        if (typeof svc.title === "string") return svc.title;
+        return "";
+      })
+      .filter((item) => !!item);
+    const serviceDescription =
+      typeof raw.serviceDescription === "string"
+        ? raw.serviceDescription
+        : typeof raw.serviceIntro === "string"
+        ? raw.serviceIntro
+        : typeof raw.serviceDesc === "string"
+        ? raw.serviceDesc
+        : "";
+    const exposureCount = Number(raw.exposureCount);
+    const phoneCallCount = Number(raw.phoneCallCount);
+
+    const latitude =
+      defaults.latitude ??
+      raw.location?.latitude ??
+      raw.location?.lat ??
+      raw.latitude ??
+      raw.lat ??
+      null;
+    const longitude =
+      defaults.longitude ??
+      raw.location?.longitude ??
+      raw.location?.lng ??
+      raw.longitude ??
+      raw.lng ??
+      null;
+
+    const detail = {
+      id: defaults.markerId || raw.id || "",
+      name,
+      subtitle,
+      address: locationText,
+      description,
+      phone: contactPhone,
+      services,
+      serviceDescription,
+      adminInfo: {
+        name:
+          typeof adminInfo?.name === "string"
+            ? adminInfo.name
+            : typeof adminInfo?.contactName === "string"
+            ? adminInfo.contactName
+            : "",
+        title:
+          typeof adminInfo?.title === "string"
+            ? adminInfo.title
+            : typeof adminInfo?.position === "string"
+            ? adminInfo.position
+            : "",
+        phone:
+          typeof adminInfo?.phone === "string"
+            ? adminInfo.phone
+            : typeof adminInfo?.tel === "string"
+            ? adminInfo.tel
+            : "",
+      },
+      stats: {
+        exposure: Number.isFinite(exposureCount) ? exposureCount : 0,
+        calls: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
+      },
+      gallery,
+      coverImage:
+        gallery.length
+          ? gallery[0]
+          : ensureUrl(raw.coverImage) || ensureUrl(raw.coverImageUrl) || DEFAULT_MARKER_COVER,
+      qrCodes,
+      qrCodeDescription:
+        typeof raw.qrCodeDescription === "string"
+          ? raw.qrCodeDescription
+          : typeof raw.qrCodeRemark === "string"
+          ? raw.qrCodeRemark
+          : typeof raw.qrCodeNote === "string"
+          ? raw.qrCodeNote
+          : "",
+      location: {
+        latitude,
+        longitude,
+      },
+    };
+
+    if (!detail.coverImage) {
+      detail.coverImage = DEFAULT_MARKER_COVER;
+    }
+    return detail;
+  },
+
+  findMarkerById(markerId) {
+    if (markerId === undefined || markerId === null) return null;
+    const target = String(markerId);
+    const markers = Array.isArray(this.data.markers) ? this.data.markers : [];
+    return (
+      markers.find((item) => String(item?.id) === target) ||
+      markers.find((item) => String(item?.markerId) === target) ||
+      null
+    );
+  },
+
+  onMarkerTap(e) {
+    const markerId =
+      e?.detail?.markerId ??
+      e?.markerId ??
+      e?.currentTarget?.dataset?.markerId ??
+      e?.target?.dataset?.markerId;
+    const marker = this.findMarkerById(markerId);
+    if (!marker) return;
+    const detailFromMap = this._nearbyMarkerDetails?.get(String(marker.id));
+    const extDetail = marker?.extData?.detail || detailFromMap;
+    if (!extDetail) return;
+    this.openMarkerDetail(extDetail);
+  },
+
+  openMarkerDetail(detail) {
+    if (!detail) return;
+    this.setData({
+      showMarkerDetail: true,
+      markerDetail: detail,
+      markerPhoneSheetVisible: false,
+    });
+  },
+
+  onCloseMarkerDetail() {
+    this.setData({
+      showMarkerDetail: false,
+      markerDetail: null,
+      markerPhoneSheetVisible: false,
+    });
+  },
+
+  onMarkerDetailMaskTap() {
+    this.onCloseMarkerDetail();
+  },
+
+  onMarkerPhoneTap() {
+    const phone = this.data.markerDetail?.phone;
+    if (!phone) {
+      this.showPlaceholderToast("暂无联系电话");
+      return;
+    }
+    this.setData({ markerPhoneSheetVisible: true });
+  },
+
+  closeMarkerPhoneSheet() {
+    this.setData({ markerPhoneSheetVisible: false });
+  },
+
+  confirmMarkerPhoneCall() {
+    const phone = this.data.markerDetail?.phone;
+    if (!phone) {
+      this.closeMarkerPhoneSheet();
+      return;
+    }
+    if (typeof wx.makePhoneCall === "function") {
+      wx.makePhoneCall({
+        phoneNumber: phone,
+        complete: () => {
+          this.closeMarkerPhoneSheet();
+        },
+      });
+      return;
+    }
+    this.closeMarkerPhoneSheet();
+  },
+
+  onMarkerGalleryTap() {
+    const gallery = Array.isArray(this.data.markerDetail?.gallery)
+      ? this.data.markerDetail.gallery
+      : [];
+    if (!gallery.length) {
+      this.showPlaceholderToast("暂无图集");
+      return;
+    }
+    if (typeof wx.previewImage === "function") {
+      wx.previewImage({ urls: gallery });
+      return;
+    }
+    this.showPlaceholderToast("当前环境不支持预览");
+  },
+
+  onMarkerServicesTap() {
+    const detail = this.data.markerDetail || {};
+    const serviceDescription = detail.serviceDescription || "";
+    const services = Array.isArray(detail.services) ? detail.services : [];
+    const message = serviceDescription || services.join("、");
+    if (!message) {
+      this.showPlaceholderToast("暂无服务信息");
+      return;
+    }
+    if (typeof wx.showModal === "function") {
+      wx.showModal({
+        title: "服务介绍",
+        content: message,
+        showCancel: false,
+        confirmText: "知道了",
+      });
+      return;
+    }
+    this.showPlaceholderToast(message);
+  },
+
+  noop() {},
 
   performSearch() {
     const keyword = this.data.keyword.trim();
@@ -1082,6 +1410,7 @@ Page({
     )
       .then((items = []) => {
         if (this._activeMarkersRequest !== requestId) return;
+        const detailMap = new Map();
         const markerList = (Array.isArray(items) ? items : [])
           .map((item, index) => {
             const latValue = Number(
@@ -1104,6 +1433,11 @@ Page({
               (typeof item?.name === "string" && item.name) ||
               (typeof item?.title === "string" && item.title) ||
               (typeof item?.location?.text === "string" && item.location.text) ||
+              "";
+            const locationText =
+              (typeof item?.location?.text === "string" && item.location.text) ||
+              (typeof item?.address === "string" && item.address) ||
+              (typeof item?.locationText === "string" && item.locationText) ||
               "";
             console.log("name,", name);
             const marker = {
@@ -1128,10 +1462,29 @@ Page({
                 // bgColor: "rgba(255, 255, 255, 0)"
               };
             }
+            const detail = this.normalizeNearbyMarkerDetail(item, {
+              markerId: marker.id,
+              name,
+              locationText,
+              latitude: latitudeGcj,
+              longitude: longitudeGcj,
+            });
+            marker.extData = Object.assign({}, marker.extData, {
+              source: "nearby",
+              detail,
+            });
+            detailMap.set(String(marker.id), detail);
             return marker;
           })
           .filter(Boolean);
+        this._nearbyMarkerDetails = detailMap;
         this.applyNearbyMarkers(markerList);
+        if (this.data.showMarkerDetail && this.data.markerDetail?.id) {
+          const currentId = String(this.data.markerDetail.id);
+          if (detailMap.has(currentId)) {
+            this.setData({ markerDetail: detailMap.get(currentId) });
+          }
+        }
         this._lastNearbyFetch = {
           latitude: center.latitude,
           longitude: center.longitude,
