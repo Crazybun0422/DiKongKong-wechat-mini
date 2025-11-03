@@ -233,9 +233,9 @@
       <view class="marker-detail-mask" catchtap="closeMarkerDetail"></view>
       <view
         class="marker-detail-sheet"
-        catchtouchstart="onMarkerDetailTouchStart"
-        catchtouchmove="onMarkerDetailTouchMove"
-        catchtouchend="onMarkerDetailTouchEnd"
+        bindtouchstart="onMarkerDetailTouchStart"
+        bindtouchmove="onMarkerDetailTouchMove"
+        bindtouchend="onMarkerDetailTouchEnd"
       >
 
         <view class="marker-detail-header">
@@ -243,12 +243,12 @@
             <text class="marker-detail-name">{{activeMarkerDetail.name || '未命名标记'}}</text>
             <text class="marker-detail-location" wx:if="{{activeMarkerDetail.locationText}}">{{activeMarkerDetail.locationText}}</text>
           </view>
-          <view class="marker-detail-close" catchtap="closeMarkerDetail">
+          <view class="marker-detail-close" bindtap="closeMarkerDetail">
             <image
               class="marker-detail-close-icon"
               src="/assets/marker-detail-close.png"
               mode="aspectFit"
-              catchtap="closeMarkerDetail"
+              bindtap="closeMarkerDetail"
             />
           </view>
         </view>
