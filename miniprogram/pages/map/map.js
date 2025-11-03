@@ -1,7 +1,7 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
-const { fetchNearbyMarkers } = require("../../utils/markers");
+const { fetchNearbyMarkers, buildFileDownloadUrl } = require("../../utils/markers");
 const {
   buildWmsOverlay,
   WMS_MIN_ZOOM,
@@ -121,7 +121,9 @@ Page({
     showProfileFill: false,
     tempNickname: "",
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
-    activeTab: "home"
+    activeTab: "home",
+    showMarkerDetail: false,
+    activeMarkerDetail: null
   },
 
   onLoad() {
@@ -153,6 +155,152 @@ Page({
     });
     this.updateStatusPanel();
     this.requestInitialLocation();
+  },
+
+  normalizeMarkerDetail(raw = {}) {
+    const apiBase = this.getApiBase();
+    const download = (value) => buildFileDownloadUrl(value, { apiBase });
+    const ensureText = (value) => {
+      if (typeof value !== "string") return "";
+      const trimmed = value.trim();
+      return trimmed || "";
+    };
+
+    const name =
+      ensureText(raw.name) ||
+      ensureText(raw.title) ||
+      ensureText(raw.location?.text) ||
+      "";
+
+    const locationText =
+      ensureText(raw.locationText) ||
+      ensureText(raw.address) ||
+      ensureText(raw.location?.text) ||
+      "";
+
+    const images = [];
+    const pushImage = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushImage(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed) images.push(trimmed);
+        return;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.fileName ||
+          value.filename ||
+          value.objectName ||
+          value.name ||
+          value.location ||
+          value.path ||
+          value.url ||
+          value.imageUrl ||
+          "";
+        if (candidate) pushImage(candidate);
+      }
+    };
+
+    pushImage(raw.images);
+    pushImage(raw.imageUrls);
+    pushImage(raw.covers);
+    pushImage(raw.coverImage);
+    pushImage(raw.cover);
+
+    const firstImage = images.length ? images[0] : "";
+    const imageUrl = firstImage ? download(firstImage) : "";
+
+    return {
+      id: raw.id || "",
+      name,
+      locationText,
+      imageUrl,
+      raw
+    };
+  },
+
+  findMarkerById(markerId) {
+    if (markerId === undefined || markerId === null) return null;
+    const markerIdStr = `${markerId}`;
+    const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const combined = nearby.concat(search);
+    for (const marker of combined) {
+      if ((marker?.id || marker?.id === 0) && `${marker.id}` === markerIdStr) {
+        return marker;
+      }
+    }
+    return null;
+  },
+
+  openMarkerDetail(marker) {
+    if (!marker) return;
+    const detail =
+      (marker.extData && marker.extData.detail) ||
+      (marker.extData && marker.extData.raw && this.normalizeMarkerDetail(marker.extData.raw)) ||
+      this.normalizeMarkerDetail(marker);
+    this.setData({
+      showMarkerDetail: true,
+      activeMarkerDetail: detail
+    });
+  },
+
+  closeMarkerDetail() {
+    this.setData({ showMarkerDetail: false, activeMarkerDetail: null });
+  },
+
+  onMarkerTap(event) {
+    const markerId = event?.detail?.markerId;
+    const marker = this.findMarkerById(markerId);
+    if (marker) {
+      this.openMarkerDetail(marker);
+    }
+  },
+
+  onMarkerCalloutTap(event) {
+    const markerId = event?.detail?.markerId;
+    const marker = this.findMarkerById(markerId);
+    if (marker) {
+      this.openMarkerDetail(marker);
+    }
+  },
+
+  onMarkerDetailTouchStart(event) {
+    const touch = event?.touches && event.touches[0];
+    this._markerDetailTouchStartY = Number.isFinite(touch?.clientY)
+      ? touch.clientY
+      : null;
+    this._markerDetailTriggered = false;
+  },
+
+  onMarkerDetailTouchMove(event) {
+    if (this._markerDetailTriggered) return;
+    if (this._markerDetailTouchStartY === null || this._markerDetailTouchStartY === undefined) {
+      return;
+    }
+    const touch = event?.touches && event.touches[0];
+    if (!touch || !Number.isFinite(touch.clientY)) return;
+    const deltaY = this._markerDetailTouchStartY - touch.clientY;
+    if (deltaY > 40) {
+      this._markerDetailTriggered = true;
+      this._markerDetailTouchStartY = null;
+      this.openMarkerDetailPage();
+    }
+  },
+
+  onMarkerDetailTouchEnd() {
+    this._markerDetailTouchStartY = null;
+    this._markerDetailTriggered = false;
+  },
+
+  openMarkerDetailPage() {
+    const detail = this.data.activeMarkerDetail;
+    if (!detail) return;
+    this.showPlaceholderToast("详情页面开发中");
   },
 
   applyCustomMapStyle() {
@@ -341,6 +489,16 @@ Page({
               padding: 4
             };
           }
+          marker.extData = Object.assign({}, marker.extData, {
+            source: "search",
+            detail: this.normalizeMarkerDetail({
+              id: marker.id,
+              name: poi.title,
+              title: poi.title,
+              address: poi.address,
+              location: { text: poi.address }
+            })
+          });
           return marker;
         });
         if (markers.length) {
@@ -1153,6 +1311,8 @@ Page({
             }
             marker.extData = Object.assign({}, marker.extData, {
               source: "nearby",
+              raw: item,
+              detail: this.normalizeMarkerDetail(item)
             });
             return marker;
           })
