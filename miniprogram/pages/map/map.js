@@ -62,6 +62,29 @@ const clampMapScale = (value) => {
   return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
 };
 
+const formatNearbyMarkerLabel = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.length <= 5) {
+    return trimmed;
+  }
+  const firstLine = trimmed.slice(0, 5);
+  const remaining = trimmed.slice(5);
+  if (!remaining) {
+    return firstLine;
+  }
+  let secondLine = remaining.slice(0, 5);
+  if (remaining.length > 5) {
+    secondLine = `${secondLine}...`;
+  }
+  return `${firstLine}\n${secondLine}`;
+};
+
 Page({
   data: {
     keyword: "",
@@ -1082,15 +1105,30 @@ Page({
               (typeof item?.title === "string" && item.title) ||
               (typeof item?.location?.text === "string" && item.location.text) ||
               "";
-            return {
+            console.log("name,", name);
+            const marker = {
               id: item?.id || `nearby-${index}`,
               latitude: latitudeGcj,
               longitude: longitudeGcj,
               title: name,
               iconPath: "/assets/drone.png",
-              width: 36,
-              height: 36
+              width: 22,
+              height: 22
             };
+            const calloutContent = formatNearbyMarkerLabel(name);
+            if (calloutContent) {
+              marker.callout = {
+                content: calloutContent,
+                color: "rgba(0, 0, 0, 0.95)",
+                fontSize: 14,
+                fontWeight: "bold",
+                display: "ALWAYS",
+                borderRadius: 4,
+                padding: 4,
+                // bgColor: "rgba(255, 255, 255, 0)"
+              };
+            }
+            return marker;
           })
           .filter(Boolean);
         this.applyNearbyMarkers(markerList);
@@ -1159,6 +1197,7 @@ Page({
       drone: this.data.selectedDrone
     })
       .then((areas) => {
+        console.log("areas",areas);
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);
