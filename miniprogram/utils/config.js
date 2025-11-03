@@ -1,4 +1,4 @@
-const QQMAP_KEY = "GEDBZ-R36KT-S52XJ-LTI4K-WWZK7-USFNP"; // TODO: inject your Tencent Map key
+const QQMAP_KEY = "YJTBZ-5EBCT-SBAXN-VRUYM-SUXR7-O6FX4"; // TODO: inject your Tencent Map key
 
 // const QQMAP_KEY = "QQXBZ-BRJKZ-AB4XD-7PUXM-KLXX6-5CFXZ";
 const DJI_PROXY = ""; // Optional: prefix to proxy DJI API requests
