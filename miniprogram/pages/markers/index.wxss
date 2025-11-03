@@ -174,7 +174,7 @@
 }
 
 .marker-name {
-  font-size: 64rpx;
+  font-size: 40rpx;
   font-weight: 700;
   color: #111827;
   line-height: 1.3;
