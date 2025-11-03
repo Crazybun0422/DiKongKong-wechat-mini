@@ -981,6 +981,7 @@ button.marker-button::after,
   inset: 0;
   background: rgba(15, 23, 42, 0.22);
   z-index: 55;
+  animation: marker-detail-fade-in 200ms ease-out both;
 }
 
 .marker-detail-sheet {
@@ -989,7 +990,9 @@ button.marker-button::after,
   right: 0;
   bottom: 0;
   z-index: 60;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
   border-radius: 36rpx 36rpx 0 0;
   padding: 36rpx 40rpx 48rpx;
   box-shadow: 0 -12rpx 48rpx rgba(15, 23, 42, 0.12);
@@ -997,6 +1000,8 @@ button.marker-button::after,
   flex-direction: column;
   gap: 32rpx;
   pointer-events: auto;
+  transform: translateY(0);
+  animation: marker-detail-slide-up 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .marker-detail-header {
@@ -1067,4 +1072,26 @@ button.marker-button::after,
 
 .marker-detail-cover-text {
   color: inherit;
+}
+
+@keyframes marker-detail-slide-up {
+  0% {
+    transform: translateY(120rpx);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes marker-detail-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
