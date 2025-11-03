@@ -975,3 +975,96 @@ button.marker-button::after,
   text-align: center;
   margin-top: 12rpx;
 }
+
+.marker-detail-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.22);
+  z-index: 55;
+}
+
+.marker-detail-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: #ffffff;
+  border-radius: 36rpx 36rpx 0 0;
+  padding: 36rpx 40rpx 48rpx;
+  box-shadow: 0 -12rpx 48rpx rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+  pointer-events: auto;
+}
+
+.marker-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.marker-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  max-width: 480rpx;
+}
+
+.marker-detail-name {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.marker-detail-location {
+  font-size: 24rpx;
+  color: #475569;
+  line-height: 1.3;
+}
+
+.marker-detail-close {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 30rpx;
+  background: rgba(148, 163, 184, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-detail-close:active {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.marker-detail-close-icon {
+  width: 28rpx;
+  height: 28rpx;
+}
+
+.marker-detail-body {
+  width: 100%;
+}
+
+.marker-detail-cover {
+  width: 100%;
+  height: 260rpx;
+  border-radius: 28rpx;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.marker-detail-cover--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.marker-detail-cover-text {
+  color: inherit;
+}
