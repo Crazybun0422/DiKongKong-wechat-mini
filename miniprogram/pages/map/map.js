@@ -250,7 +250,6 @@ Page({
   },
 
   closeMarkerDetail() {
-    console.log("here!!!!!!")
     this.setData({ showMarkerDetail: false, activeMarkerDetail: null });
   },
 
