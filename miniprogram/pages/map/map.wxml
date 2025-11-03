@@ -8,6 +8,8 @@
       scale="{{scale}}"
       min-scale="{{minScale}}"
       max-scale="{{maxScale}}"
+      subkey="{{mapSubKey}}"
+      layer-style="1"
       show-location="true"
       markers="{{markers}}"
       polygons="{{polygons}}"

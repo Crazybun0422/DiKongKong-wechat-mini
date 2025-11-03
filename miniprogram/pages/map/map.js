@@ -8,6 +8,7 @@ const {
   WMS_MAX_ZOOM
 } = require("../../utils/wms");
 const { haversineMeters, clampRadius, gcj02ToWgs84, wgs84ToGcj02 } = require("../../utils/coords");
+const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
 const {
   DEFAULT_AVATAR_PATH,
   extractAvatarFileName: extractAvatarFileNameUtil,
@@ -93,6 +94,8 @@ Page({
     scale: DEFAULT_MAP_SCALE,
     minScale: MAP_MIN_SCALE,
     maxScale: MAP_MAX_SCALE,
+    mapSubKey: QQMAP_KEY || "",
+    customMapStyleId: QQMAP_CUSTOM_STYLE_ID || "",
     markers: [],
     polygons: [],
     circles: [],
@@ -123,6 +126,7 @@ Page({
 
   onLoad() {
     this.mapCtx = wx.createMapContext("main-map");
+    this.applyCustomMapStyle();
     this._fetchTimer = null;
     this._markersFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
@@ -149,6 +153,20 @@ Page({
     });
     this.updateStatusPanel();
     this.requestInitialLocation();
+  },
+
+  applyCustomMapStyle() {
+    const styleId = this.data.customMapStyleId;
+    if (!styleId) {
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.setMapCustomStyle === "function") {
+      wx.setMapCustomStyle({ styleId });
+      return;
+    }
+    if (this.mapCtx && typeof this.mapCtx.setCustomMapStyle === "function") {
+      this.mapCtx.setCustomMapStyle({ styleId });
+    }
   },
 
   onShow() {
