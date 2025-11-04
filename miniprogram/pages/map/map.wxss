@@ -1020,6 +1020,10 @@ button.marker-button::after,
   animation: marker-detail-fade-in 200ms ease-out both;
 }
 
+.marker-detail-mask--closing {
+  animation: marker-detail-fade-out 200ms ease-in both;
+}
+
 .marker-detail-sheet {
   position: absolute;
   left: 0;
@@ -1030,7 +1034,7 @@ button.marker-button::after,
   backdrop-filter: blur(24rpx);
   -webkit-backdrop-filter: blur(24rpx);
   border-radius: 36rpx 36rpx 0 0;
-  padding: 36rpx 40rpx 48rpx;
+  padding: 36rpx 40rpx calc(48rpx + env(safe-area-inset-bottom));
   box-shadow: 0 -12rpx 48rpx rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
@@ -1040,12 +1044,35 @@ button.marker-button::after,
   animation: marker-detail-slide-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.marker-detail-sheet.is-closing {
+  animation: marker-detail-slide-down 200ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
 .marker-detail-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24rpx;
   pointer-events: auto;
+}
+
+.marker-detail-close {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-detail-close:active {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.marker-detail-close-icon {
+  width: 32rpx;
+  height: 32rpx;
 }
 
 .marker-detail-info {
@@ -1092,6 +1119,57 @@ button.marker-button::after,
   color: inherit;
 }
 
+.marker-detail-cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.marker-detail-actions {
+  display: flex;
+  gap: 24rpx;
+  align-items: center;
+}
+
+.marker-detail-action {
+  flex: 1;
+  height: 96rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  color: #1f2937;
+  font-size: 28rpx;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.marker-detail-action:active {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(2rpx);
+}
+
+.marker-detail-action-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.marker-detail-action-text {
+  color: inherit;
+}
+
+.marker-detail-action--primary {
+  background: #2d68ec;
+  color: #ffffff;
+  border: none;
+}
+
+.marker-detail-action--primary:active {
+  background: #1b4ec6;
+}
+
 @keyframes marker-detail-slide-up {
   0% {
     transform: translateY(120rpx);
@@ -1101,6 +1179,18 @@ button.marker-button::after,
   100% {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes marker-detail-slide-down {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(120rpx);
+    opacity: 0;
   }
 }
 
@@ -1418,6 +1508,31 @@ button.marker-button::after,
   border-top: none;
 }
 
+.marker-page-close {
+  position: absolute;
+  right: 36rpx;
+  top: calc(48rpx + env(safe-area-inset-top));
+  z-index: 3;
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10rpx);
+  -webkit-backdrop-filter: blur(10rpx);
+}
+
+.marker-page-close:active {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.marker-page-close-icon {
+  width: 34rpx;
+  height: 34rpx;
+}
+
 @keyframes marker-page-slide-in {
   0% {
     transform: translateY(100%);
@@ -1445,5 +1560,15 @@ button.marker-button::after,
 
   100% {
     opacity: 1;
+  }
+}
+
+@keyframes marker-detail-fade-out {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }

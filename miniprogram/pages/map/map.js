@@ -146,7 +146,14 @@ Page({
     showProfileFill: false,
     tempNickname: "",
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
-    activeTab: "home"
+    activeTab: "home",
+    markerDetailVisible: false,
+    markerDetail: null,
+    markerDetailClosing: false,
+    markerPageVisible: false,
+    markerPageClosing: false,
+    markerPageDetail: null,
+    markerPageCurrentImage: 0
   },
 
   onLoad() {
@@ -181,6 +188,8 @@ Page({
     this._nearbyMarkers = [];
     this._searchMarkers = [];
     this._lastMarkerDetail = null;
+    this._markerDetailCloseTimer = null;
+    this._markerPageCloseTimer = null;
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
@@ -213,32 +222,22 @@ Page({
 
   openMarkerDetail(marker) {
     if (!marker) return;
-    const detail =
-      (marker.extData && marker.extData.detail) ||
-      (marker.extData && marker.extData.raw
-        ? this.normalizeMarkerDetail(marker.extData.raw)
-        : null) ||
-      this.normalizeMarkerDetail(marker);
-
-    this._lastMarkerDetail = detail;
-
-    if (typeof wx?.navigateTo === "function") {
-      const markerId = detail?.id || marker.id || "";
-      wx.navigateTo({
-        url: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`,
-        success: (res) => {
-          if (res?.eventChannel?.emit) {
-            res.eventChannel.emit("markerDetail", detail);
-          }
-        },
-        fail: () => {
-          wx.showToast({ title: "打开详情失败", icon: "none" });
-        }
-      });
+    const detail = this.resolveMarkerDetail(marker);
+    if (!detail) {
+      wx.showToast({ title: "未找到商户信息", icon: "none" });
       return;
     }
 
-    wx.showToast({ title: "暂不支持查看详情", icon: "none" });
+    this._lastMarkerDetail = detail;
+    if (this._markerDetailCloseTimer) {
+      clearTimeout(this._markerDetailCloseTimer);
+      this._markerDetailCloseTimer = null;
+    }
+    this.setData({
+      markerDetailVisible: true,
+      markerDetailClosing: false,
+      markerDetail: detail
+    });
   },
 
   onMarkerTap(event) {
@@ -257,13 +256,255 @@ Page({
     }
   },
 
+  closeMarkerDetail(immediate = false) {
+    if (!this.data.markerDetailVisible) return;
+    if (this._markerDetailCloseTimer) {
+      clearTimeout(this._markerDetailCloseTimer);
+      this._markerDetailCloseTimer = null;
+    }
+    if (immediate) {
+      this.setData({
+        markerDetailVisible: false,
+        markerDetailClosing: false,
+        markerDetail: null
+      });
+      return;
+    }
+    this.setData({ markerDetailClosing: true });
+    this._markerDetailCloseTimer = setTimeout(() => {
+      this._markerDetailCloseTimer = null;
+      this.setData({
+        markerDetailVisible: false,
+        markerDetailClosing: false,
+        markerDetail: null
+      });
+    }, 200);
+  },
+
+  onMarkerDetailMaskTap() {
+    this.closeMarkerDetail();
+  },
+
+  onMarkerDetailCloseTap() {
+    this.closeMarkerDetail();
+  },
+
+  onMarkerDetailMoreTap() {
+    const detail = this.data.markerDetail;
+    if (!detail) return;
+    this._lastMarkerDetail = detail;
+    this.openMarkerPage(detail);
+  },
+
+  makePhoneCall(phone) {
+    const value = typeof phone === "string" ? phone.trim() : `${phone || ""}`.trim();
+    if (!value) {
+      wx.showToast({ title: "暂无联系电话", icon: "none" });
+      return;
+    }
+    if (typeof wx?.makePhoneCall === "function") {
+      wx.makePhoneCall({ phoneNumber: value });
+      return;
+    }
+    if (typeof wx?.setClipboardData === "function") {
+      wx.setClipboardData({
+        data: value,
+        success: () => {
+          wx.showToast({ title: "号码已复制", icon: "none" });
+        }
+      });
+      return;
+    }
+    wx.showToast({ title: "请手动拨打", icon: "none" });
+  },
+
+  openMarkerLocation(detail, overrides = {}) {
+    const latitude = Number(overrides.latitude ?? detail?.latitude);
+    const longitude = Number(overrides.longitude ?? detail?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      wx.showToast({ title: "暂无定位信息", icon: "none" });
+      return;
+    }
+    const name = overrides.name || detail?.name || "商户位置";
+    const address = overrides.address || detail?.locationText || "";
+    if (typeof wx?.openLocation === "function") {
+      wx.openLocation({
+        latitude,
+        longitude,
+        name,
+        address
+      });
+      return;
+    }
+    wx.showToast({ title: "当前环境不支持导航", icon: "none" });
+  },
+
+  onMarkerDetailCallTap(event) {
+    const dataset = event?.currentTarget?.dataset || {};
+    const phone = dataset.phone || this.data.markerDetail?.phone || "";
+    this.makePhoneCall(phone);
+  },
+
+  onMarkerDetailNavigateTap(event) {
+    const detail = this.data.markerDetail;
+    if (!detail) return;
+    const dataset = event?.currentTarget?.dataset || {};
+    this.openMarkerLocation(detail, dataset);
+  },
+
+  openMarkerPage(detail) {
+    if (!detail) return;
+    if (this._markerPageCloseTimer) {
+      clearTimeout(this._markerPageCloseTimer);
+      this._markerPageCloseTimer = null;
+    }
+    this._lastMarkerDetail = detail;
+    this.setData({
+      markerPageVisible: true,
+      markerPageClosing: false,
+      markerPageDetail: detail,
+      markerPageCurrentImage: 0
+    });
+    this.closeMarkerDetail(true);
+  },
+
+  closeMarkerPage() {
+    if (!this.data.markerPageVisible) return;
+    if (this._markerPageCloseTimer) {
+      clearTimeout(this._markerPageCloseTimer);
+      this._markerPageCloseTimer = null;
+    }
+    this.setData({ markerPageClosing: true });
+    this._markerPageCloseTimer = setTimeout(() => {
+      this._markerPageCloseTimer = null;
+      this.setData({
+        markerPageVisible: false,
+        markerPageClosing: false,
+        markerPageDetail: null,
+        markerPageCurrentImage: 0
+      });
+    }, 240);
+  },
+
+  onMarkerPageMaskTap() {
+    this.closeMarkerPage();
+  },
+
+  onMarkerPageCloseTap() {
+    this.closeMarkerPage();
+  },
+
+  onMarkerPageSwiperChange(event) {
+    const current = Number(event?.detail?.current);
+    if (Number.isFinite(current)) {
+      this.setData({ markerPageCurrentImage: current });
+    }
+  },
+
+  onMarkerPageAttachmentTap(event) {
+    const url = event?.currentTarget?.dataset?.url;
+    if (!url) {
+      wx.showToast({ title: "附件不可用", icon: "none" });
+      return;
+    }
+    wx.showLoading({ title: "下载中...", mask: true });
+    wx.downloadFile({
+      url,
+      success: (res) => {
+        const statusCode = Number(res?.statusCode);
+        const filePath = res?.tempFilePath;
+        if (statusCode === 200 && filePath) {
+          if (typeof wx.openDocument === "function") {
+            wx.openDocument({
+              filePath,
+              showMenu: true,
+              success: () => wx.hideLoading(),
+              fail: () => {
+                wx.hideLoading();
+                wx.showToast({ title: "打开失败", icon: "none" });
+              }
+            });
+            return;
+          }
+          wx.hideLoading();
+          wx.showToast({ title: "已下载", icon: "success" });
+          return;
+        }
+        wx.hideLoading();
+        wx.showToast({ title: "下载失败", icon: "none" });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: "下载失败", icon: "none" });
+      }
+    });
+  },
+
+  onMarkerPageVideoTap(event) {
+    const dataset = event?.currentTarget?.dataset || {};
+    const url = dataset.url || "";
+    const finderUserName = dataset.finder || "";
+    const activityId = dataset.activity || "";
+
+    const proceed = () => {
+      if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
+        wx.openChannelsActivity({ finderUserName, activityId });
+        return;
+      }
+      if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
+        wx.openChannelsUserProfile({ finderUserName });
+        return;
+      }
+      if (activityId && typeof wx?.openChannelsActivity === "function") {
+        wx.openChannelsActivity({ activityId });
+        return;
+      }
+      if (url && /^https?:\/\//.test(url)) {
+        if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url) && typeof wx?.navigateTo === "function") {
+          wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
+          return;
+        }
+        if (typeof wx?.setClipboardData === "function") {
+          wx.setClipboardData({
+            data: url,
+            success: () => {
+              wx.showToast({ title: "链接已复制", icon: "none" });
+            },
+            fail: () => {
+              wx.showToast({ title: "复制失败", icon: "none" });
+            }
+          });
+        } else {
+          wx.showToast({ title: "请复制链接访问", icon: "none" });
+        }
+        return;
+      }
+      wx.showToast({ title: "视频不可用", icon: "none" });
+    };
+
+    proceed();
+  },
+
+  onMarkerPageCallTap(event) {
+    const dataset = event?.currentTarget?.dataset || {};
+    const phone = dataset.phone || this.data.markerPageDetail?.phone || "";
+    this.makePhoneCall(phone);
+  },
+
+  onMarkerPageNavigateTap(event) {
+    const detail = this.data.markerPageDetail;
+    if (!detail) return;
+    const dataset = event?.currentTarget?.dataset || {};
+    this.openMarkerLocation(detail, dataset);
+  },
 
   onShareAppMessage() {
     const detail = this._lastMarkerDetail;
     if (detail) {
+      const markerId = detail.markerId || detail.id || "";
       return {
         title: detail.name || "附近商户",
-        path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(detail.id || "")}`
+        path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
       };
     }
     return {
@@ -297,6 +538,8 @@ Page({
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
+    if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
+    if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
@@ -489,15 +732,23 @@ Page({
               padding: 4
             };
           }
+          const rawDetail = {
+            id: marker.id,
+            name: poi.title,
+            title: poi.title,
+            address: poi.address,
+            location: { text: poi.address }
+          };
+          const detail = this.composeMarkerDetail(rawDetail, marker, {
+            source: "search",
+            name: poi.title,
+            locationText: poi.address,
+            id: marker.id
+          });
           marker.extData = Object.assign({}, marker.extData, {
             source: "search",
-            detail: this.normalizeMarkerDetail({
-              id: marker.id,
-              name: poi.title,
-              title: poi.title,
-              address: poi.address,
-              location: { text: poi.address }
-            })
+            raw: rawDetail,
+            detail
           });
           return marker;
         });
@@ -711,6 +962,106 @@ Page({
 
   normalizeMarkerDetail(raw = {}) {
     return normalizeMarkerDetailUtil(raw, { apiBase: this.getApiBase() });
+  },
+
+  composeMarkerDetail(raw = {}, marker = {}, overrides = {}) {
+    const normalized = this.normalizeMarkerDetail(raw || {});
+    const detail = { ...normalized };
+    const source = overrides.source || marker?.extData?.source || "";
+    const fallbackName =
+      overrides.name ||
+      normalized.name ||
+      marker?.title ||
+      marker?.name ||
+      "";
+    if (fallbackName && !detail.name) {
+      detail.name = fallbackName;
+    }
+    const fallbackLocation =
+      overrides.locationText ||
+      normalized.locationText ||
+      marker?.address ||
+      marker?.locationText ||
+      "";
+    if (fallbackLocation && !detail.locationText) {
+      detail.locationText = fallbackLocation;
+    }
+    const latitudeCandidates = [
+      overrides.latitude,
+      marker?.latitude,
+      raw?.location?.latitude,
+      raw?.location?.lat,
+      raw?.latitude,
+      raw?.lat,
+      normalized.latitude,
+      normalized.lat
+    ];
+    for (const candidate of latitudeCandidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        detail.latitude = value;
+        break;
+      }
+    }
+    const longitudeCandidates = [
+      overrides.longitude,
+      marker?.longitude,
+      raw?.location?.longitude,
+      raw?.location?.lng,
+      raw?.longitude,
+      raw?.lng,
+      normalized.longitude,
+      normalized.lng
+    ];
+    for (const candidate of longitudeCandidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        detail.longitude = value;
+        break;
+      }
+    }
+    const idCandidates = [
+      overrides.id,
+      raw?.id,
+      marker?.id,
+      normalized.id
+    ];
+    for (const candidate of idCandidates) {
+      if (candidate !== undefined && candidate !== null && `${candidate}` !== "") {
+        if (!detail.id) {
+          detail.id = candidate;
+        }
+        detail.markerId = `${candidate}`;
+        break;
+      }
+    }
+    if (!detail.markerId) {
+      detail.markerId = detail.id || "";
+    }
+    if (source) {
+      detail.source = source;
+    }
+    if (!detail.raw) {
+      detail.raw = raw;
+    }
+    return detail;
+  },
+
+  resolveMarkerDetail(marker) {
+    if (!marker) return null;
+    const extDetail = marker?.extData?.detail;
+    if (extDetail) {
+      return this.composeMarkerDetail(extDetail.raw || extDetail, marker, {
+        source: marker?.extData?.source,
+        name: extDetail.name,
+        locationText: extDetail.locationText,
+        id: extDetail.markerId || extDetail.id
+      });
+    }
+    const raw = (marker?.extData && marker.extData.raw) || marker;
+    return this.composeMarkerDetail(raw, marker, {
+      source: marker?.extData?.source
+    });
   },
 
   getAuthToken() {
@@ -1334,10 +1685,18 @@ Page({
                 // bgColor: "rgba(255, 255, 255, 0)"
               };
             }
+            const detail = this.composeMarkerDetail(item, marker, {
+              source: "nearby",
+              name,
+              locationText,
+              latitude: latitudeGcj,
+              longitude: longitudeGcj,
+              id: item?.id || marker.id
+            });
             marker.extData = Object.assign({}, marker.extData, {
               source: "nearby",
               raw: item,
-              detail: this.normalizeMarkerDetail(item)
+              detail
             });
             return marker;
           })
