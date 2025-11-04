@@ -47,14 +47,16 @@
           <block wx:if="{{temporaryNoFlyZoneInfo}}">
             <view class="temporary-no-fly-content">
               <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
-              <navigator
+              <view
                 wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
                 class="temporary-no-fly-link"
-                url="{{temporaryNoFlyZoneInfo.linkPath}}"
                 hover-class="temporary-no-fly-link-hover"
+                bindtap="onTemporaryZoneLinkTap"
+                data-link="{{temporaryNoFlyZoneInfo.link}}"
+                data-path="{{temporaryNoFlyZoneInfo.linkPath}}"
               >
                 {{temporaryNoFlyZoneInfo.displayName}}
-              </navigator>
+              </view>
               <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
             </view>
           </block>
