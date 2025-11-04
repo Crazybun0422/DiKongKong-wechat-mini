@@ -42,6 +42,24 @@
           <text class="preflight-label">位于大疆划分：</text>
           <text class="preflight-value {{'tone-' + djiTone}}">{{djiStatus}}</text>
         </view>
+        <view class="preflight-row temporary-no-fly-row">
+          <text class="preflight-label">临时禁飞：</text>
+          <block wx:if="{{temporaryNoFlyZoneInfo}}">
+            <view class="temporary-no-fly-content">
+              <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
+              <navigator
+                wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
+                class="temporary-no-fly-link"
+                url="{{temporaryNoFlyZoneInfo.linkPath}}"
+                hover-class="temporary-no-fly-link-hover"
+              >
+                {{temporaryNoFlyZoneInfo.name}}
+              </navigator>
+              <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.name}}</text>
+            </view>
+          </block>
+          <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
+        </view>
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
 
         <view class="control-row">
