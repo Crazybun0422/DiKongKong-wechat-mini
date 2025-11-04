@@ -414,6 +414,35 @@ Page({
     this.showPlaceholderToast("聊天功能开发中");
   },
 
+  onTemporaryZoneLinkTap(event) {
+    const info = this.data.temporaryNoFlyZoneInfo;
+    if (!info || !info.hasLink) {
+      this.showPlaceholderToast("链接不可用");
+      return;
+    }
+    const dataset = event?.currentTarget?.dataset || {};
+    const articleUrl = dataset.link || info.link || "";
+    const fallbackPath = dataset.path || info.linkPath || "";
+    if (articleUrl && typeof wx.openOfficialAccountArticle === "function") {
+      wx.openOfficialAccountArticle({
+        url: articleUrl,
+        fail: () => {
+          this.openTemporaryZoneLinkFallback(fallbackPath);
+        }
+      });
+      return;
+    }
+    this.openTemporaryZoneLinkFallback(fallbackPath);
+  },
+
+  openTemporaryZoneLinkFallback(path) {
+    if (path && typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: path });
+      return;
+    }
+    this.showPlaceholderToast("链接不可用");
+  },
+
   onMenuHomeTap() {
     if (this.data.activeTab !== "home") {
       this.setData({ activeTab: "home"});
@@ -1670,7 +1699,7 @@ Page({
       id: hit.zone?.id || "",
       name,
       displayName,
-      hasLink: !!linkPath,
+      hasLink: !!validLink,
       link: validLink,
       linkPath
     };
