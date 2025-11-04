@@ -1,0 +1,395 @@
+openapi: 3.0.1
+info:
+  title: No-Fly Zone APIs
+  description: 管理禁飞区域以及提供给用户的查询接口。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/admin/no-fly-zones:
+    post:
+      summary: 新增禁飞区域
+      description: 仅管理员可调用，创建禁飞区域定义。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoFlyZoneRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    get:
+      summary: 分页查询禁飞区域
+      description: 仅管理员可调用，按创建时间分页返回禁飞区域列表。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数，默认 20。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 创建时间排序方向，默认 DESC。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZonePageResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/no-fly-zones/{id}:
+    get:
+      summary: 查询禁飞区域详情
+      description: 仅管理员可调用，根据 ID 获取禁飞区域定义。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新禁飞区域
+      description: 仅管理员可调用，更新禁飞区域定义。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoFlyZoneRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除禁飞区域
+      description: 仅管理员可调用，根据 ID 删除禁飞区域。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/no-fly-zones:
+    get:
+      summary: 查询所有生效禁飞区域
+      description: 向所有用户返回当前生效的禁飞区域。
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneList'
+  /api/no-fly-zones/nearby:
+    get:
+      summary: 查询附近禁飞区域
+      description: 根据中心点和半径返回生效且与查询范围相交的禁飞区域。
+      security: []
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 中心点纬度。
+        - in: query
+          name: longitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 中心点经度。
+        - in: query
+          name: radiusInKilometers
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          description: 查询半径，单位公里。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneList'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseNoFlyZoneResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NoFlyZoneResponse'
+    ApiResponseNoFlyZonePageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PageResponseNoFlyZoneResponse'
+    ApiResponseNoFlyZoneList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoFlyZoneResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: object
+          nullable: true
+    PageResponseNoFlyZoneResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoFlyZoneResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    NoFlyZoneRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: 禁飞区域名称。
+        type:
+          type: string
+          enum: [POLYGON, RECTANGLE, CIRCLE, PATH]
+          description: 区域类型。
+        coordinates:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoFlyZoneCoordinate'
+          description: 多边形、矩形或路径的坐标数组。
+        pathDistanceMeters:
+          type: number
+          format: double
+          description: PATH 类型的沿边距离（米），仅在 type 为 PATH 时填写，且必须为非负数。
+        circle:
+          $ref: '#/components/schemas/NoFlyZoneCircle'
+          description: 圆形区域数据，仅在 type 为 CIRCLE 时填写。
+        effectiveFrom:
+          type: integer
+          format: int64
+          description: 生效时间（秒），可选。
+        effectiveTo:
+          type: integer
+          format: int64
+          description: 失效时间（秒），可选。
+        wechatLink:
+          type: string
+          description: 关联的微信公众号链接，仅支持 mp.weixin.qq.com 域名，非必填。
+    NoFlyZoneResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [POLYGON, RECTANGLE, CIRCLE, PATH]
+        coordinates:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoFlyZoneCoordinate'
+        pathDistanceMeters:
+          type: number
+          format: double
+        circle:
+          $ref: '#/components/schemas/NoFlyZoneCircle'
+        effectiveFrom:
+          type: integer
+          format: int64
+        effectiveTo:
+          type: integer
+          format: int64
+        wechatLink:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NoFlyZoneCoordinate:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    NoFlyZoneCircle:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        radiusMeters:
+          type: number
+          format: double
+    

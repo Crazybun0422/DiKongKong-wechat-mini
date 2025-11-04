@@ -228,6 +228,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/{id}/review:
     post:
       summary: 管理员审核标记
       description: 仅管理员可调用，修改标记的审核状态。
