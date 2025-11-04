@@ -78,12 +78,47 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
 
   const firstImage = images.length ? images[0].url : "";
 
-  const ensureArray = (value) => (Array.isArray(value) ? value : []);
+  const honorTags = [];
+  const pushHonor = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => pushHonor(item));
+      return;
+    }
+    if (typeof value === "string") {
+      const text = ensureText(value);
+      if (text) {
+        honorTags.push(text);
+      }
+      return;
+    }
+    if (typeof value === "object") {
+      const candidate =
+        value.name ||
+        value.title ||
+        value.label ||
+        value.tag ||
+        value.text ||
+        "";
+      const text = ensureText(candidate);
+      if (text) {
+        honorTags.push(text);
+      }
+    }
+  };
 
-  const honors = ensureArray(raw.industryHonorTags)
-    .concat(ensureArray(raw.honorTags))
-    .map((tag) => ensureText(tag))
-    .filter(Boolean);
+  pushHonor(raw.industryHonorTags);
+  pushHonor(raw.honorTags);
+  pushHonor(raw.honors);
+  pushHonor(raw.honorList);
+
+  const honors = [];
+  const seenHonorTags = new Set();
+  honorTags.forEach((tag) => {
+    if (seenHonorTags.has(tag)) return;
+    seenHonorTags.add(tag);
+    honors.push(tag);
+  });
 
   const description =
     ensureText(raw.description) ||
@@ -225,6 +260,7 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
   pushVideo(raw.videoChannelUrls);
   pushVideo(raw.videoChannelUrl);
   pushVideo(raw.videoUrls);
+  pushVideo(raw.videoAccounts);
 
   const channelId = ensureText(raw.videoChannelId);
   const videoId = ensureText(raw.videoId);
