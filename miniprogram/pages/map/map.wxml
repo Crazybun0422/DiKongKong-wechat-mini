@@ -53,9 +53,9 @@
                 url="{{temporaryNoFlyZoneInfo.linkPath}}"
                 hover-class="temporary-no-fly-link-hover"
               >
-                {{temporaryNoFlyZoneInfo.name}}
+                {{temporaryNoFlyZoneInfo.displayName}}
               </navigator>
-              <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.name}}</text>
+              <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
             </view>
           </block>
           <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
