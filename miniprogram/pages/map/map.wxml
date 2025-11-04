@@ -390,7 +390,7 @@
                 <image class="marker-page-video-icon" src="/assets/v-account.png" mode="aspectFit" />
                 <text class="marker-page-video-text">丰富的视频案例介绍</text>
               </view>
-              <text class="marker-page-video-arrow">&gt;</text>
+              <text class="marker-page-video-arrow">></text>
             </view>
 
             <view
