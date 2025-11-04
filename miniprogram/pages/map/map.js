@@ -1,7 +1,14 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
-const { fetchNearbyMarkers, buildFileDownloadUrl } = require("../../utils/markers");
+const {
+  fetchNearbyMarkers,
+  buildFileDownloadUrl
+} = require("../../utils/markers");
+const {
+  fetchNearbyNoFlyZones,
+  buildNoFlyZoneGraphics
+} = require("../../utils/no-fly-zones");
 const {
   buildWmsOverlay,
   WMS_MIN_ZOOM,
@@ -86,6 +93,21 @@ const formatNearbyMarkerLabel = (value) => {
   return `${firstLine}\n${secondLine}`;
 };
 
+const formatTemporaryZoneLabel = (value, maxLength = 6) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxLength) {
+    return trimmed;
+  }
+  return `${chars.slice(0, maxLength).join("")}...`;
+};
+
 Page({
   data: {
     keyword: "",
@@ -110,6 +132,9 @@ Page({
     djiStatus: "评估中",
     djiTone: "neutral",
     djiStatusExtra: "",
+    temporaryNoFlyZoneInfo: null,
+    temporaryNoFlyText: "评估中",
+    temporaryNoFlyTone: "neutral",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -123,7 +148,8 @@ Page({
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
     activeTab: "home",
     showMarkerDetail: false,
-    activeMarkerDetail: null
+    activeMarkerDetail: null,
+    showMarkerDetailPage: false
   },
 
   onLoad() {
@@ -136,6 +162,10 @@ Page({
     this._suppressRegionOnce = false;
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
+    this._djiPolygons = [];
+    this._djiCircles = [];
+    this._nfzPolygons = [];
+    this._nfzCircles = [];
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
     this._suggestTimer = null;
@@ -144,11 +174,23 @@ Page({
     this._avatarChanged = false;
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
+    this._activeNoFlyRequest = null;
+    this._lastNoFlyFetch = null;
+    this._noFlyZonesReady = false;
+    this._noFlyZones = [];
+    this._noFlyZonesError = null;
+    this._noFlyZoneShapes = [];
+    this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
     this._searchMarkers = [];
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
+      center: this.data.center,
+      scale: this.data.scale,
+      force: true
+    });
+    this.scheduleFetchNoFlyZones(0, {
       center: this.data.center,
       scale: this.data.scale,
       force: true
@@ -178,7 +220,7 @@ Page({
       ensureText(raw.location?.text) ||
       "";
 
-    const images = [];
+    const imageFiles = [];
     const pushImage = (value) => {
       if (!value) return;
       if (Array.isArray(value)) {
@@ -187,7 +229,7 @@ Page({
       }
       if (typeof value === "string") {
         const trimmed = value.trim();
-        if (trimmed) images.push(trimmed);
+        if (trimmed) imageFiles.push(trimmed);
         return;
       }
       if (typeof value === "object") {
@@ -211,14 +253,195 @@ Page({
     pushImage(raw.coverImage);
     pushImage(raw.cover);
 
-    const firstImage = images.length ? images[0] : "";
-    const imageUrl = firstImage ? download(firstImage) : "";
+    const images = imageFiles.map((fileName, index) => ({
+      id: `${raw.id || "marker"}-image-${index}`,
+      fileName,
+      url: download(fileName)
+    }));
+
+    const firstImage = images.length ? images[0].url : "";
+
+    const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
+    const honors = ensureArray(raw.industryHonorTags)
+      .concat(ensureArray(raw.honorTags))
+      .map((tag) => ensureText(tag))
+      .filter(Boolean);
+
+    const description =
+      ensureText(raw.description) ||
+      ensureText(raw.introduction) ||
+      ensureText(raw.summary) ||
+      "";
+
+    const attachments = [];
+    let attachmentCounter = 0;
+    const pushAttachment = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushAttachment(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        const url = download(trimmed);
+        attachments.push({
+          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
+          fileName: trimmed,
+          url,
+          displayName: trimmed.split("/").pop() || trimmed
+        });
+        return;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.url ||
+          value.fileUrl ||
+          value.fileName ||
+          value.filename ||
+          value.objectName ||
+          value.path ||
+          value.location ||
+          "";
+        if (!candidate) return;
+        const url = download(candidate);
+        const name =
+          value.displayName ||
+          value.name ||
+          value.title ||
+          value.fileName ||
+          candidate;
+        const displayName = (name || candidate).split("/").pop() || name || candidate;
+        attachments.push({
+          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
+          fileName: name || candidate,
+          url,
+          displayName
+        });
+      }
+    };
+
+    pushAttachment(raw.attachments);
+    pushAttachment(raw.attachmentUrls);
+    pushAttachment(raw.attachmentFiles);
+
+    const qrCodes = [];
+    let qrCounter = 0;
+    const pushQrCode = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushQrCode(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        qrCodes.push({
+          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
+          fileName: trimmed,
+          url: download(trimmed)
+        });
+        return;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.url ||
+          value.fileUrl ||
+          value.fileName ||
+          value.filename ||
+          value.path ||
+          value.location ||
+          value.imageUrl ||
+          "";
+        if (!candidate) return;
+        qrCodes.push({
+          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
+          fileName: candidate,
+          url: download(candidate)
+        });
+      }
+    };
+
+    pushQrCode(raw.qrCodes);
+    pushQrCode(raw.qrCodeUrls);
+    pushQrCode(raw.qrCodeImages);
+
+    const videoAccounts = [];
+    let videoCounter = 0;
+    const pushVideo = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushVideo(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        videoAccounts.push({
+          id: `${raw.id || "marker"}-video-${videoCounter++}`,
+          url: trimmed
+        });
+        return;
+      }
+      if (typeof value === "object") {
+        const urlValue =
+          value.url ||
+          value.link ||
+          value.pagePath ||
+          value.path ||
+          value.videoUrl ||
+          "";
+        const finderId = value.finderUserName || value.finderId || value.userName || "";
+        if (!urlValue && !finderId) return;
+        videoAccounts.push({
+          id: `${raw.id || "marker"}-video-${videoCounter++}`,
+          url: urlValue,
+          finderUserName: finderId
+        });
+      }
+    };
+
+    pushVideo(raw.videoChannelUrls);
+    pushVideo(raw.videoChannelUrl);
+    pushVideo(raw.videoUrls);
+    if (ensureText(raw.videoChannelId)) {
+      videoAccounts.push({
+        id: `${raw.id || "marker"}-video-${videoCounter++}`,
+        finderUserName: ensureText(raw.videoChannelId)
+      });
+    }
+    if (ensureText(raw.videoId)) {
+      videoAccounts.push({
+        id: `${raw.id || "marker"}-video-${videoCounter++}`,
+        url: ensureText(raw.videoId)
+      });
+    }
+
+    const uniqueVideoAccounts = [];
+    const seenVideoKeys = new Set();
+    videoAccounts.forEach((item) => {
+      const key = `${item.finderUserName || ""}|${item.url || ""}`;
+      if (seenVideoKeys.has(key)) return;
+      seenVideoKeys.add(key);
+      uniqueVideoAccounts.push(item);
+    });
+
+    const phone = ensureText(raw.phone || raw.telephone || raw.contactPhone);
 
     return {
       id: raw.id || "",
       name,
       locationText,
-      imageUrl,
+      imageUrl: firstImage,
+      images,
+      honors,
+      description,
+      attachments,
+      qrCodes,
+      videoAccounts: uniqueVideoAccounts,
+      primaryVideoAccount: uniqueVideoAccounts.length ? uniqueVideoAccounts[0] : null,
+      phone,
       raw
     };
   },
@@ -245,12 +468,17 @@ Page({
       this.normalizeMarkerDetail(marker);
     this.setData({
       showMarkerDetail: true,
-      activeMarkerDetail: detail
+      activeMarkerDetail: detail,
+      showMarkerDetailPage: false
     });
   },
 
   closeMarkerDetail() {
-    this.setData({ showMarkerDetail: false, activeMarkerDetail: null });
+    this.setData({
+      showMarkerDetail: false,
+      activeMarkerDetail: null,
+      showMarkerDetailPage: false
+    });
   },
 
   onMarkerTap(event) {
@@ -300,7 +528,109 @@ Page({
   openMarkerDetailPage() {
     const detail = this.data.activeMarkerDetail;
     if (!detail) return;
-    this.showPlaceholderToast("详情页面开发中");
+    this.setData({
+      showMarkerDetailPage: true,
+      showMarkerDetail: false
+    });
+    if (typeof wx?.showShareMenu === "function") {
+      wx.showShareMenu({ withShareTicket: false });
+    }
+    this._markerDetailTriggered = false;
+  },
+
+  closeMarkerDetailPage() {
+    this.setData({
+      showMarkerDetailPage: false,
+      showMarkerDetail: false,
+      activeMarkerDetail: null
+    });
+  },
+
+  onAttachmentDownloadTap(event) {
+    const url = event?.currentTarget?.dataset?.url;
+    if (!url) {
+      wx.showToast({ title: "附件不可用", icon: "none" });
+      return;
+    }
+    wx.showLoading({ title: "下载中...", mask: true });
+    wx.downloadFile({
+      url,
+      success: (res) => {
+        const statusCode = Number(res?.statusCode);
+        const filePath = res?.tempFilePath;
+        if (statusCode === 200 && filePath) {
+          if (typeof wx.openDocument === "function") {
+            wx.openDocument({
+              filePath,
+              showMenu: true,
+              success: () => {
+                wx.hideLoading();
+              },
+              fail: () => {
+                wx.hideLoading();
+                wx.showToast({ title: "打开失败", icon: "none" });
+              }
+            });
+            return;
+          }
+          wx.hideLoading();
+          wx.showToast({ title: "已下载", icon: "success" });
+          return;
+        }
+        wx.hideLoading();
+        wx.showToast({ title: "下载失败", icon: "none" });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: "下载失败", icon: "none" });
+      }
+    });
+  },
+
+  onVideoAccountTap(event) {
+    const url = event?.currentTarget?.dataset?.url;
+    const finderUserName = event?.currentTarget?.dataset?.finder;
+    if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
+      wx.openChannelsUserProfile({ finderUserName });
+      return;
+    }
+    if (url && /^https?:\/\//.test(url)) {
+      if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url)) {
+        if (typeof wx?.navigateTo === "function") {
+          wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
+          return;
+        }
+      }
+      if (typeof wx?.setClipboardData === "function") {
+        wx.setClipboardData({
+          data: url,
+          success: () => {
+            wx.showToast({ title: "链接已复制", icon: "none" });
+          },
+          fail: () => {
+            wx.showToast({ title: "复制失败", icon: "none" });
+          }
+        });
+      } else {
+        wx.showToast({ title: "请复制链接访问", icon: "none" });
+      }
+      return;
+    }
+    wx.showToast({ title: "暂无可跳转的视频号", icon: "none" });
+  },
+
+  onShareAppMessage() {
+    const detail = this.data.activeMarkerDetail;
+    if (detail) {
+      return {
+        title: detail.name || "附近商户",
+        path: `/pages/map/map?markerId=${encodeURIComponent(detail.id || "")}`
+      };
+    }
+    return {
+      title: "附近商户",
+      path: "/pages/map/map"
+    };
   },
 
   applyCustomMapStyle() {
@@ -327,7 +657,9 @@ Page({
   onUnload() {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
+    if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     this._activeMarkersRequest = null;
+    this._activeNoFlyRequest = null;
     this.clearMapOverlays();
   },
 
@@ -369,6 +701,35 @@ Page({
 
   onChatButtonTap() {
     this.showPlaceholderToast("聊天功能开发中");
+  },
+
+  onTemporaryZoneLinkTap(event) {
+    const info = this.data.temporaryNoFlyZoneInfo;
+    if (!info || !info.hasLink) {
+      this.showPlaceholderToast("链接不可用");
+      return;
+    }
+    const dataset = event?.currentTarget?.dataset || {};
+    const articleUrl = dataset.link || info.link || "";
+    const fallbackPath = dataset.path || info.linkPath || "";
+    if (articleUrl && typeof wx.openOfficialAccountArticle === "function") {
+      wx.openOfficialAccountArticle({
+        url: articleUrl,
+        fail: () => {
+          this.openTemporaryZoneLinkFallback(fallbackPath);
+        }
+      });
+      return;
+    }
+    this.openTemporaryZoneLinkFallback(fallbackPath);
+  },
+
+  openTemporaryZoneLinkFallback(path) {
+    if (path && typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: path });
+      return;
+    }
+    this.showPlaceholderToast("链接不可用");
   },
 
   onMenuHomeTap() {
@@ -1098,6 +1459,12 @@ Page({
             scale,
             force: !!forceRefresh
           });
+          this.scheduleFetchNoFlyZones(forceRefresh ? 0 : 200, {
+            center: newCenter,
+            region,
+            scale,
+            force: !!forceRefresh
+          });
           this.updateStatusPanel(this._lastAreas);
         };
         if (shouldSync) {
@@ -1140,6 +1507,12 @@ Page({
           );
           this.refreshWmsOverlay(newCenter, scale, detail?.region);
           this.scheduleFetchMarkers(0, {
+            center: newCenter,
+            region: detail?.region,
+            scale,
+            force: true
+          });
+          this.scheduleFetchNoFlyZones(0, {
             center: newCenter,
             region: detail?.region,
             scale,
@@ -1203,6 +1576,15 @@ Page({
     this._markersFetchTimer = setTimeout(() => {
       this._markersFetchTimer = null;
       this.requestNearbyMarkers(options);
+    }, ms);
+  },
+
+  scheduleFetchNoFlyZones(delay = 0, options = {}) {
+    if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
+    const ms = Math.max(0, Number(delay) || 0);
+    this._nfzFetchTimer = setTimeout(() => {
+      this._nfzFetchTimer = null;
+      this.requestNearbyNoFlyZones(options);
     }, ms);
   },
 
@@ -1336,6 +1718,106 @@ Page({
       });
   },
 
+  requestNearbyNoFlyZones(options = {}) {
+    const center = options?.center || this._centerOverride || this.data.center;
+    if (!center) return;
+    const scale = options?.scale || this.data.scale;
+    const region = options?.region || this._lastRegion;
+    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
+
+    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
+    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const prev = this._lastNoFlyFetch || {};
+    const moveMeters = haversineMeters(
+      center.latitude,
+      center.longitude,
+      prev.latitude || 0,
+      prev.longitude || 0
+    );
+    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
+    const now = Date.now();
+    const prevTimestamp = Number(prev.timestamp) || 0;
+    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
+    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+      return;
+    }
+
+    const requestId = now;
+    this._activeNoFlyRequest = requestId;
+    this._noFlyZonesError = null;
+
+    fetchNearbyNoFlyZones(
+      {
+        latitude,
+        longitude,
+        radiusInKilometers: radiusKm
+      },
+      {
+        apiBase: this.getApiBase()
+      }
+    )
+      .then((zones = []) => {
+        if (this._activeNoFlyRequest !== requestId) return;
+        const items = Array.isArray(zones) ? zones : [];
+        const graphics = buildNoFlyZoneGraphics(items);
+        this._nfzPolygons = graphics.polygons || [];
+        this._nfzCircles = graphics.circles || [];
+        this._noFlyZoneShapes = graphics.shapes || [];
+        this._noFlyZones = items;
+        this._noFlyZonesReady = true;
+        this._noFlyZonesError = null;
+        this.updateOverlayGraphics();
+        this.updateStatusPanel();
+        this._lastNoFlyFetch = {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusKm,
+          scale: clampMapScale(scale),
+          timestamp: now
+        };
+      })
+      .catch((err) => {
+        console.warn("Fetch no-fly zones failed", err);
+        if (!this._noFlyZonesReady) {
+          this._noFlyZoneShapes = [];
+          this._noFlyZones = [];
+          this._nfzPolygons = [];
+          this._nfzCircles = [];
+          this.updateOverlayGraphics();
+        }
+        this._noFlyZonesReady = true;
+        this._noFlyZonesError = err || new Error("nfz-fetch-failed");
+        this.updateStatusPanel();
+      })
+      .finally(() => {
+        if (this._activeNoFlyRequest === requestId) {
+          this._activeNoFlyRequest = null;
+        }
+      });
+  },
+
+  updateOverlayGraphics() {
+    const polygons = [];
+    const circles = [];
+    if (Array.isArray(this._djiPolygons)) {
+      polygons.push(...this._djiPolygons);
+    }
+    if (Array.isArray(this._nfzPolygons)) {
+      polygons.push(...this._nfzPolygons);
+    }
+    if (Array.isArray(this._djiCircles)) {
+      circles.push(...this._djiCircles);
+    }
+    if (Array.isArray(this._nfzCircles)) {
+      circles.push(...this._nfzCircles);
+    }
+    this.setData({ polygons, circles });
+  },
+
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
     const center = centerOverride || this.data.center;
     const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
@@ -1387,9 +1869,10 @@ Page({
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);
+        this._djiPolygons = graphics.polygons || [];
+        this._djiCircles = graphics.circles || [];
+        this.updateOverlayGraphics();
         this.setData({
-          polygons: graphics.polygons,
-          circles: graphics.circles,
           djiMsg: `已获取 ${areas.length} 个空域`
         });
         this._lastFetch = {
@@ -1416,12 +1899,16 @@ Page({
     const resolved = typeof areas === "undefined" ? this._lastAreas : areas;
     const dji = this.describeDjiStatus(resolved);
     const uom = this.describeUomStatus();
+    const temporary = this.describeTemporaryNoFlyStatus();
     this.setData({
       djiStatus: dji.status,
       djiStatusExtra: dji.extra,
       djiTone: dji.tone,
       uomStatus: uom.status,
-      uomTone: uom.tone
+      uomTone: uom.tone,
+      temporaryNoFlyZoneInfo: temporary.zoneInfo,
+      temporaryNoFlyText: temporary.text,
+      temporaryNoFlyTone: temporary.tone
     });
   },
 
@@ -1471,6 +1958,41 @@ Page({
       extra: extraParts.join(" · "),
       tone: this.toneForLevel(Number(target.area.level))
     };
+  },
+
+  describeTemporaryNoFlyStatus() {
+    if (!this._noFlyZonesReady) {
+      return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    }
+    if (this._noFlyZonesError) {
+      return { zoneInfo: null, text: "临时禁飞数据不可用", tone: "warn" };
+    }
+    const center = this._centerOverride || this.data.center;
+    if (!center) {
+      return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    }
+    if (!Number.isFinite(center.longitude) || !Number.isFinite(center.latitude)) {
+      return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    }
+    const hit = this.findNoFlyZoneAtPoint(center.longitude, center.latitude);
+    if (!hit) {
+      return { zoneInfo: null, text: "不在临时禁飞区", tone: "safe" };
+    }
+    const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
+    const name = rawName || "临时禁飞区";
+    const displayName = formatTemporaryZoneLabel(name);
+    const rawLink = typeof hit.zone?.wechatLink === "string" ? hit.zone.wechatLink.trim() : "";
+    const validLink = /^https?:\/\/mp\.weixin\.qq\.com\//.test(rawLink) ? rawLink : "";
+    const linkPath = validLink ? `/pages/webview/index?url=${encodeURIComponent(validLink)}` : "";
+    const zoneInfo = {
+      id: hit.zone?.id || "",
+      name,
+      displayName,
+      hasLink: !!validLink,
+      link: validLink,
+      linkPath
+    };
+    return { zoneInfo, text: displayName, tone: "alert" };
   },
 
   describeUomStatus() {
@@ -1740,6 +2262,32 @@ Page({
     } catch (err) {
       return false;
     }
+  },
+
+  findNoFlyZoneAtPoint(lng, lat) {
+    if (!Array.isArray(this._noFlyZoneShapes) || !this._noFlyZoneShapes.length) {
+      return null;
+    }
+    for (const entry of this._noFlyZoneShapes) {
+      if (!entry) continue;
+      if (entry.type === "circle" && entry.center) {
+        const radius = Number(entry.radius);
+        if (!Number.isFinite(radius) || radius <= 0) continue;
+        const dist = haversineMeters(lat, lng, Number(entry.center.lat), Number(entry.center.lng));
+        if (Number.isFinite(dist) && dist <= radius) {
+          return { zone: entry.zone, shape: entry };
+        }
+        continue;
+      }
+      if (entry.type === "polygon" && Array.isArray(entry.rings)) {
+        for (const ring of entry.rings) {
+          if (this.ringContains(ring, lng, lat)) {
+            return { zone: entry.zone, shape: entry };
+          }
+        }
+      }
+    }
+    return null;
   },
 
   areaContainsWgsPoint(area, lng, lat) {
