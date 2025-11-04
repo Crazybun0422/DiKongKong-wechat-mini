@@ -1,7 +1,14 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
-const { fetchNearbyMarkers, buildFileDownloadUrl } = require("../../utils/markers");
+const {
+  fetchNearbyMarkers,
+  buildFileDownloadUrl
+} = require("../../utils/markers");
+const {
+  fetchNearbyNoFlyZones,
+  buildNoFlyZoneGraphics
+} = require("../../utils/no-fly-zones");
 const {
   buildWmsOverlay,
   WMS_MIN_ZOOM,
@@ -110,6 +117,9 @@ Page({
     djiStatus: "评估中",
     djiTone: "neutral",
     djiStatusExtra: "",
+    temporaryNoFlyZoneInfo: null,
+    temporaryNoFlyText: "评估中",
+    temporaryNoFlyTone: "neutral",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -136,6 +146,10 @@ Page({
     this._suppressRegionOnce = false;
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
+    this._djiPolygons = [];
+    this._djiCircles = [];
+    this._nfzPolygons = [];
+    this._nfzCircles = [];
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
     this._suggestTimer = null;
@@ -144,11 +158,23 @@ Page({
     this._avatarChanged = false;
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
+    this._activeNoFlyRequest = null;
+    this._lastNoFlyFetch = null;
+    this._noFlyZonesReady = false;
+    this._noFlyZones = [];
+    this._noFlyZonesError = null;
+    this._noFlyZoneShapes = [];
+    this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
     this._searchMarkers = [];
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
+      center: this.data.center,
+      scale: this.data.scale,
+      force: true
+    });
+    this.scheduleFetchNoFlyZones(0, {
       center: this.data.center,
       scale: this.data.scale,
       force: true
@@ -327,7 +353,9 @@ Page({
   onUnload() {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
+    if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     this._activeMarkersRequest = null;
+    this._activeNoFlyRequest = null;
     this.clearMapOverlays();
   },
 
@@ -1098,6 +1126,12 @@ Page({
             scale,
             force: !!forceRefresh
           });
+          this.scheduleFetchNoFlyZones(forceRefresh ? 0 : 200, {
+            center: newCenter,
+            region,
+            scale,
+            force: !!forceRefresh
+          });
           this.updateStatusPanel(this._lastAreas);
         };
         if (shouldSync) {
@@ -1140,6 +1174,12 @@ Page({
           );
           this.refreshWmsOverlay(newCenter, scale, detail?.region);
           this.scheduleFetchMarkers(0, {
+            center: newCenter,
+            region: detail?.region,
+            scale,
+            force: true
+          });
+          this.scheduleFetchNoFlyZones(0, {
             center: newCenter,
             region: detail?.region,
             scale,
@@ -1203,6 +1243,15 @@ Page({
     this._markersFetchTimer = setTimeout(() => {
       this._markersFetchTimer = null;
       this.requestNearbyMarkers(options);
+    }, ms);
+  },
+
+  scheduleFetchNoFlyZones(delay = 0, options = {}) {
+    if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
+    const ms = Math.max(0, Number(delay) || 0);
+    this._nfzFetchTimer = setTimeout(() => {
+      this._nfzFetchTimer = null;
+      this.requestNearbyNoFlyZones(options);
     }, ms);
   },
 
@@ -1336,6 +1385,106 @@ Page({
       });
   },
 
+  requestNearbyNoFlyZones(options = {}) {
+    const center = options?.center || this._centerOverride || this.data.center;
+    if (!center) return;
+    const scale = options?.scale || this.data.scale;
+    const region = options?.region || this._lastRegion;
+    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
+
+    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
+    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const prev = this._lastNoFlyFetch || {};
+    const moveMeters = haversineMeters(
+      center.latitude,
+      center.longitude,
+      prev.latitude || 0,
+      prev.longitude || 0
+    );
+    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
+    const now = Date.now();
+    const prevTimestamp = Number(prev.timestamp) || 0;
+    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
+    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+      return;
+    }
+
+    const requestId = now;
+    this._activeNoFlyRequest = requestId;
+    this._noFlyZonesError = null;
+
+    fetchNearbyNoFlyZones(
+      {
+        latitude,
+        longitude,
+        radiusInKilometers: radiusKm
+      },
+      {
+        apiBase: this.getApiBase()
+      }
+    )
+      .then((zones = []) => {
+        if (this._activeNoFlyRequest !== requestId) return;
+        const items = Array.isArray(zones) ? zones : [];
+        const graphics = buildNoFlyZoneGraphics(items);
+        this._nfzPolygons = graphics.polygons || [];
+        this._nfzCircles = graphics.circles || [];
+        this._noFlyZoneShapes = graphics.shapes || [];
+        this._noFlyZones = items;
+        this._noFlyZonesReady = true;
+        this._noFlyZonesError = null;
+        this.updateOverlayGraphics();
+        this.updateStatusPanel();
+        this._lastNoFlyFetch = {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusKm,
+          scale: clampMapScale(scale),
+          timestamp: now
+        };
+      })
+      .catch((err) => {
+        console.warn("Fetch no-fly zones failed", err);
+        if (!this._noFlyZonesReady) {
+          this._noFlyZoneShapes = [];
+          this._noFlyZones = [];
+          this._nfzPolygons = [];
+          this._nfzCircles = [];
+          this.updateOverlayGraphics();
+        }
+        this._noFlyZonesReady = true;
+        this._noFlyZonesError = err || new Error("nfz-fetch-failed");
+        this.updateStatusPanel();
+      })
+      .finally(() => {
+        if (this._activeNoFlyRequest === requestId) {
+          this._activeNoFlyRequest = null;
+        }
+      });
+  },
+
+  updateOverlayGraphics() {
+    const polygons = [];
+    const circles = [];
+    if (Array.isArray(this._djiPolygons)) {
+      polygons.push(...this._djiPolygons);
+    }
+    if (Array.isArray(this._nfzPolygons)) {
+      polygons.push(...this._nfzPolygons);
+    }
+    if (Array.isArray(this._djiCircles)) {
+      circles.push(...this._djiCircles);
+    }
+    if (Array.isArray(this._nfzCircles)) {
+      circles.push(...this._nfzCircles);
+    }
+    this.setData({ polygons, circles });
+  },
+
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
     const center = centerOverride || this.data.center;
     const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
@@ -1387,9 +1536,10 @@ Page({
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);
+        this._djiPolygons = graphics.polygons || [];
+        this._djiCircles = graphics.circles || [];
+        this.updateOverlayGraphics();
         this.setData({
-          polygons: graphics.polygons,
-          circles: graphics.circles,
           djiMsg: `已获取 ${areas.length} 个空域`
         });
         this._lastFetch = {
@@ -1416,12 +1566,16 @@ Page({
     const resolved = typeof areas === "undefined" ? this._lastAreas : areas;
     const dji = this.describeDjiStatus(resolved);
     const uom = this.describeUomStatus();
+    const temporary = this.describeTemporaryNoFlyStatus();
     this.setData({
       djiStatus: dji.status,
       djiStatusExtra: dji.extra,
       djiTone: dji.tone,
       uomStatus: uom.status,
-      uomTone: uom.tone
+      uomTone: uom.tone,
+      temporaryNoFlyZoneInfo: temporary.zoneInfo,
+      temporaryNoFlyText: temporary.text,
+      temporaryNoFlyTone: temporary.tone
     });
   },
 
@@ -1471,6 +1625,40 @@ Page({
       extra: extraParts.join(" · "),
       tone: this.toneForLevel(Number(target.area.level))
     };
+  },
+
+  describeTemporaryNoFlyStatus() {
+    if (!this._noFlyZonesReady) {
+      return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    }
+    if (this._noFlyZonesError) {
+      return { zoneInfo: null, text: "临时禁飞数据不可用", tone: "warn" };
+    }
+    const center = this._centerOverride || this.data.center;
+    if (!center) {
+      return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    }
+    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+    if (!wgs || !Number.isFinite(wgs.lng) || !Number.isFinite(wgs.lat)) {
+      return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    }
+    const hit = this.findNoFlyZoneAtPoint(wgs.lng, wgs.lat);
+    if (!hit) {
+      return { zoneInfo: null, text: "不在临时禁飞区", tone: "safe" };
+    }
+    const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
+    const name = rawName || "临时禁飞区";
+    const rawLink = typeof hit.zone?.wechatLink === "string" ? hit.zone.wechatLink.trim() : "";
+    const validLink = /^https?:\/\/mp\.weixin\.qq\.com\//.test(rawLink) ? rawLink : "";
+    const linkPath = validLink ? `/pages/webview/index?url=${encodeURIComponent(validLink)}` : "";
+    const zoneInfo = {
+      id: hit.zone?.id || "",
+      name,
+      hasLink: !!linkPath,
+      link: validLink,
+      linkPath
+    };
+    return { zoneInfo, text: name, tone: "alert" };
   },
 
   describeUomStatus() {
@@ -1740,6 +1928,32 @@ Page({
     } catch (err) {
       return false;
     }
+  },
+
+  findNoFlyZoneAtPoint(lng, lat) {
+    if (!Array.isArray(this._noFlyZoneShapes) || !this._noFlyZoneShapes.length) {
+      return null;
+    }
+    for (const entry of this._noFlyZoneShapes) {
+      if (!entry) continue;
+      if (entry.type === "circle" && entry.center) {
+        const radius = Number(entry.radius);
+        if (!Number.isFinite(radius) || radius <= 0) continue;
+        const dist = haversineMeters(lat, lng, Number(entry.center.lat), Number(entry.center.lng));
+        if (Number.isFinite(dist) && dist <= radius) {
+          return { zone: entry.zone, shape: entry };
+        }
+        continue;
+      }
+      if (entry.type === "polygon" && Array.isArray(entry.rings)) {
+        for (const ring of entry.rings) {
+          if (this.ringContains(ring, lng, lat)) {
+            return { zone: entry.zone, shape: entry };
+          }
+        }
+      }
+    }
+    return null;
   },
 
   areaContainsWgsPoint(area, lng, lat) {

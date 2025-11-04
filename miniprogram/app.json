@@ -5,7 +5,8 @@
     "pages/profile/open-platform/index",
     "pages/profile/edit/index",
     "pages/markers/index",
-    "pages/markers/location-picker/index"
+    "pages/markers/location-picker/index",
+    "pages/webview/index"
   ],
   "window": {
     "navigationBarTextStyle": "white",
