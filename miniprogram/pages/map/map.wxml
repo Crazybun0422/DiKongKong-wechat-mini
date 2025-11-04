@@ -251,7 +251,14 @@
 
     <block wx:if="{{markerDetailVisible}}">
       <view class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}" bindtap="onMarkerDetailMaskTap"></view>
-      <view class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}}">
+      <view
+        class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
+        catchtouchstart="onMarkerDetailTouchStart"
+        catchtouchmove="onMarkerDetailTouchMove"
+        catchtouchend="onMarkerDetailTouchEnd"
+        catchtouchcancel="onMarkerDetailTouchCancel"
+      >
+        <view class="marker-detail-handle"></view>
         <view class="marker-detail-header">
           <view class="marker-detail-info">
             <text class="marker-detail-name">{{markerDetail.name || '未命名商户'}}</text>
@@ -274,31 +281,8 @@
             <text class="marker-detail-cover-text">暂无商户图片</text>
           </view>
         </view>
-        <view class="marker-detail-actions">
-          <view
-            class="marker-detail-action"
-            wx:if="{{markerDetail.phone}}"
-            data-phone="{{markerDetail.phone}}"
-            bindtap="onMarkerDetailCallTap"
-          >
-            <image class="marker-detail-action-icon" src="/assets/telephone.png" mode="aspectFit" />
-            <text class="marker-detail-action-text">电话咨询</text>
-          </view>
-          <view
-            class="marker-detail-action"
-            wx:if="{{markerDetail.latitude && markerDetail.longitude}}"
-            data-latitude="{{markerDetail.latitude}}"
-            data-longitude="{{markerDetail.longitude}}"
-            data-name="{{markerDetail.name || '商户位置'}}"
-            data-address="{{markerDetail.locationText || ''}}"
-            bindtap="onMarkerDetailNavigateTap"
-          >
-            <image class="marker-detail-action-icon" src="/assets/m-target.png" mode="aspectFit" />
-            <text class="marker-detail-action-text">到这去</text>
-          </view>
-          <view class="marker-detail-action marker-detail-action--primary" bindtap="onMarkerDetailMoreTap">
-            <text class="marker-detail-action-text">查看详情</text>
-          </view>
+        <view class="marker-detail-gesture-hint">
+          <text class="marker-detail-gesture-text">上滑查看详情</text>
         </view>
       </view>
     </block>
@@ -309,7 +293,15 @@
         <view class="marker-page-close" bindtap="onMarkerPageCloseTap">
           <image class="marker-page-close-icon" src="/assets/marker-detail-close.png" mode="aspectFit" />
         </view>
-        <scroll-view scroll-y class="marker-page-scroll">
+        <scroll-view
+          scroll-y
+          class="marker-page-scroll"
+          bindscroll="onMarkerPageScroll"
+          bindtouchstart="onMarkerPageTouchStart"
+          bindtouchmove="onMarkerPageTouchMove"
+          bindtouchend="onMarkerPageTouchEnd"
+          bindtouchcancel="onMarkerPageTouchCancel"
+        >
           <view class="marker-page-hero">
             <block wx:if="{{markerPageDetail.images && markerPageDetail.images.length}}">
               <swiper
@@ -325,7 +317,7 @@
                   </swiper-item>
                 </block>
               </swiper>
-              <view class="marker-page-swiper-dots" wx:if="{{markerPageDetail.images.length > 1}}">
+              <view class="marker-page-swiper-dots" wx:if="{{markerPageDetail.images.length}}">
                 <block wx:for="{{markerPageDetail.images}}" wx:key="id">
                   <view class="marker-page-swiper-dot {{index === markerPageCurrentImage ? 'is-active' : ''}}"></view>
                 </block>
