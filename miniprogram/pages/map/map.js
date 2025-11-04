@@ -108,6 +108,30 @@ const formatTemporaryZoneLabel = (value, maxLength = 6) => {
   return `${chars.slice(0, maxLength).join("")}...`;
 };
 
+const cloneMarkerDetail = (detail = {}) => {
+  if (!detail || typeof detail !== "object") {
+    return {};
+  }
+  const cloneArray = (value) => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
+  };
+  const cloned = { ...detail };
+  cloned.images = cloneArray(detail.images);
+  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
+  cloned.attachments = cloneArray(detail.attachments);
+  cloned.qrCodes = cloneArray(detail.qrCodes);
+  cloned.videoAccounts = cloneArray(detail.videoAccounts);
+  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
+    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
+  } else if (!detail.primaryVideoAccount) {
+    cloned.primaryVideoAccount = null;
+  }
+  return cloned;
+};
+
 Page({
   data: {
     keyword: "",
@@ -235,7 +259,8 @@ Page({
       return;
     }
 
-    this._lastMarkerDetail = detail;
+    const viewDetail = cloneMarkerDetail(detail);
+    this._lastMarkerDetail = viewDetail;
     if (this._markerDetailCloseTimer) {
       clearTimeout(this._markerDetailCloseTimer);
       this._markerDetailCloseTimer = null;
@@ -249,7 +274,7 @@ Page({
       markerDetailVisible: true,
       markerDetailClosing: false,
       markerDetailExpanding: false,
-      markerDetail: detail
+      markerDetail: viewDetail
     });
   },
 
@@ -332,8 +357,9 @@ Page({
         this.setData({ markerDetailExpanding: false });
         return;
       }
-      this._lastMarkerDetail = currentDetail;
-      this.openMarkerPage(currentDetail);
+      const restored = cloneMarkerDetail(currentDetail);
+      this._lastMarkerDetail = restored;
+      this.openMarkerPage(restored);
       this.setData({ markerDetailExpanding: false });
     }, 220);
   },
@@ -439,11 +465,12 @@ Page({
       clearTimeout(this._restoreMarkerDetailTimer);
       this._restoreMarkerDetailTimer = null;
     }
-    this._lastMarkerDetail = detail;
+    const pageDetail = cloneMarkerDetail(detail);
+    this._lastMarkerDetail = pageDetail;
     this.setData({
       markerPageVisible: true,
       markerPageClosing: false,
-      markerPageDetail: detail,
+      markerPageDetail: pageDetail,
       markerPageCurrentImage: 0
     });
     this._markerPageScrollTop = 0;
@@ -865,12 +892,30 @@ Page({
   },
 
   applyNearbyMarkers(markers) {
-    this._nearbyMarkers = Array.isArray(markers) ? markers : [];
+    this._nearbyMarkers = Array.isArray(markers)
+      ? markers.map((marker) => {
+          if (marker && marker.extData && marker.extData.detail) {
+            marker.extData = Object.assign({}, marker.extData, {
+              detail: cloneMarkerDetail(marker.extData.detail)
+            });
+          }
+          return marker;
+        })
+      : [];
     this.syncAllMarkers();
   },
 
   applySearchMarkers(markers) {
-    this._searchMarkers = Array.isArray(markers) ? markers : [];
+    this._searchMarkers = Array.isArray(markers)
+      ? markers.map((marker) => {
+          if (marker && marker.extData && marker.extData.detail) {
+            marker.extData = Object.assign({}, marker.extData, {
+              detail: cloneMarkerDetail(marker.extData.detail)
+            });
+          }
+          return marker;
+        })
+      : [];
     this.syncAllMarkers();
   },
 
@@ -924,10 +969,11 @@ Page({
             locationText: poi.address,
             id: marker.id
           });
+          const viewDetail = cloneMarkerDetail(detail);
           marker.extData = Object.assign({}, marker.extData, {
             source: "search",
             raw: rawDetail,
-            detail
+            detail: viewDetail
           });
           return marker;
         });
@@ -1875,7 +1921,7 @@ Page({
             marker.extData = Object.assign({}, marker.extData, {
               source: "nearby",
               raw: item,
-              detail
+              detail: cloneMarkerDetail(detail)
             });
             return marker;
           })

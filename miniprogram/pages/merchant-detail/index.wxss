@@ -317,3 +317,18 @@
 .marker-page-share-text {
   color: inherit;
 }
+
+.marker-page-close-hint {
+  position: fixed;
+  right: 48rpx;
+  bottom: calc(72rpx + env(safe-area-inset-bottom));
+  z-index: 3;
+  padding: 18rpx 32rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  font-size: 24rpx;
+  line-height: 1;
+  box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+}

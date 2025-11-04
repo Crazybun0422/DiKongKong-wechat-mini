@@ -141,5 +141,6 @@
       <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
       <text class="marker-page-share-text">转发</text>
     </button>
+    <view class="marker-page-close-hint">下滑关闭详情</view>
   </block>
 </view>

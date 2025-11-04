@@ -1063,29 +1063,10 @@ button.marker-button::after,
 
 .marker-detail-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  justify-content: flex-start;
   gap: 24rpx;
   pointer-events: auto;
-}
-
-.marker-detail-close {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.marker-detail-close:active {
-  background: rgba(15, 23, 42, 0.18);
-}
-
-.marker-detail-close-icon {
-  width: 50rpx;
-  height: 50rpx;
 }
 
 .marker-detail-info {
@@ -1246,12 +1227,7 @@ button.marker-button::after,
   align-items: center;
   gap: 12rpx;
   transform: translateX(-50%);
-  padding: 10rpx 24rpx;
-  border-radius: 999rpx;
-  background: rgba(15, 23, 42, 0.36);
-  backdrop-filter: blur(18rpx);
-  -webkit-backdrop-filter: blur(18rpx);
-  box-shadow: 0 12rpx 24rpx rgba(15, 23, 42, 0.16);
+  padding: 0;
 }
 
 .marker-page-swiper-dot {
@@ -1502,6 +1478,21 @@ button.marker-button::after,
 
 .marker-page-share-text {
   color: inherit;
+}
+
+.marker-page-close-hint {
+  position: fixed;
+  right: 48rpx;
+  bottom: calc(72rpx + env(safe-area-inset-bottom));
+  z-index: 3;
+  padding: 18rpx 32rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.72);
+  color: #ffffff;
+  font-size: 24rpx;
+  line-height: 1;
+  box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.18);
+  pointer-events: none;
 }
 
 .marker-page-link-item--video + .marker-page-link-item--video {
