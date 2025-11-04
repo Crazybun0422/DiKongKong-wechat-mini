@@ -148,7 +148,8 @@ Page({
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
     activeTab: "home",
     showMarkerDetail: false,
-    activeMarkerDetail: null
+    activeMarkerDetail: null,
+    showMarkerDetailPage: false
   },
 
   onLoad() {
@@ -219,7 +220,7 @@ Page({
       ensureText(raw.location?.text) ||
       "";
 
-    const images = [];
+    const imageFiles = [];
     const pushImage = (value) => {
       if (!value) return;
       if (Array.isArray(value)) {
@@ -228,7 +229,7 @@ Page({
       }
       if (typeof value === "string") {
         const trimmed = value.trim();
-        if (trimmed) images.push(trimmed);
+        if (trimmed) imageFiles.push(trimmed);
         return;
       }
       if (typeof value === "object") {
@@ -252,14 +253,195 @@ Page({
     pushImage(raw.coverImage);
     pushImage(raw.cover);
 
-    const firstImage = images.length ? images[0] : "";
-    const imageUrl = firstImage ? download(firstImage) : "";
+    const images = imageFiles.map((fileName, index) => ({
+      id: `${raw.id || "marker"}-image-${index}`,
+      fileName,
+      url: download(fileName)
+    }));
+
+    const firstImage = images.length ? images[0].url : "";
+
+    const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
+    const honors = ensureArray(raw.industryHonorTags)
+      .concat(ensureArray(raw.honorTags))
+      .map((tag) => ensureText(tag))
+      .filter(Boolean);
+
+    const description =
+      ensureText(raw.description) ||
+      ensureText(raw.introduction) ||
+      ensureText(raw.summary) ||
+      "";
+
+    const attachments = [];
+    let attachmentCounter = 0;
+    const pushAttachment = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushAttachment(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        const url = download(trimmed);
+        attachments.push({
+          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
+          fileName: trimmed,
+          url,
+          displayName: trimmed.split("/").pop() || trimmed
+        });
+        return;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.url ||
+          value.fileUrl ||
+          value.fileName ||
+          value.filename ||
+          value.objectName ||
+          value.path ||
+          value.location ||
+          "";
+        if (!candidate) return;
+        const url = download(candidate);
+        const name =
+          value.displayName ||
+          value.name ||
+          value.title ||
+          value.fileName ||
+          candidate;
+        const displayName = (name || candidate).split("/").pop() || name || candidate;
+        attachments.push({
+          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
+          fileName: name || candidate,
+          url,
+          displayName
+        });
+      }
+    };
+
+    pushAttachment(raw.attachments);
+    pushAttachment(raw.attachmentUrls);
+    pushAttachment(raw.attachmentFiles);
+
+    const qrCodes = [];
+    let qrCounter = 0;
+    const pushQrCode = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushQrCode(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        qrCodes.push({
+          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
+          fileName: trimmed,
+          url: download(trimmed)
+        });
+        return;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.url ||
+          value.fileUrl ||
+          value.fileName ||
+          value.filename ||
+          value.path ||
+          value.location ||
+          value.imageUrl ||
+          "";
+        if (!candidate) return;
+        qrCodes.push({
+          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
+          fileName: candidate,
+          url: download(candidate)
+        });
+      }
+    };
+
+    pushQrCode(raw.qrCodes);
+    pushQrCode(raw.qrCodeUrls);
+    pushQrCode(raw.qrCodeImages);
+
+    const videoAccounts = [];
+    let videoCounter = 0;
+    const pushVideo = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushVideo(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        videoAccounts.push({
+          id: `${raw.id || "marker"}-video-${videoCounter++}`,
+          url: trimmed
+        });
+        return;
+      }
+      if (typeof value === "object") {
+        const urlValue =
+          value.url ||
+          value.link ||
+          value.pagePath ||
+          value.path ||
+          value.videoUrl ||
+          "";
+        const finderId = value.finderUserName || value.finderId || value.userName || "";
+        if (!urlValue && !finderId) return;
+        videoAccounts.push({
+          id: `${raw.id || "marker"}-video-${videoCounter++}`,
+          url: urlValue,
+          finderUserName: finderId
+        });
+      }
+    };
+
+    pushVideo(raw.videoChannelUrls);
+    pushVideo(raw.videoChannelUrl);
+    pushVideo(raw.videoUrls);
+    if (ensureText(raw.videoChannelId)) {
+      videoAccounts.push({
+        id: `${raw.id || "marker"}-video-${videoCounter++}`,
+        finderUserName: ensureText(raw.videoChannelId)
+      });
+    }
+    if (ensureText(raw.videoId)) {
+      videoAccounts.push({
+        id: `${raw.id || "marker"}-video-${videoCounter++}`,
+        url: ensureText(raw.videoId)
+      });
+    }
+
+    const uniqueVideoAccounts = [];
+    const seenVideoKeys = new Set();
+    videoAccounts.forEach((item) => {
+      const key = `${item.finderUserName || ""}|${item.url || ""}`;
+      if (seenVideoKeys.has(key)) return;
+      seenVideoKeys.add(key);
+      uniqueVideoAccounts.push(item);
+    });
+
+    const phone = ensureText(raw.phone || raw.telephone || raw.contactPhone);
 
     return {
       id: raw.id || "",
       name,
       locationText,
-      imageUrl,
+      imageUrl: firstImage,
+      images,
+      honors,
+      description,
+      attachments,
+      qrCodes,
+      videoAccounts: uniqueVideoAccounts,
+      primaryVideoAccount: uniqueVideoAccounts.length ? uniqueVideoAccounts[0] : null,
+      phone,
       raw
     };
   },
@@ -286,12 +468,17 @@ Page({
       this.normalizeMarkerDetail(marker);
     this.setData({
       showMarkerDetail: true,
-      activeMarkerDetail: detail
+      activeMarkerDetail: detail,
+      showMarkerDetailPage: false
     });
   },
 
   closeMarkerDetail() {
-    this.setData({ showMarkerDetail: false, activeMarkerDetail: null });
+    this.setData({
+      showMarkerDetail: false,
+      activeMarkerDetail: null,
+      showMarkerDetailPage: false
+    });
   },
 
   onMarkerTap(event) {
@@ -341,7 +528,109 @@ Page({
   openMarkerDetailPage() {
     const detail = this.data.activeMarkerDetail;
     if (!detail) return;
-    this.showPlaceholderToast("详情页面开发中");
+    this.setData({
+      showMarkerDetailPage: true,
+      showMarkerDetail: false
+    });
+    if (typeof wx?.showShareMenu === "function") {
+      wx.showShareMenu({ withShareTicket: false });
+    }
+    this._markerDetailTriggered = false;
+  },
+
+  closeMarkerDetailPage() {
+    this.setData({
+      showMarkerDetailPage: false,
+      showMarkerDetail: false,
+      activeMarkerDetail: null
+    });
+  },
+
+  onAttachmentDownloadTap(event) {
+    const url = event?.currentTarget?.dataset?.url;
+    if (!url) {
+      wx.showToast({ title: "附件不可用", icon: "none" });
+      return;
+    }
+    wx.showLoading({ title: "下载中...", mask: true });
+    wx.downloadFile({
+      url,
+      success: (res) => {
+        const statusCode = Number(res?.statusCode);
+        const filePath = res?.tempFilePath;
+        if (statusCode === 200 && filePath) {
+          if (typeof wx.openDocument === "function") {
+            wx.openDocument({
+              filePath,
+              showMenu: true,
+              success: () => {
+                wx.hideLoading();
+              },
+              fail: () => {
+                wx.hideLoading();
+                wx.showToast({ title: "打开失败", icon: "none" });
+              }
+            });
+            return;
+          }
+          wx.hideLoading();
+          wx.showToast({ title: "已下载", icon: "success" });
+          return;
+        }
+        wx.hideLoading();
+        wx.showToast({ title: "下载失败", icon: "none" });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: "下载失败", icon: "none" });
+      }
+    });
+  },
+
+  onVideoAccountTap(event) {
+    const url = event?.currentTarget?.dataset?.url;
+    const finderUserName = event?.currentTarget?.dataset?.finder;
+    if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
+      wx.openChannelsUserProfile({ finderUserName });
+      return;
+    }
+    if (url && /^https?:\/\//.test(url)) {
+      if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url)) {
+        if (typeof wx?.navigateTo === "function") {
+          wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
+          return;
+        }
+      }
+      if (typeof wx?.setClipboardData === "function") {
+        wx.setClipboardData({
+          data: url,
+          success: () => {
+            wx.showToast({ title: "链接已复制", icon: "none" });
+          },
+          fail: () => {
+            wx.showToast({ title: "复制失败", icon: "none" });
+          }
+        });
+      } else {
+        wx.showToast({ title: "请复制链接访问", icon: "none" });
+      }
+      return;
+    }
+    wx.showToast({ title: "暂无可跳转的视频号", icon: "none" });
+  },
+
+  onShareAppMessage() {
+    const detail = this.data.activeMarkerDetail;
+    if (detail) {
+      return {
+        title: detail.name || "附近商户",
+        path: `/pages/map/map?markerId=${encodeURIComponent(detail.id || "")}`
+      };
+    }
+    return {
+      title: "附近商户",
+      path: "/pages/map/map"
+    };
   },
 
   applyCustomMapStyle() {
