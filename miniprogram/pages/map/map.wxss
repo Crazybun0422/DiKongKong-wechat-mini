@@ -141,11 +141,15 @@
 .temporary-no-fly-name {
   font-size: 24rpx;
   font-weight: 600;
-  color: #fff;
 }
 
 .temporary-no-fly-link {
+  color: #ff5e57;
   text-decoration: underline;
+}
+
+.temporary-no-fly-name {
+  color: #fff;
 }
 
 .temporary-no-fly-link-hover {

@@ -1638,11 +1638,10 @@ Page({
     if (!center) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
     }
-    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-    if (!wgs || !Number.isFinite(wgs.lng) || !Number.isFinite(wgs.lat)) {
+    if (!Number.isFinite(center.longitude) || !Number.isFinite(center.latitude)) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
     }
-    const hit = this.findNoFlyZoneAtPoint(wgs.lng, wgs.lat);
+    const hit = this.findNoFlyZoneAtPoint(center.longitude, center.latitude);
     if (!hit) {
       return { zoneInfo: null, text: "不在临时禁飞区", tone: "safe" };
     }
