@@ -480,10 +480,6 @@ Page({
     this.closeMarkerPage();
   },
 
-  onMarkerPageCloseTap() {
-    this.closeMarkerPage();
-  },
-
   onMarkerPageSwiperChange(event) {
     const current = Number(event?.detail?.current);
     if (Number.isFinite(current)) {
