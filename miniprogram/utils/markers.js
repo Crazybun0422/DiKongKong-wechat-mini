@@ -102,6 +102,22 @@ function fetchNearbyMarkers(params = {}, options = {}) {
   }).then((body = {}) => body.data || []);
 }
 
+function fetchMarkerDetail(markerId, options = {}) {
+  if (markerId === undefined || markerId === null) {
+    return Promise.reject(new Error("missing-marker-id"));
+  }
+  const id = `${markerId}`;
+  if (!id) {
+    return Promise.reject(new Error("missing-marker-id"));
+  }
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/markers/${encodeURIComponent(id)}`,
+    method: "GET"
+  }).then((body = {}) => body.data || {});
+}
+
 function createMarker(payload = {}, options = {}) {
   return authorizedRequest({
     apiBase: options.apiBase,
@@ -226,6 +242,7 @@ function fetchOpenPlatformContent(options = {}) {
 module.exports = {
   listMarkers,
   fetchNearbyMarkers,
+  fetchMarkerDetail,
   createMarker,
   updateMarker,
   deleteMarker,
