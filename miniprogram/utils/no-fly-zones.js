@@ -1,5 +1,5 @@
 const { resolveApiBase } = require("./profile");
-const { wgs84ToGcj02, lonLatToMercator, mercatorToLonLat } = require("./coords");
+const { lonLatToMercator, mercatorToLonLat } = require("./coords");
 
 const DEFAULT_COLOR = "#DE4329";
 const FILL_OPACITY = 0.3;
@@ -132,9 +132,8 @@ function buildPathRing(rawCoordinates, offsetMeters) {
 }
 
 function toGcjPoint(lng, lat) {
-  const converted = wgs84ToGcj02(lng, lat) || {};
-  const latitude = Number.isFinite(converted.lat) ? converted.lat : lat;
-  const longitude = Number.isFinite(converted.lng) ? converted.lng : lng;
+  const latitude = Number(lat);
+  const longitude = Number(lng);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   return { latitude, longitude };
 }
