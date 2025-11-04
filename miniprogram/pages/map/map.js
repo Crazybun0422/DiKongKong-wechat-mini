@@ -1,10 +1,8 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
-const {
-  fetchNearbyMarkers,
-  buildFileDownloadUrl
-} = require("../../utils/markers");
+const { fetchNearbyMarkers } = require("../../utils/markers");
+const { normalizeMarkerDetail } = require("../../utils/marker-detail");
 const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
@@ -146,10 +144,7 @@ Page({
     showProfileFill: false,
     tempNickname: "",
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
-    activeTab: "home",
-    showMarkerDetail: false,
-    activeMarkerDetail: null,
-    showMarkerDetailPage: false
+    activeTab: "home"
   },
 
   onLoad() {
@@ -183,6 +178,7 @@ Page({
     this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
     this._searchMarkers = [];
+    this._lastMarkerDetail = null;
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
@@ -197,253 +193,6 @@ Page({
     });
     this.updateStatusPanel();
     this.requestInitialLocation();
-  },
-
-  normalizeMarkerDetail(raw = {}) {
-    const apiBase = this.getApiBase();
-    const download = (value) => buildFileDownloadUrl(value, { apiBase });
-    const ensureText = (value) => {
-      if (typeof value !== "string") return "";
-      const trimmed = value.trim();
-      return trimmed || "";
-    };
-
-    const name =
-      ensureText(raw.name) ||
-      ensureText(raw.title) ||
-      ensureText(raw.location?.text) ||
-      "";
-
-    const locationText =
-      ensureText(raw.locationText) ||
-      ensureText(raw.address) ||
-      ensureText(raw.location?.text) ||
-      "";
-
-    const imageFiles = [];
-    const pushImage = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushImage(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (trimmed) imageFiles.push(trimmed);
-        return;
-      }
-      if (typeof value === "object") {
-        const candidate =
-          value.fileName ||
-          value.filename ||
-          value.objectName ||
-          value.name ||
-          value.location ||
-          value.path ||
-          value.url ||
-          value.imageUrl ||
-          "";
-        if (candidate) pushImage(candidate);
-      }
-    };
-
-    pushImage(raw.images);
-    pushImage(raw.imageUrls);
-    pushImage(raw.covers);
-    pushImage(raw.coverImage);
-    pushImage(raw.cover);
-
-    const images = imageFiles.map((fileName, index) => ({
-      id: `${raw.id || "marker"}-image-${index}`,
-      fileName,
-      url: download(fileName)
-    }));
-
-    const firstImage = images.length ? images[0].url : "";
-
-    const ensureArray = (value) => (Array.isArray(value) ? value : []);
-
-    const honors = ensureArray(raw.industryHonorTags)
-      .concat(ensureArray(raw.honorTags))
-      .map((tag) => ensureText(tag))
-      .filter(Boolean);
-
-    const description =
-      ensureText(raw.description) ||
-      ensureText(raw.introduction) ||
-      ensureText(raw.summary) ||
-      "";
-
-    const attachments = [];
-    let attachmentCounter = 0;
-    const pushAttachment = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushAttachment(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        const url = download(trimmed);
-        attachments.push({
-          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
-          fileName: trimmed,
-          url,
-          displayName: trimmed.split("/").pop() || trimmed
-        });
-        return;
-      }
-      if (typeof value === "object") {
-        const candidate =
-          value.url ||
-          value.fileUrl ||
-          value.fileName ||
-          value.filename ||
-          value.objectName ||
-          value.path ||
-          value.location ||
-          "";
-        if (!candidate) return;
-        const url = download(candidate);
-        const name =
-          value.displayName ||
-          value.name ||
-          value.title ||
-          value.fileName ||
-          candidate;
-        const displayName = (name || candidate).split("/").pop() || name || candidate;
-        attachments.push({
-          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
-          fileName: name || candidate,
-          url,
-          displayName
-        });
-      }
-    };
-
-    pushAttachment(raw.attachments);
-    pushAttachment(raw.attachmentUrls);
-    pushAttachment(raw.attachmentFiles);
-
-    const qrCodes = [];
-    let qrCounter = 0;
-    const pushQrCode = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushQrCode(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        qrCodes.push({
-          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
-          fileName: trimmed,
-          url: download(trimmed)
-        });
-        return;
-      }
-      if (typeof value === "object") {
-        const candidate =
-          value.url ||
-          value.fileUrl ||
-          value.fileName ||
-          value.filename ||
-          value.path ||
-          value.location ||
-          value.imageUrl ||
-          "";
-        if (!candidate) return;
-        qrCodes.push({
-          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
-          fileName: candidate,
-          url: download(candidate)
-        });
-      }
-    };
-
-    pushQrCode(raw.qrCodes);
-    pushQrCode(raw.qrCodeUrls);
-    pushQrCode(raw.qrCodeImages);
-
-    const videoAccounts = [];
-    let videoCounter = 0;
-    const pushVideo = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushVideo(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        videoAccounts.push({
-          id: `${raw.id || "marker"}-video-${videoCounter++}`,
-          url: trimmed
-        });
-        return;
-      }
-      if (typeof value === "object") {
-        const urlValue =
-          value.url ||
-          value.link ||
-          value.pagePath ||
-          value.path ||
-          value.videoUrl ||
-          "";
-        const finderId = value.finderUserName || value.finderId || value.userName || "";
-        if (!urlValue && !finderId) return;
-        videoAccounts.push({
-          id: `${raw.id || "marker"}-video-${videoCounter++}`,
-          url: urlValue,
-          finderUserName: finderId
-        });
-      }
-    };
-
-    pushVideo(raw.videoChannelUrls);
-    pushVideo(raw.videoChannelUrl);
-    pushVideo(raw.videoUrls);
-    if (ensureText(raw.videoChannelId)) {
-      videoAccounts.push({
-        id: `${raw.id || "marker"}-video-${videoCounter++}`,
-        finderUserName: ensureText(raw.videoChannelId)
-      });
-    }
-    if (ensureText(raw.videoId)) {
-      videoAccounts.push({
-        id: `${raw.id || "marker"}-video-${videoCounter++}`,
-        url: ensureText(raw.videoId)
-      });
-    }
-
-    const uniqueVideoAccounts = [];
-    const seenVideoKeys = new Set();
-    videoAccounts.forEach((item) => {
-      const key = `${item.finderUserName || ""}|${item.url || ""}`;
-      if (seenVideoKeys.has(key)) return;
-      seenVideoKeys.add(key);
-      uniqueVideoAccounts.push(item);
-    });
-
-    const phone = ensureText(raw.phone || raw.telephone || raw.contactPhone);
-
-    return {
-      id: raw.id || "",
-      name,
-      locationText,
-      imageUrl: firstImage,
-      images,
-      honors,
-      description,
-      attachments,
-      qrCodes,
-      videoAccounts: uniqueVideoAccounts,
-      primaryVideoAccount: uniqueVideoAccounts.length ? uniqueVideoAccounts[0] : null,
-      phone,
-      raw
-    };
   },
 
   findMarkerById(markerId) {
@@ -464,21 +213,30 @@ Page({
     if (!marker) return;
     const detail =
       (marker.extData && marker.extData.detail) ||
-      (marker.extData && marker.extData.raw && this.normalizeMarkerDetail(marker.extData.raw)) ||
-      this.normalizeMarkerDetail(marker);
-    this.setData({
-      showMarkerDetail: true,
-      activeMarkerDetail: detail,
-      showMarkerDetailPage: false
-    });
-  },
+      (marker.extData && marker.extData.raw
+        ? normalizeMarkerDetail(marker.extData.raw, { apiBase: this.getApiBase() })
+        : null) ||
+      normalizeMarkerDetail(marker, { apiBase: this.getApiBase() });
 
-  closeMarkerDetail() {
-    this.setData({
-      showMarkerDetail: false,
-      activeMarkerDetail: null,
-      showMarkerDetailPage: false
-    });
+    this._lastMarkerDetail = detail;
+
+    if (typeof wx?.navigateTo === "function") {
+      const markerId = detail?.id || marker.id || "";
+      wx.navigateTo({
+        url: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`,
+        success: (res) => {
+          if (res?.eventChannel?.emit) {
+            res.eventChannel.emit("markerDetail", detail);
+          }
+        },
+        fail: () => {
+          wx.showToast({ title: "打开详情失败", icon: "none" });
+        }
+      });
+      return;
+    }
+
+    wx.showToast({ title: "暂不支持查看详情", icon: "none" });
   },
 
   onMarkerTap(event) {
@@ -496,135 +254,14 @@ Page({
       this.openMarkerDetail(marker);
     }
   },
-
-  onMarkerDetailTouchStart(event) {
-    const touch = event?.touches && event.touches[0];
-    this._markerDetailTouchStartY = Number.isFinite(touch?.clientY)
-      ? touch.clientY
-      : null;
-    this._markerDetailTriggered = false;
-  },
-
-  onMarkerDetailTouchMove(event) {
-    if (this._markerDetailTriggered) return;
-    if (this._markerDetailTouchStartY === null || this._markerDetailTouchStartY === undefined) {
-      return;
-    }
-    const touch = event?.touches && event.touches[0];
-    if (!touch || !Number.isFinite(touch.clientY)) return;
-    const deltaY = this._markerDetailTouchStartY - touch.clientY;
-    if (deltaY > 40) {
-      this._markerDetailTriggered = true;
-      this._markerDetailTouchStartY = null;
-      this.openMarkerDetailPage();
-    }
-  },
-
-  onMarkerDetailTouchEnd() {
-    this._markerDetailTouchStartY = null;
-    this._markerDetailTriggered = false;
-  },
-
-  openMarkerDetailPage() {
-    const detail = this.data.activeMarkerDetail;
-    if (!detail) return;
-    this.setData({
-      showMarkerDetailPage: true,
-      showMarkerDetail: false
-    });
-    if (typeof wx?.showShareMenu === "function") {
-      wx.showShareMenu({ withShareTicket: false });
-    }
-    this._markerDetailTriggered = false;
-  },
-
-  closeMarkerDetailPage() {
-    this.setData({
-      showMarkerDetailPage: false,
-      showMarkerDetail: false,
-      activeMarkerDetail: null
-    });
-  },
-
-  onAttachmentDownloadTap(event) {
-    const url = event?.currentTarget?.dataset?.url;
-    if (!url) {
-      wx.showToast({ title: "附件不可用", icon: "none" });
-      return;
-    }
-    wx.showLoading({ title: "下载中...", mask: true });
-    wx.downloadFile({
-      url,
-      success: (res) => {
-        const statusCode = Number(res?.statusCode);
-        const filePath = res?.tempFilePath;
-        if (statusCode === 200 && filePath) {
-          if (typeof wx.openDocument === "function") {
-            wx.openDocument({
-              filePath,
-              showMenu: true,
-              success: () => {
-                wx.hideLoading();
-              },
-              fail: () => {
-                wx.hideLoading();
-                wx.showToast({ title: "打开失败", icon: "none" });
-              }
-            });
-            return;
-          }
-          wx.hideLoading();
-          wx.showToast({ title: "已下载", icon: "success" });
-          return;
-        }
-        wx.hideLoading();
-        wx.showToast({ title: "下载失败", icon: "none" });
-      },
-      fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: "下载失败", icon: "none" });
-      }
-    });
-  },
-
-  onVideoAccountTap(event) {
-    const url = event?.currentTarget?.dataset?.url;
-    const finderUserName = event?.currentTarget?.dataset?.finder;
-    if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
-      wx.openChannelsUserProfile({ finderUserName });
-      return;
-    }
-    if (url && /^https?:\/\//.test(url)) {
-      if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url)) {
-        if (typeof wx?.navigateTo === "function") {
-          wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
-          return;
-        }
-      }
-      if (typeof wx?.setClipboardData === "function") {
-        wx.setClipboardData({
-          data: url,
-          success: () => {
-            wx.showToast({ title: "链接已复制", icon: "none" });
-          },
-          fail: () => {
-            wx.showToast({ title: "复制失败", icon: "none" });
-          }
-        });
-      } else {
-        wx.showToast({ title: "请复制链接访问", icon: "none" });
-      }
-      return;
-    }
-    wx.showToast({ title: "暂无可跳转的视频号", icon: "none" });
   },
 
   onShareAppMessage() {
-    const detail = this.data.activeMarkerDetail;
+    const detail = this._lastMarkerDetail;
     if (detail) {
       return {
         title: detail.name || "附近商户",
-        path: `/pages/map/map?markerId=${encodeURIComponent(detail.id || "")}`
+        path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(detail.id || "")}`
       };
     }
     return {

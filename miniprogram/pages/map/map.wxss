@@ -1068,25 +1068,6 @@ button.marker-button::after,
   line-height: 1.3;
 }
 
-.marker-detail-close {
-  width: 50rpx;
-  height: 50rpx;
-  border-radius: 30rpx;
-  background: rgba(148, 163, 184, 0.16);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.marker-detail-close:active {
-  background: rgba(148, 163, 184, 0.28);
-}
-
-.marker-detail-close-icon {
-  width: 48rpx;
-  height: 48rpx;
-}
-
 .marker-detail-body {
   width: 100%;
 }
@@ -1134,6 +1115,14 @@ button.marker-button::after,
   color: #1f2329;
 }
 
+.marker-page--open {
+  animation: marker-page-slide-in 280ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.marker-page--closing {
+  animation: marker-page-slide-out 240ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
 .marker-page-mask {
   position: absolute;
   inset: 0;
@@ -1165,6 +1154,28 @@ button.marker-button::after,
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.marker-page-swiper-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 24rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  transform: translateX(-50%);
+}
+
+.marker-page-swiper-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background 120ms ease;
+}
+
+.marker-page-swiper-dot.is-active {
+  background: #ffffff;
 }
 
 .marker-page-hero-placeholder {
@@ -1298,86 +1309,62 @@ button.marker-button::after,
   color: #94a3b8;
 }
 
-.marker-page-attachments {
-  gap: 24rpx;
+.marker-page-link-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: 32rpx;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
 }
 
-.marker-page-attachment-item {
+.marker-page-link-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24rpx;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #e2e8f0;
+  padding: 28rpx 32rpx;
+  column-gap: 32rpx;
+  background: transparent;
+  transition: background 160ms ease;
 }
 
-.marker-page-attachment-name {
-  flex: 1;
-  font-size: 26rpx;
-  color: #1f2937;
-  min-width: 0;
-  word-break: break-all;
+.marker-page-link-item + .marker-page-link-item {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
 }
 
-.marker-page-attachment-button {
+.marker-page-link-item:active {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.marker-page-link-item--video {
+  margin-top: 32rpx;
+  border-radius: 32rpx;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.marker-page-link-info {
   display: flex;
   align-items: center;
-  gap: 12rpx;
-  padding: 12rpx 20rpx;
-  background: #f8fafc;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  color: #2d68ec;
-  border: none;
+  column-gap: 18rpx;
 }
 
-.marker-page-attachment-button::after {
-  border: none;
+.marker-page-link-icon {
+  width: 44rpx;
+  height: 44rpx;
 }
 
-.marker-page-attachment-button--hover {
-  background: #e2e8f0;
-}
-
-.marker-page-attachment-icon {
-  width: 32rpx;
-  height: 32rpx;
-}
-
-.marker-page-attachment-text {
-  color: inherit;
-}
-
-.marker-page-video {
-  margin-top: 56rpx;
-  padding: 24rpx 28rpx;
-  border-radius: 24rpx;
-  background: rgba(45, 104, 236, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #2d68ec;
-}
-
-.marker-page-video-info {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.marker-page-video-icon {
-  width: 48rpx;
-  height: 48rpx;
-}
-
-.marker-page-video-text {
+.marker-page-link-text {
   font-size: 28rpx;
-  font-weight: 500;
+  color: #1f2937;
+  max-width: 440rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.marker-page-video-arrow {
-  font-size: 32rpx;
-  font-weight: 600;
+.marker-page-link-arrow {
+  font-size: 36rpx;
+  color: rgba(15, 23, 42, 0.35);
+  font-weight: 500;
 }
 
 .marker-page-qrcode-wrapper {
@@ -1427,24 +1414,28 @@ button.marker-button::after,
   color: inherit;
 }
 
-.marker-page-close {
-  position: fixed;
-  top: calc(48rpx + env(safe-area-inset-top));
-  right: 40rpx;
-  z-index: 3;
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.86);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.08);
+.marker-page-link-item--video + .marker-page-link-item--video {
+  border-top: none;
 }
 
-.marker-page-close-icon {
-  width: 48rpx;
-  height: 48rpx;
+@keyframes marker-page-slide-in {
+  0% {
+    transform: translateY(100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes marker-page-slide-out {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
 }
 
 @keyframes marker-detail-fade-in {
