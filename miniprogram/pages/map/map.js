@@ -2,7 +2,9 @@ const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const { fetchNearbyMarkers } = require("../../utils/markers");
-const { normalizeMarkerDetail } = require("../../utils/marker-detail");
+const {
+  normalizeMarkerDetail: normalizeMarkerDetailUtil
+} = require("../../utils/marker-detail");
 const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
@@ -214,9 +216,9 @@ Page({
     const detail =
       (marker.extData && marker.extData.detail) ||
       (marker.extData && marker.extData.raw
-        ? normalizeMarkerDetail(marker.extData.raw, { apiBase: this.getApiBase() })
+        ? this.normalizeMarkerDetail(marker.extData.raw)
         : null) ||
-      normalizeMarkerDetail(marker, { apiBase: this.getApiBase() });
+      this.normalizeMarkerDetail(marker);
 
     this._lastMarkerDetail = detail;
 
@@ -705,6 +707,10 @@ Page({
   getApiBase() {
     const app = getApp ? getApp() : null;
     return (app && app.globalData && app.globalData.apiBase) || "";
+  },
+
+  normalizeMarkerDetail(raw = {}) {
+    return normalizeMarkerDetailUtil(raw, { apiBase: this.getApiBase() });
   },
 
   getAuthToken() {
