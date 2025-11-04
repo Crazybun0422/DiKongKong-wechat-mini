@@ -269,7 +269,7 @@
               {{markerDetail.locationText}}
             </text>
           </view>
-          <view class="marker-detail-close" bindtap="onMarkerDetailCloseTap">
+          <view class="marker-detail-close" catchtap="onMarkerDetailCloseTap">
             <image class="marker-detail-close-icon" src="/assets/marker-detail-close.png" mode="aspectFit" />
           </view>
         </view>
@@ -290,9 +290,6 @@
     <block wx:if="{{markerPageVisible}}">
       <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
         <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
-        <view class="marker-page-close" bindtap="onMarkerPageCloseTap">
-          <image class="marker-page-close-icon" src="/assets/marker-detail-close.png" mode="aspectFit" />
-        </view>
         <scroll-view
           scroll-y
           class="marker-page-scroll"
