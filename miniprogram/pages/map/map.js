@@ -93,6 +93,21 @@ const formatNearbyMarkerLabel = (value) => {
   return `${firstLine}\n${secondLine}`;
 };
 
+const formatTemporaryZoneLabel = (value, maxLength = 6) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxLength) {
+    return trimmed;
+  }
+  return `${chars.slice(0, maxLength).join("")}...`;
+};
+
 Page({
   data: {
     keyword: "",
@@ -1647,17 +1662,19 @@ Page({
     }
     const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
     const name = rawName || "临时禁飞区";
+    const displayName = formatTemporaryZoneLabel(name);
     const rawLink = typeof hit.zone?.wechatLink === "string" ? hit.zone.wechatLink.trim() : "";
     const validLink = /^https?:\/\/mp\.weixin\.qq\.com\//.test(rawLink) ? rawLink : "";
     const linkPath = validLink ? `/pages/webview/index?url=${encodeURIComponent(validLink)}` : "";
     const zoneInfo = {
       id: hit.zone?.id || "",
       name,
+      displayName,
       hasLink: !!linkPath,
       link: validLink,
       linkPath
     };
-    return { zoneInfo, text: name, tone: "alert" };
+    return { zoneInfo, text: displayName, tone: "alert" };
   },
 
   describeUomStatus() {
