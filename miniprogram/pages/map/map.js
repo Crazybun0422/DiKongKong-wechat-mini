@@ -254,7 +254,7 @@ Page({
       this.openMarkerDetail(marker);
     }
   },
-  },
+
 
   onShareAppMessage() {
     const detail = this._lastMarkerDetail;
