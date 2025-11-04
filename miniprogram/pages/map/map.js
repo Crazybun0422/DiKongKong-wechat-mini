@@ -150,6 +150,7 @@ Page({
     markerDetailVisible: false,
     markerDetail: null,
     markerDetailClosing: false,
+    markerDetailExpanding: false,
     markerPageVisible: false,
     markerPageClosing: false,
     markerPageDetail: null,
@@ -190,6 +191,12 @@ Page({
     this._lastMarkerDetail = null;
     this._markerDetailCloseTimer = null;
     this._markerPageCloseTimer = null;
+    this._markerDetailTouch = null;
+    this._markerPageTouch = null;
+    this._markerPageScrollTop = 0;
+    this._markerDetailExpandTimer = null;
+    this._markerDetailExpandLock = false;
+    this._restoreMarkerDetailTimer = null;
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
@@ -233,9 +240,15 @@ Page({
       clearTimeout(this._markerDetailCloseTimer);
       this._markerDetailCloseTimer = null;
     }
+    if (this._markerDetailExpandTimer) {
+      clearTimeout(this._markerDetailExpandTimer);
+      this._markerDetailExpandTimer = null;
+    }
+    this._markerDetailExpandLock = false;
     this.setData({
       markerDetailVisible: true,
       markerDetailClosing: false,
+      markerDetailExpanding: false,
       markerDetail: detail
     });
   },
@@ -262,10 +275,16 @@ Page({
       clearTimeout(this._markerDetailCloseTimer);
       this._markerDetailCloseTimer = null;
     }
+    if (this._markerDetailExpandTimer) {
+      clearTimeout(this._markerDetailExpandTimer);
+      this._markerDetailExpandTimer = null;
+    }
+    this._markerDetailExpandLock = false;
     if (immediate) {
       this.setData({
         markerDetailVisible: false,
         markerDetailClosing: false,
+        markerDetailExpanding: false,
         markerDetail: null
       });
       return;
@@ -276,6 +295,7 @@ Page({
       this.setData({
         markerDetailVisible: false,
         markerDetailClosing: false,
+        markerDetailExpanding: false,
         markerDetail: null
       });
     }, 200);
@@ -290,10 +310,67 @@ Page({
   },
 
   onMarkerDetailMoreTap() {
+    this.triggerMarkerDetailExpand();
+  },
+
+  triggerMarkerDetailExpand() {
     const detail = this.data.markerDetail;
     if (!detail) return;
-    this._lastMarkerDetail = detail;
-    this.openMarkerPage(detail);
+    if (this.data.markerDetailExpanding) return;
+    if (this._markerDetailExpandLock) return;
+    if (this._markerDetailExpandTimer) {
+      clearTimeout(this._markerDetailExpandTimer);
+      this._markerDetailExpandTimer = null;
+    }
+    this._markerDetailExpandLock = true;
+    this.setData({ markerDetailExpanding: true });
+    this._markerDetailExpandTimer = setTimeout(() => {
+      this._markerDetailExpandTimer = null;
+      this._markerDetailExpandLock = false;
+      const currentDetail = this.data.markerDetail || detail;
+      if (!currentDetail) {
+        this.setData({ markerDetailExpanding: false });
+        return;
+      }
+      this._lastMarkerDetail = currentDetail;
+      this.openMarkerPage(currentDetail);
+      this.setData({ markerDetailExpanding: false });
+    }, 220);
+  },
+
+  onMarkerDetailTouchStart(event) {
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    this._markerDetailTouch = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      deltaY: 0,
+      startTime: Date.now()
+    };
+  },
+
+  onMarkerDetailTouchMove(event) {
+    if (!this._markerDetailTouch) return;
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - this._markerDetailTouch.startY;
+    this._markerDetailTouch.lastY = touch.clientY;
+    this._markerDetailTouch.deltaY = deltaY;
+  },
+
+  onMarkerDetailTouchEnd() {
+    const info = this._markerDetailTouch;
+    this._markerDetailTouch = null;
+    if (!info) return;
+    const deltaY = info.deltaY || 0;
+    const duration = Date.now() - info.startTime;
+    if ((deltaY <= -80 && duration <= 600) || deltaY <= -140) {
+      this.triggerMarkerDetailExpand();
+    }
+  },
+
+  onMarkerDetailTouchCancel() {
+    this._markerDetailTouch = null;
   },
 
   makePhoneCall(phone) {
@@ -358,6 +435,10 @@ Page({
       clearTimeout(this._markerPageCloseTimer);
       this._markerPageCloseTimer = null;
     }
+    if (this._restoreMarkerDetailTimer) {
+      clearTimeout(this._restoreMarkerDetailTimer);
+      this._restoreMarkerDetailTimer = null;
+    }
     this._lastMarkerDetail = detail;
     this.setData({
       markerPageVisible: true,
@@ -365,17 +446,19 @@ Page({
       markerPageDetail: detail,
       markerPageCurrentImage: 0
     });
+    this._markerPageScrollTop = 0;
+    this._markerPageTouch = null;
     this.closeMarkerDetail(true);
   },
 
-  closeMarkerPage() {
+  closeMarkerPage(options = {}) {
+    const { restoreDetail = true } = options || {};
     if (!this.data.markerPageVisible) return;
     if (this._markerPageCloseTimer) {
       clearTimeout(this._markerPageCloseTimer);
       this._markerPageCloseTimer = null;
     }
-    this.setData({ markerPageClosing: true });
-    this._markerPageCloseTimer = setTimeout(() => {
+    const finalize = () => {
       this._markerPageCloseTimer = null;
       this.setData({
         markerPageVisible: false,
@@ -383,7 +466,14 @@ Page({
         markerPageDetail: null,
         markerPageCurrentImage: 0
       });
-    }, 240);
+      this._markerPageTouch = null;
+      this._markerPageScrollTop = 0;
+      if (restoreDetail) {
+        this.scheduleRestoreMarkerDetail(80);
+      }
+    };
+    this.setData({ markerPageClosing: true });
+    this._markerPageCloseTimer = setTimeout(finalize, 240);
   },
 
   onMarkerPageMaskTap() {
@@ -399,6 +489,53 @@ Page({
     if (Number.isFinite(current)) {
       this.setData({ markerPageCurrentImage: current });
     }
+  },
+
+  onMarkerPageScroll(event) {
+    const top = Number(event?.detail?.scrollTop);
+    if (Number.isFinite(top)) {
+      this._markerPageScrollTop = top;
+      return;
+    }
+    this._markerPageScrollTop = 0;
+  },
+
+  onMarkerPageTouchStart(event) {
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    this._markerPageTouch = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      deltaY: 0,
+      startTime: Date.now()
+    };
+  },
+
+  onMarkerPageTouchMove(event) {
+    if (!this._markerPageTouch) return;
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - this._markerPageTouch.startY;
+    this._markerPageTouch.lastY = touch.clientY;
+    this._markerPageTouch.deltaY = deltaY;
+  },
+
+  onMarkerPageTouchEnd() {
+    const info = this._markerPageTouch;
+    this._markerPageTouch = null;
+    if (!info) return;
+    const deltaY = info.deltaY || 0;
+    const duration = Date.now() - info.startTime;
+    if (
+      this._markerPageScrollTop <= 12 &&
+      ((deltaY >= 90 && duration <= 700) || deltaY >= 160)
+    ) {
+      this.closeMarkerPage();
+    }
+  },
+
+  onMarkerPageTouchCancel() {
+    this._markerPageTouch = null;
   },
 
   onMarkerPageAttachmentTap(event) {
@@ -446,6 +583,27 @@ Page({
     const finderUserName = dataset.finder || "";
     const activityId = dataset.activity || "";
 
+    const targetDescription = (() => {
+      if (finderUserName && activityId) {
+        return `将打开视频号 ${finderUserName} 的活动 ${activityId}`;
+      }
+      if (finderUserName) {
+        return `将打开视频号 ${finderUserName} 的主页`;
+      }
+      if (activityId) {
+        return `将打开视频活动 ${activityId}`;
+      }
+      if (url) {
+        return `将打开链接：${url}`;
+      }
+      return "暂无可跳转的视频内容";
+    })();
+
+    if (targetDescription === "暂无可跳转的视频内容") {
+      wx.showToast({ title: targetDescription, icon: "none" });
+      return;
+    }
+
     const proceed = () => {
       if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
         wx.openChannelsActivity({ finderUserName, activityId });
@@ -482,7 +640,17 @@ Page({
       wx.showToast({ title: "视频不可用", icon: "none" });
     };
 
-    proceed();
+    wx.showModal({
+      title: "即将打开视频",
+      content: targetDescription,
+      confirmText: "前往",
+      cancelText: "取消",
+      success: (res) => {
+        if (res?.confirm) {
+          proceed();
+        }
+      }
+    });
   },
 
   onMarkerPageCallTap(event) {
@@ -540,9 +708,24 @@ Page({
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
+    if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
+    if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
+  },
+
+  scheduleRestoreMarkerDetail(delay = 0) {
+    if (this._restoreMarkerDetailTimer) {
+      clearTimeout(this._restoreMarkerDetailTimer);
+      this._restoreMarkerDetailTimer = null;
+    }
+    const detail = this._lastMarkerDetail;
+    if (!detail) return;
+    this._restoreMarkerDetailTimer = setTimeout(() => {
+      this._restoreMarkerDetailTimer = null;
+      this.openMarkerDetail(detail);
+    }, delay);
   },
 
   onKeywordInput(e) {
