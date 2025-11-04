@@ -52,6 +52,96 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseAdminProfileResponse'
+  /api/admin/users:
+    get:
+      summary: 分页获取所有普通用户
+      description: 仅管理员可调用，根据注册时间排序返回普通用户列表，默认按注册时间倒序排列。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量，默认 20。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 注册时间排序方向，默认 DESC。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserSummaryPageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/users/search:
+    get:
+      summary: 按关键字搜索普通用户
+      description: 仅管理员可调用，对用户名或 featureCode 进行模糊匹配并返回结果列表。
+      parameters:
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          required: true
+          description: 用于匹配用户名或 featureCode 的关键字。
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量，默认 20。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 注册时间排序方向，默认 DESC。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserSummaryPageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 修改管理员资料
       requestBody:
@@ -143,6 +233,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseUserProfileResponse'
+    put:
+      summary: 修改用户资料
+      description: 仅允许更新邮箱、手机号和头像，FLP 点数需通过专用接口调整，无法在此处修改。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateProfileRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserProfileResponse'
   /api/weapp/login:
     post:
       summary: 小程序用户登录
@@ -160,22 +266,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
-    put:
-      summary: 修改用户资料
-      description: 仅允许更新邮箱、手机号和头像，FLP 点数需通过专用接口调整，无法在此处修改。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserUpdateProfileRequest'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseUserProfileResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -271,9 +361,47 @@ components:
         online:
           type: boolean
         flpBalance:
+          type: number
+          format: double
+          description: 来自 FLP 余额表的只读虚拟代币余额。
+    UserSummaryResponse:
+      type: object
+      properties:
+        id:
           type: integer
           format: int64
-          description: 来自 FLP 余额表的只读虚拟代币余额。
+        username:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        featureCode:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          description: 用户注册时间。
+    UserSummaryPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummaryResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
     ApiResponseAdminProfileResponse:
       type: object
       properties:
@@ -307,6 +435,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/UserProfileResponse'
+    ApiResponseUserSummaryPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserSummaryPageResponse'
     ApiResponseWeappLoginResponse:
       type: object
       properties:

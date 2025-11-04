@@ -1,0 +1,108 @@
+openapi: 3.0.1
+info:
+  title: Captcha APIs
+  description: 滑动拼图验证码的初始化与验证接口。
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /captcha/init:
+    get:
+      summary: 初始化滑动拼图验证码
+      description: 生成验证码背景图和拼图块，返回 Base64 编码的图像以及用于后续校验的 captchaId。
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlideInitResponse'
+  /captcha/validate:
+    post:
+      summary: 校验滑动结果
+      description: 校验前端传入的滑块横向坐标是否与后端生成的拼图位置匹配。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlideValidateRequest'
+      responses:
+        '200':
+          description: 校验通过
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateSuccessResponse'
+        '400':
+          description: 校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateFailResponse'
+components:
+  schemas:
+    SlideInitResponse:
+      type: object
+      properties:
+        captchaId:
+          type: string
+          description: 用于关联验证请求的唯一 ID。
+        bgImage:
+          type: string
+          description: 背景图的 Base64 编码（不含 `data:` 前缀）。
+        pieceImage:
+          type: string
+          description: 拼图块的 Base64 编码（不含 `data:` 前缀）。
+        pieceY:
+          type: integer
+          description: 拼图块的纵向偏移量，前端需保持同样的 Y 坐标。
+      required:
+        - captchaId
+        - bgImage
+        - pieceImage
+        - pieceY
+    SlideValidateRequest:
+      type: object
+      properties:
+        captchaId:
+          type: string
+          description: 初始化阶段返回的 captchaId。
+        userX:
+          type: integer
+          description: 用户滑动后的横向坐标。
+        username:
+          type: string
+          description: 当前尝试验证的用户名，用于风控记录。
+          nullable: true
+      required:
+        - captchaId
+        - userX
+      additionalProperties: false
+    ValidateSuccessResponse:
+      type: object
+      properties:
+        pass:
+          type: boolean
+          description: 恒为 true，表示校验成功。
+      required:
+        - pass
+      example:
+        pass: true
+    ValidateFailResponse:
+      type: object
+      properties:
+        pass:
+          type: boolean
+          description: 恒为 false，表示校验失败。
+        msg:
+          type: string
+          description: 失败提示信息。
+      required:
+        - pass
+        - msg
+      example:
+        pass: false
+        msg: 验证失败

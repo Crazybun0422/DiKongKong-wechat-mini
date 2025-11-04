@@ -1,0 +1,501 @@
+openapi: 3.0.1
+info:
+  title: Marker APIs
+  description: 用户和管理员维护地图标记的接口。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/markers:
+    post:
+      summary: 新增标记
+      description: 普通用户根据自身 feature code 创建标记，管理员不支持该接口。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkerRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    get:
+      summary: 分页查询标记
+      description: 普通用户仅能查询自己 feature code 下的标记，管理员返回全部标记。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数，默认 10。
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED]
+          description: 根据审核状态筛选标记，可选参数。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 根据创建时间排序的方向，可选参数，默认 DESC（最新在前）。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerPageResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/nearby:
+    get:
+      summary: 查询附近标记
+      description: 普通用户查询指定经纬度方圆 N 公里内已支付且审核通过的标记。
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 查询中心点的纬度。
+        - in: query
+          name: longitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 查询中心点的经度。
+        - in: query
+          name: radiusInKilometers
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          description: 查询半径（公里）。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerList'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/pending/count:
+    get:
+      summary: 查询待审核标记总数
+      description: 仅管理员可调用，返回待审核状态（PENDING）标记的数量。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerCountResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/{id}:
+    put:
+      summary: 修改标记
+      description: 普通用户仅能修改自己 feature code 下的标记，管理员可修改任意标记。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkerRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除标记
+      description: 普通用户仅能删除自己 feature code 下的标记，管理员可删除任意标记。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/{id}/review:
+    post:
+      summary: 管理员审核标记
+      description: 仅管理员可调用，修改标记的审核状态。
+      operationId: reviewMarker
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkerReviewRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    MarkerRequest:
+      type: object
+      required:
+        - images
+        - name
+        - location
+        - phone
+        - description
+        - businessLicense
+      properties:
+        images:
+          type: array
+          description: 图片 URL 列表。
+          items:
+            type: string
+        name:
+          type: string
+          description: 标记名称。
+        location:
+          $ref: '#/components/schemas/MarkerLocationDto'
+        phone:
+          type: string
+          description: 联系电话。
+        description:
+          type: string
+          description: 标记简介。
+        businessLicense:
+          type: string
+          description: 营业执照图片 URL。
+        industryHonorTags:
+          type: array
+          description: 行业荣誉标签列表。
+          items:
+            type: string
+        attachmentUrls:
+          type: array
+          description: 附件 URL 列表。
+          items:
+            type: string
+        qrCodeUrls:
+          type: array
+          description: 二维码 URL 列表。
+          items:
+            type: string
+        videoChannelId:
+          type: string
+          description: 视频号 ID。
+        videoId:
+          type: string
+          description: 视频 ID。
+        adminInfo:
+          $ref: '#/components/schemas/MarkerAdminInfoDto'
+    MarkerResponse:
+      allOf:
+        - $ref: '#/components/schemas/MarkerRequest'
+        - type: object
+          properties:
+            id:
+              type: string
+            featureCode:
+              type: string
+            reviewStatus:
+              type: string
+              description: 审核状态，可取 PENDING/APPROVED/REJECTED。
+              enum:
+                - PENDING
+                - APPROVED
+                - REJECTED
+            paid:
+              type: boolean
+              description: 付款标志，仅在 FLP 抵扣或微信支付成功后变为 true。
+            exposureCount:
+              type: integer
+              format: int64
+              description: 标记被曝光的次数。
+            phoneCallCount:
+              type: integer
+              format: int64
+              description: 标记被拨打电话的次数。
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    MarkerReviewRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: 审核状态，可取 PENDING/APPROVED/REJECTED。
+          enum:
+            - PENDING
+            - APPROVED
+            - REJECTED
+    MarkerLocationDto:
+      type: object
+      required:
+        - text
+        - latitude
+        - longitude
+      properties:
+        text:
+          type: string
+          description: 位置字符串描述。
+        latitude:
+          type: number
+          format: double
+          description: 纬度。
+        longitude:
+          type: number
+          format: double
+          description: 经度。
+    MarkerAdminInfoDto:
+      type: object
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        phone:
+          type: string
+    PageResponseMarkerResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarkerResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    ApiResponseMarkerResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MarkerResponse'
+    ApiResponseMarkerPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PageResponseMarkerResponse'
+    ApiResponseMarkerList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarkerResponse'
+    ApiResponseMarkerCountResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MarkerCountResponse'
+    ApiResponseVoid:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 始终为 null。
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    MarkerCountResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int64

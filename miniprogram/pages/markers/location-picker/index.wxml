@@ -1,0 +1,98 @@
+<view class="picker-page">
+  <view class="picker-map-wrap">
+    <map
+      id="picker-map"
+      class="picker-map"
+      latitude="{{latitude}}"
+      longitude="{{longitude}}"
+      scale="{{scale}}"
+      show-location="{{showUserLocation}}"
+      enable-overlooking="{{false}}"
+      enable-3D="{{false}}"
+      enable-zoom="{{true}}"
+      enable-scroll="{{true}}"
+      enable-satellite="{{false}}"
+      enable-traffic="{{false}}"
+      bindregionchange="onRegionChange"
+    />
+    <image class="center-pin" src="/assets/position.png" mode="widthFix" />
+    <view class="address-panel">
+      <view class="address-panel-body">
+        <view class="address-line primary">
+          <view wx:if="{{addressLoading}}">正在获取详细地址...</view>
+          <view wx:elif="{{addressMain}}">{{addressMain}}</view>
+          <view wx:else>拖动地图选择目标位置</view>
+        </view>
+        <view class="address-line secondary" wx:if="{{!addressLoading && addressDetail}}">
+          {{addressDetail}}
+        </view>
+        <view class="address-line coordinate" wx:if="{{coordinateText}}">
+          {{coordinateText}}
+        </view>
+      </view>
+      <view class="address-panel-pointer"></view>
+    </view>
+  </view>
+  <view class="picker-search-panel">
+    <view class="search-row">
+      <view class="search-stack">
+        <view class="search-box {{searchPanelFocused ? 'is-active' : ''}}">
+          <image class="search-icon" src="/assets/search.png" mode="aspectFit" />
+          <input
+            class="search-input"
+            type="text"
+            confirm-type="search"
+            placeholder="搜索地点、楼宇或关键字"
+            placeholder-style="color:#9ca3af"
+            value="{{searchKeyword}}"
+            maxlength="60"
+            bindinput="onSearchInput"
+            bindfocus="onSearchFocus"
+            bindblur="onSearchBlur"
+            bindconfirm="onSearchConfirm"
+          />
+          <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onSearchClear">×</view>
+        </view>
+        <view
+          class="search-suggest-card"
+          wx:if="{{(searchPanelFocused || searchSuggestions.length) && (searchSuggestions.length || searchSuggestLoading || searchSuggestError)}}"
+        >
+          <view class="search-suggest-loading" wx:if="{{searchSuggestLoading}}">
+            正在匹配周边地点...
+          </view>
+          <view class="search-suggest-empty" wx:elif="{{searchSuggestError}}">
+            {{searchSuggestError}}
+          </view>
+          <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
+            <block wx:for="{{searchSuggestions}}" wx:key="id">
+              <view class="search-suggest-item" data-index="{{index}}" bindtap="onSuggestionTap">
+                <view class="suggest-title">{{item.title}}</view>
+                <view class="suggest-address" wx:if="{{item.address}}">{{item.address}}</view>
+              </view>
+            </block>
+          </scroll-view>
+        </view>
+      </view>
+      <button
+        class="locate-circle"
+        hover-class="locate-hover"
+        hover-start-time="10"
+        hover-stay-time="60"
+        bindtap="onLocateTap"
+      >
+        <image class="locate-icon" src="/assets/location.png" mode="widthFix" />
+      </button>
+    </view>
+  </view>
+  <view class="actions">
+    <view class="error-text" wx:if="{{addressError}}">{{addressError}}</view>
+    <button
+      class="confirm-btn"
+      type="primary"
+      bindtap="onConfirm"
+      disabled="{{!canConfirm}}"
+    >
+      确认位置
+    </button>
+  </view>
+</view>

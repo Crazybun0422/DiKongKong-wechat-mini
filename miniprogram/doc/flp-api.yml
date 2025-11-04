@@ -39,6 +39,9 @@ paths:
   /api/flp/logs:
     get:
       summary: 分页查询 FLP 点数操作日志
+      description: |
+        - 管理员调用时可查看全部日志，并可通过 `featureCode` 参数筛选；返回结果中的每条日志都会包含对应的用户信息。
+        - 普通或微信用户调用时仅能查看自身 `featureCode` 下的日志记录，忽略请求中的 `featureCode` 参数。
       parameters:
         - in: query
           name: page
@@ -56,7 +59,7 @@ paths:
           name: featureCode
           schema:
             type: string
-          description: 要过滤的用户特征码，可选。
+          description: 要过滤的用户特征码，仅管理员查询时生效。
       responses:
         '200':
           description: OK
@@ -88,9 +91,9 @@ components:
           type: string
           description: 用户特征码。
         amount:
-          type: integer
-          format: int64
-          description: 调整的点数，正整数。
+          type: number
+          format: double
+          description: 调整的点数，正数，可包含小数。
         operation:
           type: string
           description: 调整类型，取值 INCREASE 或 DECREASE。
@@ -103,11 +106,11 @@ components:
         featureCode:
           type: string
         balance:
-          type: integer
-          format: int64
+          type: number
+          format: double
         amount:
-          type: integer
-          format: int64
+          type: number
+          format: double
         operation:
           type: string
     FlpLogResponse:
@@ -121,13 +124,33 @@ components:
         operation:
           type: string
         amount:
-          type: integer
-          format: int64
+          type: number
+          format: double
         reason:
           type: string
         createdAt:
           type: string
           format: date-time
+        user:
+          $ref: '#/components/schemas/FlpLogUserResponse'
+    FlpLogUserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        featureCode:
+          type: string
+        status:
+          type: string
     PageFlpLogResponse:
       type: object
       properties:

@@ -8,14 +8,18 @@
       scale="{{scale}}"
       min-scale="{{minScale}}"
       max-scale="{{maxScale}}"
+      subkey="{{mapSubKey}}"
+      layer-style="1"
       show-location="true"
       markers="{{markers}}"
       polygons="{{polygons}}"
       circles="{{circles}}"
       bindregionchange="onRegionChange"
       bindupdated="onMapUpdated"
+      bindmarkertap="onMarkerTap"
+      bindcallouttap="onMarkerCalloutTap"
     />
-    <view class="center-pin"></view>
+    <image class="center-pin" src="/assets/position.png" mode="widthFix" />
 
     <view class="preflight-overlay" wx:if="{{showDashboardPanel}}">
       <view class="preflight-card">
@@ -222,6 +226,43 @@
           </view>
           <view class="permission-footnote">头像昵称仅用于展示，可随时在设置中修改</view>
         </form>
+      </view>
+    </block>
+
+    <block wx:if="{{showMarkerDetail && activeMarkerDetail}}">
+      <view class="marker-detail-mask" catchtap="closeMarkerDetail"></view>
+      <view
+        class="marker-detail-sheet"
+        bindtouchstart="onMarkerDetailTouchStart"
+        bindtouchmove="onMarkerDetailTouchMove"
+        bindtouchend="onMarkerDetailTouchEnd"
+      >
+
+        <view class="marker-detail-header">
+          <view class="marker-detail-info">
+            <text class="marker-detail-name">{{activeMarkerDetail.name || '未命名标记'}}</text>
+            <text class="marker-detail-location" wx:if="{{activeMarkerDetail.locationText}}">{{activeMarkerDetail.locationText}}</text>
+          </view>
+          <view class="marker-detail-close" bindtap="closeMarkerDetail">
+            <image
+              class="marker-detail-close-icon"
+              src="/assets/marker-detail-close.png"
+              mode="aspectFit"
+              bindtap="closeMarkerDetail"
+            />
+          </view>
+        </view>
+        <view class="marker-detail-body">
+          <image
+            class="marker-detail-cover"
+            src="{{activeMarkerDetail.imageUrl}}"
+            mode="aspectFill"
+            wx:if="{{activeMarkerDetail.imageUrl}}"
+          />
+          <view class="marker-detail-cover marker-detail-cover--placeholder" wx:else>
+            <text class="marker-detail-cover-text">暂未上传图片</text>
+          </view>
+        </view>
       </view>
     </block>
   </view>

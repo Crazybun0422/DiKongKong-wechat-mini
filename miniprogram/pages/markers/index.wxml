@@ -1,0 +1,578 @@
+<view class="markers-page">
+  <scroll-view
+    scroll-y
+    class="markers-scroll"
+    wx:if="{{!showCreate && !showDetail}}"
+    refresher-enabled="{{true}}"
+    refresher-triggered="{{listRefreshing}}"
+    bindrefresherrefresh="onPullDownRefresh"
+  >
+    <view class="page-header">
+      <button class="create-btn" bindtap="onCreateTap">
+        <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+        <text class="create-btn-text">新增</text>
+      </button>
+
+    </view>
+
+
+    <view class="status-tabs">
+      <block wx:for="{{statusTabs}}" wx:key="id">
+        <view
+          class="status-tab {{filterStatus === item.id ? 'is-active' : ''}}"
+          data-status="{{item.id}}"
+          bindtap="onStatusTabTap"
+        >
+          <text>{{item.label}}</text>
+        </view>
+      </block>
+    </view>
+
+    <block wx:if="{{loading && !hasLoaded}}">
+      <view class="state-card">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state-card state-error">
+        <text class="state-text">{{error}}</text>
+        <button class="retry-btn" bindtap="onRetryTap">重新加载</button>
+      </view>
+    </block>
+    <block wx:elif="{{!visibleMarkers.length}}">
+      <view class="empty-card">
+        <view class="empty-icon">📍</view>
+        <text class="empty-title">暂未创建标记</text>
+        <text class="empty-desc">提交企业、景点或训练基地资料后即可在地图上展示。</text>
+        <button class="empty-action" bindtap="onCreateTap">立即创建</button>
+      </view>
+    </block>
+    <block wx:else>
+      <view class="marker-list">
+        <block wx:for="{{visibleMarkers}}" wx:key="id">
+          <view class="marker-card" bindtap="onMarkerCardTap" data-id="{{item.id}}">
+            <view class="status-corner {{item.reviewTone}}">
+              <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
+            </view>
+            <view class="card-body">
+              <view class="card-top">
+                <view class="card-info">
+                  <text class="marker-name">{{item.name || '未命名标记'}}</text>
+                  <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
+                  <text class="marker-created">提交时间：{{item.createdAtDisplay}}</text>
+                </view>
+                <image
+                  class="marker-cover"
+                  src="{{item.coverImage || defaultCoverImage}}"
+                  mode="aspectFill"
+                />
+              </view>
+
+              <view class="card-stats">
+                <view class="stat-item" >
+                  <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
+                  <text class="stat-value">{{item.exposureCount}}</text>
+                </view>
+                <view class="stat-item" >
+                  <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
+                  <text class="stat-value">{{item.phoneCallCount}}</text>
+                </view>
+              </view>
+
+              <view class="card-divider"></view>
+
+              <view class="card-actions">
+                <view
+                  class="action-item"
+                  hover-class="action-item-hover"
+                  catchtap="onGoHomeTap"
+                  data-id="{{item.id}}"
+                >
+                  <image class="action-icon" src="{{assetPaths.home}}" mode="aspectFit" />
+                </view>
+                <view
+                  class="action-item"
+                  hover-class="action-item-hover"
+                  catchtap="onEditMarkerTap"
+                  data-id="{{item.id}}"
+                >
+                  <image class="action-icon" src="{{assetPaths.modify}}" mode="aspectFit" />
+                </view>
+                <view
+                  class="action-item"
+                  hover-class="action-item-hover"
+                  catchtap="onDeleteMarkerTap"
+                  data-id="{{item.id}}"
+                  data-name="{{item.name}}"
+                >
+                  <image class="action-icon" src="{{assetPaths.delete}}" mode="aspectFit" />
+                </view>
+              </view>
+            </view>
+          </view>
+        </block>
+      </view>
+    </block>
+  </scroll-view>
+
+  <view wx:if="{{showDetail}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">标记详情</text>
+        <view class="drawer-close" bindtap="onCloseDetail">✕</view>
+      </view>
+      <scroll-view scroll-y class="drawer-body">
+        <view class="detail-section">
+          <text class="detail-title">基础信息</text>
+          <view class="detail-item">
+            <text class="detail-label">标记名称</text>
+            <text class="detail-value">{{activeMarker.name}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">审核状态</text>
+            <text class="detail-value status-text {{activeMarker.reviewTone}}">{{activeMarker.reviewStatusLabel}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">支付状态</text>
+            <text class="detail-value">{{activeMarker.paidLabel}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">位置</text>
+            <text class="detail-value">{{activeMarker.locationText || '未填写'}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">联系电话</text>
+            <text class="detail-value">{{activeMarker.phone || '未填写'}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">简介</text>
+            <text class="detail-value">{{activeMarker.description || '未填写'}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">创建时间</text>
+            <text class="detail-value">{{activeMarker.createdAtDisplay}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">更新时间</text>
+            <text class="detail-value">{{activeMarker.updatedAtDisplay}}</text>
+          </view>
+        </view>
+
+        <view class="detail-section" wx:if="{{activeMarker.industryHonorTags && activeMarker.industryHonorTags.length}}">
+          <text class="detail-title">行业荣誉</text>
+          <view class="tag-display">
+            <block wx:for="{{activeMarker.industryHonorTags}}" wx:key="*this">
+              <view class="tag-chip">{{item}}</view>
+            </block>
+          </view>
+        </view>
+
+        <view class="detail-section" wx:if="{{activeMarker.images && activeMarker.images.length}}">
+          <text class="detail-title">展示图</text>
+          <view class="media-preview-grid">
+            <block wx:for="{{activeMarker.images}}" wx:key="id">
+              <image class="media-preview" src="{{item.url}}" mode="aspectFill" />
+            </block>
+          </view>
+        </view>
+
+        <view class="detail-section" wx:if="{{activeMarker.businessLicense}}">
+          <text class="detail-title">营业执照</text>
+          <image class="license-preview" src="{{activeMarker.businessLicense.url}}" mode="aspectFill" />
+        </view>
+
+        <view class="detail-section" wx:if="{{activeMarker.attachments && activeMarker.attachments.length}}">
+          <text class="detail-title">附件</text>
+          <view class="attachment-list">
+            <block wx:for="{{activeMarker.attachments}}" wx:key="id">
+              <view class="attachment-item">
+                <text class="attachment-icon">📎</text>
+                <text class="attachment-name">{{item.fileName}}</text>
+              </view>
+            </block>
+          </view>
+        </view>
+
+        <view class="detail-section" wx:if="{{activeMarker.qrCodes && activeMarker.qrCodes.length}}">
+          <text class="detail-title">二维码</text>
+          <view class="media-preview-grid">
+            <block wx:for="{{activeMarker.qrCodes}}" wx:key="id">
+              <image class="media-preview" src="{{item.url}}" mode="aspectFill" />
+            </block>
+          </view>
+        </view>
+
+        <view class="detail-section" wx:if="{{activeMarker.videoChannelUrls && activeMarker.videoChannelUrls.length}}">
+          <text class="detail-title">视频号链接</text>
+          <view class="detail-list">
+            <block wx:for="{{activeMarker.videoChannelUrls}}" wx:key="*this">
+              <text class="detail-link">{{item}}</text>
+            </block>
+          </view>
+        </view>
+
+        <view
+          class="detail-section"
+          wx:if="{{activeMarker.adminInfo &&(activeMarker.adminInfo.name || activeMarker.adminInfo.phone || activeMarker.adminInfo.title)}}"
+        >
+          <text class="detail-title">管理员联系</text>
+          <view class="detail-item">
+            <text class="detail-label">姓名</text>
+            <text class="detail-value">{{activeMarker.adminInfo.name || '未填写'}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">职位</text>
+            <text class="detail-value">{{activeMarker.adminInfo.title || '未填写'}}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">电话</text>
+            <text class="detail-value">{{activeMarker.adminInfo.phone || '未填写'}}</text>
+          </view>
+        </view>
+
+        <!-- <button
+          class="danger-btn"
+          data-id="{{activeMarker.id}}"
+          bindtap="onDeleteMarkerTap"
+          loading="{{deletingId === activeMarker.id}}"
+          disabled="{{deletingId === activeMarker.id}}"
+        >
+          删除标记
+        </button> -->
+      </scroll-view>
+    </view>
+  </view>
+
+  <view wx:if="{{showCreate}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">创建地图标记</text>
+        <view class="drawer-close" bindtap="onCloseCreate">✕</view>
+      </view>
+      <scroll-view scroll-y class="drawer-body">
+        <view class="step-indicator">
+          <block wx:for="{{createSteps}}" wx:key="label">
+            <view class="step-item-wrapper">
+              <view
+                class="step-item {{createStep === index ? 'is-current' : (createStep > index ? 'is-finished' : '')}}"
+                data-step="{{index}}"
+                bindtap="onStepIndicatorTap"
+              >
+                <view class="step-circle {{createStep === index ? 'is-active' : (createStep > index ? 'is-finished' : '')}}">
+                  <text>{{index + 1}}</text>
+                </view>
+                <text class="step-label">{{item.label}}</text>
+              </view>
+              <view
+                wx:if="{{index < createSteps.length - 1}}"
+                class="step-connector {{createStep > index ? 'is-active' : ''}}"
+              ></view>
+            </view>
+          </block>
+        </view>
+
+        <block wx:if="{{createStep === 0}}">
+          <view class="form-card">
+            <view class="field-row">
+              <view class="field-label required">
+                <text class="required-star">*</text>
+                <text>图片</text>
+              </view>
+              <view class="image-uploader">
+                <block wx:for="{{form.images}}" wx:key="fileName">
+                  <view class="image-thumb">
+                    <image class="image-thumb-img" src="{{item.url}}" mode="aspectFill" />
+                    <view
+                      class="image-remove"
+                      data-type="images"
+                      data-index="{{index}}"
+                      bindtap="onRemoveMediaTap"
+                    >✕</view>
+                  </view>
+                </block>
+                <view class="image-add" data-type="images" bindtap="onAddMediaTap">
+                  <image class="image-add-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+                  <text class="image-add-text">上传</text>
+                </view>
+              </view>
+            </view>
+
+            <view class="field-row">
+              <view class="field-label required">
+                <text class="required-star">*</text>
+                <text>名称</text>
+              </view>
+              <input
+                class="field-input form-input"
+                placeholder="请输入"
+                value="{{form.name}}"
+                data-field="name"
+                bindinput="onFormInput"
+              />
+            </view>
+
+            <view class="field-row">
+              <view class="field-label required">
+                <text class="required-star">*</text>
+                <text>简介</text>
+              </view>
+              <textarea
+                class="field-textarea form-textarea"
+                placeholder="请输入"
+                value="{{form.description}}"
+                data-field="description"
+                bindinput="onFormInput"
+                maxlength="500"
+                auto-height
+              />
+            </view>
+
+            <view class="field-row">
+              <view class="field-label required">
+                <text class="required-star">*</text>
+                <text>位置</text>
+              </view>
+              <view class="location-box location-selector" bindtap="onChooseLocation">
+                <text class="location-text">{{form.locationText || '点击选择'}}</text>
+              </view>
+            </view>
+
+            <view class="field-row">
+              <view class="field-label required">
+                <text class="required-star">*</text>
+                <text>电话</text>
+              </view>
+              <input
+                class="field-input form-input"
+                placeholder="请输入联系电话"
+                value="{{form.phone}}"
+                data-field="phone"
+                bindinput="onFormInput"
+              />
+            </view>
+          </view>
+        </block>
+
+        <block wx:elif="{{createStep === 1}}">
+          <view class="form-card">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>营业执照</text>
+            </view>
+            <view class="media-grid">
+              <block wx:if="{{form.businessLicense}}">
+                <view class="media-item">
+                  <image class="media-image" src="{{form.businessLicense.url}}" mode="aspectFill" />
+                  <view class="media-remove" data-type="businessLicense" bindtap="onRemoveMediaTap">✕</view>
+                </view>
+              </block>
+              <view
+                class="media-add"
+                data-type="businessLicense"
+                bindtap="onAddMediaTap"
+                wx:if="{{!form.businessLicense}}"
+              >
+                <text class="media-add-icon">＋</text>
+                <text class="media-add-text">上传执照</text>
+              </view>
+            </view>
+          </view>
+
+          <view class="form-card">
+            <view class="field-label">行业荣誉标签</view>
+            <view class="tag-editor">
+              <block wx:for="{{form.industryHonorTags}}" wx:key="*this">
+                <view class="tag-chip">
+                  <text>{{item}}</text>
+                  <view class="tag-remove" data-index="{{index}}" bindtap="onRemoveTag">✕</view>
+                </view>
+              </block>
+              <input
+                class="tag-input"
+                placeholder="输入后回车添加"
+                value="{{tagInput}}"
+                confirm-type="done"
+                bindinput="onTagInput"
+                bindconfirm="onTagConfirm"
+              />
+            </view>
+          </view>
+
+          <view class="form-card">
+            <view class="field-label">附件上传</view>
+            <view class="field-tip">请先将文件发送到微信文件传输助手对话框，再点击"上传附件"。</view>
+            <view class="attachment-list">
+              <block wx:for="{{form.attachmentFiles}}" wx:key="fileName">
+                <view class="attachment-item">
+                  <text class="attachment-icon">📎</text>
+                  <text class="attachment-name">{{item.label || item.fileName}}</text>
+                  <view
+                    class="attachment-remove"
+                    data-type="attachments"
+                    data-index="{{index}}"
+                    bindtap="onRemoveMediaTap"
+                  >删除</view>
+                </view>
+              </block>
+              <view class="attachment-add" data-type="attachments" bindtap="onAddMediaTap">上传附件</view>
+            </view>
+          </view>
+
+          <view class="form-card">
+            <view class="field-label">二维码</view>
+            <view class="media-grid">
+              <block wx:for="{{form.qrCodeImages}}" wx:key="fileName">
+                <view class="media-item">
+                  <image class="media-image" src="{{item.url}}" mode="aspectFill" />
+                  <view
+                    class="media-remove"
+                    data-type="qrCodeImages"
+                    data-index="{{index}}"
+                    bindtap="onRemoveMediaTap"
+                  >✕</view>
+                </view>
+              </block>
+              <view class="media-add" data-type="qrCodeImages" bindtap="onAddMediaTap">
+                <text class="media-add-icon">＋</text>
+                <text class="media-add-text">上传二维码</text>
+              </view>
+            </view>
+          </view>
+
+          <view class="form-card">
+            <view class="field-label">挂载视频号视频</view>
+            <view class="video-form">
+              <view class="video-field">
+                <text class="video-field-label">视频号ID</text>
+                <input
+                  class="field-input form-input"
+                  placeholder="请输入"
+                  value="{{form.videoChannelId}}"
+                  data-field="videoChannelId"
+                  bindinput="onFormInput"
+                />
+              </view>
+              <view class="video-field">
+                <text class="video-field-label">视频ID</text>
+                <input
+                  class="field-input form-input"
+                  placeholder="请输入"
+                  value="{{form.videoId}}"
+                  data-field="videoId"
+                  bindinput="onFormInput"
+                />
+              </view>
+            </view>
+          </view>
+        </block>
+
+        <block wx:elif="{{createStep === 2}}">
+          <view class="form-card">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>管理员信息</text>
+            </view>
+            <text class="field-tip">不对外展示，仅用于审核等重要通知</text>
+            <view class="admin-grid">
+              <input
+                class="field-input form-input"
+                placeholder="姓名"
+                value="{{form.adminInfo.name}}"
+                data-group="adminInfo"
+                data-field="name"
+                bindinput="onFormInput"
+              />
+              <input
+                class="field-input form-input"
+                placeholder="职位"
+                value="{{form.adminInfo.title}}"
+                data-group="adminInfo"
+                data-field="title"
+                bindinput="onFormInput"
+              />
+              <input
+                class="field-input form-input"
+                placeholder="联系电话"
+                value="{{form.adminInfo.phone}}"
+                data-group="adminInfo"
+                data-field="phone"
+                bindinput="onFormInput"
+              />
+            </view>
+          </view>
+
+          <view class="form-card">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>支付认证费</text>
+            </view>
+            <view class="payment-options">
+              <block wx:for="{{paymentMethods}}" wx:key="id">
+                <view
+                  class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}}"
+                  data-method="{{item.id}}"
+                  bindtap="onSelectPaymentMethod"
+                >
+                  <view class="payment-option-header">
+                    <text class="payment-option-title">{{item.label}}</text>
+                    <text class="payment-option-note" wx:if="{{item.note}}">{{item.note}}</text>
+                  </view>
+                  <view class="payment-price" wx:if="{{item.id === 'WECHAT'}}">
+                    <text class="price-tag">{{wechatPriceDisplay || '¥--'}}</text>
+                    <text class="price-original" wx:if="{{wechatListPriceDisplay}}">{{wechatListPriceDisplay}}</text>
+                  </view>
+                  <view class="payment-price" wx:elif="{{item.id === 'FLP'}}">
+                    <text class="price-tag">{{flpPriceDisplay || 'FLP--'}}</text>
+                    <text class="price-original" wx:if="{{flpListPriceDisplay}}">{{flpListPriceDisplay}}</text>
+                  </view>
+                </view>
+              </block>
+            </view>
+            <!-- <view class="payment-summary">
+              <text class="payment-summary-item" wx:if="{{wechatPriceDisplay}}">{{wechatPriceDisplay}}</text>
+              <text class="payment-summary-item" wx:if="{{flpPriceDisplay}}">{{flpPriceDisplay}}</text>
+            </view> -->
+          </view>
+
+          <block wx:if="{{creationError}}">
+            <view class="error-box">{{creationError}}</view>
+          </block>
+        </block>
+
+        <block wx:elif="{{createStep === 3}}">
+          <view class="result-card" wx:if="{{creationResult && creationResult.status === 'success'}}">
+            <view class="result-icon success">✓</view>
+            <text class="result-title">{{creationResult.title || '提交成功'}}</text>
+            <text class="result-desc">{{creationResult.message}}</text>
+            <view class="result-info">
+              <text>标记名称：{{creationResult.marker.name}}</text>
+              <text>审核状态：{{creationResult.marker.reviewStatusLabel}}</text>
+            </view>
+            <button class="result-btn" bindtap="onCloseCreate">完成</button>
+          </view>
+          <view class="result-card error" wx:elif="{{creationError}}">
+            <view class="result-icon error">!</view>
+            <text class="result-title">提交失败</text>
+            <text class="result-desc">{{creationError}}</text>
+            <button class="result-btn" bindtap="goToPrevStep">返回修改</button>
+          </view>
+        </block>
+      </scroll-view>
+
+      <view class="drawer-footer" wx:if="{{createStep < 3}}">
+        <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
+        <block wx:if="{{createStep === 2}}">
+          <button
+            class="footer-btn primary"
+            bindtap="submitMarker"
+            loading="{{creationSubmitting}}"
+            disabled="{{creationSubmitting}}"
+          >
+            {{submitButtonText}}
+          </button>
+        </block>
+        <block wx:else>
+          <button class="footer-btn primary" bindtap="goToNextStep">下一步</button>
+        </block>
+      </view>
+    </view>
+  </view>
+</view>

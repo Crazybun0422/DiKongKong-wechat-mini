@@ -27,6 +27,13 @@ function getAuthToken() {
 
 function extractAvatarFileName(value) {
   if (!value) return "";
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const extracted = extractAvatarFileName(item);
+      if (extracted) return extracted;
+    }
+    return "";
+  }
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return "";
@@ -41,6 +48,8 @@ function extractAvatarFileName(value) {
       value.filename ||
       value.objectName ||
       value.name ||
+      value.location ||
+      value.path ||
       (typeof value.url === "string" ? value.url : "");
     if (candidate) return extractAvatarFileName(candidate);
   }
@@ -117,6 +126,11 @@ function uploadAvatarFile(filePath, options = {}) {
               return;
             }
             if (typeof body.data === "string" && body.data.trim()) {
+              const fallback = extractAvatarFileName(body.data.trim());
+              if (fallback) {
+                resolve(fallback);
+                return;
+              }
               resolve(body.data.trim());
               return;
             }
@@ -180,7 +194,7 @@ function updateUserProfile(payload = {}, options = {}) {
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
-    path: "/api/weapp/login",
+    path: "/api/user/profile",
     method: "PUT",
     data: payload
   }).then((body) => body?.data || {});
@@ -456,6 +470,7 @@ module.exports = {
   normalizeProfileData,
   resolveApiBase,
   getAuthToken,
+  authorizedRequest,
   generateFeatureCode,
   ensureFeatureCode,
   persistProfileLocally,

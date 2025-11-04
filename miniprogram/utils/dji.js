@@ -70,7 +70,7 @@ function fetchDjiAreas({ rect, levels, drone }) {
 
 // 按外部（H5）实现对齐的调色板（忽略返回中的 color 字段）
 const NFZ_PALETTE = {
-  1: "#1088F2", // Authorization
+  1: "#000000", // Authorization
   2: "#DE4329", // Restricted
   3: "#EE8815", // Enhanced warning
   4: "#FFCC00", // Warning

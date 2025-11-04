@@ -20,32 +20,19 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 15px;
-  height: 15px;
-  margin-left: -9px;
-  margin-top: -18px;
-  border-radius: 50%;
-  background: rgba(0, 122, 255, 0.9);
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
+  width: 64rpx;
+  height: 64rpx;
+  transform: translate(-50%, -96%);
+  display: block;
   pointer-events: none;
   z-index: 20;
-}
-
-.center-pin::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  width: 2px;
-  height: 10px;
-  margin-left: -1px;
-  background: rgba(0, 122, 255, 0.9);
+  filter: brightness(0) saturate(100%) invert(27%) sepia(92%) saturate(2594%) hue-rotate(205deg) brightness(102%) contrast(104%) drop-shadow(0 10rpx 20rpx rgba(15, 23, 42, 0.25));
+  opacity: 0.95;
 }
 
 .preflight-overlay {
   position: absolute;
-  top: 48rpx;
+  top: calc(env(safe-area-inset-top) + 200rpx);
   left: 16rpx;
   width: 460rpx;
   z-index: 30;
@@ -58,7 +45,6 @@
   position: relative;
   padding: 32rpx 36rpx 28rpx;
   color: #fff;
-  /* 透明，让真正的背景由 ::before 绘制 */
   background: transparent;
 }
 
@@ -66,9 +52,9 @@
   content: "";
   position: absolute;
   inset: 0;
-  right: -100rpx;              /* 三角延伸的宽度 */
+  right: -100rpx;              /* 涓夎寤朵几鐨勫搴?*/
   border-radius: 24rpx 0 0 24rpx;
-  background: rgba(2, 43, 131, 0.35);
+  background: rgba(0, 0, 0, 0.35);
   /* box-shadow: 0 12rpx 30rpx rgba(0,0,0,0); */
   clip-path: polygon(
     0% 0%,
@@ -217,7 +203,7 @@
 
 .drone-picker-confirm {
   font-size: 30rpx;
-  color: #1e58ff;
+  color: #000000;
   font-weight: 600;
 }
 
@@ -230,9 +216,10 @@
   padding: 22rpx 20rpx;
   border-radius: 18rpx;
   font-size: 28rpx;
-  color: #222;
+  color: rgba(0, 0, 0, 0.65);
   margin-bottom: 14rpx;
-  background: rgba(17, 17, 17, 0.03);
+  background: rgba(0, 0, 0, 0.08);
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .drone-picker-option:last-child {
@@ -240,10 +227,10 @@
 }
 
 .drone-picker-option.is-active {
-  background: #1e58ff;
+  background: #000000;
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 12rpx 22rpx rgba(30, 88, 255, 0.24);
+  box-shadow: 0 12rpx 22rpx rgba(0, 0, 0, 0.24);
 }
 
 .status-hint {
@@ -256,7 +243,7 @@
 .control-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start; /* 靠左 */
+  justify-content: flex-start; /* 闈犲乏 */
   gap: 18rpx;
 }
 
@@ -271,27 +258,27 @@
 }
 
 button.locate-circle {
-/* 重置小程序 button 的默认行为 */
-display: inline-flex;          /* 避免被 flex 拉伸 */
-flex: none;                    /* 禁止伸缩 */
+
+display: inline-flex;          
+flex: none;                   
 box-sizing: border-box;
 padding: 0;
 margin: 0;
 min-width: 0;
-line-height: 72rpx;            /* iOS 防基线撑高 */
+line-height: 72rpx;            
 background: rgba(255,255,255,0.08);
 border: 2rpx solid rgba(255,255,255,0.85);
 
-/* 正圆尺寸 */
+
 width: 72rpx;
 height: 72rpx;
 border-radius: 50%;
 
-/* 居中图标 */
+
 align-items: center;
 justify-content: center;
 
-/* 动效 */
+/* 鍔ㄦ晥 */
 transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
 overflow: hidden;
 pointer-events: auto;
@@ -312,7 +299,7 @@ button.locate-hover {
   box-shadow: 0 8rpx 20rpx rgba(0,0,0,.18) inset, 0 6rpx 14rpx rgba(0,0,0,.10);
 }
 
-/* 可选：悬浮视觉（模拟 hover，移动端看不太出来，留着无害） */
+/* 鍙€夛細鎮诞瑙嗚锛堟ā鎷?hover锛岀Щ鍔ㄧ鐪嬩笉澶嚭鏉ワ紝鐣欑潃鏃犲锛?*/
 button.locate-circle:hover {
   background: rgba(255,255,255,0.14);
 }
@@ -428,11 +415,11 @@ button.search-btn::after {
 }
 
 .floating-controls {
-  position: absolute;
-  right: 32rpx;
-  bottom: 220rpx;
-  display: flex;
-  flex-direction: column;
+    position: absolute;
+    right: 32rpx;
+    bottom: calc(env(safe-area-inset-bottom) + 262rpx);
+    display: flex;
+    flex-direction: column;
   gap: 28rpx;
   z-index: 40;
   pointer-events: none;
@@ -472,24 +459,36 @@ button.marker-button::after,
 .chat-fab-icon {
   width: 64rpx;
   height: 64rpx;
-  transition: filter 0.2s ease;
+  transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
 .dashboard-toggle-icon,
 .marker-button-icon,
 .menu-icon,
 .chat-fab-icon {
-  filter: brightness(0) saturate(100%) invert(28%) sepia(12%) saturate(676%) hue-rotate(177deg) brightness(92%) contrast(90%);
+  filter: brightness(0) saturate(100%);
+}
+
+.dashboard-toggle-icon,
+.menu-icon,
+.menu-label {
+  opacity: 0.55;
+}
+
+.dashboard-toggle.is-active .dashboard-toggle-icon,
+.menu-btn.is-active .menu-icon,
+.menu-btn.is-active .menu-label {
+  opacity: 1;
 }
 
 .dashboard-toggle.is-active .dashboard-toggle-icon {
-  filter: brightness(0) saturate(100%) invert(26%) sepia(81%) saturate(2342%) hue-rotate(203deg) brightness(95%) contrast(92%);
+  filter: brightness(0) saturate(100%);
 }
 
 .bottom-controls {
   position: absolute;
   left: 55%;
-  bottom: 42rpx;
+  bottom: calc(env(safe-area-inset-bottom) + 42rpx);
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -499,7 +498,7 @@ button.marker-button::after,
 
 .bottom-menu {
   flex: 0 0 420rpx;
-  width: 420rpx;
+  width: 220rpx;
   height: 120rpx;
   border-radius: 999rpx;
   margin-right: 40rpx;
@@ -520,7 +519,7 @@ button.marker-button::after,
   border: none;
   background: transparent;
   padding: 0;
-  color: #1d1d1f;
+  color: #000000;
   font-size: 22rpx;
   row-gap: 8rpx;
 }
@@ -536,15 +535,18 @@ button.marker-button::after,
 
 .menu-label {
   font-size: 22rpx;
+  transition: opacity 0.2s ease;
 }
 
 .menu-btn.is-active .menu-label {
-  color: #1976ff;
+  color: #000000;
   font-weight: 600;
+  opacity: 1;
 }
 
 .menu-btn.is-active .menu-icon {
-  filter: brightness(0) saturate(100%) invert(26%) sepia(81%) saturate(2342%) hue-rotate(203deg) brightness(95%) contrast(92%);
+  filter: brightness(0) saturate(100%);
+  opacity: 1;
 }
 
 .chat-fab {
@@ -630,8 +632,8 @@ button.marker-button::after,
   height: 14rpx;
   margin-top: 12rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1c64f2 0%, #60a5fa 100%);
-  box-shadow: 0 4rpx 10rpx rgba(28, 100, 242, 0.32);
+  background: linear-gradient(135deg, #000000 0%, #333333 100%);
+  box-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.32);
   flex-shrink: 0;
 }
 
@@ -666,23 +668,23 @@ button.marker-button::after,
 }
 
 .permission-button--ghost {
-  background: rgba(224, 231, 255, 0.48);
-  color: #1d4ed8;
+  background: rgba(0, 0, 0, 0.48);
+  color: #000000;
 }
 
 .permission-button--ghost-hover {
-  background: rgba(224, 231, 255, 0.78);
+  background: rgba(0, 0, 0, 0.78);
 }
 
 .permission-button--solid {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  background: linear-gradient(135deg, #000000 0%, #333333 100%);
   color: #fff;
-  box-shadow: 0 14rpx 28rpx rgba(29, 78, 216, 0.32);
+  box-shadow: 0 14rpx 28rpx rgba(0, 0, 0, 0.32);
 }
 
 .permission-button--solid-hover {
   transform: scale(0.97);
-  box-shadow: 0 10rpx 20rpx rgba(29, 78, 216, 0.26);
+  box-shadow: 0 10rpx 20rpx rgba(0, 0, 0, 0.26);
 }
 
 .permission-footnote {
@@ -790,7 +792,7 @@ button.marker-button::after,
 .profile-retry-btn {
   padding: 0 32rpx;
   line-height: 64rpx;
-  background: #1088f2;
+  background: #000000;
   color: #fff;
   border-radius: 999rpx;
 }
@@ -866,10 +868,10 @@ button.marker-button::after,
 
 .profile-code-copy {
   font-size: 24rpx;
-  color: #1088f2;
+  color: #000000;
   padding: 6rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(16, 136, 242, 0.08);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .profile-hint {
@@ -940,7 +942,7 @@ button.marker-button::after,
 }
 
 .profile-list-item-hover {
-  background: rgba(16, 136, 242, 0.08);
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .profile-list-text {
@@ -961,8 +963,8 @@ button.marker-button::after,
 
 .profile-list-tag {
   font-size: 22rpx;
-  color: #1088f2;
-  background: rgba(16, 136, 242, 0.12);
+  color: #000000;
+  background: rgba(0, 0, 0, 0.12);
   padding: 4rpx 14rpx;
   border-radius: 999rpx;
 }
@@ -972,4 +974,125 @@ button.marker-button::after,
   color: rgba(15, 23, 42, 0.45);
   text-align: center;
   margin-top: 12rpx;
+}
+
+.marker-detail-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.22);
+  z-index: 55;
+  animation: marker-detail-fade-in 200ms ease-out both;
+}
+
+.marker-detail-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-radius: 36rpx 36rpx 0 0;
+  padding: 36rpx 40rpx 48rpx;
+  box-shadow: 0 -12rpx 48rpx rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+  pointer-events: auto;
+  transform: translateY(0);
+  animation: marker-detail-slide-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.marker-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  pointer-events: auto;
+}
+
+.marker-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  max-width: 480rpx;
+}
+
+.marker-detail-name {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.marker-detail-location {
+  font-size: 24rpx;
+  color: #475569;
+  line-height: 1.3;
+}
+
+.marker-detail-close {
+  width: 50rpx;
+  height: 50rpx;
+  border-radius: 30rpx;
+  background: rgba(148, 163, 184, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-detail-close:active {
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.marker-detail-close-icon {
+  width: 48rpx;
+  height: 48rpx;
+}
+
+.marker-detail-body {
+  width: 100%;
+}
+
+.marker-detail-cover {
+  width: 100%;
+  height: 260rpx;
+  border-radius: 28rpx;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.marker-detail-cover--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.marker-detail-cover-text {
+  color: inherit;
+}
+
+@keyframes marker-detail-slide-up {
+  0% {
+    transform: translateY(120rpx);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes marker-detail-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }

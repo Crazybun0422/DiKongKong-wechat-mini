@@ -1,12 +1,14 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
+const { fetchNearbyMarkers, buildFileDownloadUrl } = require("../../utils/markers");
 const {
   buildWmsOverlay,
   WMS_MIN_ZOOM,
   WMS_MAX_ZOOM
 } = require("../../utils/wms");
-const { haversineMeters, clampRadius, gcj02ToWgs84 } = require("../../utils/coords");
+const { haversineMeters, clampRadius, gcj02ToWgs84, wgs84ToGcj02 } = require("../../utils/coords");
+const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
 const {
   DEFAULT_AVATAR_PATH,
   extractAvatarFileName: extractAvatarFileNameUtil,
@@ -36,7 +38,7 @@ const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
-  1: "#1088F2",
+  1: "#000000",
   2: "#DE4329",
   3: "#EE8815",
   4: "#FFCC00",
@@ -61,6 +63,29 @@ const clampMapScale = (value) => {
   return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
 };
 
+const formatNearbyMarkerLabel = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.length <= 5) {
+    return trimmed;
+  }
+  const firstLine = trimmed.slice(0, 5);
+  const remaining = trimmed.slice(5);
+  if (!remaining) {
+    return firstLine;
+  }
+  let secondLine = remaining.slice(0, 5);
+  if (remaining.length > 5) {
+    secondLine = `${secondLine}...`;
+  }
+  return `${firstLine}\n${secondLine}`;
+};
+
 Page({
   data: {
     keyword: "",
@@ -69,6 +94,8 @@ Page({
     scale: DEFAULT_MAP_SCALE,
     minScale: MAP_MIN_SCALE,
     maxScale: MAP_MAX_SCALE,
+    mapSubKey: QQMAP_KEY || "",
+    customMapStyleId: QQMAP_CUSTOM_STYLE_ID || "",
     markers: [],
     polygons: [],
     circles: [],
@@ -94,12 +121,16 @@ Page({
     showProfileFill: false,
     tempNickname: "",
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
-    activeTab: "home"
+    activeTab: "home",
+    showMarkerDetail: false,
+    activeMarkerDetail: null
   },
 
   onLoad() {
     this.mapCtx = wx.createMapContext("main-map");
+    this.applyCustomMapStyle();
     this._fetchTimer = null;
+    this._markersFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
     this._suppressRegionOnce = false;
@@ -111,20 +142,192 @@ Page({
     this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
     this._selectedAvatarFileName = "";
     this._avatarChanged = false;
+    this._activeMarkersRequest = null;
+    this._lastNearbyFetch = null;
+    this._nearbyMarkers = [];
+    this._searchMarkers = [];
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
+    this.scheduleFetchMarkers(0, {
+      center: this.data.center,
+      scale: this.data.scale,
+      force: true
+    });
     this.updateStatusPanel();
     this.requestInitialLocation();
   },
 
+  normalizeMarkerDetail(raw = {}) {
+    const apiBase = this.getApiBase();
+    const download = (value) => buildFileDownloadUrl(value, { apiBase });
+    const ensureText = (value) => {
+      if (typeof value !== "string") return "";
+      const trimmed = value.trim();
+      return trimmed || "";
+    };
+
+    const name =
+      ensureText(raw.name) ||
+      ensureText(raw.title) ||
+      ensureText(raw.location?.text) ||
+      "";
+
+    const locationText =
+      ensureText(raw.locationText) ||
+      ensureText(raw.address) ||
+      ensureText(raw.location?.text) ||
+      "";
+
+    const images = [];
+    const pushImage = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushImage(item));
+        return;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed) images.push(trimmed);
+        return;
+      }
+      if (typeof value === "object") {
+        const candidate =
+          value.fileName ||
+          value.filename ||
+          value.objectName ||
+          value.name ||
+          value.location ||
+          value.path ||
+          value.url ||
+          value.imageUrl ||
+          "";
+        if (candidate) pushImage(candidate);
+      }
+    };
+
+    pushImage(raw.images);
+    pushImage(raw.imageUrls);
+    pushImage(raw.covers);
+    pushImage(raw.coverImage);
+    pushImage(raw.cover);
+
+    const firstImage = images.length ? images[0] : "";
+    const imageUrl = firstImage ? download(firstImage) : "";
+
+    return {
+      id: raw.id || "",
+      name,
+      locationText,
+      imageUrl,
+      raw
+    };
+  },
+
+  findMarkerById(markerId) {
+    if (markerId === undefined || markerId === null) return null;
+    const markerIdStr = `${markerId}`;
+    const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const combined = nearby.concat(search);
+    for (const marker of combined) {
+      if ((marker?.id || marker?.id === 0) && `${marker.id}` === markerIdStr) {
+        return marker;
+      }
+    }
+    return null;
+  },
+
+  openMarkerDetail(marker) {
+    if (!marker) return;
+    const detail =
+      (marker.extData && marker.extData.detail) ||
+      (marker.extData && marker.extData.raw && this.normalizeMarkerDetail(marker.extData.raw)) ||
+      this.normalizeMarkerDetail(marker);
+    this.setData({
+      showMarkerDetail: true,
+      activeMarkerDetail: detail
+    });
+  },
+
+  closeMarkerDetail() {
+    this.setData({ showMarkerDetail: false, activeMarkerDetail: null });
+  },
+
+  onMarkerTap(event) {
+    const markerId = event?.detail?.markerId;
+    const marker = this.findMarkerById(markerId);
+    if (marker) {
+      this.openMarkerDetail(marker);
+    }
+  },
+
+  onMarkerCalloutTap(event) {
+    const markerId = event?.detail?.markerId;
+    const marker = this.findMarkerById(markerId);
+    if (marker) {
+      this.openMarkerDetail(marker);
+    }
+  },
+
+  onMarkerDetailTouchStart(event) {
+    const touch = event?.touches && event.touches[0];
+    this._markerDetailTouchStartY = Number.isFinite(touch?.clientY)
+      ? touch.clientY
+      : null;
+    this._markerDetailTriggered = false;
+  },
+
+  onMarkerDetailTouchMove(event) {
+    if (this._markerDetailTriggered) return;
+    if (this._markerDetailTouchStartY === null || this._markerDetailTouchStartY === undefined) {
+      return;
+    }
+    const touch = event?.touches && event.touches[0];
+    if (!touch || !Number.isFinite(touch.clientY)) return;
+    const deltaY = this._markerDetailTouchStartY - touch.clientY;
+    if (deltaY > 40) {
+      this._markerDetailTriggered = true;
+      this._markerDetailTouchStartY = null;
+      this.openMarkerDetailPage();
+    }
+  },
+
+  onMarkerDetailTouchEnd() {
+    this._markerDetailTouchStartY = null;
+    this._markerDetailTriggered = false;
+  },
+
+  openMarkerDetailPage() {
+    const detail = this.data.activeMarkerDetail;
+    if (!detail) return;
+    this.showPlaceholderToast("详情页面开发中");
+  },
+
+  applyCustomMapStyle() {
+    const styleId = this.data.customMapStyleId;
+    if (!styleId) {
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.setMapCustomStyle === "function") {
+      wx.setMapCustomStyle({ styleId });
+      return;
+    }
+    if (this.mapCtx && typeof this.mapCtx.setCustomMapStyle === "function") {
+      this.mapCtx.setCustomMapStyle({ styleId });
+    }
+  },
+
   onShow() {
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home" });
+      this.setData({ activeTab: "home" ,showDashboardPanel: true});
+      this.showDashboardPanel = true;
     }
   },
 
   onUnload() {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
+    if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
+    this._activeMarkersRequest = null;
     this.clearMapOverlays();
   },
 
@@ -170,7 +373,7 @@ Page({
 
   onMenuHomeTap() {
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home" });
+      this.setData({ activeTab: "home"});
     }
     this.showPlaceholderToast("已在首页");
   },
@@ -239,6 +442,23 @@ Page({
     }
   },
 
+  applyNearbyMarkers(markers) {
+    this._nearbyMarkers = Array.isArray(markers) ? markers : [];
+    this.syncAllMarkers();
+  },
+
+  applySearchMarkers(markers) {
+    this._searchMarkers = Array.isArray(markers) ? markers : [];
+    this.syncAllMarkers();
+  },
+
+  syncAllMarkers() {
+    const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const combined = nearby.concat(search);
+    this.setData({ markers: combined });
+  },
+
   performSearch() {
     const keyword = this.data.keyword.trim();
     if (!keyword) return;
@@ -269,10 +489,20 @@ Page({
               padding: 4
             };
           }
+          marker.extData = Object.assign({}, marker.extData, {
+            source: "search",
+            detail: this.normalizeMarkerDetail({
+              id: marker.id,
+              name: poi.title,
+              title: poi.title,
+              address: poi.address,
+              location: { text: poi.address }
+            })
+          });
           return marker;
         });
         if (markers.length) {
-          this.setData({ markers });
+          this.applySearchMarkers(markers);
           const points = markers.map((m) => ({
             latitude: m.latitude,
             longitude: m.longitude
@@ -282,7 +512,7 @@ Page({
             padding: [60, 60, 60, 60]
           });
         } else {
-          this.setData({ markers: [] });
+          this.applySearchMarkers([]);
         }
       })
       .catch((err) => {
@@ -391,11 +621,11 @@ Page({
     }
     this.setData({
       keyword: suggestion.title,
-      markers: [marker],
       searchSuggestions: [],
       searchSuggestLoading: false,
       searchSuggestError: ""
     });
+    this.applySearchMarkers([marker]);
     this.centerOnPoint({ latitude, longitude }, 15);
   },
 
@@ -579,6 +809,12 @@ Page({
       () => {
         this._currentBounds = null;
         this.refreshWmsOverlay(this.data.center, this.data.scale, this._lastRegion);
+        this.scheduleFetchMarkers(silent ? 300 : 0, {
+          center: point,
+          region: this._lastRegion,
+          scale: targetScale,
+          force: true
+        });
         this.scheduleFetchDji(silent ? 300 : 0, true);
         this.updateStatusPanel(this._lastAreas);
       }
@@ -824,6 +1060,7 @@ Page({
   onRegionChange(e) {
     if (e.type === "begin") {
       if (this._fetchTimer) clearTimeout(this._fetchTimer);
+      if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
       this._currentBounds = null;
       return;
     }
@@ -855,6 +1092,12 @@ Page({
         const run = (forceRefresh) => {
           this.refreshWmsOverlay(newCenter, scale, region);
           this.requestDjiZones(forceRefresh, newCenter, region, scale);
+          this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
+            center: newCenter,
+            region,
+            scale,
+            force: !!forceRefresh
+          });
           this.updateStatusPanel(this._lastAreas);
         };
         if (shouldSync) {
@@ -896,6 +1139,12 @@ Page({
             this._currentRadius
           );
           this.refreshWmsOverlay(newCenter, scale, detail?.region);
+          this.scheduleFetchMarkers(0, {
+            center: newCenter,
+            region: detail?.region,
+            scale,
+            force: true
+          });
           this.scheduleFetchDji(300);
         };
         const afterUpdate = () => {
@@ -928,12 +1177,163 @@ Page({
     return clampRadius(DEFAULT_FETCH_RADIUS);
   },
 
+  computeMarkerRadiusKm(context = {}) {
+    const region = context?.region;
+    if (region?.northeast && region?.southwest) {
+      const { northeast, southwest } = region;
+      const diag = haversineMeters(
+        northeast.latitude,
+        northeast.longitude,
+        southwest.latitude,
+        southwest.longitude
+      );
+      if (Number.isFinite(diag) && diag > 0) {
+        const radiusKm = Math.max(0.1, diag / 2000);
+        return Math.min(radiusKm, 200);
+      }
+    }
+    const scale = clampMapScale(context?.scale || this.data.scale);
+    const zoomFactor = Math.pow(2, Math.max(0, (18 - scale) / 1.3));
+    return Math.max(0.1, Math.min(200, zoomFactor * 0.8));
+  },
+
+  scheduleFetchMarkers(delay = 0, options = {}) {
+    if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
+    const ms = Math.max(0, Number(delay) || 0);
+    this._markersFetchTimer = setTimeout(() => {
+      this._markersFetchTimer = null;
+      this.requestNearbyMarkers(options);
+    }, ms);
+  },
+
   scheduleFetchDji(delay = 300, force = false) {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     this._fetchTimer = setTimeout(() => {
       this._fetchTimer = null;
       this.requestDjiZones(force);
     }, delay);
+  },
+
+  requestNearbyMarkers(options = {}) {
+    const center = options?.center || this._centerOverride || this.data.center;
+    if (!center) return;
+    const scale = options?.scale || this.data.scale;
+    const region = options?.region || this._lastRegion;
+    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
+
+    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
+    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const prev = this._lastNearbyFetch || {};
+    const moveMeters = haversineMeters(
+      center.latitude,
+      center.longitude,
+      prev.latitude || 0,
+      prev.longitude || 0
+    );
+    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
+    const now = Date.now();
+    const prevTimestamp = Number(prev.timestamp) || 0;
+    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
+    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+      return;
+    }
+
+    const requestId = now;
+    this._activeMarkersRequest = requestId;
+
+    fetchNearbyMarkers(
+      {
+        latitude,
+        longitude,
+        radiusInKilometers: radiusKm
+      },
+      {
+        apiBase: this.getApiBase(),
+        token: this.getAuthToken()
+      }
+    )
+      .then((items = []) => {
+        if (this._activeMarkersRequest !== requestId) return;
+        const markerList = (Array.isArray(items) ? items : [])
+          .map((item, index) => {
+            const latValue = Number(
+              item?.location?.latitude ??
+                item?.location?.lat ??
+                item?.latitude ??
+                item?.lat
+            );
+            const lngValue = Number(
+              item?.location?.longitude ??
+                item?.location?.lng ??
+                item?.longitude ??
+                item?.lng
+            );
+            if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return null;
+            const gcj = wgs84ToGcj02(lngValue, latValue);
+            const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latValue;
+            const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : lngValue;
+            const name =
+              (typeof item?.name === "string" && item.name) ||
+              (typeof item?.title === "string" && item.title) ||
+              (typeof item?.location?.text === "string" && item.location.text) ||
+              "";
+            const locationText =
+              (typeof item?.location?.text === "string" && item.location.text) ||
+              (typeof item?.address === "string" && item.address) ||
+              (typeof item?.locationText === "string" && item.locationText) ||
+              "";
+            console.log("name,", name);
+            const marker = {
+              id: item?.id || `nearby-${index}`,
+              latitude: latitudeGcj,
+              longitude: longitudeGcj,
+              title: name,
+              iconPath: "/assets/drone.png",
+              width: 22,
+              height: 22
+            };
+            const calloutContent = formatNearbyMarkerLabel(name);
+            if (calloutContent) {
+              marker.callout = {
+                content: calloutContent,
+                color: "rgba(0, 0, 0, 0.95)",
+                fontSize: 14,
+                fontWeight: "bold",
+                display: "ALWAYS",
+                borderRadius: 4,
+                padding: 4,
+                // bgColor: "rgba(255, 255, 255, 0)"
+              };
+            }
+            marker.extData = Object.assign({}, marker.extData, {
+              source: "nearby",
+              raw: item,
+              detail: this.normalizeMarkerDetail(item)
+            });
+            return marker;
+          })
+          .filter(Boolean);
+        this.applyNearbyMarkers(markerList);
+        this._lastNearbyFetch = {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusKm,
+          scale: clampMapScale(scale),
+          timestamp: now
+        };
+      })
+      .catch((err) => {
+        console.warn("Fetch nearby markers failed", err);
+      })
+      .finally(() => {
+        if (this._activeMarkersRequest === requestId) {
+          this._activeMarkersRequest = null;
+        }
+      });
   },
 
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
@@ -983,6 +1383,7 @@ Page({
       drone: this.data.selectedDrone
     })
       .then((areas) => {
+        console.log("areas",areas);
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);
