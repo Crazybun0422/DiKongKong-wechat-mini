@@ -6,7 +6,7 @@ function ensureText(value) {
   return trimmed || "";
 }
 
-function truncateDisplayName(name, limit = 10) {
+function truncateDisplayName(name, limit = 20) {
   if (typeof name !== "string") {
     return "";
   }
