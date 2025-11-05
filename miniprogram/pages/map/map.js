@@ -830,28 +830,20 @@ Page({
 
   onMarkerButtonTap() {
     if (this.hasAccessToken()) {
-      this.showPlaceholderToast("标记功能开发中");
+      this.openMarkersPage();
       return;
     }
-    const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
-    const ensureProfile = this.hasProfileInfo() ? Promise.resolve(this.loadStoredProfile()) : this.openProfileFill();
-    ensureProfile
-      .then((profile) => {
-        if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
-        return this.ensureAccessToken({ profileOverride: profile || {} })
-          .then(() => {
-            hideLoading();
-            this.showPlaceholderToast("标记功能开发中");
-          })
-          .catch((err) => {
-            hideLoading();
-            throw err;
-          });
+    this.ensureProfileAuthenticated()
+      .then(() => {
+        this.openMarkersPage();
       })
       .catch((err) => {
         if (err && err.message === "user-cancel") {
           wx.showToast({ title: "已取消", icon: "none" });
+          return;
+        }
+        if (err && err.message === "login-unavailable") {
+          this.showPlaceholderToast("暂时无法打开标记页");
           return;
         }
         console.warn("登录失败", err);
@@ -859,6 +851,24 @@ Page({
           wx.showToast({ title: "登录失败，请稍后再试", icon: "none" });
         }
       });
+  },
+
+  openMarkersPage() {
+    const updates = {};
+    if (this.data.showDashboardPanel) {
+      updates.showDashboardPanel = false;
+    }
+    if (this.data.activeTab !== "profile") {
+      updates.activeTab = "profile";
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: "/pages/markers/index" });
+    } else {
+      this.showPlaceholderToast("当前版本暂不支持打开标记页");
+    }
   },
 
   showPlaceholderToast(message) {
