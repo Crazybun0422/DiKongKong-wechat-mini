@@ -153,12 +153,6 @@
   gap: 12rpx;
 }
 
-.marker-page-address-actions {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-}
-
 .marker-page-address-label {
   font-size: 24rpx;
   color: #2d68ec;

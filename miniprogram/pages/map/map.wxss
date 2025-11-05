@@ -1012,10 +1012,531 @@ button.marker-button::after,
   margin-top: 12rpx;
 }
 
+.marker-detail-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.22);
+  z-index: 55;
+  animation: marker-detail-fade-in 200ms ease-out both;
+}
 
+.marker-detail-mask--closing {
+  animation: marker-detail-fade-out 200ms ease-in both;
+}
 
+.marker-detail-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(24rpx);
+  -webkit-backdrop-filter: blur(24rpx);
+  border-radius: 36rpx 36rpx 0 0;
+  padding: 36rpx 40rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -12rpx 48rpx rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+  pointer-events: auto;
+  transform: translateY(0);
+  animation: marker-detail-slide-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
+.marker-detail-sheet.is-closing {
+  animation: marker-detail-slide-down 200ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
 
+.marker-detail-sheet.is-expanding {
+  animation: marker-detail-swipe-expand 220ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
 
+.marker-detail-handle {
+  width: 120rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.2);
+  align-self: center;
+  margin: -4rpx auto 12rpx;
+}
 
+.marker-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 24rpx;
+  pointer-events: auto;
+}
 
+.marker-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  max-width: 480rpx;
+}
+
+.marker-detail-name {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.marker-detail-location {
+  font-size: 24rpx;
+  color: #475569;
+  line-height: 1.3;
+}
+
+.marker-detail-body {
+  width: 100%;
+}
+
+.marker-detail-cover {
+  width: 100%;
+  height: 260rpx;
+  border-radius: 28rpx;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.marker-detail-cover--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 24rpx;
+}
+
+.marker-detail-cover-text {
+  color: inherit;
+}
+
+.marker-detail-cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.marker-detail-gesture-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8rpx 0 0;
+}
+
+.marker-detail-gesture-text {
+  font-size: 26rpx;
+  color: rgba(15, 23, 42, 0.55);
+  letter-spacing: 2rpx;
+}
+
+@keyframes marker-detail-slide-up {
+  0% {
+    transform: translateY(120rpx);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes marker-detail-slide-down {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(120rpx);
+    opacity: 0;
+  }
+}
+
+@keyframes marker-detail-swipe-expand {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-160rpx);
+    opacity: 0;
+  }
+}
+
+.marker-page {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: linear-gradient(180deg, #f5f7fb 0%, #ffffff 100%);
+  color: #1f2329;
+}
+
+.marker-page--open {
+  animation: marker-page-slide-in 280ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.marker-page--closing {
+  animation: marker-page-slide-out 240ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.marker-page-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.18);
+  z-index: 1;
+}
+
+.marker-page-scroll {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.marker-page-hero {
+  position: relative;
+  width: 100%;
+  height: 520rpx;
+  background: #111827;
+}
+
+.marker-page-swiper {
+  width: 100%;
+  height: 100%;
+}
+
+.marker-page-swiper-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.marker-page-swiper-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 120rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  transform: translateX(-50%);
+  padding: 0;
+}
+
+.marker-page-swiper-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background 120ms ease;
+}
+
+.marker-page-swiper-dot.is-active {
+  background: #ffffff;
+}
+
+.marker-page-hero-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e2e8f0;
+}
+
+.marker-page-hero-placeholder-text {
+  font-size: 26rpx;
+  color: #64748b;
+}
+
+.marker-page-body {
+  position: relative;
+  margin-top: -80rpx;
+  background: #ffffff;
+  border-radius: 48rpx 48rpx 0 0;
+  padding: 64rpx 48rpx calc(160rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -24rpx 60rpx rgba(15, 23, 42, 0.08);
+  min-height: calc(100vh - 440rpx);
+  box-sizing: border-box;
+}
+
+.marker-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.marker-page-title {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #1f2329;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.marker-page-honors {
+  margin-top: 24rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.marker-page-honor-chip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #f8e3a2 0%, #f0c86a 50%, #e6b75a 100%);
+  color: #7a4e0f;
+  font-size: 24rpx;
+  font-weight: 600;
+  box-shadow: 0 8rpx 22rpx rgba(191, 141, 54, 0.32);
+}
+
+.marker-page-address {
+  margin-top: 36rpx;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28rpx;
+}
+
+.marker-page-address-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.marker-page-address-label {
+  font-size: 24rpx;
+  color: #2d68ec;
+  font-weight: 500;
+}
+
+.marker-page-address-text {
+  font-size: 28rpx;
+  color: #475569;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.marker-page-address-actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.marker-page-action-icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-page-action-icon:active {
+  background: #e2e8f0;
+}
+
+.marker-page-action-image {
+  width: 48rpx;
+  height: 48rpx;
+}
+
+.marker-page-section {
+  margin-top: 48rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.marker-page-section-title {
+  font-size: 28rpx;
+  color: #2d68ec;
+  font-weight: 600;
+}
+
+.marker-page-section-text {
+  font-size: 28rpx;
+  color: #475569;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.marker-page-section-text--placeholder {
+  color: #94a3b8;
+}
+
+.marker-page-link-list {
+  display: flex;
+  flex-direction: column;
+  border-radius: 32rpx;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.marker-page-link-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 32rpx;
+  column-gap: 32rpx;
+  background: transparent;
+  transition: background 160ms ease;
+}
+
+.marker-page-link-item + .marker-page-link-item {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.marker-page-link-item:active {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.marker-page-link-item--video {
+  margin-top: 32rpx;
+  border-radius: 32rpx;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.marker-page-link-info {
+  display: flex;
+  align-items: center;
+  column-gap: 18rpx;
+}
+
+.marker-page-link-icon {
+  width: 44rpx;
+  height: 44rpx;
+}
+
+.marker-page-link-text {
+  font-size: 28rpx;
+  color: #1f2937;
+  max-width: 440rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-page-link-arrow {
+  font-size: 36rpx;
+  color: rgba(15, 23, 42, 0.35);
+  font-weight: 500;
+}
+
+.marker-page-qrcode-wrapper {
+  margin-top: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-page-qrcode {
+  width: 320rpx;
+  height: 320rpx;
+  background: #f8fafc;
+  border-radius: 24rpx;
+  padding: 24rpx;
+  box-sizing: border-box;
+}
+
+.marker-page-share {
+  position: fixed;
+  left: 48rpx;
+  bottom: calc(72rpx + env(safe-area-inset-bottom));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 18rpx 32rpx;
+  background: #ffffff;
+  border-radius: 999rpx;
+  box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.12);
+  font-size: 26rpx;
+  color: #1f2329;
+  border: none;
+  line-height: 1;
+}
+
+.marker-page-share::after {
+  border: none;
+}
+
+.marker-page-share-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.marker-page-share-text {
+  color: inherit;
+}
+
+.marker-page-close-hint {
+  position: fixed;
+  left: 50%;
+  bottom: calc(32rpx + env(safe-area-inset-bottom));
+  z-index: 3;
+  padding: 0;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 24rpx;
+  line-height: 1.4;
+  text-align: center;
+  transform: translateX(-50%);
+  box-shadow: none;
+  border-radius: 0;
+  pointer-events: none;
+}
+
+.marker-page-link-item--video + .marker-page-link-item--video {
+  border-top: none;
+}
+
+@keyframes marker-page-slide-in {
+  0% {
+    transform: translateY(100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes marker-page-slide-out {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes marker-detail-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes marker-detail-fade-out {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
