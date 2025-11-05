@@ -62,19 +62,32 @@
 
         <view
           class="marker-page-address"
-          wx:if="{{detail.locationText || detail.phone}}"
+          wx:if="{{detail.locationText || detail.phone || (detail.latitude && detail.longitude)}}"
         >
           <view class="marker-page-address-info" wx:if="{{detail.locationText}}">
             <text class="marker-page-address-label">地址</text>
             <text class="marker-page-address-text">{{detail.locationText}}</text>
           </view>
-          <view
-            class="marker-page-action-icon"
-            wx:if="{{detail.phone}}"
-            data-phone="{{detail.phone}}"
-            bindtap="onCallPhone"
-          >
-            <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+          <view class="marker-page-address-actions">
+            <view
+              class="marker-page-action-icon"
+              wx:if="{{detail.phone}}"
+              data-phone="{{detail.phone}}"
+              bindtap="onCallPhone"
+            >
+              <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+            </view>
+            <view
+              class="marker-page-action-icon"
+              wx:if="{{detail.latitude && detail.longitude}}"
+              data-latitude="{{detail.latitude}}"
+              data-longitude="{{detail.longitude}}"
+              data-name="{{detail.name || '商户位置'}}"
+              data-address="{{detail.locationText || ''}}"
+              bindtap="onNavigateTap"
+            >
+              <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
+            </view>
           </view>
         </view>
 

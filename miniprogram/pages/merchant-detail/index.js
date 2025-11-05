@@ -1,5 +1,10 @@
 const { normalizeMarkerDetail } = require("../../utils/marker-detail");
 const { fetchMarkerDetail } = require("../../utils/markers");
+const {
+  handleAttachmentTap,
+  handleVideoTap,
+  makePhoneCall
+} = require("./actions");
 
 Page({
   data: {
@@ -121,114 +126,47 @@ Page({
   },
 
   onAttachmentTap(event) {
-    const url = event?.currentTarget?.dataset?.url;
-    if (!url) {
-      wx.showToast({ title: "附件不可用", icon: "none" });
-      return;
-    }
-    wx.showLoading({ title: "下载中...", mask: true });
-    wx.downloadFile({
-      url,
-      success: (res) => {
-        const statusCode = Number(res?.statusCode);
-        const filePath = res?.tempFilePath;
-        if (statusCode === 200 && filePath) {
-          if (typeof wx.openDocument === "function") {
-            wx.openDocument({
-              filePath,
-              showMenu: true,
-              success: () => wx.hideLoading(),
-              fail: () => {
-                wx.hideLoading();
-                wx.showToast({ title: "打开失败", icon: "none" });
-              }
-            });
-            return;
-          }
-          wx.hideLoading();
-          wx.showToast({ title: "已下载", icon: "success" });
-          return;
-        }
-        wx.hideLoading();
-        wx.showToast({ title: "下载失败", icon: "none" });
-      },
-      fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: "下载失败", icon: "none" });
-      }
-    });
+    handleAttachmentTap(event?.currentTarget?.dataset || {});
   },
 
   onVideoTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
-    const url = dataset.url || "";
-    const finderUserName = dataset.finder || "";
-    const activityId = dataset.activity || "";
-
-    const proceed = () => {
-      if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
-        wx.openChannelsActivity({ finderUserName, feedId:activityId });
-        return;
-      }
-      if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
-        wx.openChannelsUserProfile({ finderUserName });
-        return;
-      }
-      if (activityId && typeof wx?.openChannelsActivity === "function") {
-        wx.openChannelsActivity({ activityId });
-        return;
-      }
-      if (url && /^https?:\/\//.test(url)) {
-        if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url) && typeof wx?.navigateTo === "function") {
-          wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
-          return;
-        }
-        if (typeof wx?.setClipboardData === "function") {
-          wx.setClipboardData({
-            data: url,
-            success: () => {
-              wx.showToast({ title: "链接已复制", icon: "none" });
-            },
-            fail: () => {
-              wx.showToast({ title: "复制失败", icon: "none" });
-            }
-          });
-        } else {
-          wx.showToast({ title: "请复制链接访问", icon: "none" });
-        }
-        return;
-      }
-      wx.showToast({ title: "暂无可跳转的视频内容", icon: "none" });
-    };
-
-    if (typeof wx?.showModal === "function") {
-      wx.showModal({
-        title: "打开视频号",
-        content: "是否前往查看该商户的视频号内容？",
-        confirmText: "前往",
-        cancelText: "取消",
-        success: (res) => {
-          if (res?.confirm) {
-            proceed();
-          }
-        }
-      });
-      return;
-    }
-
-    proceed();
+    handleVideoTap(event?.currentTarget?.dataset || {});
   },
 
   onCallPhone(event) {
-    const phone = event?.currentTarget?.dataset?.phone;
-    if (!phone) {
+    makePhoneCall(event?.currentTarget?.dataset?.phone);
+  },
+
+  openMarkerLocation(detail, overrides = {}) {
+    const latitude = Number(overrides.latitude ?? detail?.latitude);
+    const longitude = Number(overrides.longitude ?? detail?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      if (typeof wx?.showToast === "function") {
+        wx.showToast({ title: "暂无定位信息", icon: "none" });
+      }
       return;
     }
-    if (typeof wx?.makePhoneCall === "function") {
-      wx.makePhoneCall({ phoneNumber: phone });
-    } else {
-      wx.showToast({ title: phone, icon: "none" });
+    const name = overrides.name || detail?.name || "商户位置";
+    const address = overrides.address || detail?.locationText || "";
+    if (typeof wx?.openLocation === "function") {
+      wx.openLocation({
+        latitude,
+        longitude,
+        name,
+        address
+      });
+      return;
     }
+    if (typeof wx?.showToast === "function") {
+      wx.showToast({ title: "当前环境不支持导航", icon: "none" });
+    }
+  },
+
+  onNavigateTap(event) {
+    const detail = this.data.detail;
+    if (!detail) return;
+    const dataset = event?.currentTarget?.dataset || {};
+    this.openMarkerLocation(detail, dataset);
   },
 
   onShareAppMessage() {
