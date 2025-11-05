@@ -606,26 +606,7 @@ Page({
     const finderUserName = dataset.finder || "";
     const activityId = dataset.activity || "";
 
-    const targetDescription = (() => {
-      if (finderUserName && activityId) {
-        return `将打开视频号 ${finderUserName} 的活动 ${activityId}`;
-      }
-      if (finderUserName) {
-        return `将打开视频号 ${finderUserName} 的主页`;
-      }
-      if (activityId) {
-        return `将打开视频活动 ${activityId}`;
-      }
-      if (url) {
-        return `将打开链接：${url}`;
-      }
-      return "暂无可跳转的视频内容";
-    })();
-
-    if (targetDescription === "暂无可跳转的视频内容") {
-      wx.showToast({ title: targetDescription, icon: "none" });
-      return;
-    }
+    
 
     const proceed = () => {
       if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
@@ -634,7 +615,7 @@ Page({
           success: res => console.log('open ok', res),
           fail: err => {
             console.warn('open fail', err);
-            wx.showModal({ title: '打开失败', content: JSON.stringify(err) });
+            // wx.showModal({ title: '打开失败', content: JSON.stringify(err) });
           },
           complete: res => console.log('open complete', res) });
         return;
@@ -669,18 +650,7 @@ Page({
       }
       wx.showToast({ title: "视频不可用", icon: "none" });
     };
-
-    wx.showModal({
-      title: "即将打开视频",
-      content: targetDescription,
-      confirmText: "前往",
-      cancelText: "取消",
-      success: (res) => {
-        if (res?.confirm) {
-          proceed();
-        }
-      }
-    });
+    proceed();
   },
 
   onMarkerPageCallTap(event) {
@@ -1901,8 +1871,8 @@ Page({
               longitude: longitudeGcj,
               title: name,
               iconPath: "/assets/drone.png",
-              width: 22,
-              height: 22
+              width: 40,
+              height: 40
             };
             const calloutContent = formatNearbyMarkerLabel(name);
             if (calloutContent) {
