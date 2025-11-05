@@ -629,7 +629,14 @@ Page({
 
     const proceed = () => {
       if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
-        wx.openChannelsActivity({ finderUserName, activityId });
+        console.log("here is wx.openChannelsActivity",finderUserName,activityId)
+        wx.openChannelsActivity({ finderUserName, feedId:activityId,
+          success: res => console.log('open ok', res),
+          fail: err => {
+            console.warn('open fail', err);
+            wx.showModal({ title: '打开失败', content: JSON.stringify(err) });
+          },
+          complete: res => console.log('open complete', res) });
         return;
       }
       if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {

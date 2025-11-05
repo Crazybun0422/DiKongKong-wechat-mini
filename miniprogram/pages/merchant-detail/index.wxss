@@ -321,12 +321,12 @@
 .marker-page-close-hint {
   position: fixed;
   left: 50%;
-  bottom: calc(32rpx + env(safe-area-inset-bottom));
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
   z-index: 3;
   padding: 0;
   background: transparent;
   color: #94a3b8;
-  font-size: 24rpx;
+  font-size: 32rpx;
   line-height: 1.4;
   text-align: center;
   transform: translateX(-50%);

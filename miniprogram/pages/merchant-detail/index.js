@@ -167,7 +167,7 @@ Page({
 
     const proceed = () => {
       if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
-        wx.openChannelsActivity({ finderUserName, activityId });
+        wx.openChannelsActivity({ finderUserName, feedId:activityId });
         return;
       }
       if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
