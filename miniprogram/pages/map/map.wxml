@@ -346,15 +346,20 @@
               </view>
               <view class="marker-page-address-actions">
                 <view
-                  class="marker-page-action-icon"
+                  class="marker-page-action"
                   wx:if="{{markerPageDetail.phone}}"
                   data-phone="{{markerPageDetail.phone}}"
+                  data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
+                  data-name="{{markerPageDetail.name || ''}}"
                   bindtap="onMarkerPageCallTap"
                 >
-                  <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+                  <view class="marker-page-action-icon">
+                    <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+                  </view>
+                  <text class="marker-page-action-label">电话</text>
                 </view>
                 <view
-                  class="marker-page-action-icon"
+                  class="marker-page-action"
                   wx:if="{{markerPageDetail.latitude && markerPageDetail.longitude}}"
                   data-latitude="{{markerPageDetail.latitude}}"
                   data-longitude="{{markerPageDetail.longitude}}"
@@ -362,7 +367,10 @@
                   data-address="{{markerPageDetail.locationText || ''}}"
                   bindtap="onMarkerPageNavigateTap"
                 >
-                  <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
+                  <view class="marker-page-action-icon">
+                    <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
+                  </view>
+                  <text class="marker-page-action-label">位置</text>
                 </view>
               </view>
             </view>
@@ -430,6 +438,17 @@
           <text class="marker-page-share-text">转发</text>
         </button>
         <view class="marker-page-close-hint">下滑关闭详情</view>
+      </view>
+    </block>
+
+    <block wx:if="{{callSheetVisible}}">
+      <view class="call-sheet-mask" bindtap="onCallSheetMaskTap"></view>
+      <view class="call-sheet">
+        <view class="call-sheet-message">来电时，请说明通过“低空星球”看到我的</view>
+        <button class="call-sheet-button call-sheet-button--primary" bindtap="onCallSheetConfirm">
+          {{callSheetPhone}}
+        </button>
+        <button class="call-sheet-button call-sheet-button--secondary" bindtap="onCallSheetCancel">取消</button>
       </view>
     </block>
 
