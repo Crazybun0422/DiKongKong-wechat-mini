@@ -56,6 +56,44 @@ function buildFileDownloadUrl(fileName, options = {}) {
   return "";
 }
 
+function postMarkerMetric(markerId, metricPath, options = {}) {
+  if (markerId === undefined || markerId === null) {
+    return Promise.reject(new Error("missing-marker-id"));
+  }
+  const id = `${markerId}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("missing-marker-id"));
+  }
+  if (!metricPath) {
+    return Promise.reject(new Error("missing-metric-path"));
+  }
+  const base = resolveApiBase(options.apiBase);
+  if (!base) {
+    return Promise.reject(new Error("missing-api-base"));
+  }
+  const header = { "content-type": "application/json" };
+  const token = options.token || getAuthToken();
+  if (token) {
+    header.Authorization = `Bearer ${token}`;
+  }
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${base}/api/markers/${encodeURIComponent(id)}/${metricPath}`,
+      method: "POST",
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data?.data || {});
+        } else {
+          const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
+          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+        }
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 function listMarkers(params = {}, options = {}) {
   const query = [];
   if (params.page !== undefined && params.page !== null) {
@@ -239,6 +277,14 @@ function fetchOpenPlatformContent(options = {}) {
   });
 }
 
+function incrementMarkerExposure(markerId, options = {}) {
+  return postMarkerMetric(markerId, "exposure", options);
+}
+
+function incrementMarkerPhoneCall(markerId, options = {}) {
+  return postMarkerMetric(markerId, "phone-call", options);
+}
+
 module.exports = {
   listMarkers,
   fetchNearbyMarkers,
@@ -249,5 +295,7 @@ module.exports = {
   uploadMarkerFile,
   buildFileDownloadUrl,
   fetchMapSettlementConfig,
-  fetchOpenPlatformContent
+  fetchOpenPlatformContent,
+  incrementMarkerExposure,
+  incrementMarkerPhoneCall
 };
