@@ -249,64 +249,73 @@
       </view>
     </block>
 
-    <block wx:if="{{showMarkerDetail && activeMarkerDetail}}">
-      <view class="marker-detail-mask" catchtap="closeMarkerDetail"></view>
+    <block wx:if="{{markerDetailVisible}}">
+      <view class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}" bindtap="onMarkerDetailMaskTap"></view>
       <view
-        class="marker-detail-sheet"
-        bindtouchstart="onMarkerDetailTouchStart"
-        bindtouchmove="onMarkerDetailTouchMove"
-        bindtouchend="onMarkerDetailTouchEnd"
+        class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
+        catchtouchstart="onMarkerDetailTouchStart"
+        catchtouchmove="onMarkerDetailTouchMove"
+        catchtouchend="onMarkerDetailTouchEnd"
+        catchtouchcancel="onMarkerDetailTouchCancel"
       >
-
+        <view class="marker-detail-handle"></view>
         <view class="marker-detail-header">
           <view class="marker-detail-info">
-            <text class="marker-detail-name">{{activeMarkerDetail.name || '未命名标记'}}</text>
-            <text class="marker-detail-location" wx:if="{{activeMarkerDetail.locationText}}">{{activeMarkerDetail.locationText}}</text>
-          </view>
-          <view class="marker-detail-close" bindtap="closeMarkerDetail">
-            <image
-              class="marker-detail-close-icon"
-              src="/assets/marker-detail-close.png"
-              mode="aspectFit"
-              bindtap="closeMarkerDetail"
-            />
+            <text class="marker-detail-name">{{markerDetail.name || '未命名商户'}}</text>
+            <text
+              class="marker-detail-location"
+              wx:if="{{markerDetail.locationText}}"
+            >
+              {{markerDetail.locationText}}
+            </text>
           </view>
         </view>
         <view class="marker-detail-body">
-          <image
-            class="marker-detail-cover"
-            src="{{activeMarkerDetail.imageUrl}}"
-            mode="aspectFill"
-            wx:if="{{activeMarkerDetail.imageUrl}}"
-          />
-          <view class="marker-detail-cover marker-detail-cover--placeholder" wx:else>
-            <text class="marker-detail-cover-text">暂未上传图片</text>
+          <view class="marker-detail-cover" wx:if="{{markerDetail.images && markerDetail.images.length}}">
+            <image class="marker-detail-cover-image" src="{{markerDetail.images[0].url}}" mode="aspectFill" />
           </view>
+          <view class="marker-detail-cover marker-detail-cover--placeholder" wx:else>
+            <text class="marker-detail-cover-text">暂无商户图片</text>
+          </view>
+        </view>
+        <view class="marker-detail-gesture-hint">
+          <text class="marker-detail-gesture-text">上滑查看详情</text>
         </view>
       </view>
     </block>
 
-    <block wx:if="{{showMarkerDetailPage && activeMarkerDetail}}">
-      <view class="marker-page">
-        <view class="marker-page-mask" catchtap="closeMarkerDetailPage"></view>
-        <view class="marker-page-close" bindtap="closeMarkerDetailPage">
-          <image class="marker-page-close-icon" src="/assets/marker-detail-close.png" mode="aspectFit" />
-        </view>
-        <scroll-view scroll-y class="marker-page-scroll">
+    <block wx:if="{{markerPageVisible}}">
+      <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
+        <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
+        <scroll-view
+          scroll-y
+          class="marker-page-scroll"
+          bindscroll="onMarkerPageScroll"
+          bindtouchstart="onMarkerPageTouchStart"
+          bindtouchmove="onMarkerPageTouchMove"
+          bindtouchend="onMarkerPageTouchEnd"
+          bindtouchcancel="onMarkerPageTouchCancel"
+        >
           <view class="marker-page-hero">
-            <block wx:if="{{activeMarkerDetail.images && activeMarkerDetail.images.length}}">
+            <block wx:if="{{markerPageDetail.images && markerPageDetail.images.length}}">
               <swiper
                 class="marker-page-swiper"
-                indicator-dots="{{activeMarkerDetail.images.length > 1}}"
                 autoplay="{{false}}"
                 circular="{{true}}"
+                bindchange="onMarkerPageSwiperChange"
+                current="{{markerPageCurrentImage}}"
               >
-                <block wx:for="{{activeMarkerDetail.images}}" wx:key="id">
+                <block wx:for="{{markerPageDetail.images}}" wx:key="id">
                   <swiper-item>
                     <image class="marker-page-swiper-image" src="{{item.url}}" mode="aspectFill" />
                   </swiper-item>
                 </block>
               </swiper>
+              <view class="marker-page-swiper-dots" wx:if="{{markerPageDetail.images.length}}">
+                <block wx:for="{{markerPageDetail.images}}" wx:key="id">
+                  <view class="marker-page-swiper-dot {{index === markerPageCurrentImage ? 'is-active' : ''}}"></view>
+                </block>
+              </view>
             </block>
             <view class="marker-page-hero-placeholder" wx:else>
               <text class="marker-page-hero-placeholder-text">暂无商户图片</text>
@@ -315,43 +324,53 @@
 
           <view class="marker-page-body">
             <view class="marker-page-header">
-              <text class="marker-page-title">{{activeMarkerDetail.name || '未命名商户'}}</text>
+              <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
             </view>
 
             <view
               class="marker-page-honors"
-              wx:if="{{activeMarkerDetail.honors && activeMarkerDetail.honors.length}}"
+              wx:if="{{markerPageDetail.honors && markerPageDetail.honors.length}}"
             >
-              <block wx:for="{{activeMarkerDetail.honors}}" wx:key="*this">
+              <block wx:for="{{markerPageDetail.honors}}" wx:key="*this">
                 <view class="marker-page-honor-chip">{{item}}</view>
               </block>
             </view>
 
             <view
               class="marker-page-address"
-              wx:if="{{activeMarkerDetail.locationText || activeMarkerDetail.phone}}"
+              wx:if="{{markerPageDetail.locationText || markerPageDetail.phone}}"
             >
-              <view class="marker-page-address-info" wx:if="{{activeMarkerDetail.locationText}}">
+              <view class="marker-page-address-info" wx:if="{{markerPageDetail.locationText}}">
                 <text class="marker-page-address-label">地址</text>
-                <text class="marker-page-address-text">{{activeMarkerDetail.locationText}}</text>
+                <text class="marker-page-address-text">{{markerPageDetail.locationText}}</text>
               </view>
               <view class="marker-page-address-actions">
-                <view class="marker-page-action-icon">
-                  <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
-                </view>
-                <view class="marker-page-action-icon">
+                <view
+                  class="marker-page-action-icon"
+                  wx:if="{{markerPageDetail.phone}}"
+                  data-phone="{{markerPageDetail.phone}}"
+                  bindtap="onMarkerPageCallTap"
+                >
                   <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+                </view>
+                <view
+                  class="marker-page-action-icon"
+                  wx:if="{{markerPageDetail.latitude && markerPageDetail.longitude}}"
+                  data-latitude="{{markerPageDetail.latitude}}"
+                  data-longitude="{{markerPageDetail.longitude}}"
+                  data-name="{{markerPageDetail.name || '商户位置'}}"
+                  data-address="{{markerPageDetail.locationText || ''}}"
+                  bindtap="onMarkerPageNavigateTap"
+                >
+                  <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
                 </view>
               </view>
             </view>
 
             <view class="marker-page-section">
               <text class="marker-page-section-title">简介</text>
-              <text
-                class="marker-page-section-text"
-                wx:if="{{activeMarkerDetail.description}}"
-              >
-                {{activeMarkerDetail.description}}
+              <text class="marker-page-section-text" wx:if="{{markerPageDetail.description}}">
+                {{markerPageDetail.description}}
               </text>
               <text class="marker-page-section-text marker-page-section-text--placeholder" wx:else>
                 暂无简介
@@ -359,49 +378,50 @@
             </view>
 
             <view
-              class="marker-page-section marker-page-attachments"
-              wx:if="{{activeMarkerDetail.attachments && activeMarkerDetail.attachments.length}}"
+              class="marker-page-section"
+              wx:if="{{markerPageDetail.attachments && markerPageDetail.attachments.length}}"
             >
               <text class="marker-page-section-title">附件</text>
-              <block wx:for="{{activeMarkerDetail.attachments}}" wx:key="id">
-                <view class="marker-page-attachment-item">
-                  <text class="marker-page-attachment-name">{{item.displayName || item.fileName}}</text>
-                  <button
-                    class="marker-page-attachment-button"
-                    hover-class="marker-page-attachment-button--hover"
+              <view class="marker-page-link-list">
+                <block wx:for="{{markerPageDetail.attachments}}" wx:key="id">
+                  <view
+                    class="marker-page-link-item"
                     data-url="{{item.url}}"
-                    bindtap="onAttachmentDownloadTap"
+                    bindtap="onMarkerPageAttachmentTap"
                   >
-                    <image class="marker-page-attachment-icon" src="/assets/f-download.png" mode="aspectFit" />
-                    <text class="marker-page-attachment-text">下载</text>
-                  </button>
-                </view>
-              </block>
+                    <view class="marker-page-link-info">
+                      <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
+                      <text class="marker-page-link-text">{{item.shortName || item.displayName || item.fileName || '附件'}}</text>
+                    </view>
+                    <text class="marker-page-link-arrow">></text>
+                  </view>
+                </block>
+              </view>
             </view>
 
-            <view
-            class="marker-page-video"
-            wx:if="{{activeMarkerDetail.primaryVideoAccount}}"
-            data-url="{{activeMarkerDetail.primaryVideoAccount.url || ''}}"
-            data-finder="{{activeMarkerDetail.primaryVideoAccount.finderUserName || ''}}"
-            bindtap="onVideoAccountTap"
-          >
-              <view class="marker-page-video-info">
-                <image class="marker-page-video-icon" src="/assets/v-account.png" mode="aspectFit" />
-                <text class="marker-page-video-text">丰富的视频案例介绍</text>
-              </view>
-              <text class="marker-page-video-arrow">></text>
-            </view>
+            <block wx:if="{{markerPageDetail.videoAccounts && markerPageDetail.videoAccounts.length}}">
+              <block wx:for="{{markerPageDetail.videoAccounts}}" wx:key="id">
+                <view
+                  class="marker-page-link-item marker-page-link-item--video"
+                  data-url="{{item.url || ''}}"
+                  data-finder="{{item.finderUserName || ''}}"
+                  data-activity="{{item.activityId || ''}}"
+                  bindtap="onMarkerPageVideoTap"
+                >
+                  <view class="marker-page-link-info">
+                    <image class="marker-page-link-icon" src="/assets/v-account.png" mode="aspectFit" />
+                    <text class="marker-page-link-text">{{markerPageDetail.videoAccounts.length > 1 ? ('视频号内容 ' + (index + 1)) : '丰富的视频案例介绍'}}</text>
+                  </view>
+                  <text class="marker-page-link-arrow">></text>
+                </view>
+              </block>
+            </block>
 
             <view
               class="marker-page-qrcode-wrapper"
-              wx:if="{{activeMarkerDetail.qrCodes && activeMarkerDetail.qrCodes.length}}"
+              wx:if="{{markerPageDetail.qrCodes && markerPageDetail.qrCodes.length}}"
             >
-              <image
-                class="marker-page-qrcode"
-                src="{{activeMarkerDetail.qrCodes[0].url}}"
-                mode="aspectFit"
-              />
+              <image class="marker-page-qrcode" src="{{markerPageDetail.qrCodes[0].url}}" mode="aspectFit" />
             </view>
           </view>
         </scroll-view>
@@ -410,7 +430,9 @@
           <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
           <text class="marker-page-share-text">转发</text>
         </button>
+        <view class="marker-page-close-hint">下滑关闭详情</view>
       </view>
     </block>
+
   </view>
 </view>

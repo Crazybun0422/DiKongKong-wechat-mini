@@ -1,10 +1,10 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
+const { fetchNearbyMarkers } = require("../../utils/markers");
 const {
-  fetchNearbyMarkers,
-  buildFileDownloadUrl
-} = require("../../utils/markers");
+  normalizeMarkerDetail: normalizeMarkerDetailUtil
+} = require("../../utils/marker-detail");
 const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
@@ -108,6 +108,30 @@ const formatTemporaryZoneLabel = (value, maxLength = 6) => {
   return `${chars.slice(0, maxLength).join("")}...`;
 };
 
+const cloneMarkerDetail = (detail = {}) => {
+  if (!detail || typeof detail !== "object") {
+    return {};
+  }
+  const cloneArray = (value) => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
+  };
+  const cloned = { ...detail };
+  cloned.images = cloneArray(detail.images);
+  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
+  cloned.attachments = cloneArray(detail.attachments);
+  cloned.qrCodes = cloneArray(detail.qrCodes);
+  cloned.videoAccounts = cloneArray(detail.videoAccounts);
+  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
+    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
+  } else if (!detail.primaryVideoAccount) {
+    cloned.primaryVideoAccount = null;
+  }
+  return cloned;
+};
+
 Page({
   data: {
     keyword: "",
@@ -147,9 +171,14 @@ Page({
     tempNickname: "",
     tempAvatarUrl: DEFAULT_AVATAR_PATH,
     activeTab: "home",
-    showMarkerDetail: false,
-    activeMarkerDetail: null,
-    showMarkerDetailPage: false
+    markerDetailVisible: false,
+    markerDetail: null,
+    markerDetailClosing: false,
+    markerDetailExpanding: false,
+    markerPageVisible: false,
+    markerPageClosing: false,
+    markerPageDetail: null,
+    markerPageCurrentImage: 0
   },
 
   onLoad() {
@@ -183,6 +212,15 @@ Page({
     this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
     this._searchMarkers = [];
+    this._lastMarkerDetail = null;
+    this._markerDetailCloseTimer = null;
+    this._markerPageCloseTimer = null;
+    this._markerDetailTouch = null;
+    this._markerPageTouch = null;
+    this._markerPageScrollTop = 0;
+    this._markerDetailExpandTimer = null;
+    this._markerDetailExpandLock = false;
+    this._restoreMarkerDetailTimer = null;
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
@@ -197,253 +235,6 @@ Page({
     });
     this.updateStatusPanel();
     this.requestInitialLocation();
-  },
-
-  normalizeMarkerDetail(raw = {}) {
-    const apiBase = this.getApiBase();
-    const download = (value) => buildFileDownloadUrl(value, { apiBase });
-    const ensureText = (value) => {
-      if (typeof value !== "string") return "";
-      const trimmed = value.trim();
-      return trimmed || "";
-    };
-
-    const name =
-      ensureText(raw.name) ||
-      ensureText(raw.title) ||
-      ensureText(raw.location?.text) ||
-      "";
-
-    const locationText =
-      ensureText(raw.locationText) ||
-      ensureText(raw.address) ||
-      ensureText(raw.location?.text) ||
-      "";
-
-    const imageFiles = [];
-    const pushImage = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushImage(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (trimmed) imageFiles.push(trimmed);
-        return;
-      }
-      if (typeof value === "object") {
-        const candidate =
-          value.fileName ||
-          value.filename ||
-          value.objectName ||
-          value.name ||
-          value.location ||
-          value.path ||
-          value.url ||
-          value.imageUrl ||
-          "";
-        if (candidate) pushImage(candidate);
-      }
-    };
-
-    pushImage(raw.images);
-    pushImage(raw.imageUrls);
-    pushImage(raw.covers);
-    pushImage(raw.coverImage);
-    pushImage(raw.cover);
-
-    const images = imageFiles.map((fileName, index) => ({
-      id: `${raw.id || "marker"}-image-${index}`,
-      fileName,
-      url: download(fileName)
-    }));
-
-    const firstImage = images.length ? images[0].url : "";
-
-    const ensureArray = (value) => (Array.isArray(value) ? value : []);
-
-    const honors = ensureArray(raw.industryHonorTags)
-      .concat(ensureArray(raw.honorTags))
-      .map((tag) => ensureText(tag))
-      .filter(Boolean);
-
-    const description =
-      ensureText(raw.description) ||
-      ensureText(raw.introduction) ||
-      ensureText(raw.summary) ||
-      "";
-
-    const attachments = [];
-    let attachmentCounter = 0;
-    const pushAttachment = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushAttachment(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        const url = download(trimmed);
-        attachments.push({
-          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
-          fileName: trimmed,
-          url,
-          displayName: trimmed.split("/").pop() || trimmed
-        });
-        return;
-      }
-      if (typeof value === "object") {
-        const candidate =
-          value.url ||
-          value.fileUrl ||
-          value.fileName ||
-          value.filename ||
-          value.objectName ||
-          value.path ||
-          value.location ||
-          "";
-        if (!candidate) return;
-        const url = download(candidate);
-        const name =
-          value.displayName ||
-          value.name ||
-          value.title ||
-          value.fileName ||
-          candidate;
-        const displayName = (name || candidate).split("/").pop() || name || candidate;
-        attachments.push({
-          id: `${raw.id || "marker"}-attachment-${attachmentCounter++}`,
-          fileName: name || candidate,
-          url,
-          displayName
-        });
-      }
-    };
-
-    pushAttachment(raw.attachments);
-    pushAttachment(raw.attachmentUrls);
-    pushAttachment(raw.attachmentFiles);
-
-    const qrCodes = [];
-    let qrCounter = 0;
-    const pushQrCode = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushQrCode(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        qrCodes.push({
-          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
-          fileName: trimmed,
-          url: download(trimmed)
-        });
-        return;
-      }
-      if (typeof value === "object") {
-        const candidate =
-          value.url ||
-          value.fileUrl ||
-          value.fileName ||
-          value.filename ||
-          value.path ||
-          value.location ||
-          value.imageUrl ||
-          "";
-        if (!candidate) return;
-        qrCodes.push({
-          id: `${raw.id || "marker"}-qr-${qrCounter++}`,
-          fileName: candidate,
-          url: download(candidate)
-        });
-      }
-    };
-
-    pushQrCode(raw.qrCodes);
-    pushQrCode(raw.qrCodeUrls);
-    pushQrCode(raw.qrCodeImages);
-
-    const videoAccounts = [];
-    let videoCounter = 0;
-    const pushVideo = (value) => {
-      if (!value) return;
-      if (Array.isArray(value)) {
-        value.forEach((item) => pushVideo(item));
-        return;
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        videoAccounts.push({
-          id: `${raw.id || "marker"}-video-${videoCounter++}`,
-          url: trimmed
-        });
-        return;
-      }
-      if (typeof value === "object") {
-        const urlValue =
-          value.url ||
-          value.link ||
-          value.pagePath ||
-          value.path ||
-          value.videoUrl ||
-          "";
-        const finderId = value.finderUserName || value.finderId || value.userName || "";
-        if (!urlValue && !finderId) return;
-        videoAccounts.push({
-          id: `${raw.id || "marker"}-video-${videoCounter++}`,
-          url: urlValue,
-          finderUserName: finderId
-        });
-      }
-    };
-
-    pushVideo(raw.videoChannelUrls);
-    pushVideo(raw.videoChannelUrl);
-    pushVideo(raw.videoUrls);
-    if (ensureText(raw.videoChannelId)) {
-      videoAccounts.push({
-        id: `${raw.id || "marker"}-video-${videoCounter++}`,
-        finderUserName: ensureText(raw.videoChannelId)
-      });
-    }
-    if (ensureText(raw.videoId)) {
-      videoAccounts.push({
-        id: `${raw.id || "marker"}-video-${videoCounter++}`,
-        url: ensureText(raw.videoId)
-      });
-    }
-
-    const uniqueVideoAccounts = [];
-    const seenVideoKeys = new Set();
-    videoAccounts.forEach((item) => {
-      const key = `${item.finderUserName || ""}|${item.url || ""}`;
-      if (seenVideoKeys.has(key)) return;
-      seenVideoKeys.add(key);
-      uniqueVideoAccounts.push(item);
-    });
-
-    const phone = ensureText(raw.phone || raw.telephone || raw.contactPhone);
-
-    return {
-      id: raw.id || "",
-      name,
-      locationText,
-      imageUrl: firstImage,
-      images,
-      honors,
-      description,
-      attachments,
-      qrCodes,
-      videoAccounts: uniqueVideoAccounts,
-      primaryVideoAccount: uniqueVideoAccounts.length ? uniqueVideoAccounts[0] : null,
-      phone,
-      raw
-    };
   },
 
   findMarkerById(markerId) {
@@ -462,22 +253,28 @@ Page({
 
   openMarkerDetail(marker) {
     if (!marker) return;
-    const detail =
-      (marker.extData && marker.extData.detail) ||
-      (marker.extData && marker.extData.raw && this.normalizeMarkerDetail(marker.extData.raw)) ||
-      this.normalizeMarkerDetail(marker);
-    this.setData({
-      showMarkerDetail: true,
-      activeMarkerDetail: detail,
-      showMarkerDetailPage: false
-    });
-  },
+    const detail = this.resolveMarkerDetail(marker);
+    if (!detail) {
+      wx.showToast({ title: "未找到商户信息", icon: "none" });
+      return;
+    }
 
-  closeMarkerDetail() {
+    const viewDetail = cloneMarkerDetail(detail);
+    this._lastMarkerDetail = viewDetail;
+    if (this._markerDetailCloseTimer) {
+      clearTimeout(this._markerDetailCloseTimer);
+      this._markerDetailCloseTimer = null;
+    }
+    if (this._markerDetailExpandTimer) {
+      clearTimeout(this._markerDetailExpandTimer);
+      this._markerDetailExpandTimer = null;
+    }
+    this._markerDetailExpandLock = false;
     this.setData({
-      showMarkerDetail: false,
-      activeMarkerDetail: null,
-      showMarkerDetailPage: false
+      markerDetailVisible: true,
+      markerDetailClosing: false,
+      markerDetailExpanding: false,
+      markerDetail: viewDetail
     });
   },
 
@@ -497,56 +294,274 @@ Page({
     }
   },
 
+  closeMarkerDetail(immediate = false) {
+    if (!this.data.markerDetailVisible) return;
+    if (this._markerDetailCloseTimer) {
+      clearTimeout(this._markerDetailCloseTimer);
+      this._markerDetailCloseTimer = null;
+    }
+    if (this._markerDetailExpandTimer) {
+      clearTimeout(this._markerDetailExpandTimer);
+      this._markerDetailExpandTimer = null;
+    }
+    this._markerDetailExpandLock = false;
+    if (immediate) {
+      this.setData({
+        markerDetailVisible: false,
+        markerDetailClosing: false,
+        markerDetailExpanding: false,
+        markerDetail: null
+      });
+      return;
+    }
+    this.setData({ markerDetailClosing: true });
+    this._markerDetailCloseTimer = setTimeout(() => {
+      this._markerDetailCloseTimer = null;
+      this.setData({
+        markerDetailVisible: false,
+        markerDetailClosing: false,
+        markerDetailExpanding: false,
+        markerDetail: null
+      });
+    }, 200);
+  },
+
+  onMarkerDetailMaskTap() {
+    this.closeMarkerDetail();
+  },
+
+  onMarkerDetailCloseTap() {
+    this.closeMarkerDetail();
+  },
+
+  onMarkerDetailMoreTap() {
+    this.triggerMarkerDetailExpand();
+  },
+
+  triggerMarkerDetailExpand() {
+    const detail = this.data.markerDetail;
+    if (!detail) return;
+    if (this.data.markerDetailExpanding) return;
+    if (this._markerDetailExpandLock) return;
+    if (this._markerDetailExpandTimer) {
+      clearTimeout(this._markerDetailExpandTimer);
+      this._markerDetailExpandTimer = null;
+    }
+    this._markerDetailExpandLock = true;
+    this.setData({ markerDetailExpanding: true });
+    this._markerDetailExpandTimer = setTimeout(() => {
+      this._markerDetailExpandTimer = null;
+      this._markerDetailExpandLock = false;
+      const currentDetail = this.data.markerDetail || detail;
+      if (!currentDetail) {
+        this.setData({ markerDetailExpanding: false });
+        return;
+      }
+      const restored = cloneMarkerDetail(currentDetail);
+      this._lastMarkerDetail = restored;
+      this.openMarkerPage(restored);
+      this.setData({ markerDetailExpanding: false });
+    }, 220);
+  },
+
   onMarkerDetailTouchStart(event) {
-    const touch = event?.touches && event.touches[0];
-    this._markerDetailTouchStartY = Number.isFinite(touch?.clientY)
-      ? touch.clientY
-      : null;
-    this._markerDetailTriggered = false;
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    this._markerDetailTouch = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      deltaY: 0,
+      startTime: Date.now()
+    };
   },
 
   onMarkerDetailTouchMove(event) {
-    if (this._markerDetailTriggered) return;
-    if (this._markerDetailTouchStartY === null || this._markerDetailTouchStartY === undefined) {
-      return;
-    }
-    const touch = event?.touches && event.touches[0];
-    if (!touch || !Number.isFinite(touch.clientY)) return;
-    const deltaY = this._markerDetailTouchStartY - touch.clientY;
-    if (deltaY > 40) {
-      this._markerDetailTriggered = true;
-      this._markerDetailTouchStartY = null;
-      this.openMarkerDetailPage();
-    }
+    if (!this._markerDetailTouch) return;
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - this._markerDetailTouch.startY;
+    this._markerDetailTouch.lastY = touch.clientY;
+    this._markerDetailTouch.deltaY = deltaY;
   },
 
   onMarkerDetailTouchEnd() {
-    this._markerDetailTouchStartY = null;
-    this._markerDetailTriggered = false;
-  },
-
-  openMarkerDetailPage() {
-    const detail = this.data.activeMarkerDetail;
-    if (!detail) return;
-    this.setData({
-      showMarkerDetailPage: true,
-      showMarkerDetail: false
-    });
-    if (typeof wx?.showShareMenu === "function") {
-      wx.showShareMenu({ withShareTicket: false });
+    const info = this._markerDetailTouch;
+    this._markerDetailTouch = null;
+    if (!info) return;
+    const deltaY = info.deltaY || 0;
+    const duration = Date.now() - info.startTime;
+    if ((deltaY <= -80 && duration <= 600) || deltaY <= -140) {
+      this.triggerMarkerDetailExpand();
     }
-    this._markerDetailTriggered = false;
   },
 
-  closeMarkerDetailPage() {
+  onMarkerDetailTouchCancel() {
+    this._markerDetailTouch = null;
+  },
+
+  makePhoneCall(phone) {
+    const value = typeof phone === "string" ? phone.trim() : `${phone || ""}`.trim();
+    if (!value) {
+      wx.showToast({ title: "暂无联系电话", icon: "none" });
+      return;
+    }
+    if (typeof wx?.makePhoneCall === "function") {
+      wx.makePhoneCall({ phoneNumber: value });
+      return;
+    }
+    if (typeof wx?.setClipboardData === "function") {
+      wx.setClipboardData({
+        data: value,
+        success: () => {
+          wx.showToast({ title: "号码已复制", icon: "none" });
+        }
+      });
+      return;
+    }
+    wx.showToast({ title: "请手动拨打", icon: "none" });
+  },
+
+  openMarkerLocation(detail, overrides = {}) {
+    const latitude = Number(overrides.latitude ?? detail?.latitude);
+    const longitude = Number(overrides.longitude ?? detail?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      wx.showToast({ title: "暂无定位信息", icon: "none" });
+      return;
+    }
+    const name = overrides.name || detail?.name || "商户位置";
+    const address = overrides.address || detail?.locationText || "";
+    if (typeof wx?.openLocation === "function") {
+      wx.openLocation({
+        latitude,
+        longitude,
+        name,
+        address
+      });
+      return;
+    }
+    wx.showToast({ title: "当前环境不支持导航", icon: "none" });
+  },
+
+  onMarkerDetailCallTap(event) {
+    const dataset = event?.currentTarget?.dataset || {};
+    const phone = dataset.phone || this.data.markerDetail?.phone || "";
+    this.makePhoneCall(phone);
+  },
+
+  onMarkerDetailNavigateTap(event) {
+    const detail = this.data.markerDetail;
+    if (!detail) return;
+    const dataset = event?.currentTarget?.dataset || {};
+    this.openMarkerLocation(detail, dataset);
+  },
+
+  openMarkerPage(detail) {
+    if (!detail) return;
+    if (this._markerPageCloseTimer) {
+      clearTimeout(this._markerPageCloseTimer);
+      this._markerPageCloseTimer = null;
+    }
+    if (this._restoreMarkerDetailTimer) {
+      clearTimeout(this._restoreMarkerDetailTimer);
+      this._restoreMarkerDetailTimer = null;
+    }
+    const pageDetail = cloneMarkerDetail(detail);
+    this._lastMarkerDetail = pageDetail;
     this.setData({
-      showMarkerDetailPage: false,
-      showMarkerDetail: false,
-      activeMarkerDetail: null
+      markerPageVisible: true,
+      markerPageClosing: false,
+      markerPageDetail: pageDetail,
+      markerPageCurrentImage: 0
     });
+    this._markerPageScrollTop = 0;
+    this._markerPageTouch = null;
+    this.closeMarkerDetail(true);
   },
 
-  onAttachmentDownloadTap(event) {
+  closeMarkerPage(options = {}) {
+    const { restoreDetail = true } = options || {};
+    if (!this.data.markerPageVisible) return;
+    if (this._markerPageCloseTimer) {
+      clearTimeout(this._markerPageCloseTimer);
+      this._markerPageCloseTimer = null;
+    }
+    const finalize = () => {
+      this._markerPageCloseTimer = null;
+      this.setData({
+        markerPageVisible: false,
+        markerPageClosing: false,
+        markerPageDetail: null,
+        markerPageCurrentImage: 0
+      });
+      this._markerPageTouch = null;
+      this._markerPageScrollTop = 0;
+      if (restoreDetail) {
+        this.scheduleRestoreMarkerDetail(80);
+      }
+    };
+    this.setData({ markerPageClosing: true });
+    this._markerPageCloseTimer = setTimeout(finalize, 240);
+  },
+
+  onMarkerPageMaskTap() {
+    this.closeMarkerPage();
+  },
+
+  onMarkerPageSwiperChange(event) {
+    const current = Number(event?.detail?.current);
+    if (Number.isFinite(current)) {
+      this.setData({ markerPageCurrentImage: current });
+    }
+  },
+
+  onMarkerPageScroll(event) {
+    const top = Number(event?.detail?.scrollTop);
+    if (Number.isFinite(top)) {
+      this._markerPageScrollTop = top;
+      return;
+    }
+    this._markerPageScrollTop = 0;
+  },
+
+  onMarkerPageTouchStart(event) {
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    this._markerPageTouch = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      deltaY: 0,
+      startTime: Date.now()
+    };
+  },
+
+  onMarkerPageTouchMove(event) {
+    if (!this._markerPageTouch) return;
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - this._markerPageTouch.startY;
+    this._markerPageTouch.lastY = touch.clientY;
+    this._markerPageTouch.deltaY = deltaY;
+  },
+
+  onMarkerPageTouchEnd() {
+    const info = this._markerPageTouch;
+    this._markerPageTouch = null;
+    if (!info) return;
+    const deltaY = info.deltaY || 0;
+    const duration = Date.now() - info.startTime;
+    if (
+      this._markerPageScrollTop <= 12 &&
+      ((deltaY >= 90 && duration <= 700) || deltaY >= 160)
+    ) {
+      this.closeMarkerPage();
+    }
+  },
+
+  onMarkerPageTouchCancel() {
+    this._markerPageTouch = null;
+  },
+
+  onMarkerPageAttachmentTap(event) {
     const url = event?.currentTarget?.dataset?.url;
     if (!url) {
       wx.showToast({ title: "附件不可用", icon: "none" });
@@ -563,9 +578,7 @@ Page({
             wx.openDocument({
               filePath,
               showMenu: true,
-              success: () => {
-                wx.hideLoading();
-              },
+              success: () => wx.hideLoading(),
               fail: () => {
                 wx.hideLoading();
                 wx.showToast({ title: "打开失败", icon: "none" });
@@ -587,44 +600,109 @@ Page({
     });
   },
 
-  onVideoAccountTap(event) {
-    const url = event?.currentTarget?.dataset?.url;
-    const finderUserName = event?.currentTarget?.dataset?.finder;
-    if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
-      wx.openChannelsUserProfile({ finderUserName });
+  onMarkerPageVideoTap(event) {
+    const dataset = event?.currentTarget?.dataset || {};
+    const url = dataset.url || "";
+    const finderUserName = dataset.finder || "";
+    const activityId = dataset.activity || "";
+
+    const targetDescription = (() => {
+      if (finderUserName && activityId) {
+        return `将打开视频号 ${finderUserName} 的活动 ${activityId}`;
+      }
+      if (finderUserName) {
+        return `将打开视频号 ${finderUserName} 的主页`;
+      }
+      if (activityId) {
+        return `将打开视频活动 ${activityId}`;
+      }
+      if (url) {
+        return `将打开链接：${url}`;
+      }
+      return "暂无可跳转的视频内容";
+    })();
+
+    if (targetDescription === "暂无可跳转的视频内容") {
+      wx.showToast({ title: targetDescription, icon: "none" });
       return;
     }
-    if (url && /^https?:\/\//.test(url)) {
-      if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url)) {
-        if (typeof wx?.navigateTo === "function") {
+
+    const proceed = () => {
+      if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
+        console.log("here is wx.openChannelsActivity",finderUserName,activityId)
+        wx.openChannelsActivity({ finderUserName, feedId:activityId,
+          success: res => console.log('open ok', res),
+          fail: err => {
+            console.warn('open fail', err);
+            wx.showModal({ title: '打开失败', content: JSON.stringify(err) });
+          },
+          complete: res => console.log('open complete', res) });
+        return;
+      }
+      if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
+        wx.openChannelsUserProfile({ finderUserName });
+        return;
+      }
+      if (activityId && typeof wx?.openChannelsActivity === "function") {
+        wx.openChannelsActivity({ activityId });
+        return;
+      }
+      if (url && /^https?:\/\//.test(url)) {
+        if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url) && typeof wx?.navigateTo === "function") {
           wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
           return;
         }
+        if (typeof wx?.setClipboardData === "function") {
+          wx.setClipboardData({
+            data: url,
+            success: () => {
+              wx.showToast({ title: "链接已复制", icon: "none" });
+            },
+            fail: () => {
+              wx.showToast({ title: "复制失败", icon: "none" });
+            }
+          });
+        } else {
+          wx.showToast({ title: "请复制链接访问", icon: "none" });
+        }
+        return;
       }
-      if (typeof wx?.setClipboardData === "function") {
-        wx.setClipboardData({
-          data: url,
-          success: () => {
-            wx.showToast({ title: "链接已复制", icon: "none" });
-          },
-          fail: () => {
-            wx.showToast({ title: "复制失败", icon: "none" });
-          }
-        });
-      } else {
-        wx.showToast({ title: "请复制链接访问", icon: "none" });
+      wx.showToast({ title: "视频不可用", icon: "none" });
+    };
+
+    wx.showModal({
+      title: "即将打开视频",
+      content: targetDescription,
+      confirmText: "前往",
+      cancelText: "取消",
+      success: (res) => {
+        if (res?.confirm) {
+          proceed();
+        }
       }
-      return;
-    }
-    wx.showToast({ title: "暂无可跳转的视频号", icon: "none" });
+    });
+  },
+
+  onMarkerPageCallTap(event) {
+    const dataset = event?.currentTarget?.dataset || {};
+    const phone = dataset.phone || this.data.markerPageDetail?.phone || "";
+    this.makePhoneCall(phone);
+  },
+
+  onMarkerPageNavigateTap(event) {
+    const detail = this.data.markerPageDetail;
+    if (!detail) return;
+    const dataset = event?.currentTarget?.dataset || {};
+    this.openMarkerLocation(detail, dataset);
   },
 
   onShareAppMessage() {
-    const detail = this.data.activeMarkerDetail;
+    const detail = this._lastMarkerDetail;
     if (detail) {
+      const markerId = detail.markerId || detail.id || "";
       return {
         title: detail.name || "附近商户",
-        path: `/pages/map/map?markerId=${encodeURIComponent(detail.id || "")}`
+        path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
       };
     }
     return {
@@ -658,9 +736,26 @@ Page({
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
+    if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
+    if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
+    if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
+    if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
+  },
+
+  scheduleRestoreMarkerDetail(delay = 0) {
+    if (this._restoreMarkerDetailTimer) {
+      clearTimeout(this._restoreMarkerDetailTimer);
+      this._restoreMarkerDetailTimer = null;
+    }
+    const detail = this._lastMarkerDetail;
+    if (!detail) return;
+    this._restoreMarkerDetailTimer = setTimeout(() => {
+      this._restoreMarkerDetailTimer = null;
+      this.openMarkerDetail(detail);
+    }, delay);
   },
 
   onKeywordInput(e) {
@@ -804,12 +899,30 @@ Page({
   },
 
   applyNearbyMarkers(markers) {
-    this._nearbyMarkers = Array.isArray(markers) ? markers : [];
+    this._nearbyMarkers = Array.isArray(markers)
+      ? markers.map((marker) => {
+          if (marker && marker.extData && marker.extData.detail) {
+            marker.extData = Object.assign({}, marker.extData, {
+              detail: cloneMarkerDetail(marker.extData.detail)
+            });
+          }
+          return marker;
+        })
+      : [];
     this.syncAllMarkers();
   },
 
   applySearchMarkers(markers) {
-    this._searchMarkers = Array.isArray(markers) ? markers : [];
+    this._searchMarkers = Array.isArray(markers)
+      ? markers.map((marker) => {
+          if (marker && marker.extData && marker.extData.detail) {
+            marker.extData = Object.assign({}, marker.extData, {
+              detail: cloneMarkerDetail(marker.extData.detail)
+            });
+          }
+          return marker;
+        })
+      : [];
     this.syncAllMarkers();
   },
 
@@ -850,15 +963,24 @@ Page({
               padding: 4
             };
           }
+          const rawDetail = {
+            id: marker.id,
+            name: poi.title,
+            title: poi.title,
+            address: poi.address,
+            location: { text: poi.address }
+          };
+          const detail = this.composeMarkerDetail(rawDetail, marker, {
+            source: "search",
+            name: poi.title,
+            locationText: poi.address,
+            id: marker.id
+          });
+          const viewDetail = cloneMarkerDetail(detail);
           marker.extData = Object.assign({}, marker.extData, {
             source: "search",
-            detail: this.normalizeMarkerDetail({
-              id: marker.id,
-              name: poi.title,
-              title: poi.title,
-              address: poi.address,
-              location: { text: poi.address }
-            })
+            raw: rawDetail,
+            detail: viewDetail
           });
           return marker;
         });
@@ -1068,6 +1190,110 @@ Page({
   getApiBase() {
     const app = getApp ? getApp() : null;
     return (app && app.globalData && app.globalData.apiBase) || "";
+  },
+
+  normalizeMarkerDetail(raw = {}) {
+    return normalizeMarkerDetailUtil(raw, { apiBase: this.getApiBase() });
+  },
+
+  composeMarkerDetail(raw = {}, marker = {}, overrides = {}) {
+    const normalized = this.normalizeMarkerDetail(raw || {});
+    const detail = { ...normalized };
+    const source = overrides.source || marker?.extData?.source || "";
+    const fallbackName =
+      overrides.name ||
+      normalized.name ||
+      marker?.title ||
+      marker?.name ||
+      "";
+    if (fallbackName && !detail.name) {
+      detail.name = fallbackName;
+    }
+    const fallbackLocation =
+      overrides.locationText ||
+      normalized.locationText ||
+      marker?.address ||
+      marker?.locationText ||
+      "";
+    if (fallbackLocation && !detail.locationText) {
+      detail.locationText = fallbackLocation;
+    }
+    const latitudeCandidates = [
+      overrides.latitude,
+      marker?.latitude,
+      raw?.location?.latitude,
+      raw?.location?.lat,
+      raw?.latitude,
+      raw?.lat,
+      normalized.latitude,
+      normalized.lat
+    ];
+    for (const candidate of latitudeCandidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        detail.latitude = value;
+        break;
+      }
+    }
+    const longitudeCandidates = [
+      overrides.longitude,
+      marker?.longitude,
+      raw?.location?.longitude,
+      raw?.location?.lng,
+      raw?.longitude,
+      raw?.lng,
+      normalized.longitude,
+      normalized.lng
+    ];
+    for (const candidate of longitudeCandidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        detail.longitude = value;
+        break;
+      }
+    }
+    const idCandidates = [
+      overrides.id,
+      raw?.id,
+      marker?.id,
+      normalized.id
+    ];
+    for (const candidate of idCandidates) {
+      if (candidate !== undefined && candidate !== null && `${candidate}` !== "") {
+        if (!detail.id) {
+          detail.id = candidate;
+        }
+        detail.markerId = `${candidate}`;
+        break;
+      }
+    }
+    if (!detail.markerId) {
+      detail.markerId = detail.id || "";
+    }
+    if (source) {
+      detail.source = source;
+    }
+    if (!detail.raw) {
+      detail.raw = raw;
+    }
+    return detail;
+  },
+
+  resolveMarkerDetail(marker) {
+    if (!marker) return null;
+    const extDetail = marker?.extData?.detail;
+    if (extDetail) {
+      return this.composeMarkerDetail(extDetail.raw || extDetail, marker, {
+        source: marker?.extData?.source,
+        name: extDetail.name,
+        locationText: extDetail.locationText,
+        id: extDetail.markerId || extDetail.id
+      });
+    }
+    const raw = (marker?.extData && marker.extData.raw) || marker;
+    return this.composeMarkerDetail(raw, marker, {
+      source: marker?.extData?.source
+    });
   },
 
   getAuthToken() {
@@ -1691,10 +1917,18 @@ Page({
                 // bgColor: "rgba(255, 255, 255, 0)"
               };
             }
+            const detail = this.composeMarkerDetail(item, marker, {
+              source: "nearby",
+              name,
+              locationText,
+              latitude: latitudeGcj,
+              longitude: longitudeGcj,
+              id: item?.id || marker.id
+            });
             marker.extData = Object.assign({}, marker.extData, {
               source: "nearby",
               raw: item,
-              detail: this.normalizeMarkerDetail(item)
+              detail: cloneMarkerDetail(detail)
             });
             return marker;
           })
