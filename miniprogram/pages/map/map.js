@@ -1901,8 +1901,8 @@ Page({
               longitude: longitudeGcj,
               title: name,
               iconPath: "/assets/drone.png",
-              width: 22,
-              height: 22
+              width: 40,
+              height: 40
             };
             const calloutContent = formatNearbyMarkerLabel(name);
             if (calloutContent) {
