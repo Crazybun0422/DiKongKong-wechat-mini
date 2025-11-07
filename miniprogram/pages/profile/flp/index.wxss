@@ -1,0 +1,162 @@
+.flp-page {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f7fb 100%);
+  color: #121212;
+}
+
+.flp-scroll {
+  flex: 1;
+  padding: 32rpx 32rpx 64rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.flp-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.flp-balance-card {
+  background: #ffffff;
+  border-radius: 32rpx;
+  padding: 40rpx;
+  box-shadow: 0 12rpx 48rpx rgba(15, 31, 66, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.flp-balance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.flp-balance-value {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.flp-balance-number {
+  font-size: 72rpx;
+  font-weight: 600;
+  color: #0a0a0a;
+}
+
+.flp-balance-unit {
+  font-size: 32rpx;
+  color: #565b66;
+  font-weight: 500;
+}
+
+.flp-share-btn {
+  padding: 12rpx 40rpx;
+  font-size: 28rpx;
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 999rpx;
+  border: none;
+}
+
+.flp-share-btn::after,
+.flp-action-btn::after {
+  display: none;
+}
+
+.flp-balance-detail {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.flp-detail-icon {
+  width: 48rpx;
+}
+
+.flp-detail-text {
+  font-size: 26rpx;
+  color: #9297a4;
+}
+
+.flp-benefits-card {
+  background: #ffffff;
+  border-radius: 32rpx;
+  padding: 16rpx 0;
+  box-shadow: 0 12rpx 48rpx rgba(15, 31, 66, 0.08);
+}
+
+.flp-benefit-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32rpx 40rpx;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  gap: 24rpx;
+}
+
+.flp-benefit-item:last-child {
+  border-bottom: none;
+}
+
+.flp-benefit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.flp-benefit-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.flp-benefit-desc {
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+.flp-action-btn {
+  padding: 12rpx 40rpx;
+  font-size: 26rpx;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  border-radius: 999rpx;
+  border: none;
+}
+
+.flp-benefit-tag {
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+.flp-detail-placeholder {
+  width: 320rpx;
+  padding: 40rpx 32rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flp-detail-image {
+  width: 100%;
+  max-width: 260rpx;
+}
+
+@media (max-width: 750rpx) {
+  .flp-page {
+    flex-direction: column;
+  }
+
+  .flp-detail-placeholder {
+    width: 100%;
+    padding-top: 0;
+  }
+
+  .flp-detail-image {
+    max-width: 200rpx;
+  }
+}
