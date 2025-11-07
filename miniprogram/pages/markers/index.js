@@ -118,11 +118,14 @@ Page({
     showPaymentSection: true
   },
 
-  onLoad() {
+  onLoad(options = {}) {
     this.apiBase = resolveApiBase();
     this.initializeProfileInfo();
     this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
+    if (options.create === "1") {
+      this.onCreateTap();
+    }
   },
 
   fetchSettlementConfig() {
