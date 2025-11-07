@@ -7,11 +7,19 @@ const {
   buildFileDownloadUrl,
   fetchMapSettlementConfig
 } = require("../../utils/markers");
-const { resolveApiBase, ensureFeatureCode } = require("../../utils/profile");
+const {
+  resolveApiBase,
+  ensureFeatureCode,
+  loadStoredProfile,
+  normalizeProfileData,
+  fetchUserProfile,
+  persistProfileLocally
+} = require("../../utils/profile");
 const {
   createWechatPrepayOrder,
   fetchWechatPaymentStatus
 } = require("../../utils/payments");
+const { payWithFlp } = require("../../utils/flp");
 
 const STATIC_ASSETS = {
   add: "/assets/add.png",
@@ -45,7 +53,7 @@ const CREATE_STEPS = [
 
 const PAYMENT_METHODS = [
   { id: "WECHAT", label: "微信支付" },
-  { id: "FLP", label: "FLP余额抵扣（余额不足）" },
+  { id: "FLP", label: "FLP 余额抵扣" },
   { id: "NONE", label: "暂不支付", note: "用于测试效果" }
 ];
 
@@ -85,13 +93,17 @@ Page({
     createSteps: CREATE_STEPS,
     form: createEmptyForm(),
     tagInput: "",
-    paymentMethods: PAYMENT_METHODS,
+    paymentMethods: PAYMENT_METHODS.map((item) => Object.assign({}, item)),
     selectedPaymentMethod: PAYMENT_METHODS[0].id,
     settlementConfig: null,
     wechatPriceDisplay: "",
     wechatListPriceDisplay: "",
     flpPriceDisplay: "",
     flpListPriceDisplay: "",
+    flpBalance: null,
+    flpBalanceDisplay: "--",
+    flpPaymentNote: "我的FLP余额:--",
+    flpPaymentDisabled: true,
     creationSubmitting: false,
     creationError: "",
     creationResult: null,
@@ -108,6 +120,7 @@ Page({
 
   onLoad() {
     this.apiBase = resolveApiBase();
+    this.initializeProfileInfo();
     this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
   },
@@ -127,13 +140,18 @@ Page({
     const wechatList = this.formatPriceValue(config.wechatListPrice, "¥");
     const flpNet = this.formatPriceValue(config.flpNetPrice, "FLP");
     const flpList = this.formatPriceValue(config.flpListPrice, "FLP");
-    this.setData({
-      settlementConfig: config,
-      wechatPriceDisplay: wechatNet,
-      wechatListPriceDisplay: wechatList,
-      flpPriceDisplay: flpNet,
-      flpListPriceDisplay: flpList
-    });
+    this.setData(
+      {
+        settlementConfig: config,
+        wechatPriceDisplay: wechatNet,
+        wechatListPriceDisplay: wechatList,
+        flpPriceDisplay: flpNet,
+        flpListPriceDisplay: flpList
+      },
+      () => {
+        this.updateFlpPaymentState(this.data.flpBalance);
+      }
+    );
   },
 
   formatPriceValue(value, prefix = "") {
@@ -142,6 +160,110 @@ Page({
     if (!Number.isFinite(number)) return "";
     const formatted = number.toFixed(2).replace(/\.00$/, "");
     return `${prefix}${formatted}`;
+  },
+
+  initializeProfileInfo() {
+    this._storedProfileCache = {};
+    try {
+      this._storedProfileCache = loadStoredProfile() || {};
+      const normalized = normalizeProfileData(this._storedProfileCache, {
+        storedProfile: this._storedProfileCache,
+        apiBase: this.apiBase
+      });
+      this.applyProfileSnapshot(normalized);
+    } catch (err) {
+      console.warn("初始化用户资料失败", err);
+      this._storedProfileCache = this._storedProfileCache || {};
+    }
+    this.refreshProfileFromRemote();
+  },
+
+  refreshProfileFromRemote() {
+    fetchUserProfile({ apiBase: this.apiBase })
+      .then((remoteProfile) => {
+        const normalized = normalizeProfileData(remoteProfile, {
+          storedProfile: this._storedProfileCache,
+          apiBase: this.apiBase
+        });
+        this._storedProfileCache = persistProfileLocally({
+          nickname: normalized.nickname,
+          avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
+          featureCode: normalized.featureCode,
+          flpValue: normalized.flpValue
+        });
+        this.applyProfileSnapshot(normalized);
+      })
+      .catch((err) => {
+        if (err && err.message === "missing-token") {
+          this.updateFlpPaymentState(this.data.flpBalance);
+          return;
+        }
+        console.warn("刷新用户资料失败", err);
+      });
+  },
+
+  applyProfileSnapshot(profile = {}) {
+    this._normalizedProfile = profile || {};
+    const balance =
+      typeof profile.flpValue === "number" && Number.isFinite(profile.flpValue)
+        ? profile.flpValue
+        : null;
+    this.updateFlpPaymentState(balance);
+  },
+
+  updateFlpPaymentState(balanceValue) {
+    let balance = null;
+    if (typeof balanceValue === "number" && Number.isFinite(balanceValue)) {
+      balance = balanceValue;
+    }
+    const display = balance === null ? "--" : balance.toFixed(2);
+    const priceRaw = this.data.settlementConfig?.flpNetPrice;
+    const price = Number(priceRaw);
+    let disabled = false;
+    if (Number.isFinite(price) && price > 0) {
+      disabled = balance === null || balance < price;
+    } else {
+      disabled = balance === null;
+    }
+    this.setData(
+      {
+        flpBalance: balance,
+        flpBalanceDisplay: display,
+        flpPaymentNote: `我的FLP余额:${display}`,
+        flpPaymentDisabled: disabled
+      },
+      () => {
+        this.ensureValidPaymentSelection();
+      }
+    );
+  },
+
+  ensureValidPaymentSelection() {
+    if (this.data.selectedPaymentMethod === "FLP" && this.data.flpPaymentDisabled) {
+      this.setData({ selectedPaymentMethod: WECHAT_PAYMENT_METHOD });
+    }
+  },
+
+  applyFlpBalanceChange(balance) {
+    if (typeof balance !== "number" || !Number.isFinite(balance)) {
+      this.refreshProfileFromRemote();
+      return;
+    }
+    const baseProfile = this._normalizedProfile || {};
+    const updatedProfile = Object.assign({}, baseProfile, {
+      flpValue: balance,
+      flpDisplay: balance.toFixed(2)
+    });
+    this._storedProfileCache = persistProfileLocally({
+      nickname: updatedProfile.nickname || this._storedProfileCache?.nickname,
+      avatarUrl:
+        updatedProfile.avatarFileName ||
+        updatedProfile.avatarUrl ||
+        this._storedProfileCache?.avatarUrl,
+      featureCode: updatedProfile.featureCode || this._storedProfileCache?.featureCode,
+      flpValue: balance
+    });
+    this.applyProfileSnapshot(updatedProfile);
   },
 
   onPullDownRefresh() {
@@ -303,20 +425,25 @@ Page({
   },
 
   onCreateTap() {
-    this.setData({
-      showCreate: true,
-      createStep: 0,
-      maxStepReached: 0,
-      form: createEmptyForm(),
-      tagInput: "",
-      selectedPaymentMethod: PAYMENT_METHODS[0].id,
-      creationSubmitting: false,
-      creationError: "",
-      creationResult: null,
-      editingMarkerId: "",
-      submitButtonText: "提交审核",
-      showPaymentSection: true
-    });
+    this.setData(
+      {
+        showCreate: true,
+        createStep: 0,
+        maxStepReached: 0,
+        form: createEmptyForm(),
+        tagInput: "",
+        selectedPaymentMethod: PAYMENT_METHODS[0].id,
+        creationSubmitting: false,
+        creationError: "",
+        creationResult: null,
+        editingMarkerId: "",
+        submitButtonText: "提交审核",
+        showPaymentSection: true
+      },
+      () => {
+        this.ensureValidPaymentSelection();
+      }
+    );
   },
 
   onGoHomeTap() {
@@ -339,20 +466,25 @@ Page({
     }
     const form = this.buildFormFromMarker(marker);
     const selectedPaymentMethod = marker.paymentMethod || PAYMENT_METHODS[0].id;
-    this.setData({
-      showCreate: true,
-      createStep: 0,
-      maxStepReached: 0,
-      form,
-      tagInput: "",
-      selectedPaymentMethod,
-      creationSubmitting: false,
-      creationError: "",
-      creationResult: null,
-      editingMarkerId: marker.id,
-      submitButtonText: "保存修改",
-      showPaymentSection: !marker.paid
-    });
+    this.setData(
+      {
+        showCreate: true,
+        createStep: 0,
+        maxStepReached: 0,
+        form,
+        tagInput: "",
+        selectedPaymentMethod,
+        creationSubmitting: false,
+        creationError: "",
+        creationResult: null,
+        editingMarkerId: marker.id,
+        submitButtonText: "保存修改",
+        showPaymentSection: !marker.paid
+      },
+      () => {
+        this.ensureValidPaymentSelection();
+      }
+    );
   },
 
   buildFormFromMarker(marker = {}) {
@@ -783,13 +915,20 @@ Page({
           }
         };
 
-        // if (!editingId && this.shouldUseWechatPayment()) {
-          if (this.shouldUseWechatPayment()) {
+        if (this.shouldUseWechatPayment()) {
           return this.handleWechatPaymentFlow(marker, normalized).then((status) => {
             if (status && status.paid) {
               normalized.paid = true;
               normalized.paidLabel = "已完成支付";
             }
+            finalizeSuccess();
+          });
+        }
+
+        if (this.shouldUseFlpPayment()) {
+          return this.handleFlpPaymentFlow(marker, normalized).then(() => {
+            normalized.paid = true;
+            normalized.paidLabel = "已完成支付";
             finalizeSuccess();
           });
         }
@@ -855,12 +994,24 @@ Page({
     if (!this.data.showPaymentSection) return;
     const method = e?.currentTarget?.dataset?.method || e?.detail?.value;
     if (!method) return;
+    if (method === "FLP" && this.data.flpPaymentDisabled) {
+      wx.showToast({ title: "FLP余额不足", icon: "none" });
+      return;
+    }
     this.setData({ selectedPaymentMethod: method });
   },
 
   shouldUseWechatPayment() {
     return (
       !!this.data.showPaymentSection && this.data.selectedPaymentMethod === WECHAT_PAYMENT_METHOD
+    );
+  },
+
+  shouldUseFlpPayment() {
+    return (
+      !!this.data.showPaymentSection &&
+      this.data.selectedPaymentMethod === "FLP" &&
+      !this.data.flpPaymentDisabled
     );
   },
 
@@ -906,6 +1057,58 @@ Page({
         return this.invokeWechatPayment(prepay).then(() => prepay.orderId);
       })
       .then((orderId) => this.pollWechatPaymentStatus(orderId, { timeoutMs: 10000, intervalMs: 1000 }))
+      .finally(() => {
+        if (typeof wx.hideLoading === "function") {
+          wx.hideLoading();
+        }
+      });
+  },
+
+  handleFlpPaymentFlow(marker = {}, normalizedMarker = {}) {
+    const markerId = marker.id || normalizedMarker.id;
+    if (!markerId) {
+      const error = new Error("缺少标记标识，无法扣除 FLP 余额");
+      error.displayMessage = "缺少标记标识，无法扣除 FLP 余额";
+      return Promise.reject(error);
+    }
+
+    const amountRaw = this.data.settlementConfig?.flpNetPrice;
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const error = new Error("FLP 支付金额配置无效，请联系管理员");
+      error.displayMessage = "FLP 支付金额配置无效，请联系管理员";
+      return Promise.reject(error);
+    }
+
+    const featureCode = ensureFeatureCode(
+      normalizedMarker.featureCode || marker.featureCode || ""
+    );
+
+    const payload = {
+      featureCode,
+      type: "MARKER",
+      referenceId: markerId,
+      amount,
+      reason: this.data.editingMarkerId ? "标记更新支付认证费" : "标记创建支付认证费"
+    };
+
+    if (typeof wx.showLoading === "function") {
+      wx.showLoading({ title: "正在扣除 FLP...", mask: true });
+    }
+
+    return payWithFlp(payload, { apiBase: this.apiBase })
+      .then((response) => {
+        if (
+          response &&
+          typeof response.remainingBalance === "number" &&
+          Number.isFinite(response.remainingBalance)
+        ) {
+          this.applyFlpBalanceChange(response.remainingBalance);
+        } else {
+          this.refreshProfileFromRemote();
+        }
+        return response;
+      })
       .finally(() => {
         if (typeof wx.hideLoading === "function") {
           wx.hideLoading();

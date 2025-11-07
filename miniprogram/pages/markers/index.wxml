@@ -507,13 +507,14 @@
             <view class="payment-options">
               <block wx:for="{{paymentMethods}}" wx:key="id">
                 <view
-                  class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}}"
+                  class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}} {{item.id === 'FLP' && flpPaymentDisabled ? 'is-disabled' : ''}}"
                   data-method="{{item.id}}"
                   bindtap="onSelectPaymentMethod"
                 >
                   <view class="payment-option-header">
                     <text class="payment-option-title">{{item.label}}</text>
-                    <text class="payment-option-note" wx:if="{{item.note}}">{{item.note}}</text>
+                    <text class="payment-option-note" wx:if="{{item.id === 'FLP'}}">{{flpPaymentNote}}</text>
+                    <text class="payment-option-note" wx:elif="{{item.note}}">{{item.note}}</text>
                   </view>
                   <view class="payment-price" wx:if="{{item.id === 'WECHAT'}}">
                     <text class="price-tag">{{wechatPriceDisplay || '¥--'}}</text>
