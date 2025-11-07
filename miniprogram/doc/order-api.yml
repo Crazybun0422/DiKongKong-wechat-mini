@@ -1,0 +1,216 @@
+openapi: 3.0.1
+info:
+  title: Order APIs
+  description: 订单相关接口，数据存储于 MongoDB。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/orders:
+    get:
+      summary: 分页查询订单
+      description: 管理员可查看所有订单，普通用户仅能查看自己 feature code 的订单。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数，默认 10。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrderPageResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/orders/{id}:
+    get:
+      summary: 查询单个订单
+      description: 管理员可查看任何订单，普通用户只能查看自己 feature code 的订单。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 订单在 MongoDB 中的主键 ID。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrderResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新订单
+      description: 管理员和订单所属用户都可以更新订单状态、支付信息和微信单号。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 订单在 MongoDB 中的主键 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrderResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+    ApiResponseOrderResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseObject'
+      properties:
+        data:
+          $ref: '#/components/schemas/OrderResponse'
+    ApiResponseOrderPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseObject'
+      properties:
+        data:
+          $ref: '#/components/schemas/PageOrderResponse'
+    PageOrderResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+    OrderUpdateRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [WAITING_PAYMENT, PAID, REFUNDED]
+        paymentType:
+          type: string
+          enum: [CASH, FLP]
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        wechatTransactionId:
+          type: string
+          description: 微信单号，可覆盖或清空（传入空字符串即清空）。
+    OrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        featureCode:
+          type: string
+        orderNumber:
+          type: string
+        orderType:
+          type: string
+          enum: [MARKER]
+        referenceId:
+          type: string
+        status:
+          type: string
+          enum: [WAITING_PAYMENT, PAID, REFUNDED]
+        paymentType:
+          type: string
+          enum: [CASH, FLP]
+        amount:
+          type: number
+          format: double
+        wechatTransactionId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

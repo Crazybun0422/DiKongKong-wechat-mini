@@ -118,39 +118,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
-  /api/markers/search:
-    get:
-      summary: 搜索已审核通过的标记
-      description: 根据关键字模糊搜索已审核通过（APPROVED）状态的标记，接口无需登录即可访问。
-      security: []
-      parameters:
-        - in: query
-          name: keyword
-          required: true
-          schema:
-            type: string
-          description: 搜索关键字，不能为空。
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 50
-            default: 20
-          description: 返回结果条数上限，默认 20，最大 50。
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseMarkerList'
-        '400':
-          description: 参数错误
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseObject'
         '401':
           description: 未授权
           content:

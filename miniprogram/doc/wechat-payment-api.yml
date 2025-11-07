@@ -1,0 +1,241 @@
+openapi: 3.0.1
+info:
+  title: 微信支付 APIs
+  description: 小程序微信支付流程相关接口，包括预支付、回调通知与状态查询。
+  version: 1.0.0
+servers:
+  - url: /api
+paths:
+  /api/payments/wechat/prepay:
+    post:
+      summary: 创建微信预支付订单
+      description: 普通用户凭借小程序登录态发起支付，接口会根据 feature code 创建待支付订单并返回调起支付所需参数。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatPrepayRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWechatPrepayResponse'
+        '400':
+          description: 参数错误或业务校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/payments/wechat/callback:
+    post:
+      summary: 接收微信支付回调
+      description: 微信支付平台向该接口推送支付结果。接口会验证 HTTP 头部签名并更新订单状态。
+      parameters:
+        - in: header
+          name: Wechatpay-Serial
+          required: true
+          schema:
+            type: string
+          description: 微信平台证书序列号。
+        - in: header
+          name: Wechatpay-Signature
+          required: true
+          schema:
+            type: string
+          description: 回调请求的签名。
+        - in: header
+          name: Wechatpay-Timestamp
+          required: true
+          schema:
+            type: string
+          description: 回调请求的时间戳。
+        - in: header
+          name: Wechatpay-Nonce
+          required: true
+          schema:
+            type: string
+          description: 回调请求的随机串。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              description: 微信支付回调的原始报文字符串。
+      responses:
+        '200':
+          description: 接收成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WechatCallbackAck'
+        '400':
+          description: 回调报文非法
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WechatCallbackAck'
+        '500':
+          description: 服务端错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WechatCallbackAck'
+  /api/payments/wechat/status/{orderId}:
+    get:
+      summary: 查询微信支付状态
+      description: 管理员或下单用户根据订单 ID 查询当前支付状态。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+          description: 创建预支付时返回的订单 ID。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWechatPaymentStatusResponse'
+        '400':
+          description: 参数错误或业务校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+    ApiResponseWechatPrepayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WechatPrepayResponse'
+    ApiResponseWechatPaymentStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WechatPaymentStatusResponse'
+    WechatPrepayRequest:
+      type: object
+      required:
+        - featureCode
+        - type
+        - referenceId
+        - amount
+      properties:
+        featureCode:
+          type: string
+          description: 用户绑定的 feature code，用于匹配 openid。
+        type:
+          type: string
+          description: 订单类型，当前仅支持值 `MARKER`。
+        referenceId:
+          type: string
+          description: 业务主键，标记支付时对应 marker 的 ID。
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          description: 支付金额，单位元。
+    WechatPrepayResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          description: 系统生成的订单 ID，可用于后续状态查询。
+        appId:
+          type: string
+        timeStamp:
+          type: string
+        nonceStr:
+          type: string
+        packageValue:
+          type: string
+        signType:
+          type: string
+        paySign:
+          type: string
+    WechatPaymentStatusResponse:
+      type: object
+      properties:
+        paid:
+          type: boolean
+          description: 是否已完成支付。
+        status:
+          type: string
+          description: 订单状态。
+          enum: [WAITING_PAYMENT, PAID, REFUNDED]
+    WechatCallbackAck:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
