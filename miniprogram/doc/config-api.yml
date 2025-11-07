@@ -111,6 +111,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/wechat-pay:
+    get:
+      summary: 获取微信支付配置
+      description: 仅管理员可读取，返回微信小程序支付所需的商户与回调配置，数据库中仅保留一条记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWechatPayConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新微信支付配置
+      description: 仅管理员可调用，用于创建或更新唯一的微信支付配置记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatPayConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWechatPayConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除微信支付配置
+      description: 仅管理员可调用，用于删除唯一的微信支付配置记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
 components:
   securitySchemes:
     bearerAuth:
@@ -224,6 +297,50 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/OpenPlatformCopyResponse'
+    WechatPayConfigRequest:
+      type: object
+      required:
+        - mchId
+        - privateKeyPath
+        - certificateSerialNumber
+        - apiV3Key
+        - callbackUrl
+      properties:
+        mchId:
+          type: string
+          description: 微信支付商户号。
+        privateKeyPath:
+          type: string
+          description: 商户 API 私钥证书路径。
+        certificateSerialNumber:
+          type: string
+          description: 商户证书序列号。
+        apiV3Key:
+          type: string
+          description: 微信支付 APIv3 密钥。
+        callbackUrl:
+          type: string
+          description: 微信支付回调通知地址。
+    WechatPayConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/WechatPayConfigRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseWechatPayConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WechatPayConfigResponse'
     ApiResponseObject:
       type: object
       properties:
