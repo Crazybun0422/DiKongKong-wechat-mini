@@ -6,6 +6,7 @@
     "pages/profile/edit/index",
     "pages/markers/index",
     "pages/markers/location-picker/index",
+    "pages/merchant-detail/index",
     "pages/webview/index"
   ],
   "window": {
