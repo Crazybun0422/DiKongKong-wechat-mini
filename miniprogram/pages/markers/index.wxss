@@ -903,6 +903,17 @@
   gap: 16rpx;
 }
 
+.payment-option.is-disabled {
+  opacity: 0.6;
+}
+
+.payment-option.is-disabled .payment-option-title,
+.payment-option.is-disabled .payment-option-note,
+.payment-option.is-disabled .price-tag,
+.payment-option.is-disabled .price-original {
+  color: rgba(31, 41, 55, 0.4);
+}
+
 .payment-option.is-active {
   border-color: #111827;
   background: #111827;
