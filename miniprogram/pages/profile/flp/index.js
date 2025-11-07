@@ -36,7 +36,7 @@ const BENEFIT_ITEMS = [
     title: "兑换商城",
     description: "你懂的。",
     type: "tag",
-    badge: ""
+    badge: "V3.0上线"
   }
 ];
 
@@ -52,6 +52,10 @@ Page({
     if (balance) {
       this.setData({ balance });
     }
+  },
+
+  onDetailTap() {
+    wx.showToast({ title: "敬请期待", icon: "none" });
   },
 
   onShareAppMessage() {
