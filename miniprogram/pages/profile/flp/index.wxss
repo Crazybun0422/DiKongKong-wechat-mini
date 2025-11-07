@@ -19,7 +19,7 @@
 
 .flp-header {
   display: flex;
-  align-items: flex-end;
+  margin-top: 100rpx;
   justify-content: center;
   gap: 40rpx;
 }
@@ -48,10 +48,12 @@
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
+  margin-top: 20rpx;
+  margin-left: 50rpx;
 }
 
 .flp-detail-icon {
-  width: 112rpx;
+  width: 52rpx;
 }
 
 .flp-detail-text {
@@ -100,11 +102,12 @@
 }
 
 .flp-action-btn {
-  min-width: 160rpx;
+  min-width: 100rpx;
+  margin-left: 100rpx;
   padding: 12rpx 32rpx;
   font-size: 26rpx;
   color: #ffffff;
-  background: linear-gradient(135deg, #000000 0%, #1f1f1f 100%);
+  background: linear-gradient(135deg, #000000 0%, #3a3939 100%);
   border-radius: 999rpx;
   border: none;
   text-align: center;

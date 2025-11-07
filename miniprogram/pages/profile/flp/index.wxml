@@ -7,7 +7,7 @@
           <text class="flp-balance-unit">FLP</text>
         </view>
         <view class="flp-detail-entry">
-          <image class="flp-detail-icon" src="{{detailIcon}}" mode="widthFix" />
+          <image class="flp-detail-icon" src="/assets/details.png" mode="widthFix" />
           <text class="flp-detail-text">明细</text>
         </view>
       </view>

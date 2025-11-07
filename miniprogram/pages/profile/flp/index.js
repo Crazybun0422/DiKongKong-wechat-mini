@@ -11,7 +11,7 @@ const BENEFIT_ITEMS = [
   },
   {
     id: "settlement",
-    title: "空域园入驻",
+    title: "空域图入驻",
     description: "将您空服务标记在空域园",
     type: "link",
     action: "create-marker",
