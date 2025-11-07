@@ -1,15 +1,12 @@
 <view class="flp-page">
   <scroll-view class="flp-scroll" scroll-y="true">
     <view class="flp-container">
-      <view class="flp-balance-card">
-        <view class="flp-balance-header">
-          <view class="flp-balance-value">
-            <text class="flp-balance-number">{{balance}}</text>
-            <text class="flp-balance-unit">FLP</text>
-          </view>
-          <button class="flp-share-btn" open-type="share">分享</button>
+      <view class="flp-header">
+        <view class="flp-balance-value">
+          <text class="flp-balance-number">{{balance}}</text>
+          <text class="flp-balance-unit">FLP</text>
         </view>
-        <view class="flp-balance-detail">
+        <view class="flp-detail-entry">
           <image class="flp-detail-icon" src="{{detailIcon}}" mode="widthFix" />
           <text class="flp-detail-text">明细</text>
         </view>
@@ -42,8 +39,4 @@
       </view>
     </view>
   </scroll-view>
-
-  <view class="flp-detail-placeholder">
-    <image class="flp-detail-image" src="{{detailIcon}}" mode="aspectFit" />
-  </view>
 </view>
