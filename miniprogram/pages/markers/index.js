@@ -783,7 +783,8 @@ Page({
           }
         };
 
-        if (!editingId && this.shouldUseWechatPayment()) {
+        // if (!editingId && this.shouldUseWechatPayment()) {
+          if (this.shouldUseWechatPayment()) {
           return this.handleWechatPaymentFlow(marker, normalized).then((status) => {
             if (status && status.paid) {
               normalized.paid = true;
@@ -887,7 +888,8 @@ Page({
       featureCode,
       type: "MARKER",
       referenceId: markerId,
-      amount
+      // amount
+      amount:0.01
     };
 
     if (typeof wx.showLoading === "function") {
