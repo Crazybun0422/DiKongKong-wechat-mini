@@ -1,7 +1,11 @@
 const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
-const { fetchNearbyMarkers } = require("../../utils/markers");
+const {
+  fetchNearbyMarkers,
+  incrementMarkerExposure,
+  incrementMarkerPhoneCall
+} = require("../../utils/markers");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
@@ -62,6 +66,7 @@ const DEFAULT_MAP_SCALE = 15;
 const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
 const DEFAULT_FETCH_RADIUS = 80000;
+const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -178,7 +183,11 @@ Page({
     markerPageVisible: false,
     markerPageClosing: false,
     markerPageDetail: null,
-    markerPageCurrentImage: 0
+    markerPageCurrentImage: 0,
+    callSheetVisible: false,
+    callSheetPhone: "",
+    callSheetMarkerId: "",
+    callSheetMarkerName: ""
   },
 
   onLoad() {
@@ -198,6 +207,7 @@ Page({
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
     this._suggestTimer = null;
+    this._markerExposureCache = new Map();
     this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
     this._selectedAvatarFileName = "";
     this._avatarChanged = false;
@@ -399,14 +409,23 @@ Page({
     this._markerDetailTouch = null;
   },
 
-  makePhoneCall(phone) {
+  makePhoneCall(phone, options = {}) {
     const value = typeof phone === "string" ? phone.trim() : `${phone || ""}`.trim();
+    const markerIdRaw = options.markerId !== undefined && options.markerId !== null ? `${options.markerId}` : "";
+    const markerId = markerIdRaw.trim();
     if (!value) {
       wx.showToast({ title: "暂无联系电话", icon: "none" });
       return;
     }
     if (typeof wx?.makePhoneCall === "function") {
-      wx.makePhoneCall({ phoneNumber: value });
+      wx.makePhoneCall({
+        phoneNumber: value,
+        success: () => {
+          if (markerId) {
+            this.incrementMarkerPhoneCallCount(markerId);
+          }
+        }
+      });
       return;
     }
     if (typeof wx?.setClipboardData === "function") {
@@ -419,6 +438,126 @@ Page({
       return;
     }
     wx.showToast({ title: "请手动拨打", icon: "none" });
+  },
+
+  openCallSheet(options = {}) {
+    const phoneValue =
+      typeof options.phone === "string"
+        ? options.phone.trim()
+        : `${options.phone || ""}`.trim();
+    if (!phoneValue) {
+      wx.showToast({ title: "暂无联系电话", icon: "none" });
+      return;
+    }
+    const markerId =
+      options.markerId !== undefined && options.markerId !== null
+        ? `${options.markerId}`.trim()
+        : "";
+    const markerName = typeof options.name === "string" ? options.name : "";
+    this.setData({
+      callSheetVisible: true,
+      callSheetPhone: phoneValue,
+      callSheetMarkerId: markerId,
+      callSheetMarkerName: markerName
+    });
+  },
+
+  hideCallSheet() {
+    if (!this.data.callSheetVisible) {
+      return;
+    }
+    this.setData({
+      callSheetVisible: false,
+      callSheetPhone: "",
+      callSheetMarkerId: "",
+      callSheetMarkerName: ""
+    });
+  },
+
+  onCallSheetConfirm() {
+    const phone = this.data.callSheetPhone || "";
+    const markerId = this.data.callSheetMarkerId || "";
+    this.hideCallSheet();
+    this.makePhoneCall(phone, { markerId });
+  },
+
+  onCallSheetCancel() {
+    this.hideCallSheet();
+  },
+
+  onCallSheetMaskTap() {
+    this.hideCallSheet();
+  },
+
+  incrementMarkerPhoneCallCount(markerId) {
+    if (!markerId) {
+      return;
+    }
+    incrementMarkerPhoneCall(markerId, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    }).catch((err) => {
+      console.warn("Increment marker phone call failed", err);
+    });
+  },
+
+  incrementMarkerExposureCount(markerId) {
+    if (!markerId) {
+      return;
+    }
+    incrementMarkerExposure(markerId, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    }).catch((err) => {
+      console.warn("Increment marker exposure failed", err);
+    });
+  },
+
+  pruneMarkerExposureCache(now = Date.now()) {
+    if (!this._markerExposureCache || typeof this._markerExposureCache.forEach !== "function") {
+      return;
+    }
+    const threshold = now - MARKER_EXPOSURE_CACHE_TTL;
+    const staleKeys = [];
+    this._markerExposureCache.forEach((timestamp, key) => {
+      if (!Number.isFinite(timestamp) || timestamp < threshold) {
+        staleKeys.push(key);
+      }
+    });
+    staleKeys.forEach((key) => this._markerExposureCache.delete(key));
+  },
+
+  trackMarkerExposure(markers) {
+    if (!Array.isArray(markers) || !markers.length) {
+      return;
+    }
+    if (!this._markerExposureCache) {
+      this._markerExposureCache = new Map();
+    }
+    const now = Date.now();
+    this.pruneMarkerExposureCache(now);
+    markers.forEach((marker) => {
+      const detail = this.resolveMarkerDetail(marker);
+      const candidateId =
+        detail?.markerId ||
+        detail?.id ||
+        marker?.id ||
+        marker?.extData?.id ||
+        "";
+      const markerId = typeof candidateId === "string" ? candidateId.trim() : `${candidateId || ""}`.trim();
+      if (!markerId) {
+        return;
+      }
+      if (markerId.startsWith("nearby-")) {
+        return;
+      }
+      const lastExposure = this._markerExposureCache.get(markerId);
+      if (Number.isFinite(lastExposure) && now - lastExposure < MARKER_EXPOSURE_CACHE_TTL) {
+        return;
+      }
+      this._markerExposureCache.set(markerId, now);
+      this.incrementMarkerExposureCount(markerId);
+    });
   },
 
   openMarkerLocation(detail, overrides = {}) {
@@ -445,7 +584,13 @@ Page({
   onMarkerDetailCallTap(event) {
     const dataset = event?.currentTarget?.dataset || {};
     const phone = dataset.phone || this.data.markerDetail?.phone || "";
-    this.makePhoneCall(phone);
+    const markerId =
+      dataset.markerId ||
+      this.data.markerDetail?.markerId ||
+      this.data.markerDetail?.id ||
+      "";
+    const name = this.data.markerDetail?.name || "";
+    this.openCallSheet({ phone, markerId, name });
   },
 
   onMarkerDetailNavigateTap(event) {
@@ -656,7 +801,13 @@ Page({
   onMarkerPageCallTap(event) {
     const dataset = event?.currentTarget?.dataset || {};
     const phone = dataset.phone || this.data.markerPageDetail?.phone || "";
-    this.makePhoneCall(phone);
+    const markerId =
+      dataset.markerId ||
+      this.data.markerPageDetail?.markerId ||
+      this.data.markerPageDetail?.id ||
+      "";
+    const name = this.data.markerPageDetail?.name || "";
+    this.openCallSheet({ phone, markerId, name });
   },
 
   onMarkerPageNavigateTap(event) {
@@ -830,28 +981,20 @@ Page({
 
   onMarkerButtonTap() {
     if (this.hasAccessToken()) {
-      this.showPlaceholderToast("标记功能开发中");
+      this.openMarkersPage();
       return;
     }
-    const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
-    const ensureProfile = this.hasProfileInfo() ? Promise.resolve(this.loadStoredProfile()) : this.openProfileFill();
-    ensureProfile
-      .then((profile) => {
-        if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
-        return this.ensureAccessToken({ profileOverride: profile || {} })
-          .then(() => {
-            hideLoading();
-            this.showPlaceholderToast("标记功能开发中");
-          })
-          .catch((err) => {
-            hideLoading();
-            throw err;
-          });
+    this.ensureProfileAuthenticated()
+      .then(() => {
+        this.openMarkersPage();
       })
       .catch((err) => {
         if (err && err.message === "user-cancel") {
           wx.showToast({ title: "已取消", icon: "none" });
+          return;
+        }
+        if (err && err.message === "login-unavailable") {
+          this.showPlaceholderToast("暂时无法打开标记页");
           return;
         }
         console.warn("登录失败", err);
@@ -859,6 +1002,24 @@ Page({
           wx.showToast({ title: "登录失败，请稍后再试", icon: "none" });
         }
       });
+  },
+
+  openMarkersPage() {
+    const updates = {};
+    if (this.data.showDashboardPanel) {
+      updates.showDashboardPanel = false;
+    }
+    if (this.data.activeTab !== "profile") {
+      updates.activeTab = "profile";
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: "/pages/markers/index" });
+    } else {
+      this.showPlaceholderToast("当前版本暂不支持打开标记页");
+    }
   },
 
   showPlaceholderToast(message) {
@@ -879,6 +1040,7 @@ Page({
           return marker;
         })
       : [];
+    this.trackMarkerExposure(this._nearbyMarkers);
     this.syncAllMarkers();
   },
 

@@ -1,12 +1,12 @@
 {
   "pages": [
     "pages/map/map",
-    "pages/merchant-detail/index",
     "pages/profile/profile",
     "pages/profile/open-platform/index",
     "pages/profile/edit/index",
     "pages/markers/index",
     "pages/markers/location-picker/index",
+    "pages/merchant-detail/index",
     "pages/webview/index"
   ],
   "window": {

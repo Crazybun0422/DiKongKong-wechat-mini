@@ -96,7 +96,8 @@ Page({
     editingMarkerId: "",
     assetPaths: STATIC_ASSETS,
     defaultCoverImage: STATIC_ASSETS.defaultCover,
-    submitButtonText: "提交审核"
+    submitButtonText: "提交审核",
+    showPaymentSection: true
   },
 
   onLoad() {
@@ -307,7 +308,8 @@ Page({
       creationError: "",
       creationResult: null,
       editingMarkerId: "",
-      submitButtonText: "提交审核"
+      submitButtonText: "提交审核",
+      showPaymentSection: true
     });
   },
 
@@ -342,7 +344,8 @@ Page({
       creationError: "",
       creationResult: null,
       editingMarkerId: marker.id,
-      submitButtonText: "保存修改"
+      submitButtonText: "保存修改",
+      showPaymentSection: !marker.paid
     });
   },
 
@@ -820,13 +823,14 @@ Page({
         phone: (form.adminInfo.phone || "").trim()
       };
     }
-    if (this.data.selectedPaymentMethod) {
+    if (this.data.showPaymentSection && this.data.selectedPaymentMethod) {
       payload.paymentMethod = this.data.selectedPaymentMethod;
     }
     return payload;
   },
 
   onSelectPaymentMethod(e) {
+    if (!this.data.showPaymentSection) return;
     const method = e?.currentTarget?.dataset?.method || e?.detail?.value;
     if (!method) return;
     this.setData({ selectedPaymentMethod: method });

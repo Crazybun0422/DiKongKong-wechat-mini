@@ -499,7 +499,7 @@
             </view>
           </view>
 
-          <view class="form-card">
+          <view class="form-card" wx:if="{{showPaymentSection}}">
             <view class="field-label required">
               <text class="required-star">*</text>
               <text>支付认证费</text>
@@ -530,6 +530,13 @@
               <text class="payment-summary-item" wx:if="{{wechatPriceDisplay}}">{{wechatPriceDisplay}}</text>
               <text class="payment-summary-item" wx:if="{{flpPriceDisplay}}">{{flpPriceDisplay}}</text>
             </view> -->
+          </view>
+
+          <view class="form-card" wx:if="{{!showPaymentSection}}">
+            <view class="field-label">
+              <text>支付认证费</text>
+            </view>
+            <text class="field-tip">当前标记已完成支付，无需再次选择支付方式。</text>
           </view>
 
           <block wx:if="{{creationError}}">
