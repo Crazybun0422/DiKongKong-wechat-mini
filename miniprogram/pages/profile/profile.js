@@ -262,7 +262,13 @@ Page({
   },
 
   onFlpCardTap() {
-    wx.showToast({ title: "敬请期待", icon: "none" });
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    const balance = this.data.profile?.flpDisplay || "0.00";
+    const query = encodeURIComponent(balance);
+    wx.navigateTo({ url: `/pages/profile/flp/index?balance=${query}` });
   },
 
   onListItemTap(e) {
