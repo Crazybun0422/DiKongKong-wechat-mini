@@ -7,7 +7,11 @@ const {
   buildFileDownloadUrl,
   fetchMapSettlementConfig
 } = require("../../utils/markers");
-const { resolveApiBase } = require("../../utils/profile");
+const { resolveApiBase, ensureFeatureCode } = require("../../utils/profile");
+const {
+  createWechatPrepayOrder,
+  fetchWechatPaymentStatus
+} = require("../../utils/payments");
 
 const STATIC_ASSETS = {
   add: "/assets/add.png",
@@ -44,6 +48,8 @@ const PAYMENT_METHODS = [
   { id: "FLP", label: "FLP余额抵扣（余额不足）" },
   { id: "NONE", label: "暂不支付", note: "用于测试效果" }
 ];
+
+const WECHAT_PAYMENT_METHOD = "WECHAT";
 
 function createEmptyForm() {
   return {
@@ -746,39 +752,55 @@ Page({
     request
       .then((marker) => {
         const normalized = this.normalizeMarker(marker);
-        const resultTitle = editingId ? "更新成功" : "提交成功";
-        const resultMessage = editingId ? "标记信息已更新。" : "提交成功，请等待审核。";
-        const toastTitle = editingId ? "已保存" : "提交成功";
-        this.setData({
-          creationResult: {
-            status: "success",
-            marker: normalized,
-            message: resultMessage,
-            title: resultTitle
-          },
-          createStep: 3,
-          maxStepReached: 3,
-          creationError: "",
-          editingMarkerId: ""
-        });
-        wx.showToast({ title: toastTitle, icon: "success" });
-        if (editingId) {
-          const updated = this.data.markers.map((item) =>
-            item.id === normalized.id ? normalized : item
-          );
-          this.setData({ markers: updated });
-          this.applyFilters(updated, this.data.filterStatus);
-          if (this.data.showDetail && this.data.activeMarker?.id === normalized.id) {
-            this.setData({ activeMarker: normalized });
+        const finalizeSuccess = () => {
+          const resultTitle = editingId ? "更新成功" : "提交成功";
+          const resultMessage = editingId ? "标记信息已更新。" : "提交成功，请等待审核。";
+          const toastTitle = editingId ? "已保存" : "提交成功";
+          this.setData({
+            creationResult: {
+              status: "success",
+              marker: normalized,
+              message: resultMessage,
+              title: resultTitle
+            },
+            createStep: 3,
+            maxStepReached: 3,
+            creationError: "",
+            editingMarkerId: ""
+          });
+          wx.showToast({ title: toastTitle, icon: "success" });
+          if (editingId) {
+            const updated = this.data.markers.map((item) =>
+              item.id === normalized.id ? normalized : item
+            );
+            this.setData({ markers: updated });
+            this.applyFilters(updated, this.data.filterStatus);
+            if (this.data.showDetail && this.data.activeMarker?.id === normalized.id) {
+              this.setData({ activeMarker: normalized });
+            }
+          } else {
+            this.refreshMarkers({ silent: true });
           }
-        } else {
-          this.refreshMarkers({ silent: true });
+        };
+
+        // if (!editingId && this.shouldUseWechatPayment()) {
+          if (this.shouldUseWechatPayment()) {
+          return this.handleWechatPaymentFlow(marker, normalized).then((status) => {
+            if (status && status.paid) {
+              normalized.paid = true;
+              normalized.paidLabel = "已完成支付";
+            }
+            finalizeSuccess();
+          });
         }
+
+        finalizeSuccess();
+        return null;
       })
       .catch((err) => {
         console.error(editingId ? "更新标记失败" : "创建标记失败", err);
         const fallback = editingId ? "更新失败，请稍后重试" : "创建失败，请稍后重试";
-        const message = err?.message || fallback;
+        const message = err?.displayMessage || err?.message || fallback;
         this.setData({ creationError: message });
         wx.showToast({ title: message, icon: "none" });
       })
@@ -834,6 +856,139 @@ Page({
     const method = e?.currentTarget?.dataset?.method || e?.detail?.value;
     if (!method) return;
     this.setData({ selectedPaymentMethod: method });
+  },
+
+  shouldUseWechatPayment() {
+    return (
+      !!this.data.showPaymentSection && this.data.selectedPaymentMethod === WECHAT_PAYMENT_METHOD
+    );
+  },
+
+  handleWechatPaymentFlow(marker = {}, normalizedMarker = {}) {
+    const markerId = marker.id || normalizedMarker.id;
+    if (!markerId) {
+      const error = new Error("缺少标记标识，无法发起微信支付");
+      error.displayMessage = "缺少标记标识，无法发起微信支付";
+      return Promise.reject(error);
+    }
+
+    const amountRaw = this.data.settlementConfig?.wechatNetPrice;
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const error = new Error("微信支付金额配置无效，请联系管理员");
+      error.displayMessage = "微信支付金额配置无效，请联系管理员";
+      return Promise.reject(error);
+    }
+
+    const featureCode = ensureFeatureCode(
+      normalizedMarker.featureCode || marker.featureCode || ""
+    );
+
+    const payload = {
+      featureCode,
+      type: "MARKER",
+      referenceId: markerId,
+      // amount
+      amount:0.01
+    };
+
+    if (typeof wx.showLoading === "function") {
+      wx.showLoading({ title: "正在发起支付...", mask: true });
+    }
+
+    return createWechatPrepayOrder(payload, { apiBase: this.apiBase })
+      .then((prepay) => {
+        if (!prepay || !prepay.orderId) {
+          const error = new Error("预支付响应无效");
+          error.displayMessage = "预支付响应无效";
+          throw error;
+        }
+        return this.invokeWechatPayment(prepay).then(() => prepay.orderId);
+      })
+      .then((orderId) => this.pollWechatPaymentStatus(orderId, { timeoutMs: 10000, intervalMs: 1000 }))
+      .finally(() => {
+        if (typeof wx.hideLoading === "function") {
+          wx.hideLoading();
+        }
+      });
+  },
+
+  invokeWechatPayment(prepay = {}) {
+    return new Promise((resolve, reject) => {
+      if (!prepay) {
+        const error = new Error("缺少微信支付参数");
+        error.displayMessage = "缺少微信支付参数";
+        reject(error);
+        return;
+      }
+      if (typeof wx === "undefined" || typeof wx.requestPayment !== "function") {
+        const error = new Error("当前环境不支持微信支付");
+        error.displayMessage = "当前环境不支持微信支付";
+        reject(error);
+        return;
+      }
+      const timeStamp = `${prepay.timeStamp || prepay.timestamp || ""}`;
+      const nonceStr = prepay.nonceStr || "";
+      const packageValue = prepay.packageValue || prepay.package || "";
+      const signType = prepay.signType || "RSA";
+      const paySign = prepay.paySign || "";
+      if (!timeStamp || !nonceStr || !packageValue || !paySign) {
+        const error = new Error("微信支付参数不完整");
+        error.displayMessage = "微信支付参数不完整";
+        reject(error);
+        return;
+      }
+      wx.requestPayment({
+        timeStamp,
+        nonceStr,
+        package: packageValue,
+        signType,
+        paySign,
+        success: () => {
+          resolve();
+        },
+        fail: (err) => {
+          const message = err?.errMsg || "微信支付失败";
+          const normalizedMessage = /cancel/i.test(message)
+            ? "已取消微信支付"
+            : message;
+          const error = new Error(normalizedMessage);
+          error.displayMessage = normalizedMessage;
+          reject(error);
+        }
+      });
+    });
+  },
+
+  pollWechatPaymentStatus(orderId, options = {}) {
+    if (!orderId) {
+      const error = new Error("缺少支付订单标识");
+      error.displayMessage = "缺少支付订单标识";
+      return Promise.reject(error);
+    }
+    const timeoutMs = Math.max(Number(options.timeoutMs) || 0, 0) || 10000;
+    const intervalMs = Math.max(Number(options.intervalMs) || 0, 0) || 1000;
+    const deadline = Date.now() + timeoutMs;
+
+    const attempt = () => {
+      return fetchWechatPaymentStatus(orderId, { apiBase: this.apiBase }).then((status) => {
+        if (status?.paid) {
+          return status;
+        }
+        if (Date.now() >= deadline) {
+          const error = new Error("支付结果确认超时，请稍后查看支付状态");
+          error.displayMessage = "支付结果确认超时，请稍后查看支付状态";
+          throw error;
+        }
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            attempt().then(resolve).catch(reject);
+          }, intervalMs);
+        });
+      });
+    };
+
+    return attempt();
   },
 
   onDeleteMarkerTap(e) {

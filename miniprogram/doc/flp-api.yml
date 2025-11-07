@@ -11,6 +11,7 @@ paths:
   /api/flp/adjust:
     post:
       summary: 调整指定用户的 FLP 点数余额
+      description: 仅管理员可调用。
       requestBody:
         required: true
         content:
@@ -32,6 +33,41 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/flp/pay:
+    post:
+      summary: 使用 FLP 点数支付订单
+      description: 普通或微信用户调用，系统会生成 FLP 类型的订单、扣除点数并记录日志。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlpPayRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpPayResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -113,6 +149,43 @@ components:
           format: double
         operation:
           type: string
+    FlpPayRequest:
+      type: object
+      required:
+        - featureCode
+        - type
+        - referenceId
+        - amount
+      properties:
+        featureCode:
+          type: string
+          description: 用户特征码。
+        type:
+          type: string
+          description: 订单类型，对应系统内的 `OrderType` 枚举。
+        referenceId:
+          type: string
+          description: 业务关联 ID，例如标注记录 ID。
+        amount:
+          type: number
+          format: double
+          description: 本次支付需要扣除的 FLP 点数。
+        reason:
+          type: string
+          description: 支付理由，将写入 FLP 日志。
+    FlpPayResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        orderNumber:
+          type: string
+        amount:
+          type: number
+          format: double
+        remainingBalance:
+          type: number
+          format: double
     FlpLogResponse:
       type: object
       properties:
@@ -189,6 +262,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/PageFlpLogResponse'
+    ApiResponseFlpPayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/FlpPayResponse'
     ApiResponseObject:
       type: object
       properties:
