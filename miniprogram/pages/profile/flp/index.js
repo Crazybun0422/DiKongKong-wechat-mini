@@ -58,6 +58,10 @@ Page({
     wx.showToast({ title: "敬请期待", icon: "none" });
   },
 
+  onHelpLinkTap() {
+    wx.showToast({ title: "敬请期待", icon: "none" });
+  },
+
   onShareAppMessage() {
     return {
       title: "邀你上天-来空域地图探索新世界",

@@ -138,6 +138,25 @@
   color: #1f2937;
 }
 
+.flp-help-container {
+  width: 100%;
+  max-width: 660rpx;
+  text-align: center;
+}
+
+.flp-help-link {
+  display: inline-block;
+  padding: 0rpx 0;
+  font-size: 32rpx;
+  margin-top: -40rpx;
+  color: #050505;
+  text-decoration: underline;
+}
+
+.flp-help-link-active {
+  opacity: 0.7;
+}
+
 @media (max-width: 750rpx) {
   .flp-scroll {
     padding: 48rpx 32rpx 96rpx;
