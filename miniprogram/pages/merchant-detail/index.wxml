@@ -1,4 +1,4 @@
-﻿<view class="merchant-detail-page">
+<view class="merchant-detail-page {{pageEntering ? 'merchant-detail-page--entering' : ''}} {{pageClosing ? 'merchant-detail-page--closing' : ''}}">
   <block wx:if="{{loading}}">
     <view class="merchant-detail-status">
       <text class="merchant-detail-status-text">加载中...</text>
@@ -43,7 +43,7 @@
               </swiper-item>
             </block>
           </swiper>
-          <view class="marker-page-swiper-dots" wx:if="{{detail.images.length > 1}}">
+          <view class="marker-page-swiper-dots" wx:if="{{detail.images && detail.images.length > 1}}">
             <block wx:for="{{detail.images}}" wx:key="id">
               <view class="marker-page-swiper-dot {{index === currentImage ? 'is-active' : ''}}"></view>
             </block>
@@ -126,10 +126,10 @@
                 bindtap="onAttachmentTap"
               >
                 <view class="marker-page-link-info">
-                  <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
                   <text class="marker-page-link-text">{{item.shortName || item.displayName || item.fileName || '附件'}}</text>
+                  <text class="marker-page-link-arrow">></text>
                 </view>
-                <text class="marker-page-link-arrow">></text>
+                <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
               </view>
             </block>
           </view>
@@ -144,11 +144,11 @@
               data-activity="{{item.activityId || ''}}"
               bindtap="onVideoTap"
             >
-              <view class="marker-page-link-info">
-                <image class="marker-page-link-icon" src="/assets/v-account.png" mode="aspectFit" />
+              <view class="marker-page-link-info marker-page-link-info--video">
                 <text class="marker-page-link-text">{{detail.videoAccounts.length > 1 ? ('视频号内容 ' + (index + 1)) : '丰富的视频案例介绍'}}</text>
+                <text class="marker-page-link-arrow">></text>
               </view>
-              <text class="marker-page-link-arrow">></text>
+              <image class="marker-page-link-icon marker-page-link-icon--right" src="/assets/v-account.png" mode="aspectFit" />
             </view>
           </block>
         </block>

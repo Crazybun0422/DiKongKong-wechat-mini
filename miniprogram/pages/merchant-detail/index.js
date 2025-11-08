@@ -8,7 +8,9 @@ Page({
     detail: null,
     currentImage: 0,
     markerId: "",
-    shareEnabled: true
+    shareEnabled: true,
+    pageEntering: true,
+    pageClosing: false
   },
 
   onLoad(options = {}) {
@@ -19,6 +21,10 @@ Page({
     this._detailTouch = null;
     this._detailScrollTop = 0;
     this._closingDetail = false;
+    this._enterTimer = null;
+    this._closeTimer = null;
+    this.setData({ pageEntering: true, pageClosing: false });
+    this.scheduleEnterAnimation();
 
     const eventChannel = this.getOpenerEventChannel ? this.getOpenerEventChannel() : null;
     if (eventChannel && typeof eventChannel.on === "function") {
@@ -45,6 +51,14 @@ Page({
       }
     }
     this._pendingFetch = null;
+    if (this._enterTimer) {
+      clearTimeout(this._enterTimer);
+      this._enterTimer = null;
+    }
+    if (this._closeTimer) {
+      clearTimeout(this._closeTimer);
+      this._closeTimer = null;
+    }
   },
 
   getAppInstance() {
@@ -64,6 +78,17 @@ Page({
   getAuthToken() {
     const app = this.getAppInstance();
     return (app && app.globalData && app.globalData.token) || "";
+  },
+
+  scheduleEnterAnimation() {
+    if (this._enterTimer) {
+      clearTimeout(this._enterTimer);
+      this._enterTimer = null;
+    }
+    this._enterTimer = setTimeout(() => {
+      this._enterTimer = null;
+      this.setData({ pageEntering: false });
+    }, 30);
   },
 
   applyDetail(input) {
@@ -306,19 +331,31 @@ Page({
   closeDetailPage() {
     if (this._closingDetail) return;
     this._closingDetail = true;
+    this.setData({ pageClosing: true });
     const finalize = () => {
       this._closingDetail = false;
+      this.setData({ pageClosing: false });
     };
-    if (typeof wx?.navigateBack === "function") {
-      wx.navigateBack({
-        delta: 1,
-        animationType: "slide-out-bottom",
-        animationDuration: 240,
-        complete: finalize
-      });
-      return;
+    if (this._closeTimer) {
+      clearTimeout(this._closeTimer);
+      this._closeTimer = null;
     }
-    finalize();
+    const performNavigate = () => {
+      if (typeof wx?.navigateBack === "function") {
+        wx.navigateBack({
+          delta: 1,
+          animationType: "slide-out-bottom",
+          animationDuration: 240,
+          complete: finalize
+        });
+        return;
+      }
+      finalize();
+    };
+    this._closeTimer = setTimeout(() => {
+      this._closeTimer = null;
+      performNavigate();
+    }, 220);
   },
 
   onShareDisabledTap() {
@@ -419,51 +456,51 @@ Page({
       wx.showToast({ title: "未通过审核无法分享", icon: "none" });
     }
   },
-  
-      ensureDetailLocation(detail = {}, raw = {}) {
-        const pickNumericValue = (...candidates) => {
-          for (const candidate of candidates) {
-            const value = Number(candidate);
-            if (Number.isFinite(value)) {
-              return value;
-            }
-          }
-          return null;
-        };
-        if (!Number.isFinite(Number(detail.latitude))) {
-          const lat = pickNumericValue(
-            detail.latitude,
-            raw?.latitude,
-            raw?.lat,
-            raw?.location?.latitude,
-            raw?.location?.lat
-          );
-          if (Number.isFinite(lat)) {
-            detail.latitude = lat;
-          }
-        }
-        if (!Number.isFinite(Number(detail.longitude))) {
-          const lng = pickNumericValue(
-            detail.longitude,
-            raw?.longitude,
-            raw?.lng,
-            raw?.location?.longitude,
-            raw?.location?.lng
-          );
-          if (Number.isFinite(lng)) {
-            detail.longitude = lng;
-          }
-        }
-        if (!detail.locationText) {
-          const fallbackLocationText =
-            raw?.locationText ||
-            raw?.address ||
-            raw?.location?.text ||
-            "";
-          if (fallbackLocationText) {
-            detail.locationText = fallbackLocationText;
-          }
+
+  ensureDetailLocation(detail = {}, raw = {}) {
+    const pickNumericValue = (...candidates) => {
+      for (const candidate of candidates) {
+        const value = Number(candidate);
+        if (Number.isFinite(value)) {
+          return value;
         }
       }
-    });
+      return null;
+    };
+    if (!Number.isFinite(Number(detail.latitude))) {
+      const lat = pickNumericValue(
+        detail.latitude,
+        raw?.latitude,
+        raw?.lat,
+        raw?.location?.latitude,
+        raw?.location?.lat
+      );
+      if (Number.isFinite(lat)) {
+        detail.latitude = lat;
+      }
+    }
+    if (!Number.isFinite(Number(detail.longitude))) {
+      const lng = pickNumericValue(
+        detail.longitude,
+        raw?.longitude,
+        raw?.lng,
+        raw?.location?.longitude,
+        raw?.location?.lng
+      );
+      if (Number.isFinite(lng)) {
+        detail.longitude = lng;
+      }
+    }
+    if (!detail.locationText) {
+      const fallbackLocationText =
+        raw?.locationText ||
+        raw?.address ||
+        raw?.location?.text ||
+        "";
+      if (fallbackLocationText) {
+        detail.locationText = fallbackLocationText;
+      }
+    }
+  }
+});
 
