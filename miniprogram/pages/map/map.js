@@ -255,13 +255,199 @@ Page({
     const markerIdStr = `${markerId}`;
     const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
-    const combined = nearby.concat(search);
+    const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
+    const combined = manual.concat(nearby, search);
     for (const marker of combined) {
       if ((marker?.id || marker?.id === 0) && `${marker.id}` === markerIdStr) {
         return marker;
       }
     }
     return null;
+  },
+
+  takePendingMarkerFocus() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData) return null;
+    const payload = app.globalData.pendingMarkerFocus;
+    if (payload) {
+      app.globalData.pendingMarkerFocus = null;
+      return payload;
+    }
+    return null;
+  },
+
+  consumePendingMarkerFocus(options = {}) {
+    const request = this.takePendingMarkerFocus();
+    if (!request) return;
+    if (request.mode === "offline" || request.offlineRaw) {
+      this.focusOfflineMarker(request);
+      return;
+    }
+    this.focusOnlineMarker(request);
+  },
+
+  focusOnlineMarker(request = {}) {
+    const latitude = Number(request.latitude);
+    const longitude = Number(request.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return;
+    }
+    this.clearManualMarkers();
+    const gcj = wgs84ToGcj02(longitude, latitude);
+    const target = {
+      latitude: Number.isFinite(gcj?.lat) ? gcj.lat : latitude,
+      longitude: Number.isFinite(gcj?.lng) ? gcj.lng : longitude
+    };
+    this.centerOnPoint(target, clampMapScale(request.scale || 15));
+  },
+
+  focusOfflineMarker(request = {}) {
+    const latitude = Number(request.latitude);
+    const longitude = Number(request.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      wx.showToast({ title: "标记缺少位置信息", icon: "none" });
+      return;
+    }
+    const rawDetail =
+      request.offlineRaw && typeof request.offlineRaw === "object"
+        ? Object.assign({}, request.offlineRaw)
+        : {};
+    const detail = this.composeMarkerDetail(rawDetail, {}, {
+      source: "offline",
+      id: request.markerId,
+      name: request.name,
+      locationText: request.locationText,
+      latitude,
+      longitude
+    });
+    this.applyOfflineSnapshot(detail, request.detailSnapshot);
+    detail.shareDisabled = request.shareDisabled !== false;
+    if (request.reviewStatus) {
+      detail.reviewStatus = request.reviewStatus;
+    }
+    const gcj = wgs84ToGcj02(longitude, latitude);
+    const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latitude;
+    const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : longitude;
+    const markerId = detail.markerId || request.markerId || `offline-${Date.now()}`;
+    const markerName = detail.name || request.name || "离线标记";
+    const marker = {
+      id: markerId,
+      latitude: latitudeGcj,
+      longitude: longitudeGcj,
+      title: markerName,
+      iconPath: "/assets/drone-offline.png",
+      width: 44,
+      height: 44,
+      extData: {
+        source: "offline",
+        raw: rawDetail,
+        detail: cloneMarkerDetail(detail)
+      }
+    };
+    const calloutContent = formatNearbyMarkerLabel(markerName);
+    if (calloutContent) {
+      marker.callout = {
+        content: calloutContent,
+        color: "rgba(0, 0, 0, 0.95)",
+        fontSize: 14,
+        fontWeight: "bold",
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    this._manualMarkers = [marker];
+    this.syncAllMarkers();
+    this.centerOnPoint(
+      { latitude: latitudeGcj, longitude: longitudeGcj },
+      clampMapScale(request.scale || 15)
+    );
+    this.openMarkerDetail(marker);
+  },
+
+  applyOfflineSnapshot(detail, snapshot = {}) {
+    if (!detail || !snapshot || typeof snapshot !== "object") {
+      return;
+    }
+    const resolveUrl = (item) => {
+      if (!item) return "";
+      if (typeof item === "string") {
+        return item.trim();
+      }
+      if (typeof item.url === "string" && item.url.trim()) {
+        return item.url.trim();
+      }
+      if (typeof item.fileName === "string" && item.fileName.trim()) {
+        return item.fileName.trim();
+      }
+      return "";
+    };
+    if ((!detail.images || !detail.images.length) && Array.isArray(snapshot.images)) {
+      detail.images = snapshot.images
+        .map((item, index) => {
+          const url = resolveUrl(item);
+          if (!url) return null;
+          return {
+            id: (item && item.id) || `${detail.markerId || "offline"}-image-${index}`,
+            url,
+            fileName: (item && item.fileName) || url
+          };
+        })
+        .filter(Boolean);
+    }
+    if ((!detail.attachments || !detail.attachments.length) && Array.isArray(snapshot.attachments)) {
+      detail.attachments = snapshot.attachments
+        .map((item, index) => {
+          const url = resolveUrl(item);
+          if (!url) return null;
+          const displayName =
+            (item && (item.displayName || item.name || item.fileName)) ||
+            url.split("/").pop() ||
+            "附件";
+          return {
+            id: (item && item.id) || `${detail.markerId || "offline"}-attachment-${index}`,
+            url,
+            displayName,
+            fileName: (item && (item.fileName || item.name)) || displayName
+          };
+        })
+        .filter(Boolean);
+    }
+    if ((!detail.qrCodes || !detail.qrCodes.length) && Array.isArray(snapshot.qrCodes)) {
+      detail.qrCodes = snapshot.qrCodes
+        .map((item, index) => {
+          const url = resolveUrl(item);
+          if (!url) return null;
+          return {
+            id: (item && item.id) || `${detail.markerId || "offline"}-qr-${index}`,
+            url,
+            fileName: (item && (item.fileName || item.name)) || ""
+          };
+        })
+        .filter(Boolean);
+    }
+    if ((!detail.honors || !detail.honors.length) && Array.isArray(snapshot.honors)) {
+      detail.honors = snapshot.honors.slice();
+    }
+    if (!detail.description && snapshot.description) {
+      detail.description = snapshot.description;
+    }
+    if (!detail.phone && snapshot.phone) {
+      detail.phone = snapshot.phone;
+    }
+    if (!detail.locationText && snapshot.locationText) {
+      detail.locationText = snapshot.locationText;
+    }
+    if (!detail.name && snapshot.name) {
+      detail.name = snapshot.name;
+    }
+  },
+
+  clearManualMarkers() {
+    if (Array.isArray(this._manualMarkers) && this._manualMarkers.length) {
+      this._manualMarkers = [];
+      this.syncAllMarkers();
+    }
   },
 
   openMarkerDetail(marker) {
@@ -619,7 +805,8 @@ Page({
       markerPageVisible: true,
       markerPageClosing: false,
       markerPageDetail: pageDetail,
-      markerPageCurrentImage: 0
+      markerPageCurrentImage: 0,
+      markerPageShareEnabled: this.isDetailSharable(pageDetail)
     });
     this._markerPageScrollTop = 0;
     this._markerPageTouch = null;
@@ -639,7 +826,8 @@ Page({
         markerPageVisible: false,
         markerPageClosing: false,
         markerPageDetail: null,
-        markerPageCurrentImage: 0
+        markerPageCurrentImage: 0,
+        markerPageShareEnabled: true
       });
       this._markerPageTouch = null;
       this._markerPageScrollTop = 0;
@@ -820,18 +1008,45 @@ Page({
     this.openMarkerLocation(detail, dataset);
   },
 
+  isDetailSharable(detail) {
+    if (!detail || detail.shareDisabled) {
+      return false;
+    }
+    const status =
+      `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`.trim().toUpperCase();
+    return status === "APPROVED";
+  },
+
+  showShareBlockedToast() {
+    if (typeof wx?.showToast === "function") {
+      wx.showToast({ title: "审核通过后才能分享", icon: "none" });
+    }
+  },
+
+  onMarkerPageShareDisabledTap() {
+    this.showShareBlockedToast();
+  },
+
   onShareAppMessage() {
     const detail = this._lastMarkerDetail;
-    if (detail) {
-      const markerId = detail.markerId || detail.id || "";
-      return {
-        title: detail.name || "附近商户",
-        path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
-      };
-    }
-    return {
+    const fallback = {
       title: "附近商户",
       path: "/pages/map/map"
+    };
+    if (!detail) {
+      return fallback;
+    }
+    if (!this.isDetailSharable(detail)) {
+      this.showShareBlockedToast();
+      return fallback;
+    }
+    const markerId = detail.markerId || detail.id || "";
+    if (!markerId) {
+      return fallback;
+    }
+    return {
+      title: detail.name || fallback.title,
+      path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
     };
   },
 
@@ -1065,7 +1280,8 @@ Page({
   syncAllMarkers() {
     const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
-    const combined = nearby.concat(search);
+    const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
+    const combined = manual.concat(nearby, search);
     this.setData({ markers: combined });
   },
 

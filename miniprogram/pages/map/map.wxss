@@ -1494,6 +1494,16 @@ button.marker-button::after,
   color: inherit;
 }
 
+.marker-page-share--disabled {
+  opacity: 0.55;
+  box-shadow: none;
+  color: #94a3b8;
+}
+
+.marker-page-share--disabled .marker-page-share-icon {
+  opacity: 0.85;
+}
+
 .marker-page-close-hint {
   position: fixed;
   left: 50%;

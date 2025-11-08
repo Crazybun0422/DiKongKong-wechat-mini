@@ -178,6 +178,23 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
   pushAttachment(raw.attachmentUrls);
   pushAttachment(raw.attachmentFiles);
 
+  const uniqueAttachments = [];
+  const seenAttachmentKeys = new Set();
+  attachments.forEach((item) => {
+    if (!item) return;
+    const fileName =
+      typeof item.fileName === "string" ? item.fileName.trim().toLowerCase() : "";
+    const url = typeof item.url === "string" ? item.url.trim().toLowerCase() : "";
+    const key = url || fileName ? `${url}|${fileName}` : "";
+    if (key) {
+      if (seenAttachmentKeys.has(key)) {
+        return;
+      }
+      seenAttachmentKeys.add(key);
+    }
+    uniqueAttachments.push(item);
+  });
+
   const qrCodes = [];
   let qrCounter = 0;
   const pushQrCode = (value) => {
@@ -295,6 +312,10 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
   });
 
   const phone = ensureText(raw.phone || raw.telephone || raw.contactPhone);
+  const normalizedAttachments = uniqueAttachments.map((item) => ({
+    ...item,
+    shortName: truncateDisplayName(item.displayName || item.fileName)
+  }));
 
   return {
     id: raw.id || "",
@@ -304,10 +325,7 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
     images,
     honors,
     description,
-    attachments: attachments.map((item) => ({
-      ...item,
-      shortName: truncateDisplayName(item.displayName || item.fileName)
-    })),
+    attachments: normalizedAttachments,
     qrCodes,
     videoAccounts: uniqueVideoAccounts,
     primaryVideoAccount: uniqueVideoAccounts.length ? uniqueVideoAccounts[0] : null,

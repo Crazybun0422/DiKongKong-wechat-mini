@@ -433,10 +433,18 @@
           </view>
         </scroll-view>
 
-        <button open-type="share" class="marker-page-share">
-          <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
-          <text class="marker-page-share-text">转发</text>
-        </button>
+        <block wx:if="{{markerPageShareEnabled}}">
+          <button open-type="share" class="marker-page-share">
+            <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
+            <text class="marker-page-share-text">转发</text>
+          </button>
+        </block>
+        <block wx:else>
+          <button class="marker-page-share marker-page-share--disabled" bindtap="onMarkerPageShareDisabledTap">
+            <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
+            <text class="marker-page-share-text">转发</text>
+          </button>
+        </block>
         <view class="marker-page-close-hint">下滑关闭详情</view>
       </view>
     </block>

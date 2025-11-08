@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "商户详情"
+  "navigationBarTitleText": "商户详情",
+  "navigationStyle": "custom"
 }
