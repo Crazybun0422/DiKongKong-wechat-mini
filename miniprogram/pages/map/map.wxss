@@ -445,6 +445,10 @@ button.search-btn::after {
   font-weight: 600;
 }
 
+.suggest-title-marker {
+  color: #22c55e;
+}
+
 .suggest-address {
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.7);

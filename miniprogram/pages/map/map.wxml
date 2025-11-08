@@ -106,7 +106,9 @@
                     data-index="{{index}}"
                     bindtap="onSuggestionTap"
                   >
-                    <text class="suggest-title">{{item.title}}</text>
+                    <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : ''}}">
+                      {{item.source === 'marker' ? (item.title || '') + '（低空星球）' : item.title}}
+                    </text>
                     <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
                   </view>
                 </block>

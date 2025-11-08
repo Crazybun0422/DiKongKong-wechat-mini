@@ -5,7 +5,8 @@ const {
   fetchNearbyMarkers,
   fetchMarkerDetail,
   incrementMarkerExposure,
-  incrementMarkerPhoneCall
+  incrementMarkerPhoneCall,
+  searchMarkers
 } = require("../../utils/markers");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
@@ -68,6 +69,8 @@ const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
 const DEFAULT_FETCH_RADIUS = 80000;
 const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
+const MAX_SEARCH_SUGGESTIONS = 10;
+const MAX_SEARCH_RESULTS = 20;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -112,6 +115,23 @@ const formatTemporaryZoneLabel = (value, maxLength = 6) => {
     return trimmed;
   }
   return `${chars.slice(0, maxLength).join("")}...`;
+};
+
+const settleWithValue = (promise, options = {}) => {
+  const defaultValue =
+    options && Object.prototype.hasOwnProperty.call(options, "defaultValue")
+      ? options.defaultValue
+      : undefined;
+  return promise
+    .then((value) => ({ ok: true, value }))
+    .catch((error) => {
+      if (typeof options?.onError === "function") {
+        options.onError(error);
+      } else {
+        console.warn(options?.label || "Promise rejected", error);
+      }
+      return { ok: false, error, value: defaultValue };
+    });
 };
 
 const cloneMarkerDetail = (detail = {}) => {
@@ -1617,53 +1637,65 @@ Page({
     const keyword = this.data.keyword.trim();
     if (!keyword) return;
     wx.showLoading({ title: "Searching...", mask: true });
-    const centerWgs = gcj02ToWgs84(
-      this.data.center.longitude,
-      this.data.center.latitude
+    let locationArgs = null;
+    try {
+      const centerWgs = gcj02ToWgs84(
+        this.data.center.longitude,
+        this.data.center.latitude
+      );
+      if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
+        locationArgs = {
+          latitude: centerWgs.lat,
+          longitude: centerWgs.lng
+        };
+      }
+    } catch (err) {
+      console.warn("Failed to convert center for search", err);
+    }
+    const markerPromise = settleWithValue(
+      searchMarkers(keyword, {
+        apiBase: this.getApiBase(),
+        limit: MAX_SEARCH_RESULTS
+      }),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Marker search failed", err)
+      }
     );
-    searchPlaces(keyword, {
-      latitude: centerWgs.lat,
-      longitude: centerWgs.lng
-    })
-      .then((results) => {
-        const markers = results.map((poi, index) => {
-          const marker = {
-            id: index + 1,
-            latitude: Number(poi.location?.lat),
-            longitude: Number(poi.location?.lng),
-            title: poi.title,
-            width: 24,
-            height: 24
-          };
-          if (poi.address) {
-            marker.callout = {
-              content: `${poi.title}\n${poi.address}`,
-              display: "ALWAYS",
-              borderRadius: 4,
-              padding: 4
-            };
-          }
-          const rawDetail = {
-            id: marker.id,
-            name: poi.title,
-            title: poi.title,
-            address: poi.address,
-            location: { text: poi.address }
-          };
-          const detail = this.composeMarkerDetail(rawDetail, marker, {
-            source: "search",
-            name: poi.title,
-            locationText: poi.address,
-            id: marker.id
-          });
-          const viewDetail = cloneMarkerDetail(detail);
-          marker.extData = Object.assign({}, marker.extData, {
-            source: "search",
-            raw: rawDetail,
-            detail: viewDetail
-          });
-          return marker;
-        });
+    const placePromise = settleWithValue(
+      locationArgs
+        ? searchPlaces(keyword, locationArgs)
+        : searchPlaces(keyword),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Search failed", err)
+      }
+    );
+    Promise.all([markerPromise, placePromise])
+      .then(([markerResult, placeResult]) => {
+        const markerPayloads = (markerResult.value || [])
+          .map((item, index) =>
+            this.createMarkerSearchPayload(item, {
+              fallbackId: `marker-search-${index}`
+            })
+          )
+          .filter(Boolean);
+        const markerMarkers = markerPayloads
+          .map((payload) =>
+            this.buildMarkerFromSearchPayload(payload, {
+              source: "marker-search"
+            })
+          )
+          .filter(Boolean);
+        const remainingSlots = Math.max(
+          0,
+          MAX_SEARCH_RESULTS - markerMarkers.length
+        );
+        const qqMarkers = (placeResult.value || [])
+          .map((poi, index) => this.buildQqSearchMarker(poi, index))
+          .filter(Boolean)
+          .slice(0, remainingSlots);
+        const markers = markerMarkers.concat(qqMarkers);
         if (markers.length) {
           this.applySearchMarkers(markers);
           const points = markers.map((m) => ({
@@ -1676,14 +1708,12 @@ Page({
           });
         } else {
           this.applySearchMarkers([]);
+          const message =
+            markerResult.ok && placeResult.ok
+              ? "没有匹配的地点"
+              : "搜索失败，请稍后重试";
+          wx.showToast({ title: message, icon: "none" });
         }
-      })
-      .catch((err) => {
-        console.error("Search failed", err);
-        wx.showToast({
-          title: "Search failed, check QQMAP_KEY",
-          icon: "none"
-        });
       })
       .finally(() => {
         wx.hideLoading();
@@ -1713,74 +1743,117 @@ Page({
       });
       return;
     }
-    const centerWgs = gcj02ToWgs84(
-      this.data.center.longitude,
-      this.data.center.latitude
-    );
     const snapshot = keyword;
-    searchPlaces(keyword, {
-      latitude: centerWgs.lat,
-      longitude: centerWgs.lng
-    })
-      .then((results) => {
+    let locationArgs = null;
+    try {
+      const centerWgs = gcj02ToWgs84(
+        this.data.center.longitude,
+        this.data.center.latitude
+      );
+      if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
+        locationArgs = {
+          latitude: centerWgs.lat,
+          longitude: centerWgs.lng
+        };
+      }
+    } catch (err) {
+      console.warn("Failed to convert center for suggestions", err);
+    }
+    const markerPromise = settleWithValue(
+      searchMarkers(keyword, {
+        apiBase: this.getApiBase(),
+        limit: MAX_SEARCH_SUGGESTIONS
+      }),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Marker suggest search failed", err)
+      }
+    );
+    const placePromise = settleWithValue(
+      locationArgs
+        ? searchPlaces(keyword, locationArgs)
+        : searchPlaces(keyword),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Suggest failed", err)
+      }
+    );
+    Promise.all([markerPromise, placePromise]).then(
+      ([markerResult, placeResult]) => {
         if (snapshot !== this.data.keyword.trim()) return;
-        const suggestions = (results || [])
-          .slice(0, 10)
-          .map((poi, index) => {
-            const lat = Number(poi.location?.lat);
-            const lng = Number(poi.location?.lng);
-            return {
-              id: poi.id || poi.adcode || index,
-              title: poi.title || "",
-              address: poi.address || poi.category || "",
-              latitude: lat,
-              longitude: lng
-            };
-          })
-          .filter(
-            (item) =>
-              item.title &&
-              Number.isFinite(item.latitude) &&
-              Number.isFinite(item.longitude)
-          );
+        const markerPayloads = (markerResult.value || [])
+          .map((item, index) =>
+            this.createMarkerSearchPayload(item, {
+              fallbackId: `marker-suggest-${index}`
+            })
+          )
+          .filter(Boolean);
+        const markerSuggestions = markerPayloads
+          .map((payload) => this.buildMarkerSuggestionFromPayload(payload))
+          .filter(Boolean)
+          .slice(0, MAX_SEARCH_SUGGESTIONS);
+        const remainingSlots = Math.max(
+          0,
+          MAX_SEARCH_SUGGESTIONS - markerSuggestions.length
+        );
+        const qqSuggestions = (placeResult.value || [])
+          .map((poi, index) => this.buildQqSuggestion(poi, index))
+          .filter(Boolean)
+          .slice(0, remainingSlots);
+        const suggestions = markerSuggestions.concat(qqSuggestions);
+        const noResults = !suggestions.length;
+        const nextError = noResults
+          ? markerResult.ok && placeResult.ok
+            ? "没有匹配的地点"
+            : "提示获取失败，请稍后重试"
+          : "";
         this.setData({
           searchSuggestions: suggestions,
           searchSuggestLoading: false,
-          searchSuggestError: suggestions.length ? "" : "没有匹配的地点"
+          searchSuggestError: nextError
         });
-      })
-      .catch((err) => {
-        console.warn("Suggest failed", err);
-        if (snapshot !== this.data.keyword.trim()) return;
-        this.setData({
-          searchSuggestions: [],
-          searchSuggestLoading: false,
-          searchSuggestError: "提示获取失败，请稍后重试"
-        });
-      });
+      }
+    );
   },
 
   onSuggestionTap(e) {
     const idx = Number(e.currentTarget.dataset.index);
     const suggestion = this.data.searchSuggestions?.[idx];
     if (!suggestion) return;
-    const { latitude, longitude } = suggestion;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-    const marker = {
-      id: Date.now(),
-      latitude,
-      longitude,
-      title: suggestion.title,
-      width: 24,
-      height: 24
-    };
-    if (suggestion.address) {
-      marker.callout = {
-        content: `${suggestion.title}\n${suggestion.address}`,
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
+    let marker = null;
+    if (suggestion.source === "marker" && suggestion.markerPayload) {
+      marker = this.buildMarkerFromSearchPayload(suggestion.markerPayload, {
+        source: "marker-search"
+      });
+    } else if (suggestion.source === "qqmap" && suggestion.rawPoi) {
+      marker = this.buildQqSearchMarker(suggestion.rawPoi, idx);
+    }
+    if (!marker) {
+      const { latitude, longitude } = suggestion;
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+      marker = {
+        id: Date.now(),
+        latitude,
+        longitude,
+        title: suggestion.title,
+        width: 24,
+        height: 24
       };
+      if (suggestion.address) {
+        marker.callout = {
+          content: `${suggestion.title}\n${suggestion.address}`,
+          display: "ALWAYS",
+          borderRadius: 4,
+          padding: 4
+        };
+      }
+    }
+    if (
+      !marker ||
+      !Number.isFinite(marker.latitude) ||
+      !Number.isFinite(marker.longitude)
+    ) {
+      return;
     }
     this.setData({
       keyword: suggestion.title,
@@ -1789,7 +1862,10 @@ Page({
       searchSuggestError: ""
     });
     this.applySearchMarkers([marker]);
-    this.centerOnPoint({ latitude, longitude }, 15);
+    this.centerOnPoint(
+      { latitude: marker.latitude, longitude: marker.longitude },
+      15
+    );
   },
 
   openDronePicker() {
@@ -1960,6 +2036,170 @@ Page({
       detail.raw = raw;
     }
     return detail;
+  },
+
+  createMarkerSearchPayload(raw = {}, options = {}) {
+    if (!raw || typeof raw !== "object") {
+      return null;
+    }
+    const detail = this.composeMarkerDetail(raw, {}, {
+      source: options.source || "marker-search",
+      id: raw.id,
+      name: raw.name,
+      locationText: raw.location?.text
+    });
+    const latitude = Number(detail.latitude);
+    const longitude = Number(detail.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const gcj = wgs84ToGcj02(longitude, latitude);
+    const latGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latitude;
+    const lngGcj = Number.isFinite(gcj?.lng) ? gcj.lng : longitude;
+    const markerId =
+      detail.markerId ||
+      detail.id ||
+      options.fallbackId ||
+      `marker-search-${Date.now()}`;
+    const title =
+      detail.name ||
+      detail.locationText ||
+      options.fallbackTitle ||
+      "低空星球标记";
+    const address = detail.locationText || "";
+    return {
+      markerId,
+      title,
+      address,
+      latitude: latGcj,
+      longitude: lngGcj,
+      detail,
+      raw
+    };
+  },
+
+  buildMarkerSuggestionFromPayload(payload) {
+    if (!payload) return null;
+    if (
+      !Number.isFinite(payload.latitude) ||
+      !Number.isFinite(payload.longitude)
+    ) {
+      return null;
+    }
+    return {
+      id: payload.markerId || `marker-result-${Date.now()}`,
+      title: payload.title,
+      address: payload.address,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      source: "marker",
+      markerId: payload.markerId,
+      markerPayload: payload
+    };
+  },
+
+  buildMarkerFromSearchPayload(payload, options = {}) {
+    if (
+      !payload ||
+      !Number.isFinite(payload.latitude) ||
+      !Number.isFinite(payload.longitude)
+    ) {
+      return null;
+    }
+    const detail = payload.detail;
+    if (!detail) return null;
+    const markerTitle = payload.title || detail.name || "低空星球标记";
+    const markerId =
+      payload.markerId || options.fallbackId || `marker-search-${Date.now()}`;
+    const marker = {
+      id: markerId,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      title: markerTitle,
+      iconPath: options.iconPath || "/assets/drone.png",
+      width: options.width || 44,
+      height: options.height || 44,
+      extData: {
+        source: options.source || detail.source || "marker-search",
+        raw: payload.raw || detail.raw || detail,
+        detail: cloneMarkerDetail(detail)
+      }
+    };
+    const calloutContent = formatNearbyMarkerLabel(markerTitle);
+    if (calloutContent) {
+      marker.callout = {
+        content: calloutContent,
+        color: "rgba(0, 0, 0, 0.95)",
+        fontSize: 14,
+        fontWeight: "bold",
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    return marker;
+  },
+
+  buildQqSuggestion(poi = {}, index = 0) {
+    if (!poi || typeof poi !== "object") {
+      return null;
+    }
+    const lat = Number(poi.location?.lat);
+    const lng = Number(poi.location?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+    const title = poi.title || "";
+    const address = poi.address || poi.category || "";
+    return {
+      id: poi.id || poi.adcode || index,
+      title,
+      address,
+      latitude: lat,
+      longitude: lng,
+      source: "qqmap",
+      rawPoi: poi
+    };
+  },
+
+  buildQqSearchMarker(poi = {}, index = 0) {
+    const suggestion = this.buildQqSuggestion(poi, index);
+    if (!suggestion) return null;
+    const marker = {
+      id: suggestion.id || `qq-${index}`,
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+      title: suggestion.title,
+      width: 24,
+      height: 24
+    };
+    if (suggestion.address) {
+      marker.callout = {
+        content: `${suggestion.title}\n${suggestion.address}`,
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    const rawDetail = {
+      id: marker.id,
+      name: suggestion.title,
+      title: suggestion.title,
+      address: suggestion.address,
+      location: { text: suggestion.address }
+    };
+    const detail = this.composeMarkerDetail(rawDetail, marker, {
+      source: "search",
+      name: suggestion.title,
+      locationText: suggestion.address,
+      id: marker.id
+    });
+    marker.extData = Object.assign({}, marker.extData, {
+      source: "search",
+      raw: rawDetail,
+      detail: cloneMarkerDetail(detail)
+    });
+    return marker;
   },
 
   resolveMarkerDetail(marker) {

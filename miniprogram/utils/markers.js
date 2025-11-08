@@ -320,6 +320,26 @@ function incrementMarkerPhoneCall(markerId, options = {}) {
   return postMarkerMetric(markerId, "phone-call", options);
 }
 
+function searchMarkers(keyword, options = {}) {
+  const text = typeof keyword === "string" ? keyword.trim() : "";
+  if (!text) {
+    return Promise.resolve([]);
+  }
+  const query = [`keyword=${encodeURIComponent(text)}`];
+  const limit = Number(options.limit);
+  if (Number.isFinite(limit) && limit > 0) {
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 50));
+    query.push(`limit=${safeLimit}`);
+  }
+  const qs = query.length ? `?${query.join("&")}` : "";
+  return requestMarkerResource({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/markers/search${qs}`,
+    method: "GET"
+  }).then((body = {}) => body.data || []);
+}
+
 module.exports = {
   listMarkers,
   fetchNearbyMarkers,
@@ -332,5 +352,6 @@ module.exports = {
   fetchMapSettlementConfig,
   fetchOpenPlatformContent,
   incrementMarkerExposure,
-  incrementMarkerPhoneCall
+  incrementMarkerPhoneCall,
+  searchMarkers
 };
