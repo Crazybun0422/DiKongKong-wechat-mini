@@ -408,36 +408,48 @@ button.search-btn::after {
   position: absolute;
   left: 32rpx;
   bottom: calc(env(safe-area-inset-bottom) + 190rpx);
-  padding: 18rpx 22rpx 22rpx;
-  border-radius: 28rpx;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  padding: 12rpx 0;
+  color: #000;
   z-index: 36;
   pointer-events: none;
 }
 
 .map-scale-label {
   font-size: 24rpx;
-  font-weight: 500;
-  opacity: 0.9;
+  font-weight: 600;
+  color: #000;
 }
 
 .map-scale-track {
-  margin-top: 12rpx;
-  width: 240rpx;
-  height: 10rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.28);
+  margin-top: 10rpx;
+  height: 18rpx;
   position: relative;
 }
 
-.map-scale-fill {
+.map-scale-line {
   position: absolute;
+  top: 50%;
   left: 0;
-  top: 0;
-  height: 10rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.95);
+  width: 100%;
+  height: 4rpx;
+  background: #000;
+  transform: translateY(-50%);
+}
+
+.map-scale-tick {
+  position: absolute;
+  top: calc(50% - 8rpx);
+  width: 2rpx;
+  height: 16rpx;
+  background: #000;
+}
+
+.map-scale-tick-start {
+  left: 0;
+}
+
+.map-scale-tick-end {
+  right: 0;
 }
 
 .floating-controls {

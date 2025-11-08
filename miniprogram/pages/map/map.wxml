@@ -22,8 +22,10 @@
     <image class="center-pin" src="/assets/position.png" mode="widthFix" />
     <view class="map-scale" wx:if="{{scaleBarVisible}}">
       <text class="map-scale-label">{{scaleBarLabel}}</text>
-      <view class="map-scale-track">
-        <view class="map-scale-fill" style="width: {{scaleBarWidthRpx}}rpx;"></view>
+      <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
+        <view class="map-scale-line"></view>
+        <view class="map-scale-tick map-scale-tick-start"></view>
+        <view class="map-scale-tick map-scale-tick-end"></view>
       </view>
     </view>
 

@@ -62,8 +62,8 @@ const NFZ_CENTER_COLORS = {
 };
 
 const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 16;
-const DEFAULT_MAP_SCALE = 13;
+const MAP_MAX_SCALE = 20;
+const DEFAULT_MAP_SCALE = 14;
 
 const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
@@ -75,7 +75,8 @@ const EARTH_RADIUS_METERS = 6378137;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
 const WEB_TILE_SIZE = 256;
 const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
-const DEFAULT_SCALE_BAR_BASE_RPX = 240;
+const CSS_PIXELS_PER_CM = 96 / 2.54;
+const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -2372,6 +2373,8 @@ Page({
       console.warn("getSystemInfoSync failed", err);
     }
     this._pxPerRpx = width / 750;
+    const pxPerRpx = this._pxPerRpx || 1;
+    this._scaleBarBaseRpx = Math.max(30, Math.round(CSS_PIXELS_PER_CM / pxPerRpx));
   },
 
   updateScaleBar(context = {}) {
@@ -2380,7 +2383,7 @@ Page({
       this.initializeSystemInfo();
     }
     const pxPerRpx = this._pxPerRpx || 1;
-    const baseRpx = DEFAULT_SCALE_BAR_BASE_RPX;
+    const baseRpx = this._scaleBarBaseRpx || DEFAULT_SCALE_BAR_BASE_RPX;
     const pxWidth = baseRpx * pxPerRpx;
     const latitude =
       typeof ctx.latitude === "number"
@@ -2397,15 +2400,11 @@ Page({
     }
     const rawMeters = metersPerPixel * pxWidth;
     const nice = pickScaleBarLength(rawMeters);
-    if (!nice.length || !nice.label) {
-      return;
-    }
-    const safeRaw = Math.max(rawMeters, 1e-6);
-    const ratio = Math.min(1, Math.max(0.1, nice.length / safeRaw));
+    const labelText = nice.label || formatScaleLabel(rawMeters);
     this.setData({
       scaleBarVisible: true,
-      scaleBarLabel: nice.label,
-      scaleBarWidthRpx: Math.max(60, Math.round(baseRpx * ratio))
+      scaleBarLabel: labelText,
+      scaleBarWidthRpx: Math.max(30, Math.round(baseRpx))
     });
   },
 
