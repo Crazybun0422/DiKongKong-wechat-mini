@@ -826,11 +826,18 @@ button.marker-button::after,
 }
 
 .profile-retry-btn {
-  padding: 0 32rpx;
-  line-height: 64rpx;
-  background: #000000;
+  padding: 0 48rpx;
+  height: 72rpx;
+  line-height: 1;
+  background: linear-gradient(135deg, #000000 0%, #333333 100%);
   color: #fff;
   border-radius: 999rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 24rpx rgba(15, 23, 42, 0.12);
 }
 
 .profile-retry-btn::after {

@@ -2,7 +2,10 @@ const {
   transformHtmlContent,
   extractImageUrls
 } = require("../../../../utils/open-platform");
-const { resolveApiBase } = require("../../../../utils/profile");
+const {
+  resolveApiBase,
+  authorizedRequest
+} = require("../../../../utils/profile");
 
 const DEFAULT_TITLE = "FLP奖励机制";
 const DEFAULT_ERROR_NO_BASE = "未配置服务地址";
@@ -12,26 +15,12 @@ const TOAST_COPY_FAIL = "复制失败";
 const TOAST_CANNOT_OPEN = "无法打开链接";
 
 function fetchFlpRewardHelp(options = {}) {
-  const apiBase = resolveApiBase(options.apiBase);
-  if (!apiBase) {
-    return Promise.reject(new Error("missing-api-base"));
-  }
-  return new Promise((resolve, reject) => {
-    wx.request({
-      url: `${apiBase}/api/config/flp-reward-help`,
-      method: "GET",
-      header: { "content-type": "application/json" },
-      success: (res = {}) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data?.data || {});
-          return;
-        }
-        const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
-        reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
-      },
-      fail: (err) => reject(err)
-    });
-  });
+  return authorizedRequest({
+    apiBase: resolveApiBase(options.apiBase),
+    token: options.token,
+    path: "/api/config/flp-reward-help",
+    method: "GET"
+  }).then((body = {}) => body?.data || {});
 }
 
 function buildKeyVariants(key) {
