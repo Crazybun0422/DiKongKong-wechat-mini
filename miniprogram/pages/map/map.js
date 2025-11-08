@@ -397,6 +397,9 @@ Page({
     this._shareLaunchDetail = null;
     this._shareLaunchError = null;
     this._shareMarkerFetchPromise = null;
+    this._shareMarkerFetchSeq = 0;
+    this._shareLaunchNeedAuthRetry = false;
+    this._shareLaunchAuthPromise = null;
     const normalized = normalizeLaunchMarkerOptions(options);
     if (!normalized.markerId) {
       return;
@@ -407,11 +410,14 @@ Page({
     this.fetchShareMarkerDetailById(normalized.markerId);
   },
 
-  fetchShareMarkerDetailById(markerId) {
+  fetchShareMarkerDetailById(markerId, options = {}) {
     const id = `${markerId || ""}`.trim();
     if (!id) {
       return;
     }
+    const allowRetry = options.allowRetry !== false;
+    this._shareMarkerFetchSeq = (this._shareMarkerFetchSeq || 0) + 1;
+    const seq = this._shareMarkerFetchSeq;
     const request = fetchMarkerDetail(id, {
       apiBase: this.getApiBase(),
       token: this.getAuthToken()
@@ -419,19 +425,29 @@ Page({
     this._shareMarkerFetchPromise = request;
     request
       .then((detail) => {
-        if (this._shareMarkerFetchPromise !== request) {
+        if (this._shareMarkerFetchPromise !== request || this._shareMarkerFetchSeq !== seq) {
           return;
         }
         this._shareMarkerFetchPromise = null;
         this._shareLaunchDetail = detail;
         this._shareLaunchError = null;
+        this._shareLaunchNeedAuthRetry = false;
         this.tryActivateShareMarker();
       })
       .catch((err) => {
-        if (this._shareMarkerFetchPromise !== request) {
+        if (this._shareMarkerFetchPromise !== request || this._shareMarkerFetchSeq !== seq) {
           return;
         }
         this._shareMarkerFetchPromise = null;
+        if (allowRetry && err && err.message === "missing-token") {
+          this._shareLaunchNeedAuthRetry = true;
+          this._shareLaunchDetail = null;
+          this._shareLaunchError = null;
+          if (this._shareLaunchPermissionSettled) {
+            this.retryShareMarkerDetailAfterAuth();
+          }
+          return;
+        }
         this._shareLaunchDetail = null;
         this._shareLaunchError = err || new Error("marker-detail-failed");
         this.tryActivateShareMarker();
@@ -443,7 +459,44 @@ Page({
     if (!this._shareLaunchWaitForPermission) return;
     if (this._shareLaunchPermissionSettled) return;
     this._shareLaunchPermissionSettled = true;
+    if (this._shareLaunchNeedAuthRetry) {
+      this.retryShareMarkerDetailAfterAuth();
+      return;
+    }
     this.tryActivateShareMarker();
+  },
+
+  retryShareMarkerDetailAfterAuth() {
+    if (!this._shareLaunchMarkerId) {
+      this.tryActivateShareMarker();
+      return;
+    }
+    const fetchAfterAuth = () => {
+      if (!this._shareLaunchMarkerId || this._shareLaunchHandled) {
+        this.tryActivateShareMarker();
+        return;
+      }
+      this._shareLaunchNeedAuthRetry = false;
+      this.fetchShareMarkerDetailById(this._shareLaunchMarkerId, { allowRetry: false });
+    };
+    if (this.hasAccessToken()) {
+      fetchAfterAuth();
+      return;
+    }
+    if (this._shareLaunchAuthPromise) {
+      return;
+    }
+    this._shareLaunchAuthPromise = this.ensureProfileAuthenticated()
+      .then(() => {
+        fetchAfterAuth();
+      })
+      .catch((err) => {
+        this._shareLaunchError = err || new Error("login-failed");
+        this.tryActivateShareMarker();
+      })
+      .finally(() => {
+        this._shareLaunchAuthPromise = null;
+      });
   },
 
   tryActivateShareMarker() {
@@ -485,12 +538,26 @@ Page({
       wx.showToast({ title: "商户信息不完整", icon: "none" });
       return false;
     }
-    this._manualMarkers = [marker];
-    this.syncAllMarkers();
+    const detail = marker?.extData?.detail || {};
+    const isApproved = this.getDetailReviewStatus(detail) === "APPROVED";
+    if (!isApproved) {
+      this._manualMarkers = [marker];
+      this.syncAllMarkers();
+    } else if (Array.isArray(this._manualMarkers) && this._manualMarkers.length) {
+      this._manualMarkers = [];
+      this.syncAllMarkers();
+    }
     this.centerOnPoint(
       { latitude: marker.latitude, longitude: marker.longitude },
       clampMapScale(16)
     );
+    if (isApproved) {
+      this.scheduleFetchMarkers(0, {
+        force: true,
+        center: { latitude: marker.latitude, longitude: marker.longitude },
+        scale: this.data.scale
+      });
+    }
     this.openMarkerDetail(marker);
     return true;
   },
@@ -1266,13 +1333,16 @@ Page({
     this.openMarkerLocation(detail, dataset);
   },
 
+  getDetailReviewStatus(detail) {
+    if (!detail) return "";
+    return `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`.trim().toUpperCase();
+  },
+
   isDetailSharable(detail) {
     if (!detail || detail.shareDisabled) {
       return false;
     }
-    const status =
-      `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`.trim().toUpperCase();
-    return status === "APPROVED";
+    return this.getDetailReviewStatus(detail) === "APPROVED";
   },
 
   showShareBlockedToast() {

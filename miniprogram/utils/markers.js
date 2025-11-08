@@ -56,6 +56,41 @@ function buildFileDownloadUrl(fileName, options = {}) {
   return "";
 }
 
+function requestMarkerResource(options = {}) {
+  return new Promise((resolve, reject) => {
+    const base = resolveApiBase(options.apiBase);
+    if (!base) {
+      reject(new Error("missing-api-base"));
+      return;
+    }
+    const header = Object.assign(
+      {
+        "content-type": "application/json"
+      },
+      options.header || {}
+    );
+    const token = options.token || getAuthToken();
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
+    wx.request({
+      url: `${base}${options.path}`,
+      method: options.method || "GET",
+      data: options.data || null,
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data);
+        } else {
+          const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
+          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+        }
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 function postMarkerMetric(markerId, metricPath, options = {}) {
   if (markerId === undefined || markerId === null) {
     return Promise.reject(new Error("missing-marker-id"));
@@ -132,7 +167,7 @@ function fetchNearbyMarkers(params = {}, options = {}) {
     query.push(`radiusInKilometers=${encodeURIComponent(radius.toFixed(3))}`);
   }
   const qs = query.length ? `?${query.join("&")}` : "";
-  return authorizedRequest({
+  return requestMarkerResource({
     apiBase: options.apiBase,
     token: options.token,
     path: `/api/markers/nearby${qs}`,
@@ -148,7 +183,7 @@ function fetchMarkerDetail(markerId, options = {}) {
   if (!id) {
     return Promise.reject(new Error("missing-marker-id"));
   }
-  return authorizedRequest({
+  return requestMarkerResource({
     apiBase: options.apiBase,
     token: options.token,
     path: `/api/markers/${encodeURIComponent(id)}`,
