@@ -1,0 +1,22 @@
+<view class="flp-reward-page">
+  <scroll-view scroll-y="true" class="flp-reward-scroll">
+    <block wx:if="{{loading}}">
+      <view class="flp-reward-loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="flp-reward-error">
+        <text>{{error}}</text>
+        <button class="flp-reward-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <rich-text
+        class="flp-reward-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </scroll-view>
+</view>
