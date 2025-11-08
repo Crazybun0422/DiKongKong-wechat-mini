@@ -340,14 +340,42 @@ Page({
       clearTimeout(this._closeTimer);
       this._closeTimer = null;
     }
+    let hasHistory = false;
+    const detail = this.data.detail || null;
+    const pendingFocus = detail ? this.buildPendingMarkerFocus(detail) : null;
+    try {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      hasHistory = Array.isArray(pages) && pages.length > 1;
+    } catch (err) {
+      console.warn("getCurrentPages failed", err);
+    }
     const performNavigate = () => {
-      if (typeof wx?.navigateBack === "function") {
+      if (hasHistory && typeof wx?.navigateBack === "function") {
         wx.navigateBack({
           delta: 1,
           animationType: "slide-out-bottom",
           animationDuration: 240,
           complete: finalize
         });
+        return;
+      }
+      const relaunchToMap = () => {
+        const targetUrl = "/pages/map/map";
+        const app = this.getAppInstance();
+        if (app && app.globalData) {
+          app.globalData.pendingMarkerFocus = pendingFocus || null;
+        }
+        if (typeof wx?.reLaunch === "function") {
+          wx.reLaunch({ url: targetUrl, complete: finalize });
+          return true;
+        }
+        if (typeof wx?.redirectTo === "function") {
+          wx.redirectTo({ url: targetUrl, complete: finalize });
+          return true;
+        }
+        return false;
+      };
+      if (relaunchToMap()) {
         return;
       }
       finalize();
@@ -455,6 +483,31 @@ Page({
     if (typeof wx?.showToast === "function") {
       wx.showToast({ title: "未通过审核无法分享", icon: "none" });
     }
+  },
+
+  buildPendingMarkerFocus(detail = {}) {
+    if (!detail) {
+      return null;
+    }
+    const markerId = detail.id || detail.markerId || this.data.markerId || "";
+    const latitude = Number(detail.latitude);
+    const longitude = Number(detail.longitude);
+    if (!markerId || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const reviewStatus = `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`.trim();
+    const payload = {
+      markerId,
+      latitude,
+      longitude,
+      name: detail.name || "",
+      locationText: detail.locationText || "",
+      reviewStatus,
+      timestamp: Date.now(),
+      mode: "online",
+      scale: 16
+    };
+    return payload;
   },
 
   ensureDetailLocation(detail = {}, raw = {}) {

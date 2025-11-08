@@ -151,12 +151,14 @@
 .marker-page-address {
   margin-top: 36rpx;
   display: flex;
-  flex-direction: column;
-  gap: 24rpx;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 36rpx;
+  flex-wrap: wrap;
 }
 
 .marker-page-address-info {
-  flex: 1;
+  flex: 1 1 60%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -178,34 +180,44 @@
 
 .marker-page-address-actions {
   display: flex;
-  align-items: stretch;
-  gap: 20rpx;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 36rpx;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .marker-page-action {
-  flex: 1;
+  min-width: 120rpx;
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 16rpx;
-  padding: 18rpx 24rpx;
-  border-radius: 999rpx;
-  background: rgba(45, 104, 236, 0.08);
-  border: 1px solid rgba(45, 104, 236, 0.18);
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.marker-page-action:active {
+  opacity: 0.8;
 }
 
 .marker-page-action-icon {
-  width: 56rpx;
-  height: 56rpx;
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: rgba(45, 104, 236, 0.08);
+  border: 1px solid rgba(45, 104, 236, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .marker-page-action-image {
-  width: 32rpx;
-  height: 32rpx;
+  width: 40rpx;
+  height: 40rpx;
 }
 
 .marker-page-action-label {
