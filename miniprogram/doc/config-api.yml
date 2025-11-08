@@ -111,6 +111,73 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-reward-help:
+    get:
+      summary: 获取 FLP 奖励机制帮助文案
+      description: 用户管理员（ADMIN 或 OPERATOR）需携带管理员 token 才能读取该富文本内容，数据库中仅维护一条记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpRewardHelpResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新 FLP 奖励机制帮助文案
+      description: 仅 ADMIN 角色管理员可调用，用于创建或更新唯一的帮助文案记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlpRewardHelpRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpRewardHelpResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/wechat-pay:
     get:
       summary: 获取微信支付配置
@@ -297,6 +364,34 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/OpenPlatformCopyResponse'
+    FlpRewardHelpRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: FLP 奖励机制帮助富文本文案。
+    FlpRewardHelpResponse:
+      allOf:
+        - $ref: '#/components/schemas/FlpRewardHelpRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseFlpRewardHelpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/FlpRewardHelpResponse'
     WechatPayConfigRequest:
       type: object
       required:
