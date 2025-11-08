@@ -318,6 +318,20 @@
   color: inherit;
 }
 
+.marker-page-share--disabled {
+  background: rgba(148, 163, 184, 0.22);
+  color: #94a3b8;
+}
+
+.marker-page-share--disabled::after {
+  border: none;
+}
+
+.marker-page-share--disabled .marker-page-share-icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
 .marker-page-close-hint {
   position: fixed;
   left: 50%;

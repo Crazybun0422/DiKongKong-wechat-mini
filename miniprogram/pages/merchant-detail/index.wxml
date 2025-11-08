@@ -1,4 +1,4 @@
-<view class="merchant-detail-page">
+﻿<view class="merchant-detail-page">
   <block wx:if="{{loading}}">
     <view class="merchant-detail-status">
       <text class="merchant-detail-status-text">加载中...</text>
@@ -19,7 +19,15 @@
   </block>
 
   <block wx:else>
-    <scroll-view scroll-y class="marker-page-scroll">
+    <scroll-view
+      scroll-y
+      class="marker-page-scroll"
+      bindscroll="onDetailScroll"
+      bindtouchstart="onDetailTouchStart"
+      bindtouchmove="onDetailTouchMove"
+      bindtouchend="onDetailTouchEnd"
+      bindtouchcancel="onDetailTouchCancel"
+    >
       <view class="marker-page-hero">
         <block wx:if="{{detail.images && detail.images.length}}">
           <swiper
@@ -60,21 +68,38 @@
           </block>
         </view>
 
-        <view
-          class="marker-page-address"
-          wx:if="{{detail.locationText || detail.phone}}"
-        >
+        <view class="marker-page-address" wx:if="{{detail.locationText || detail.phone}}">
           <view class="marker-page-address-info" wx:if="{{detail.locationText}}">
             <text class="marker-page-address-label">地址</text>
             <text class="marker-page-address-text">{{detail.locationText}}</text>
           </view>
-          <view
-            class="marker-page-action-icon"
-            wx:if="{{detail.phone}}"
-            data-phone="{{detail.phone}}"
-            bindtap="onCallPhone"
-          >
-            <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+          <view class="marker-page-address-actions">
+            <view
+              class="marker-page-action"
+              wx:if="{{detail.phone}}"
+              data-phone="{{detail.phone}}"
+              data-marker-id="{{detail.markerId || detail.id || ''}}"
+              bindtap="onCallPhone"
+            >
+              <view class="marker-page-action-icon">
+                <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+              </view>
+              <text class="marker-page-action-label">电话</text>
+            </view>
+            <view
+              class="marker-page-action"
+              wx:if="{{detail.latitude && detail.longitude}}"
+              data-latitude="{{detail.latitude}}"
+              data-longitude="{{detail.longitude}}"
+              data-name="{{detail.name || '商户位置'}}"
+              data-address="{{detail.locationText || ''}}"
+              bindtap="onNavigateTap"
+            >
+              <view class="marker-page-action-icon">
+                <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
+              </view>
+              <text class="marker-page-action-label">位置</text>
+            </view>
           </view>
         </view>
 
@@ -137,10 +162,18 @@
       </view>
     </scroll-view>
 
-    <button open-type="share" class="marker-page-share">
-      <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
-      <text class="marker-page-share-text">转发</text>
-    </button>
+    <block wx:if="{{shareEnabled}}">
+      <button open-type="share" class="marker-page-share">
+        <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
+        <text class="marker-page-share-text">转发</text>
+      </button>
+    </block>
+    <block wx:else>
+      <button class="marker-page-share marker-page-share--disabled" bindtap="onShareDisabledTap">
+        <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
+        <text class="marker-page-share-text">转发</text>
+      </button>
+    </block>
     <view class="marker-page-close-hint">下滑关闭详情</view>
   </block>
 </view>

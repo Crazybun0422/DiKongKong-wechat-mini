@@ -1,5 +1,5 @@
-const { normalizeMarkerDetail } = require("../../utils/marker-detail");
-const { fetchMarkerDetail } = require("../../utils/markers");
+﻿const { normalizeMarkerDetail } = require("../../utils/marker-detail");
+const { fetchMarkerDetail, incrementMarkerPhoneCall } = require("../../utils/markers");
 
 Page({
   data: {
@@ -7,7 +7,8 @@ Page({
     error: "",
     detail: null,
     currentImage: 0,
-    markerId: ""
+    markerId: "",
+    shareEnabled: true
   },
 
   onLoad(options = {}) {
@@ -15,6 +16,9 @@ Page({
     this._markerId = options.markerId ? decodeURIComponent(options.markerId) : "";
     this._pendingFetch = null;
     this._detailResolved = false;
+    this._detailTouch = null;
+    this._detailScrollTop = 0;
+    this._closingDetail = false;
 
     const eventChannel = this.getOpenerEventChannel ? this.getOpenerEventChannel() : null;
     if (eventChannel && typeof eventChannel.on === "function") {
@@ -34,14 +38,18 @@ Page({
 
   onUnload() {
     if (this._pendingFetch && typeof this._pendingFetch.abort === "function") {
-      this._pendingFetch.abort();
+      try {
+        this._pendingFetch.abort();
+      } catch (err) {
+        console.warn("abort pending fetch failed", err);
+      }
     }
     this._pendingFetch = null;
   },
 
   getAppInstance() {
     try {
-      return getApp ? getApp() : null;
+      return typeof getApp === "function" ? getApp() : null;
     } catch (err) {
       console.warn("getApp failed", err);
       return null;
@@ -63,18 +71,22 @@ Page({
       this.setData({ loading: false, error: "未找到商户信息", detail: null });
       return;
     }
-    const normalized = input.images && input.attachments
-      ? input
-      : normalizeMarkerDetail(input.raw || input, { apiBase: this._apiBase });
+    const normalized =
+      input.images && input.attachments
+        ? input
+        : normalizeMarkerDetail(input.raw || input, { apiBase: this._apiBase });
     const markerId = normalized.id || this._markerId || "";
+    this.ensureDetailLocation(normalized, input.raw || input);
     this._detailResolved = true;
     this._markerId = markerId;
+    this._detailScrollTop = 0;
     this.setData({
       detail: normalized,
       loading: false,
       error: "",
       currentImage: 0,
-      markerId
+      markerId,
+      shareEnabled: this.isDetailSharable(normalized)
     });
     if (normalized.name && typeof wx?.setNavigationBarTitle === "function") {
       wx.setNavigationBarTitle({ title: normalized.name });
@@ -91,18 +103,26 @@ Page({
       return;
     }
     this.setData({ loading: true, error: "" });
-    this._pendingFetch = fetchMarkerDetail(id, {
+    const request = fetchMarkerDetail(id, {
       apiBase: this._apiBase,
       token: this.getAuthToken()
-    })
+    });
+    this._pendingFetch = request;
+    request
       .then((detail) => {
-        this._pendingFetch = null;
+        if (this._pendingFetch === request) {
+          this._pendingFetch = null;
+        }
         this.applyDetail(detail);
       })
       .catch((err) => {
         console.warn("fetch marker detail failed", err);
-        this._pendingFetch = null;
-        const message = err?.message === "missing-token" ? "请先登录后再查看商户详情" : "加载商户详情失败，请稍后重试";
+        if (this._pendingFetch === request) {
+          this._pendingFetch = null;
+        }
+        const message = err?.message === "missing-token"
+          ? "请先登录后再查看商户详情"
+          : "加载商户详情失败，请稍后重试";
         this.setData({ loading: false, error: message, detail: null });
       });
   },
@@ -167,7 +187,12 @@ Page({
 
     const proceed = () => {
       if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
-        wx.openChannelsActivity({ finderUserName, feedId:activityId });
+        wx.openChannelsActivity({
+          finderUserName,
+          feedId: activityId,
+          success: (res) => console.log("open channels activity", res),
+          fail: (err) => console.warn("open channels activity fail", err)
+        });
         return;
       }
       if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
@@ -186,12 +211,8 @@ Page({
         if (typeof wx?.setClipboardData === "function") {
           wx.setClipboardData({
             data: url,
-            success: () => {
-              wx.showToast({ title: "链接已复制", icon: "none" });
-            },
-            fail: () => {
-              wx.showToast({ title: "复制失败", icon: "none" });
-            }
+            success: () => wx.showToast({ title: "链接已复制", icon: "none" }),
+            fail: () => wx.showToast({ title: "复制失败", icon: "none" })
           });
         } else {
           wx.showToast({ title: "请复制链接访问", icon: "none" });
@@ -220,28 +241,182 @@ Page({
   },
 
   onCallPhone(event) {
-    const phone = event?.currentTarget?.dataset?.phone;
-    if (!phone) {
-      return;
-    }
-    if (typeof wx?.makePhoneCall === "function") {
-      wx.makePhoneCall({ phoneNumber: phone });
-    } else {
-      wx.showToast({ title: phone, icon: "none" });
+    const dataset = event?.currentTarget?.dataset || {};
+    const phone = dataset.phone || this.data.detail?.phone || "";
+    const markerId =
+      dataset.markerId ||
+      this.data.detail?.markerId ||
+      this.data.detail?.id ||
+      this.data.markerId ||
+      "";
+    const name = this.data.detail?.name || "";
+    this.makePhoneCall(phone, { markerId, name });
+  },
+
+  onNavigateTap(event) {
+    const detail = this.data.detail;
+    if (!detail) return;
+    const dataset = event?.currentTarget?.dataset || {};
+    this.openMarkerLocation(detail, dataset);
+  },
+
+  onDetailScroll(event) {
+    const top = Number(event?.detail?.scrollTop);
+    this._detailScrollTop = Number.isFinite(top) ? top : 0;
+  },
+
+  onDetailTouchStart(event) {
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    this._detailTouch = {
+      startY: touch.clientY,
+      lastY: touch.clientY,
+      deltaY: 0,
+      startTime: Date.now()
+    };
+  },
+
+  onDetailTouchMove(event) {
+    if (!this._detailTouch) return;
+    const touch = event?.touches?.[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - this._detailTouch.startY;
+    this._detailTouch.lastY = touch.clientY;
+    this._detailTouch.deltaY = deltaY;
+  },
+
+  onDetailTouchEnd() {
+    const info = this._detailTouch;
+    this._detailTouch = null;
+    if (!info) return;
+    const deltaY = info.deltaY || 0;
+    const duration = Date.now() - info.startTime;
+    if (
+      this._detailScrollTop <= 12 &&
+      ((deltaY >= 90 && duration <= 700) || deltaY >= 160)
+    ) {
+      this.closeDetailPage();
     }
   },
 
-  onShareAppMessage() {
-    const detail = this.data.detail;
-    if (detail) {
-      return {
-        title: detail.name || "附近商户",
-        path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(detail.id || "")}`
-      };
+  onDetailTouchCancel() {
+    this._detailTouch = null;
+  },
+
+  closeDetailPage() {
+    if (this._closingDetail) return;
+    this._closingDetail = true;
+    const finalize = () => {
+      this._closingDetail = false;
+    };
+    if (typeof wx?.navigateBack === "function") {
+      wx.navigateBack({
+        delta: 1,
+        animationType: "slide-out-bottom",
+        animationDuration: 240,
+        complete: finalize
+      });
+      return;
     }
-    return {
+    finalize();
+  },
+
+  onShareDisabledTap() {
+    this.showShareBlockedToast();
+  },
+
+  onShareAppMessage() {
+    const fallback = {
       title: "附近商户",
       path: "/pages/map/map"
     };
+    const detail = this.data.detail;
+    if (!detail) {
+      return fallback;
+    }
+    if (!this.isDetailSharable(detail)) {
+      this.showShareBlockedToast();
+      return fallback;
+    }
+    const markerId = detail.id || detail.markerId || this.data.markerId || "";
+    if (!markerId) {
+      return fallback;
+    }
+    return {
+      title: detail.name || fallback.title,
+      path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
+    };
+  },
+
+  openMarkerLocation(detail, overrides = {}) {
+    const latitude = Number(overrides.latitude ?? detail?.latitude);
+    const longitude = Number(overrides.longitude ?? detail?.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      wx.showToast({ title: "缺少位置信息", icon: "none" });
+      return;
+    }
+    const name = overrides.name || detail?.name || "商户位置";
+    const address = overrides.address || detail?.locationText || "";
+    if (typeof wx?.openLocation === "function") {
+      wx.openLocation({ latitude, longitude, name, address });
+      return;
+    }
+    wx.showToast({ title: "当前环境不支持打开位置", icon: "none" });
+  },
+
+  makePhoneCall(phone, options = {}) {
+    const value = typeof phone === "string" ? phone.trim() : `${phone || ""}`.trim();
+    const markerId = options.markerId ? `${options.markerId}`.trim() : "";
+    if (!value) {
+      wx.showToast({ title: "暂无联系电话", icon: "none" });
+      return;
+    }
+    if (typeof wx?.makePhoneCall === "function") {
+      wx.makePhoneCall({
+        phoneNumber: value,
+        success: () => {
+          if (markerId) {
+            this.incrementMarkerPhoneCallCount(markerId);
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx?.setClipboardData === "function") {
+      wx.setClipboardData({
+        data: value,
+        success: () => wx.showToast({ title: "号码已复制", icon: "none" })
+      });
+      return;
+    }
+    wx.showToast({ title: value, icon: "none" });
+  },
+
+  incrementMarkerPhoneCallCount(markerId) {
+    if (!markerId) {
+      return;
+    }
+    incrementMarkerPhoneCall(markerId, {
+      apiBase: this._apiBase,
+      token: this.getAuthToken()
+    }).catch((err) => {
+      console.warn("increment phone call failed", err);
+    });
+  },
+
+  isDetailSharable(detail) {
+    if (!detail || detail.shareDisabled) {
+      return false;
+    }
+    const status = `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`
+      .trim()
+      .toUpperCase();
+    return status === "APPROVED";
+  },
+
+  showShareBlockedToast() {
+    if (typeof wx?.showToast === "function") {
+      wx.showToast({ title: "未通过审核无法分享", icon: "none" });
+    }
   }
 });
