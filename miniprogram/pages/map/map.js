@@ -3,6 +3,7 @@ const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const {
   fetchNearbyMarkers,
+  fetchMarkerDetail,
   incrementMarkerExposure,
   incrementMarkerPhoneCall
 } = require("../../utils/markers");
@@ -137,6 +138,107 @@ const cloneMarkerDetail = (detail = {}) => {
   return cloned;
 };
 
+const decodeParamValue = (value) => {
+  if (value === undefined || value === null) return "";
+  const text = `${value}`.trim();
+  if (!text) return "";
+  try {
+    return decodeURIComponent(text);
+  } catch (err) {
+    return text;
+  }
+};
+
+const isTruthyFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return ["1", "true", "yes", "y", "on", "share"].includes(normalized);
+  }
+  return false;
+};
+
+const parseSceneParams = (scene) => {
+  if (!scene || typeof scene !== "string") {
+    return {};
+  }
+  let decoded = scene;
+  try {
+    decoded = decodeURIComponent(scene);
+  } catch (err) {
+    decoded = `${scene}`;
+  }
+  decoded = decoded.replace(/\+/g, " ");
+  const params = {};
+  decoded.split(/[&,|]/).forEach((segment) => {
+    const chunk = segment.trim();
+    if (!chunk) return;
+    let separatorIndex = chunk.indexOf("=");
+    if (separatorIndex < 0) {
+      separatorIndex = chunk.indexOf(":");
+    }
+    if (separatorIndex < 0) {
+      params[chunk] = "";
+      return;
+    }
+    const key = chunk.slice(0, separatorIndex).trim();
+    const value = chunk.slice(separatorIndex + 1).trim();
+    if (!key) return;
+    params[key] = value;
+  });
+  return params;
+};
+
+const normalizeLaunchMarkerOptions = (options = {}) => {
+  const normalized = {
+    markerId: "",
+    delayUntilPermission: false
+  };
+  if (!options || typeof options !== "object") {
+    return normalized;
+  }
+  const candidateKeys = ["markerId", "markerID", "id"];
+  for (const key of candidateKeys) {
+    if (options[key] !== undefined && options[key] !== null) {
+      const decoded = decodeParamValue(options[key]);
+      if (decoded) {
+        normalized.markerId = decoded;
+        break;
+      }
+    }
+  }
+  const shareFlag = options.fromShare ?? options.share ?? options.source;
+  if (isTruthyFlag(shareFlag)) {
+    normalized.delayUntilPermission = true;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  if (!normalized.markerId && sceneParams.markerId) {
+    normalized.markerId = decodeParamValue(sceneParams.markerId);
+  }
+  if (!normalized.delayUntilPermission && sceneParams.fromShare) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
+  } else if (!normalized.delayUntilPermission && sceneParams.share) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
+  }
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    if (!normalized.markerId && qParams.markerId) {
+      normalized.markerId = decodeParamValue(qParams.markerId);
+    }
+    if (!normalized.delayUntilPermission && qParams.fromShare) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
+    } else if (!normalized.delayUntilPermission && qParams.share) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.share);
+    }
+  }
+  return normalized;
+};
+
 Page({
   data: {
     keyword: "",
@@ -191,7 +293,7 @@ Page({
     callSheetMarkerName: ""
   },
 
-  onLoad() {
+  onLoad(options = {}) {
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
     this._fetchTimer = null;
@@ -233,6 +335,7 @@ Page({
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
     this._manualMarkers = [];
+    this.initializeShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
@@ -284,6 +387,161 @@ Page({
       return;
     }
     this.focusOnlineMarker(request);
+  },
+
+  initializeShareLaunch(options = {}) {
+    this._shareLaunchMarkerId = "";
+    this._shareLaunchWaitForPermission = false;
+    this._shareLaunchPermissionSettled = true;
+    this._shareLaunchHandled = false;
+    this._shareLaunchDetail = null;
+    this._shareLaunchError = null;
+    this._shareMarkerFetchPromise = null;
+    const normalized = normalizeLaunchMarkerOptions(options);
+    if (!normalized.markerId) {
+      return;
+    }
+    this._shareLaunchMarkerId = normalized.markerId;
+    this._shareLaunchWaitForPermission = !!normalized.delayUntilPermission;
+    this._shareLaunchPermissionSettled = !this._shareLaunchWaitForPermission;
+    this.fetchShareMarkerDetailById(normalized.markerId);
+  },
+
+  fetchShareMarkerDetailById(markerId) {
+    const id = `${markerId || ""}`.trim();
+    if (!id) {
+      return;
+    }
+    const request = fetchMarkerDetail(id, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    });
+    this._shareMarkerFetchPromise = request;
+    request
+      .then((detail) => {
+        if (this._shareMarkerFetchPromise !== request) {
+          return;
+        }
+        this._shareMarkerFetchPromise = null;
+        this._shareLaunchDetail = detail;
+        this._shareLaunchError = null;
+        this.tryActivateShareMarker();
+      })
+      .catch((err) => {
+        if (this._shareMarkerFetchPromise !== request) {
+          return;
+        }
+        this._shareMarkerFetchPromise = null;
+        this._shareLaunchDetail = null;
+        this._shareLaunchError = err || new Error("marker-detail-failed");
+        this.tryActivateShareMarker();
+      });
+  },
+
+  markSharePermissionAttempted() {
+    if (!this._shareLaunchMarkerId) return;
+    if (!this._shareLaunchWaitForPermission) return;
+    if (this._shareLaunchPermissionSettled) return;
+    this._shareLaunchPermissionSettled = true;
+    this.tryActivateShareMarker();
+  },
+
+  tryActivateShareMarker() {
+    if (!this._shareLaunchMarkerId || this._shareLaunchHandled) {
+      return;
+    }
+    if (!this._shareLaunchPermissionSettled) {
+      return;
+    }
+    if (this._shareLaunchDetail) {
+      const success = this.activateShareMarkerDetail(this._shareLaunchDetail);
+      this._shareLaunchHandled = true;
+      this._shareLaunchDetail = null;
+      this._shareLaunchMarkerId = "";
+      if (!success) {
+        return;
+      }
+      return;
+    }
+    if (this._shareLaunchError) {
+      this.handleShareMarkerError(this._shareLaunchError);
+      this._shareLaunchHandled = true;
+      this._shareLaunchMarkerId = "";
+      this._shareLaunchError = null;
+    }
+  },
+
+  handleShareMarkerError(err) {
+    const message =
+      err && err.message === "missing-token"
+        ? "请先登录后再查看商户详情"
+        : "加载商户详情失败，请稍后重试";
+    wx.showToast({ title: message, icon: "none" });
+  },
+
+  activateShareMarkerDetail(rawDetail) {
+    const marker = this.buildShareMarkerFromDetail(rawDetail);
+    if (!marker) {
+      wx.showToast({ title: "商户信息不完整", icon: "none" });
+      return false;
+    }
+    this._manualMarkers = [marker];
+    this.syncAllMarkers();
+    this.centerOnPoint(
+      { latitude: marker.latitude, longitude: marker.longitude },
+      clampMapScale(16)
+    );
+    this.openMarkerDetail(marker);
+    return true;
+  },
+
+  buildShareMarkerFromDetail(rawDetail = {}) {
+    if (!rawDetail) {
+      return null;
+    }
+    const detail = this.composeMarkerDetail(rawDetail, {}, {
+      source: "share",
+      id: rawDetail.id,
+      name: rawDetail.name,
+      locationText: rawDetail.locationText
+    });
+    const latitude = Number(detail.latitude);
+    const longitude = Number(detail.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const gcj = wgs84ToGcj02(longitude, latitude);
+    const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latitude;
+    const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : longitude;
+    const markerName = detail.name || "商户位置";
+    const markerId = detail.markerId || detail.id || rawDetail.id || `share-${Date.now()}`;
+    const marker = {
+      id: markerId,
+      latitude: latitudeGcj,
+      longitude: longitudeGcj,
+      title: markerName,
+      iconPath: "/assets/drone.png",
+      width: 44,
+      height: 44,
+      extData: {
+        source: "share",
+        raw: rawDetail,
+        detail: cloneMarkerDetail(detail)
+      }
+    };
+    const calloutContent = formatNearbyMarkerLabel(markerName);
+    if (calloutContent) {
+      marker.callout = {
+        content: calloutContent,
+        color: "rgba(0, 0, 0, 0.95)",
+        fontSize: 14,
+        fontWeight: "bold",
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    return marker;
   },
 
   focusOnlineMarker(request = {}) {
@@ -561,35 +819,6 @@ Page({
       this.openMarkerPage(restored);
       this.setData({ markerDetailExpanding: false });
     }, 220);
-  },
-
-  openMerchantDetailPage(detail) {
-    if (!detail) return;
-    const payload = cloneMarkerDetail(detail);
-    this._lastMarkerDetail = payload;
-    this.closeMarkerDetail(true);
-    const markerId = payload.markerId || payload.id || "";
-    const url = markerId
-      ? `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
-      : "/pages/merchant-detail/index";
-    if (typeof wx?.navigateTo !== "function") {
-      wx.showToast({ title: "无法打开详情", icon: "none" });
-      return;
-    }
-    wx.navigateTo({
-      url,
-      animationType: "slide-in-bottom",
-      animationDuration: 260,
-      success: (res) => {
-        if (res?.eventChannel && typeof res.eventChannel.emit === "function") {
-          res.eventChannel.emit("markerDetail", payload);
-        }
-      },
-      fail: (err) => {
-        console.warn("navigate merchant detail fail", err);
-        wx.showToast({ title: "无法打开详情", icon: "none" });
-      }
-    });
   },
 
   onMarkerDetailTouchStart(event) {
@@ -1075,7 +1304,7 @@ Page({
     }
     return {
       title: detail.name || fallback.title,
-      path: `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`
+      path: `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`
     };
   },
 
@@ -1541,10 +1770,13 @@ Page({
   },
 
   requestInitialLocation() {
-    this.ensureLocationPermission()
+    return this.ensureLocationPermission()
       .then(() => this.pullAndCenterLocation({ silent: true }))
       .catch(() => {
         // 用户拒绝初始授权时不打扰，仍可手动定位
+      })
+      .finally(() => {
+        this.markSharePermissionAttempted();
       });
   },
 
