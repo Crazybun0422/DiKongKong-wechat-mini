@@ -1,0 +1,75 @@
+.flp-log-page {
+  min-height: 100vh;
+  background: #f6f7fb;
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+.flp-log-card {
+  background: #ffffff;
+  border-radius: 32rpx;
+  padding: 32rpx;
+  box-shadow: 0 12rpx 48rpx rgba(8, 20, 48, 0.08);
+}
+
+.flp-log-placeholder {
+  text-align: center;
+  padding: 120rpx 0;
+  color: #9ca3af;
+  font-size: 28rpx;
+}
+
+.flp-log-item {
+  padding: 32rpx 0;
+}
+
+.flp-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.flp-log-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #111827;
+  max-width: 460rpx;
+}
+
+.flp-log-amount {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.flp-log-amount.is-increase {
+  color: #10b981;
+}
+
+.flp-log-amount.is-decrease {
+  color: #ef4444;
+}
+
+.flp-log-time {
+  font-size: 26rpx;
+  color: #9ca3af;
+}
+
+.flp-log-divider {
+  height: 1px;
+  background: #f0f2f5;
+}
+
+.flp-log-footer {
+  padding-top: 24rpx;
+  text-align: center;
+}
+
+.flp-log-footer-text {
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+.flp-log-footer-text.is-muted {
+  color: #9ca3af;
+}

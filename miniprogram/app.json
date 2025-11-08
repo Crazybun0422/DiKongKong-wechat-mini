@@ -3,6 +3,7 @@
     "pages/map/map",
     "pages/profile/profile",
     "pages/profile/flp/index",
+    "pages/profile/flp/logs/index",
     "pages/profile/open-platform/index",
     "pages/profile/edit/index",
     "pages/markers/index",

@@ -9,7 +9,8 @@ App({
     buildFrom: "vue-tencent-map-demo",
     token: null,
     userProfile: null,
-    apiBase: DEV_API_BASE_URL
+    apiBase: DEV_API_BASE_URL,
+    pendingMarkerFocus: null
   },
 
   onLaunch() {

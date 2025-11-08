@@ -1,0 +1,30 @@
+<view class="flp-log-page">
+  <view class="flp-log-card">
+    <block wx:if="{{loading && !logs.length}}">
+      <view class="flp-log-placeholder">正在加载...</view>
+    </block>
+    <block wx:elif="{{errorMessage && !logs.length}}">
+      <view class="flp-log-placeholder">{{errorMessage}}</view>
+    </block>
+    <block wx:elif="{{!logs.length}}">
+      <view class="flp-log-placeholder">暂无明细</view>
+    </block>
+    <block wx:for="{{logs}}" wx:key="id">
+      <view class="flp-log-item">
+        <view class="flp-log-header">
+          <text class="flp-log-title">{{item.reason}}</text>
+          <text class="flp-log-amount {{item.isIncrease ? 'is-increase' : 'is-decrease'}}">
+            {{item.amountDisplay}}
+          </text>
+        </view>
+        <text class="flp-log-time">{{item.timeDisplay}}</text>
+      </view>
+      <view class="flp-log-divider" wx:if="{{index < logs.length - 1}}"></view>
+    </block>
+    <view class="flp-log-footer" wx:if="{{logs.length}}">
+      <text class="flp-log-footer-text" wx:if="{{loadingMore}}">正在加载更多...</text>
+      <text class="flp-log-footer-text" wx:elif="{{hasMore}}">上拉加载更多</text>
+      <text class="flp-log-footer-text is-muted" wx:else>没有更多记录了</text>
+    </view>
+  </view>
+</view>

@@ -55,7 +55,11 @@ Page({
   },
 
   onDetailTap() {
-    wx.showToast({ title: "敬请期待", icon: "none" });
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: "/pages/profile/flp/logs/index" });
+      return;
+    }
+    wx.showToast({ title: "当前版本暂不支持", icon: "none" });
   },
 
   onHelpLinkTap() {

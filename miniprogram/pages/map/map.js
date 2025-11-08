@@ -1,4 +1,4 @@
-const { DRONES } = require("../../utils/drones");
+﻿const { DRONES } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const {
@@ -184,6 +184,7 @@ Page({
     markerPageClosing: false,
     markerPageDetail: null,
     markerPageCurrentImage: 0,
+    markerPageShareEnabled: true,
     callSheetVisible: false,
     callSheetPhone: "",
     callSheetMarkerId: "",
@@ -231,6 +232,8 @@ Page({
     this._markerDetailExpandTimer = null;
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
+    this._manualMarkers = [];
+    this.consumePendingMarkerFocus({ immediate: true });
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
@@ -851,6 +854,7 @@ Page({
       this.setData({ activeTab: "home" ,showDashboardPanel: true});
       this.showDashboardPanel = true;
     }
+    this.consumePendingMarkerFocus({ source: "show" });
   },
 
   onUnload() {

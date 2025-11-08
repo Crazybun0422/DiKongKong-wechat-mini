@@ -378,7 +378,8 @@ Page({
       updatedAtDisplay,
       exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
       phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
-      coverImage: images.length ? images[0].url : ""
+      coverImage: images.length ? images[0].url : "",
+      raw
     };
   },
 
@@ -449,14 +450,253 @@ Page({
     );
   },
 
-  onGoHomeTap() {
-    if (typeof wx.switchTab === "function") {
-      wx.switchTab({ url: "/pages/map/map" });
+  onGoHomeTap(e) {
+    const markerId = e?.currentTarget?.dataset?.id;
+    if (!markerId) return;
+    const marker = this.data.markers.find((item) => item.id === markerId);
+    if (!marker) {
+      if (wx && typeof wx.showToast === "function") {
+        wx.showToast({ title: "未找到标记", icon: "none" });
+      }
       return;
     }
-    if (typeof wx.navigateTo === "function") {
-      wx.navigateTo({ url: "/pages/map/map" });
+    if (!this.queueMarkerFocus(marker)) {
+      return;
     }
+    this.setData({ showDetail: false, activeMarker: null });
+    if (this.navigateToMapHome()) {
+      return;
+    }
+    if (wx && typeof wx.showToast === "function") {
+      wx.showToast({ title: "无法打开地图", icon: "none" });
+    }
+  },
+
+  navigateToMapHome() {
+    const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+    if (
+      Array.isArray(pages) &&
+      pages.length &&
+      typeof wx !== "undefined" &&
+      typeof wx.navigateBack === "function"
+    ) {
+      for (let i = pages.length - 2; i >= 0; i--) {
+        const route = pages[i]?.route || pages[i]?.__route__ || "";
+        if (route === "pages/map/map") {
+          const delta = pages.length - 1 - i;
+          if (delta > 0) {
+            wx.navigateBack({ delta });
+            return true;
+          }
+          return true;
+        }
+      }
+    }
+    if (typeof wx !== "undefined" && typeof wx.navigateTo === "function") {
+      try {
+        wx.navigateTo({ url: "/pages/map/map" });
+        return true;
+      } catch (err) {
+        console.warn("navigateTo map failed", err);
+      }
+    }
+    if (typeof wx !== "undefined" && typeof wx.redirectTo === "function") {
+      try {
+        wx.redirectTo({ url: "/pages/map/map" });
+        return true;
+      } catch (err) {
+        console.warn("redirectTo map failed", err);
+      }
+    }
+    if (typeof wx !== "undefined" && typeof wx.reLaunch === "function") {
+      wx.reLaunch({ url: "/pages/map/map" });
+      return true;
+    }
+    return false;
+  },
+
+  queueMarkerFocus(marker = {}) {
+    const latitude = this.pickNumericValue(
+      marker.latitude,
+      marker.location?.latitude,
+      marker.raw?.location?.latitude,
+      marker.raw?.latitude
+    );
+    const longitude = this.pickNumericValue(
+      marker.longitude,
+      marker.location?.longitude,
+      marker.raw?.location?.longitude,
+      marker.raw?.longitude
+    );
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      if (wx && typeof wx.showToast === "function") {
+        wx.showToast({ title: "标记缺少位置信息", icon: "none" });
+      }
+      return false;
+    }
+    const mode = marker.reviewStatus === "APPROVED" ? "online" : "offline";
+    const request = {
+      markerId: marker.id,
+      latitude,
+      longitude,
+      name: marker.name || "",
+      locationText: marker.locationText || "",
+      reviewStatus: marker.reviewStatus || "",
+      timestamp: Date.now(),
+      mode
+    };
+    if (mode === "offline") {
+      const offlineRaw = this.buildOfflineMarkerDetailRaw(marker);
+      if (!offlineRaw) {
+        if (wx && typeof wx.showToast === "function") {
+          wx.showToast({ title: "标记信息不完整", icon: "none" });
+        }
+        return false;
+      }
+      request.offlineRaw = offlineRaw;
+      request.detailSnapshot = this.buildOfflineDetailSnapshot(marker);
+      request.shareDisabled = true;
+    }
+    if (!this.storePendingMarkerFocus(request)) {
+      if (wx && typeof wx.showToast === "function") {
+        wx.showToast({ title: "无法打开地图", icon: "none" });
+      }
+      return false;
+    }
+    return true;
+  },
+
+  storePendingMarkerFocus(payload) {
+    if (!payload) return false;
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData) return false;
+    app.globalData.pendingMarkerFocus = payload;
+    return true;
+  },
+
+  pickNumericValue(...candidates) {
+    for (const candidate of candidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+    return null;
+  },
+
+  buildOfflineMarkerDetailRaw(marker = {}) {
+    const base = marker.raw && typeof marker.raw === "object" ? Object.assign({}, marker.raw) : {};
+    const latitude = this.pickNumericValue(
+      marker.latitude,
+      marker.location?.latitude,
+      base.location?.latitude,
+      base.latitude
+    );
+    const longitude = this.pickNumericValue(
+      marker.longitude,
+      marker.location?.longitude,
+      base.location?.longitude,
+      base.longitude
+    );
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    base.id = marker.id || base.id || "";
+    base.name = marker.name || base.name || "";
+    base.description = marker.description || base.description || "";
+    base.locationText = marker.locationText || base.locationText || "";
+    base.latitude = latitude;
+    base.longitude = longitude;
+    const location = Object.assign({}, base.location || {});
+    location.text = marker.locationText || location.text || base.locationText || "";
+    location.latitude = latitude;
+    location.longitude = longitude;
+    base.location = location;
+    if (!base.phone && marker.phone) {
+      base.phone = marker.phone;
+    }
+    if (
+      (!Array.isArray(base.industryHonorTags) || !base.industryHonorTags.length) &&
+      Array.isArray(marker.industryHonorTags)
+    ) {
+      base.industryHonorTags = marker.industryHonorTags.slice();
+    }
+    if (!base.images || !base.images.length) {
+      base.images = this.extractFileReferences(marker.images);
+    }
+    if (!base.qrCodeUrls || !base.qrCodeUrls.length) {
+      base.qrCodeUrls = this.extractFileReferences(marker.qrCodes);
+    }
+    const attachmentRefs = this.extractFileReferences(marker.attachments);
+    if ((!base.attachmentUrls || !base.attachmentUrls.length) && attachmentRefs.length) {
+      base.attachmentUrls = attachmentRefs.slice();
+    }
+    if ((!base.attachments || !base.attachments.length) && attachmentRefs.length) {
+      base.attachments = attachmentRefs.slice();
+    }
+    if (!base.businessLicense && marker.businessLicense) {
+      base.businessLicense =
+        marker.businessLicense.fileName || marker.businessLicense.url || "";
+    }
+    return base;
+  },
+
+  buildOfflineDetailSnapshot(marker = {}) {
+    const cloneList = (list = []) =>
+      Array.isArray(list)
+        ? list
+            .map((item) => (item && typeof item === "object" ? Object.assign({}, item) : item))
+            .filter(Boolean)
+        : [];
+    const cloneObject = (value) =>
+      value && typeof value === "object" ? Object.assign({}, value) : value || null;
+    return {
+      id: marker.id || "",
+      name: marker.name || "",
+      description: marker.description || "",
+      phone: marker.phone || "",
+      locationText: marker.locationText || "",
+      images: cloneList(marker.images),
+      attachments: cloneList(marker.attachments),
+      qrCodes: cloneList(marker.qrCodes),
+      honors: Array.isArray(marker.industryHonorTags)
+        ? marker.industryHonorTags.slice()
+        : [],
+      businessLicense: cloneObject(marker.businessLicense),
+      adminInfo: cloneObject(marker.adminInfo),
+      videoAccounts: cloneList(marker.videoAccounts),
+      primaryVideoAccount: cloneObject(marker.primaryVideoAccount),
+      videoChannelId: marker.videoChannelId || "",
+      videoId: marker.videoId || "",
+      reviewStatus: marker.reviewStatus || "",
+      reviewStatusLabel: marker.reviewStatusLabel || "",
+      reviewTone: marker.reviewTone || "",
+      paid: !!marker.paid,
+      paidLabel: marker.paidLabel || "",
+      paymentMethod: marker.paymentMethod || "",
+      createdAtDisplay: marker.createdAtDisplay || "",
+      updatedAtDisplay: marker.updatedAtDisplay || "",
+      raw: marker.raw && typeof marker.raw === "object" ? Object.assign({}, marker.raw) : null
+    };
+  },
+
+  extractFileReferences(collection = []) {
+    if (!Array.isArray(collection)) return [];
+    return collection
+      .map((item) => {
+        if (!item) return "";
+        if (typeof item === "string") {
+          return item.trim();
+        }
+        if (typeof item.fileName === "string" && item.fileName.trim()) {
+          return item.fileName.trim();
+        }
+        if (typeof item.url === "string" && item.url.trim()) {
+          return item.url.trim();
+        }
+        return "";
+      })
+      .filter(Boolean);
   },
 
   onEditMarkerTap(e) {
