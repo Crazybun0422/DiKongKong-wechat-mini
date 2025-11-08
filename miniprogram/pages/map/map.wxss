@@ -280,64 +280,14 @@
   display: flex;
   align-items: center;
   justify-content: flex-start; /* 闈犲乏 */
-  gap: 18rpx;
-}
-
-.locate-wrapper {
-  flex-shrink: 0;
+  gap: 0;
 }
 
 .search-stack {
   flex: 1;
+  width: 100%;
   position: relative;
   pointer-events: auto;
-}
-
-button.locate-circle {
-
-display: inline-flex;          
-flex: none;                   
-box-sizing: border-box;
-padding: 0;
-margin: 0;
-min-width: 0;
-line-height: 72rpx;            
-background: rgba(255,255,255,0.08);
-border: 2rpx solid rgba(255,255,255,0.85);
-
-
-width: 72rpx;
-height: 72rpx;
-border-radius: 50%;
-
-
-align-items: center;
-justify-content: center;
-
-/* 鍔ㄦ晥 */
-transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
-overflow: hidden;
-pointer-events: auto;
-}
-
-button.locate-circle::after {
-  border: 0; content: none; 
-}
-
-.locate-icon {
-  width: 38rpx;
-  height: 38rpx;
-}
-
-button.locate-hover {
-  transform: scale(0.94);
-  background: rgba(255,255,255,0.18);
-  box-shadow: 0 8rpx 20rpx rgba(0,0,0,.18) inset, 0 6rpx 14rpx rgba(0,0,0,.10);
-}
-
-/* 鍙€夛細鎮诞瑙嗚锛堟ā鎷?hover锛岀Щ鍔ㄧ鐪嬩笉澶嚭鏉ワ紝鐣欑潃鏃犲锛?*/
-button.locate-circle:hover {
-  background: rgba(255,255,255,0.14);
 }
 
 .search-pill {
@@ -454,6 +404,42 @@ button.search-btn::after {
   color: rgba(255, 255, 255, 0.7);
 }
 
+.map-scale {
+  position: absolute;
+  left: 32rpx;
+  bottom: calc(env(safe-area-inset-bottom) + 190rpx);
+  padding: 18rpx 22rpx 22rpx;
+  border-radius: 28rpx;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  z-index: 36;
+  pointer-events: none;
+}
+
+.map-scale-label {
+  font-size: 24rpx;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.map-scale-track {
+  margin-top: 12rpx;
+  width: 240rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.28);
+  position: relative;
+}
+
+.map-scale-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.95);
+}
+
 .floating-controls {
     position: absolute;
     right: 32rpx;
@@ -509,20 +495,14 @@ button.marker-button::after,
   filter: brightness(0) saturate(100%);
 }
 
-.dashboard-toggle-icon,
 .menu-icon,
 .menu-label {
   opacity: 0.55;
 }
 
-.dashboard-toggle.is-active .dashboard-toggle-icon,
 .menu-btn.is-active .menu-icon,
 .menu-btn.is-active .menu-label {
   opacity: 1;
-}
-
-.dashboard-toggle.is-active .dashboard-toggle-icon {
-  filter: brightness(0) saturate(100%);
 }
 
 .bottom-controls {

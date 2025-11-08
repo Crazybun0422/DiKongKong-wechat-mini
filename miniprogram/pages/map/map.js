@@ -61,9 +61,9 @@ const NFZ_CENTER_COLORS = {
   10: "#A9D86E"
 };
 
-const MAP_MIN_SCALE = 3;
+const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 16;
-const DEFAULT_MAP_SCALE = 15;
+const DEFAULT_MAP_SCALE = 13;
 
 const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
@@ -71,6 +71,11 @@ const DEFAULT_FETCH_RADIUS = 80000;
 const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
 const MAX_SEARCH_SUGGESTIONS = 10;
 const MAX_SEARCH_RESULTS = 20;
+const EARTH_RADIUS_METERS = 6378137;
+const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
+const WEB_TILE_SIZE = 256;
+const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
+const DEFAULT_SCALE_BAR_BASE_RPX = 240;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -115,6 +120,56 @@ const formatTemporaryZoneLabel = (value, maxLength = 6) => {
     return trimmed;
   }
   return `${chars.slice(0, maxLength).join("")}...`;
+};
+
+const computeMetersPerPixel = (latitude, zoomLevel) => {
+  if (!Number.isFinite(zoomLevel)) {
+    return 0;
+  }
+  const lat = Math.max(-85, Math.min(85, Number(latitude) || 0));
+  const zoom = Math.max(0, zoomLevel);
+  const radians = (lat * Math.PI) / 180;
+  const cosLat = Math.cos(radians);
+  return (METERS_PER_PIXEL_BASE * cosLat) / Math.pow(2, zoom);
+};
+
+const formatScaleLabel = (meters) => {
+  if (!Number.isFinite(meters) || meters <= 0) {
+    return "";
+  }
+  if (meters >= 1000) {
+    const km = meters / 1000;
+    return km >= 10 ? `${Math.round(km)} km` : `${Math.round(km * 10) / 10} km`;
+  }
+  if (meters >= 1) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${Number(meters.toFixed(1))} m`;
+};
+
+const pickScaleBarLength = (rawMeters) => {
+  if (!Number.isFinite(rawMeters) || rawMeters <= 0) {
+    return { length: 0, label: "" };
+  }
+  const exponent = Math.floor(Math.log10(rawMeters));
+  const pow = Math.pow(10, exponent);
+  const steps = [1, 2, 5];
+  let length = steps[0] * pow;
+  for (let i = 0; i < steps.length; i += 1) {
+    const candidate = steps[i] * pow;
+    if (candidate <= rawMeters) {
+      length = candidate;
+    } else {
+      break;
+    }
+  }
+  if (!Number.isFinite(length) || length <= 0) {
+    length = rawMeters;
+  }
+  return {
+    length,
+    label: formatScaleLabel(length)
+  };
 };
 
 const settleWithValue = (promise, options = {}) => {
@@ -310,12 +365,16 @@ Page({
     callSheetVisible: false,
     callSheetPhone: "",
     callSheetMarkerId: "",
-    callSheetMarkerName: ""
+    callSheetMarkerName: "",
+    scaleBarVisible: false,
+    scaleBarWidthRpx: DEFAULT_SCALE_BAR_BASE_RPX,
+    scaleBarLabel: ""
   },
 
   onLoad(options = {}) {
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
+    this.initializeSystemInfo();
     this._fetchTimer = null;
     this._markersFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
@@ -369,6 +428,7 @@ Page({
       scale: this.data.scale,
       force: true
     });
+    this.updateScaleBar();
     this.updateStatusPanel();
     this.requestInitialLocation();
   },
@@ -1478,10 +1538,6 @@ Page({
     this.performSearch();
   },
 
-  toggleDashboardPanel() {
-    this.setData({ showDashboardPanel: !this.data.showDashboardPanel });
-  },
-
   onChatButtonTap() {
     this.showPlaceholderToast("聊天功能开发中");
   },
@@ -1528,9 +1584,6 @@ Page({
     }
     this.ensureProfileAuthenticated()
       .then(() => {
-        if (this.data.showDashboardPanel) {
-          this.setData({ showDashboardPanel: false });
-        }
         if (typeof wx.navigateTo === "function") {
           wx.navigateTo({ url: "/pages/profile/profile" });
         }
@@ -1573,9 +1626,6 @@ Page({
 
   openMarkersPage() {
     const updates = {};
-    if (this.data.showDashboardPanel) {
-      updates.showDashboardPanel = false;
-    }
     if (this.data.activeTab !== "profile") {
       updates.activeTab = "profile";
     }
@@ -2306,6 +2356,59 @@ Page({
     });
   },
 
+  initializeSystemInfo() {
+    if (this._pxPerRpx && this._pxPerRpx > 0) {
+      return;
+    }
+    let width = 375;
+    try {
+      if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
+        const info = wx.getSystemInfoSync();
+        if (info && info.windowWidth) {
+          width = info.windowWidth;
+        }
+      }
+    } catch (err) {
+      console.warn("getSystemInfoSync failed", err);
+    }
+    this._pxPerRpx = width / 750;
+  },
+
+  updateScaleBar(context = {}) {
+    const ctx = context && typeof context === "object" ? context : {};
+    if (!this._pxPerRpx || this._pxPerRpx <= 0) {
+      this.initializeSystemInfo();
+    }
+    const pxPerRpx = this._pxPerRpx || 1;
+    const baseRpx = DEFAULT_SCALE_BAR_BASE_RPX;
+    const pxWidth = baseRpx * pxPerRpx;
+    const latitude =
+      typeof ctx.latitude === "number"
+        ? ctx.latitude
+        : (this.data.center && typeof this.data.center.latitude === "number"
+            ? this.data.center.latitude
+            : DEFAULT_CENTER.latitude);
+    const zoom = clampMapScale(
+      Object.prototype.hasOwnProperty.call(ctx, "scale") ? ctx.scale : this.data.scale
+    );
+    const metersPerPixel = computeMetersPerPixel(latitude, zoom);
+    if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) {
+      return;
+    }
+    const rawMeters = metersPerPixel * pxWidth;
+    const nice = pickScaleBarLength(rawMeters);
+    if (!nice.length || !nice.label) {
+      return;
+    }
+    const safeRaw = Math.max(rawMeters, 1e-6);
+    const ratio = Math.min(1, Math.max(0.1, nice.length / safeRaw));
+    this.setData({
+      scaleBarVisible: true,
+      scaleBarLabel: nice.label,
+      scaleBarWidthRpx: Math.max(60, Math.round(baseRpx * ratio))
+    });
+  },
+
   centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false) {
     if (!point) return;
     this._suppressRegionOnce = true;
@@ -2319,6 +2422,7 @@ Page({
       () => {
         this._currentBounds = null;
         this.refreshWmsOverlay(this.data.center, this.data.scale, this._lastRegion);
+        this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
         this.scheduleFetchMarkers(silent ? 300 : 0, {
           center: point,
           region: this._lastRegion,
@@ -2616,11 +2720,15 @@ Page({
           });
           this.updateStatusPanel(this._lastAreas);
         };
+        const afterSync = () => {
+          this.updateScaleBar({ scale, latitude: newCenter.latitude });
+          run(scaleChanged);
+        };
         if (shouldSync) {
           this._suppressRegionOnce = true;
-          this.setData({ center: newCenter, scale }, () => run(scaleChanged));
+          this.setData({ center: newCenter, scale }, afterSync);
         } else {
-          run(scaleChanged);
+          afterSync();
         }
         return;
       }
@@ -2670,6 +2778,7 @@ Page({
           this.scheduleFetchDji(300);
         };
         const afterUpdate = () => {
+          this.updateScaleBar({ scale, latitude: newCenter.latitude });
           run();
           this.updateStatusPanel(this._lastAreas);
         };

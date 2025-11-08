@@ -20,6 +20,12 @@
       bindcallouttap="onMarkerCalloutTap"
     />
     <image class="center-pin" src="/assets/position.png" mode="widthFix" />
+    <view class="map-scale" wx:if="{{scaleBarVisible}}">
+      <text class="map-scale-label">{{scaleBarLabel}}</text>
+      <view class="map-scale-track">
+        <view class="map-scale-fill" style="width: {{scaleBarWidthRpx}}rpx;"></view>
+      </view>
+    </view>
 
     <view class="preflight-overlay" wx:if="{{showDashboardPanel}}">
       <view class="preflight-card">
@@ -65,15 +71,6 @@
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
 
         <view class="control-row">
-          <view class="locate-wrapper">
-            <button class="locate-circle"
-        hover-class="locate-hover"
-        hover-start-time="10"
-        hover-stay-time="60"
-        bindtap="onLocateTap">
-  <image class="locate-icon" src="/assets/location.png" mode="widthFix" />
-</button>
-          </view>
           <view class="search-stack">
             <view class="search-pill">
               <input
@@ -121,18 +118,18 @@
 
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
       <button
-        class="dashboard-toggle {{showDashboardPanel ? 'is-active' : ''}}"
+        class="dashboard-toggle"
         hover-class="dashboard-toggle-hover"
-        bindtap="toggleDashboardPanel"
+        bindtap="onMarkerButtonTap"
       >
-        <image class="dashboard-toggle-icon" src="/assets/dashboard.png" mode="aspectFit" />
+        <image class="dashboard-toggle-icon" src="/assets/target.png" mode="aspectFit" />
       </button>
       <button
         class="marker-button"
         hover-class="marker-button-hover"
-        bindtap="onMarkerButtonTap"
+        bindtap="onLocateTap"
       >
-        <image class="marker-button-icon" src="/assets/target.png" mode="aspectFit" />
+        <image class="marker-button-icon" src="/assets/location.png" mode="aspectFit" />
       </button>
     </view>
 
