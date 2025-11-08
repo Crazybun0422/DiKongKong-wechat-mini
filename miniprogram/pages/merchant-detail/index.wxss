@@ -158,7 +158,7 @@
 }
 
 .marker-page-address-info {
-  flex: 1 1 60%;
+  flex: 1 1 50%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -189,7 +189,7 @@
 }
 
 .marker-page-action {
-  min-width: 120rpx;
+  min-width: 60rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -205,8 +205,8 @@
 }
 
 .marker-page-action-icon {
-  width: 80rpx;
-  height: 80rpx;
+  width: 60rpx;
+  height: 60rpx;
   border-radius: 50%;
   background: rgba(45, 104, 236, 0.08);
   border: 1px solid rgba(45, 104, 236, 0.18);

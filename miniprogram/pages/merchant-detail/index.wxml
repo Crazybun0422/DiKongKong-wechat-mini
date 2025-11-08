@@ -74,18 +74,7 @@
             <text class="marker-page-address-text">{{detail.locationText}}</text>
           </view>
           <view class="marker-page-address-actions">
-            <view
-              class="marker-page-action"
-              wx:if="{{detail.phone}}"
-              data-phone="{{detail.phone}}"
-              data-marker-id="{{detail.markerId || detail.id || ''}}"
-              bindtap="onCallPhone"
-            >
-              <view class="marker-page-action-icon">
-                <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
-              </view>
-              <text class="marker-page-action-label">电话</text>
-            </view>
+
             <view
               class="marker-page-action"
               wx:if="{{detail.latitude && detail.longitude}}"
@@ -98,7 +87,19 @@
               <view class="marker-page-action-icon">
                 <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
               </view>
-              <text class="marker-page-action-label">位置</text>
+              <text class="marker-page-action-label">地图</text>
+            </view>
+            <view
+              class="marker-page-action"
+              wx:if="{{detail.phone}}"
+              data-phone="{{detail.phone}}"
+              data-marker-id="{{detail.markerId || detail.id || ''}}"
+              bindtap="onCallPhone"
+            >
+              <view class="marker-page-action-icon">
+                <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+              </view>
+              <text class="marker-page-action-label">电话</text>
             </view>
           </view>
         </view>
