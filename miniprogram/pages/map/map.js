@@ -557,6 +557,7 @@ Page({
     if (!detail) return;
     const payload = cloneMarkerDetail(detail);
     this._lastMarkerDetail = payload;
+    this.closeMarkerDetail(true);
     const markerId = payload.markerId || payload.id || "";
     const url = markerId
       ? `/pages/merchant-detail/index?markerId=${encodeURIComponent(markerId)}`

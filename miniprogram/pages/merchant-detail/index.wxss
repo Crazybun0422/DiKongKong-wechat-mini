@@ -160,10 +160,16 @@
 }
 
 .marker-page-address-text {
-  font-size: 28rpx;
+  font-size: 26rpx;
   color: #475569;
   line-height: 1.5;
   word-break: break-all;
+}
+
+.marker-page-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .marker-page-action-icon {
@@ -183,6 +189,12 @@
 .marker-page-action-image {
   width: 48rpx;
   height: 48rpx;
+}
+
+.marker-page-action-label {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #1f2937;
 }
 
 .marker-page-section {

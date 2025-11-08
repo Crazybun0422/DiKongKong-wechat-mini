@@ -1,4 +1,4 @@
-﻿const { normalizeMarkerDetail } = require("../../utils/marker-detail");
+const { normalizeMarkerDetail } = require("../../utils/marker-detail");
 const { fetchMarkerDetail, incrementMarkerPhoneCall } = require("../../utils/markers");
 
 Page({
@@ -418,5 +418,52 @@ Page({
     if (typeof wx?.showToast === "function") {
       wx.showToast({ title: "未通过审核无法分享", icon: "none" });
     }
-  }
-});
+  },
+  
+      ensureDetailLocation(detail = {}, raw = {}) {
+        const pickNumericValue = (...candidates) => {
+          for (const candidate of candidates) {
+            const value = Number(candidate);
+            if (Number.isFinite(value)) {
+              return value;
+            }
+          }
+          return null;
+        };
+        if (!Number.isFinite(Number(detail.latitude))) {
+          const lat = pickNumericValue(
+            detail.latitude,
+            raw?.latitude,
+            raw?.lat,
+            raw?.location?.latitude,
+            raw?.location?.lat
+          );
+          if (Number.isFinite(lat)) {
+            detail.latitude = lat;
+          }
+        }
+        if (!Number.isFinite(Number(detail.longitude))) {
+          const lng = pickNumericValue(
+            detail.longitude,
+            raw?.longitude,
+            raw?.lng,
+            raw?.location?.longitude,
+            raw?.location?.lng
+          );
+          if (Number.isFinite(lng)) {
+            detail.longitude = lng;
+          }
+        }
+        if (!detail.locationText) {
+          const fallbackLocationText =
+            raw?.locationText ||
+            raw?.address ||
+            raw?.location?.text ||
+            "";
+          if (fallbackLocationText) {
+            detail.locationText = fallbackLocationText;
+          }
+        }
+      }
+    });
+
