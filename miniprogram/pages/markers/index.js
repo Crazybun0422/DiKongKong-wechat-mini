@@ -121,11 +121,30 @@ Page({
   onLoad(options = {}) {
     this.apiBase = resolveApiBase();
     this.initializeProfileInfo();
-    this.refreshMarkers({ initial: true });
+    this.ensureAccessToken()
+      .catch((err) => {
+        console.warn("ensureAccessToken failed before loading markers", err);
+      })
+      .finally(() => {
+        this.refreshMarkers({ initial: true });
+      });
     this.fetchSettlementConfig();
     if (options.create === "1") {
       this.onCreateTap();
     }
+  },
+
+  onShow() {
+    if (this.data.hasLoaded || this.data.loading) {
+      return;
+    }
+    this.ensureAccessToken()
+      .catch((err) => {
+        console.warn("ensureAccessToken failed on show", err);
+      })
+      .finally(() => {
+        this.refreshMarkers({ initial: true });
+      });
   },
 
   fetchSettlementConfig() {
@@ -241,6 +260,50 @@ Page({
     );
   },
 
+  getAuthToken() {
+    if (typeof getApp !== "function") {
+      return "";
+    }
+    try {
+      const app = getApp();
+      return (app && app.globalData && app.globalData.token) || "";
+    } catch (err) {
+      console.warn("Failed to read global token", err);
+      return "";
+    }
+  },
+
+  ensureAccessToken(options = {}) {
+    if (this.getAuthToken()) {
+      return Promise.resolve();
+    }
+    if (this._ensureLoginPromise) {
+      return this._ensureLoginPromise;
+    }
+    if (typeof getApp !== "function") {
+      return Promise.reject(new Error("login-unavailable"));
+    }
+    const app = getApp();
+    if (!app || typeof app.loginWithProfile !== "function") {
+      return Promise.reject(new Error("login-unavailable"));
+    }
+    const profile =
+      options.profileOverride ||
+      this._normalizedProfile ||
+      this._storedProfileCache ||
+      loadStoredProfile() ||
+      {};
+    this._ensureLoginPromise = app
+      .loginWithProfile(profile)
+      .catch((err) => {
+        throw err || new Error("login-failed");
+      })
+      .finally(() => {
+        this._ensureLoginPromise = null;
+      });
+    return this._ensureLoginPromise;
+  },
+
   ensureValidPaymentSelection() {
     if (this.data.selectedPaymentMethod === "FLP" && this.data.flpPaymentDisabled) {
       this.setData({ selectedPaymentMethod: WECHAT_PAYMENT_METHOD });
@@ -284,10 +347,19 @@ Page({
     } else {
       this.setData({ listRefreshing: true, error: "" });
     }
-    console.log("xxxxxxxxx")
-    return listMarkers({ page: 0, size: 50 }, { apiBase: this.apiBase })
+    const fetchPage = () => listMarkers({ page: 0, size: 50 }, { apiBase: this.apiBase });
+    let retriedWithAuth = false;
+    const load = () =>
+      fetchPage().catch((err) => {
+        if (!retriedWithAuth && err?.message === "missing-token") {
+          retriedWithAuth = true;
+          return this.ensureAccessToken().then(() => fetchPage());
+        }
+        throw err;
+      });
+    return load()
       .then((page) => {
-        const content = Array.isArray(page.content) ? page.content : [];
+        const content = this.extractMarkerList(page);
         const normalized = content.map((item) => this.normalizeMarker(item));
         this.setData({
           markers: normalized,
@@ -307,6 +379,26 @@ Page({
 
   onRetryTap() {
     this.refreshMarkers({ silent: false });
+  },
+
+  extractMarkerList(payload) {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    const fromDirect =
+      (Array.isArray(payload.content) && payload.content) ||
+      (Array.isArray(payload.records) && payload.records) ||
+      (Array.isArray(payload.items) && payload.items) ||
+      (Array.isArray(payload.list) && payload.list);
+    if (fromDirect) return fromDirect;
+    const data = payload.data;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") {
+      if (Array.isArray(data.content)) return data.content;
+      if (Array.isArray(data.records)) return data.records;
+      if (Array.isArray(data.items)) return data.items;
+      if (Array.isArray(data.list)) return data.list;
+    }
+    return [];
   },
 
   normalizeMarker(raw = {}) {

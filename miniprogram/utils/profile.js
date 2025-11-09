@@ -156,6 +156,7 @@ function authorizedRequest(options) {
     console.log("xxxxxxx2")
     console.log("options:",options)
     const token = options.token || getAuthToken();
+    console.log("token->",token)
     if (!token) {
       reject(new Error("missing-token"));
       return;

@@ -3369,17 +3369,20 @@ Page({
       const numericId = this._wmsOverlaySeed;
       const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
 
+      if (!Array.isArray(this._wmsOverlayHandles)) this._wmsOverlayHandles = [];
+      const handle = { id: numericId, key: tile.id };
+      this._wmsOverlayHandles.push(handle);
+
       ctx.addGroundOverlay({
         id: numericId,
         src: tile.src,
         bounds: tile.bounds,
         alpha,
-        success: () => {
-          if (!Array.isArray(this._wmsOverlayHandles)) this._wmsOverlayHandles = [];
-          this._wmsOverlayHandles.push({ id: numericId, key: tile.id });
-        },
         fail: (err) => {
           console.error('addGroundOverlay failed', tile.id, err);
+          if (Array.isArray(this._wmsOverlayHandles)) {
+            this._wmsOverlayHandles = this._wmsOverlayHandles.filter((h) => h.id !== handle.id);
+          }
         }
       });
     });
