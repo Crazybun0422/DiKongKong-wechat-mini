@@ -63,7 +63,7 @@ const NFZ_CENTER_COLORS = {
 
 const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 20;
-const DEFAULT_MAP_SCALE = 14;
+const DEFAULT_MAP_SCALE = 11;
 
 const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
@@ -1960,7 +1960,7 @@ Page({
 
   onLocateTap() {
     this.ensureLocationPermission()
-      .then(() => this.pullAndCenterLocation())
+      .then(() => this.pullAndCenterLocation({ scale: 14 }))
       .catch(() => {
         wx.showToast({ title: "未授权定位权限", icon: "none" });
       });
@@ -3261,6 +3261,10 @@ Page({
   },
 
   describeUomStatus() {
+    const currentScale = Number(this.data?.scale);
+    if (Number.isFinite(currentScale) && currentScale > 16) {
+      return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
+    }
     const center = this._centerOverride || this.data.center;
     if (!center) {
       return { status: "评估中", tone: "neutral" };
@@ -3660,3 +3664,4 @@ Page({
     return alpha > 16;
   }
 });
+

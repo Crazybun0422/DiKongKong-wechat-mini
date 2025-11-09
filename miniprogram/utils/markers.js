@@ -131,6 +131,7 @@ function postMarkerMetric(markerId, metricPath, options = {}) {
 
 function listMarkers(params = {}, options = {}) {
   const query = [];
+  console.log("params,options",params,options)
   if (params.page !== undefined && params.page !== null) {
     const page = Number(params.page);
     if (Number.isFinite(page) && page >= 0) {

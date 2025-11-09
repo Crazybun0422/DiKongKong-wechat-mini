@@ -284,6 +284,7 @@ Page({
     } else {
       this.setData({ listRefreshing: true, error: "" });
     }
+    console.log("xxxxxxxxx")
     return listMarkers({ page: 0, size: 50 }, { apiBase: this.apiBase })
       .then((page) => {
         const content = Array.isArray(page.content) ? page.content : [];
@@ -1282,8 +1283,7 @@ Page({
       featureCode,
       type: "MARKER",
       referenceId: markerId,
-      // amount
-      amount:0.01
+      amount
     };
 
     if (typeof wx.showLoading === "function") {

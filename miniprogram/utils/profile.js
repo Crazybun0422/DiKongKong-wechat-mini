@@ -148,10 +148,13 @@ function uploadAvatarFile(filePath, options = {}) {
 function authorizedRequest(options) {
   return new Promise((resolve, reject) => {
     const base = resolveApiBase(options.apiBase);
+    console.log("xxxxxxx1")
     if (!base) {
       reject(new Error("missing-api-base"));
       return;
     }
+    console.log("xxxxxxx2")
+    console.log("options:",options)
     const token = options.token || getAuthToken();
     if (!token) {
       reject(new Error("missing-token"));

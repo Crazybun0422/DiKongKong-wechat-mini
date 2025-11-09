@@ -3,13 +3,35 @@ const WEAPP_LOGIN_PATH = "/api/weapp/login";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const USER_PROFILE_STORAGE_KEY = "userProfile";
 
+// miniprogram/app.js
+const API_BASE_BY_ENV = {
+  //develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
+  develop: "https://skylane.cn",
+  trial:   "https://skylane.cn",                   // uploaded “体验版”
+  release: "https://skylane.cn"                        // 审核 & 上线
+};
+
+function resolveApiBase() {
+  try {
+    const { miniProgram } = wx.getAccountInfoSync();
+    const env = miniProgram?.envVersion || "develop";       // develop | trial | release
+    console.log("env->",env);
+    return API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+  } catch (err) {
+    console.warn("Fallback to dev API base because env lookup failed", err);
+    return API_BASE_BY_ENV.develop;
+  }
+}
+
+const API_BASE_URL = resolveApiBase();
+
 App({
   globalData: {
     version: "0.0.1",
     buildFrom: "vue-tencent-map-demo",
     token: null,
     userProfile: null,
-    apiBase: DEV_API_BASE_URL,
+    apiBase: API_BASE_URL,
     pendingMarkerFocus: null
   },
 
@@ -117,7 +139,7 @@ App({
     console.log("Requesting Weapp login with payload:", payload);
     return new Promise((resolve, reject) => {
       wx.request({
-        url: `${DEV_API_BASE_URL}${WEAPP_LOGIN_PATH}`,
+        url: `${API_BASE_URL}${WEAPP_LOGIN_PATH}`,
         method: "POST",
         data: payload,
         header: {
