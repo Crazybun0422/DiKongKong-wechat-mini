@@ -227,7 +227,7 @@
                 bindchooseavatar="onChooseAvatar">
                 <image
                   class="profile-avatar-image"
-                  src="{{tempAvatarUrl || '/assets/default-avatar.png'}}"
+                  src="/assets/default-avatar.png"
                   mode="aspectFill" />
               </button>
             </view>

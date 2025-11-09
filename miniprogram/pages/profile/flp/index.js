@@ -12,7 +12,7 @@ const BENEFIT_ITEMS = [
   {
     id: "settlement",
     title: "空域图入驻",
-    description: "将您空服务标记在空域园",
+    description: "将低空服务标记在空域图",
     type: "link",
     action: "create-marker",
     actionText: "前往"
@@ -20,14 +20,14 @@ const BENEFIT_ITEMS = [
   {
     id: "gallery",
     title: "低空线上展馆",
-    description: "仅480个抢占并节节高可转让",
+    description: "仅480个抢到不经营可转让",
     type: "tag",
     badge: "V2.0上线"
   },
   {
     id: "market",
     title: "供需大厅",
-    description: "用武之地等你的低空供需整合平台",
+    description: "用过都说好的低空供需撮合平台",
     type: "tag",
     badge: "V2.0上线"
   },

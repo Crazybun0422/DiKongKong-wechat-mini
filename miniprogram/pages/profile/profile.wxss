@@ -181,28 +181,25 @@
   background: rgba(15, 23, 42, 0.02);
 }
 
+button.profile-list-item {
+  width: 100%;
+  border: none;
+  background: rgba(15, 23, 42, 0.02);
+  padding: 0rpx 16rpx;
+  font-weight: 400;
+  color: inherit;
+}
+
+button.profile-list-item::after {
+  border: none;
+}
+
 .profile-list-item-hover {
   background: rgba(0, 0, 0, 0.08);
 }
 
 .profile-list-item-contact {
   position: relative;
-}
-
-.profile-list-contact-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border: none;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-}
-
-.profile-list-contact-overlay::after {
-  border: none;
 }
 
 .profile-list-left {
