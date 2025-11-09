@@ -16,7 +16,8 @@ Page({
     error: "",
     profile: null,
     defaultAvatar: DEFAULT_AVATAR_PATH,
-    activeTab: "profile"
+    activeTab: "profile",
+    customerServiceSessionFrom: "profile-customer-service"
   },
 
   onLoad() {
@@ -28,7 +29,8 @@ Page({
     this.setData({
       profile: normalized,
       loading: true,
-      error: ""
+      error: "",
+      customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized)
     });
     this.reloadProfile();
   },
@@ -66,7 +68,8 @@ Page({
         this.setData({
           profile: normalized,
           loading: false,
-          error: ""
+          error: "",
+          customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized)
         });
       })
       .catch((err) => {
@@ -257,8 +260,29 @@ Page({
       storedProfile: persisted,
       apiBase: resolveApiBase()
     });
-    this.setData({ profile: normalized });
+    this.setData({
+      profile: normalized,
+      customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized)
+    });
     return normalized;
+  },
+
+  composeCustomerServiceSessionFrom(profile = {}) {
+    const payload = {
+      source: "profile-customer-service",
+      featureCode: profile.featureCode || "",
+      nickname: profile.nickname || ""
+    };
+    try {
+      return JSON.stringify(payload);
+    } catch (err) {
+      console.warn("Failed to stringify session-from payload", err);
+      return "profile-customer-service";
+    }
+  },
+
+  onCustomerServiceContact(event) {
+    console.log("Customer service contact event", event);
   },
 
   onFlpCardTap() {
@@ -273,10 +297,6 @@ Page({
 
   onListItemTap(e) {
     const action = e.currentTarget?.dataset?.action;
-    if (action === "customer-service") {
-      wx.showToast({ title: "�ͷ����ܼ�������", icon: "none" });
-      return;
-    }
     if (action === "markers") {
       if (typeof wx.navigateTo !== "function") {
         wx.showToast({ title: "��ǰ�汾�ݲ�֧��", icon: "none" });

@@ -54,15 +54,19 @@
               <text class="profile-list-arrow">›</text>
             </view>
             <view
-              class="profile-list-item"
+              class="profile-list-item profile-list-item-contact"
               hover-class="profile-list-item-hover"
-              data-action="customer-service"
-              bindtap="onListItemTap"
             >
               <view class="profile-list-left">
                 <text class="profile-list-text">客服</text>
               </view>
               <text class="profile-list-arrow">›</text>
+              <button
+                class="profile-list-contact-overlay"
+                open-type="contact"
+                bindcontact="onCustomerServiceContact"
+                session-from="{{customerServiceSessionFrom}}"
+              ></button>
             </view>
             <view
               class="profile-list-item"
