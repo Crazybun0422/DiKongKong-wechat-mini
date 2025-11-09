@@ -32,7 +32,7 @@
 
 .preflight-overlay {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 200rpx);
+  top: calc(env(safe-area-inset-top) + 120rpx);
   left: 16rpx;
   width: 460rpx;
   z-index: 30;
@@ -118,6 +118,8 @@
   align-items: center;
   column-gap: 10rpx;
   margin-bottom: 10rpx;
+  flex-wrap: nowrap;
+  overflow: visible;
 }
 
 .temporary-no-fly-row {
@@ -159,11 +161,14 @@
 .preflight-label {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .preflight-value {
   font-size: 24rpx;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .preflight-value.tone-safe {

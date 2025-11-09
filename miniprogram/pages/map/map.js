@@ -77,6 +77,7 @@ const WEB_TILE_SIZE = 256;
 const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
 const CSS_PIXELS_PER_CM = 96 / 2.54;
 const DEFAULT_SCALE_BAR_BASE_RPX = 80;
+const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -108,7 +109,7 @@ const formatNearbyMarkerLabel = (value) => {
   return `${firstLine}\n${secondLine}`;
 };
 
-const formatTemporaryZoneLabel = (value, maxLength = 6) => {
+const formatTemporaryZoneLabel = (value, maxLength = 9) => {
   if (typeof value !== "string") {
     return "";
   }
@@ -3241,7 +3242,7 @@ Page({
     }
     const hit = this.findNoFlyZoneAtPoint(center.longitude, center.latitude);
     if (!hit) {
-      return { zoneInfo: null, text: "不在临时禁飞区", tone: "safe" };
+      return { zoneInfo: null, text: "无", tone: "safe" };
     }
     const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
     const name = rawName || "临时禁飞区";
@@ -3284,7 +3285,7 @@ Page({
     if (maskEntry.status === "unsupported") {
       const withinBounds = this.pointInBounds(center, tile.bounds);
       return withinBounds
-        ? { status: "适飞空域", tone: "safe" }
+        ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
         : { status: "非适飞空域", tone: "alert" };
     }
     if (maskEntry.status !== "ready" || !maskEntry.data) {
@@ -3292,7 +3293,7 @@ Page({
     }
     const covered = this.pointCoveredByUomMask(center, tile.bounds, maskEntry);
     return covered
-      ? { status: "适飞空域", tone: "safe" }
+      ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
       : { status: "非适飞空域", tone: "alert" };
   },
 

@@ -42,14 +42,6 @@
             <text class="drone-picker-value picker-underline">{{selectedDroneName}}</text>
           </view>
         </view>
-        <view class="preflight-row">
-          <text class="preflight-label">位于 UOM 划分：</text>
-          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
-        </view>
-        <view class="preflight-row">
-          <text class="preflight-label">位于大疆划分：</text>
-          <text class="preflight-value {{'tone-' + djiTone}}">{{djiStatus}}</text>
-        </view>
         <view class="preflight-row temporary-no-fly-row">
           <text class="preflight-label">临时禁飞：</text>
           <block wx:if="{{temporaryNoFlyZoneInfo}}">
@@ -69,6 +61,14 @@
             </view>
           </block>
           <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
+        </view>
+        <view class="preflight-row">
+          <text class="preflight-label">位于 UOM 划分：</text>
+          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
+        </view>
+        <view class="preflight-row">
+          <text class="preflight-label">位于大疆划分：</text>
+          <text class="preflight-value {{'tone-' + djiTone}}">{{djiStatus}}</text>
         </view>
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
 
