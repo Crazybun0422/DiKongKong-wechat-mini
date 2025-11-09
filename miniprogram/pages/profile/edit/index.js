@@ -62,7 +62,7 @@ Page({
     const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
     if (showLoading) wx.showLoading({ title: "保存中...", mask: true });
 
-    updateUserProfile({ nickname }, { apiBase })
+    updateUserProfile({ username:nickname }, { apiBase })
       .then((remote) => {
         const baseProfile = Object.assign(
           {},

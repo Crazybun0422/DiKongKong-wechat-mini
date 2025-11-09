@@ -5,6 +5,7 @@
   padding-bottom: env(safe-area-inset-bottom);
   box-sizing: border-box;
   background: #f5f5f7;
+  margin-top: -30rpx;
 }
 
 .profile-scroll {
@@ -52,11 +53,12 @@
 
 .profile-header-card {
   display: flex;
-  background: #fff;
+  min-height: 200rpx;
+  background: #f5f5f7;
   border-radius: 32rpx;
   padding: 32rpx;
   align-items: center;
-  box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.08);
+  /* box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.08); */
 }
 
 .profile-avatar {
@@ -145,8 +147,9 @@
 }
 
 .profile-card-arrow {
-  font-size: 42rpx;
-  color: rgba(15, 23, 42, 0.35);
+  font-size: 80rpx;
+  font-weight: 300;
+  color: rgba(15, 23, 42, 0.5);
 }
 
 .profile-section {
@@ -173,7 +176,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24rpx 16rpx;
+  padding: 0rpx 16rpx;
   border-radius: 24rpx;
   background: rgba(15, 23, 42, 0.02);
 }
@@ -222,8 +225,9 @@
 }
 
 .profile-list-arrow {
-  font-size: 34rpx;
-  color: rgba(15, 23, 42, 0.35);
+  font-size: 80rpx;
+  font-weight: 300;
+  color: rgba(15, 23, 42, 0.5);
 }
 
 .profile-footnote {

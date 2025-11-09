@@ -25,7 +25,7 @@
             <view class="profile-code-row">
               <text class="profile-code-label">低空号</text>
               <text class="profile-code-value">{{profile.featureCode}}</text>
-              <view class="profile-code-copy" catchtap="onCopyFeatureCode">复制</view>
+              <!-- <view class="profile-code-copy" catchtap="onCopyFeatureCode">复制</view> -->
             </view>
           </view>
         </view>
@@ -49,7 +49,7 @@
             >
               <view class="profile-list-left">
                 <text class="profile-list-text">我的标记</text>
-                <text class="profile-list-tag">内测中</text>
+                <!-- <text class="profile-list-tag">内测中</text> -->
               </view>
               <text class="profile-list-arrow">›</text>
             </view>
@@ -83,7 +83,7 @@
           </view>
         </view>
 
-        <text class="profile-footnote">拉起小程序客服，敬请期待更多服务。</text>
+        <!-- <text class="profile-footnote">拉起小程序客服，敬请期待更多服务。</text> -->
       </view>
     </block>
   </scroll-view>

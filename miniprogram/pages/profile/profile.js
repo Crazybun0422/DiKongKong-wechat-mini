@@ -177,7 +177,7 @@ Page({
     prepareAvatarForUpload(tempPath)
       .then((filePath) => uploadAvatarFile(filePath, { apiBase }))
       .then((fileName) =>
-        updateUserProfile({ avatarFileName: fileName }, { apiBase })
+        updateUserProfile({ avatarUrl: fileName }, { apiBase })
           .then((remote) => ({ remote, fileName }))
           .catch((err) => {
             const wrapped = err || new Error("update-avatar-failed");
