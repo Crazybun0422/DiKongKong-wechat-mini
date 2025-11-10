@@ -101,7 +101,7 @@ Page({
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
     }
-    wx.navigateTo({ url: "/pages/markers/index?create=1" });
+    wx.navigateTo({ url: "/pages/markers/index" });
   },
 
   navigateToInvitePage() {
