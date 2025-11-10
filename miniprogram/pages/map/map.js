@@ -49,6 +49,7 @@ const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
 };
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
+const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#000000",
@@ -316,6 +317,35 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
   return normalized;
 };
 
+const extractInviteCodeFromOptions = (options = {}) => {
+  const readInviteFromObject = (source) => {
+    if (!source || typeof source !== "object") return "";
+    if (source.inviteCode === undefined || source.inviteCode === null) return "";
+    return decodeParamValue(source.inviteCode);
+  };
+  if (!options || typeof options !== "object") {
+    return "";
+  }
+  const direct = readInviteFromObject(options);
+  if (direct) return direct;
+  if (options.query) {
+    const fromQuery = readInviteFromObject(options.query);
+    if (fromQuery) return fromQuery;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  const fromScene = readInviteFromObject(sceneParams);
+  if (fromScene) return fromScene;
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    const fromQ = readInviteFromObject(qParams);
+    if (fromQ) return fromQ;
+  }
+  return "";
+};
+
 Page({
   data: {
     keyword: "",
@@ -416,6 +446,7 @@ Page({
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
     this._manualMarkers = [];
+    this.captureInviteCode(options);
     this.initializeShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
     this.refreshWmsOverlay();
@@ -469,6 +500,25 @@ Page({
       return;
     }
     this.focusOnlineMarker(request);
+  },
+
+  captureInviteCode(options = {}) {
+    const inviteCode = extractInviteCodeFromOptions(options);
+    if (!inviteCode) {
+      return;
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && typeof app.setPendingInviteCode === "function") {
+      app.setPendingInviteCode(inviteCode);
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.setStorageSync === "function") {
+      try {
+        wx.setStorageSync(PENDING_INVITE_CODE_STORAGE_KEY, inviteCode);
+      } catch (err) {
+        console.warn("Failed to cache invite code locally", err);
+      }
+    }
   },
 
   initializeShareLaunch(options = {}) {

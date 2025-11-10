@@ -6,7 +6,8 @@ const BENEFIT_ITEMS = [
     id: "invite",
     title: "邀请好友",
     description: "邀请好友得FLP奖励",
-    type: "share",
+    type: "link",
+    action: "invite",
     actionText: "分享"
   },
   {
@@ -88,6 +89,10 @@ Page({
     const action = event?.currentTarget?.dataset?.action;
     if (action === "create-marker") {
       this.navigateToMarkerCreation();
+      return;
+    }
+    if (action === "invite") {
+      this.navigateToInvitePage();
     }
   },
 
@@ -97,5 +102,13 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/markers/index?create=1" });
+  },
+
+  navigateToInvitePage() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/flp/invite/index" });
   }
 });

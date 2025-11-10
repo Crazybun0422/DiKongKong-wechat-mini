@@ -1,0 +1,64 @@
+<view class="invite-page">
+  <view class="invite-body">
+    <view class="invite-card">
+      <view class="invite-card-info">
+        <!-- <text class="invite-card-title">邀请好友</text>
+        <text class="invite-card-desc">用户专属带参数的小程序二维码</text> -->
+      </view>
+      <view class="invite-qr-wrapper">
+        <image
+          class="invite-qr-image"
+          src="{{qrImagePath || '/assets/qrcode.png'}}"
+          mode="aspectFit"
+        />
+      </view>
+    </view>
+
+    <!-- <view class="invite-code" wx:if="{{inviteCode}}">
+      <text class="invite-code-label">邀请码</text>
+      <text class="invite-code-value">{{inviteCode}}</text>
+    </view> -->
+
+    <view class="invite-actions">
+      <button class="invite-action" open-type="share" hover-class="invite-action-hover">
+        <image class="invite-action-icon" src="/assets/share-wechat.png" mode="aspectFit" />
+        <text class="invite-action-text">发给好友</text>
+      </button>
+      <button
+        class="invite-action"
+        hover-class="invite-action-hover"
+        bindtap="onSaveImageTap"
+        data-action="save"
+      >
+        <image class="invite-action-icon" src="/assets/image-copy.png" mode="aspectFit" />
+        <text class="invite-action-text">保存图片</text>
+      </button>
+      <button
+        class="invite-action"
+        hover-class="invite-action-hover"
+        bindtap="onCopyLinkTap"
+        data-action="copy"
+      >
+        <image class="invite-action-icon" src="/assets/link-copy.png" mode="aspectFit" />
+        <text class="invite-action-text">复制路径</text>
+      </button>
+    </view>
+
+    <view class="invite-status" wx:if="{{loading}}">
+      <text class="invite-status-text">二维码生成中...</text>
+    </view>
+
+    <view class="invite-error" wx:if="{{error}}">
+      <text class="invite-error-text">{{error}}</text>
+      <button class="invite-error-btn" bindtap="onRetryTap">重试</button>
+    </view>
+  </view>
+
+  <canvas
+    canvas-id="invite-qrcode"
+    class="invite-qr-canvas"
+    style="width: 520px; height: 520px;"
+    width="520"
+    height="520"
+  />
+</view>

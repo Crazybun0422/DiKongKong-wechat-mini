@@ -1,0 +1,165 @@
+.invite-page {
+  min-height: 100vh;
+  background: #f6f7fb;
+  padding: 32rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.invite-body {
+  width: 100%;
+  max-width: 600rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32rpx;
+}
+
+.invite-card {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 32rpx;
+  padding: 48rpx 32rpx;
+  box-shadow: 0 16rpx 48rpx rgba(18, 23, 40, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32rpx;
+}
+
+.invite-card-info {
+  text-align: center;
+}
+
+.invite-card-title {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #111;
+}
+
+.invite-card-desc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #7a7f99;
+}
+
+.invite-qr-wrapper {
+  width: 420rpx;
+  height: 420rpx;
+  border-radius: 24rpx;
+  background: #f9fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invite-qr-image {
+  width: 320rpx;
+  height: 320rpx;
+}
+
+.invite-code {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  font-size: 28rpx;
+  color: #111;
+}
+
+.invite-code-label {
+  color: #7a7f99;
+}
+
+.invite-code-value {
+  font-weight: 600;
+  letter-spacing: 4rpx;
+}
+
+.invite-actions {
+  width: 100%;
+  background: #fff;
+  border-radius: 32rpx;
+  padding: 32rpx 24rpx;
+  display: flex;
+  justify-content: space-between;
+  box-shadow: 0 12rpx 32rpx rgba(18, 23, 40, 0.06);
+}
+
+.invite-action {
+  flex: 1;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.invite-action::after {
+  display: none;
+}
+
+.invite-action + .invite-action {
+  border-left: 1px solid #f0f1f5;
+}
+
+.invite-action-icon {
+  width: 80rpx;
+  height: 80rpx;
+  margin-bottom: 12rpx;
+}
+
+.invite-action-text {
+  font-size: 24rpx;
+  color: #111;
+}
+
+.invite-action-hover {
+  opacity: 0.8;
+}
+
+.invite-status {
+  font-size: 24rpx;
+  color: #7a7f99;
+}
+
+.invite-error {
+  width: 100%;
+  background: #fff5f5;
+  border-radius: 24rpx;
+  padding: 24rpx;
+  text-align: center;
+}
+
+.invite-error-text {
+  font-size: 26rpx;
+  color: #d64545;
+}
+
+.invite-error-btn {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #fff;
+  background: #d64545;
+  border-radius: 999rpx;
+}
+
+.invite-error-btn::after {
+  display: none;
+}
+
+.invite-qr-canvas {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  left: -9999px;
+  top: -9999px;
+  opacity: 0;
+}

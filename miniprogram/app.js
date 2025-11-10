@@ -2,6 +2,7 @@ const DEV_API_BASE_URL = "https://kylee-suborbital-herta.ngrok-free.dev";
 const WEAPP_LOGIN_PATH = "/api/weapp/login";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const USER_PROFILE_STORAGE_KEY = "userProfile";
+const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
@@ -32,7 +33,8 @@ App({
     token: null,
     userProfile: null,
     apiBase: API_BASE_URL,
-    pendingMarkerFocus: null
+    pendingMarkerFocus: null,
+    pendingInviteCode: ""
   },
 
   onLaunch() {
@@ -55,6 +57,14 @@ App({
     } catch (err) {
       console.warn("Failed to read stored user profile", err);
     }
+    try {
+      const cachedInvite = wx.getStorageSync(INVITE_CODE_STORAGE_KEY);
+      if (typeof cachedInvite === "string" && cachedInvite.trim()) {
+        this.globalData.pendingInviteCode = cachedInvite.trim();
+      }
+    } catch (err) {
+      console.warn("Failed to read cached invite code", err);
+    }
   },
 
   loginWithProfile(profile = {}) {
@@ -69,8 +79,19 @@ App({
           const payload = { code };
           if (profile.nickname) payload.nickname = profile.nickname;
           if (profile.avatarUrl) payload.avatarUrl = profile.avatarUrl;
+          const inviteCode = this.getPendingInviteCode();
+          if (inviteCode) {
+            payload.inviteCode = inviteCode;
+          }
           console.log("Refreshing login with profile payload:", payload);
-          this.requestWeappLogin(payload).then(resolve).catch(reject);
+          this.requestWeappLogin(payload)
+            .then((token) => {
+              if (inviteCode) {
+                this.clearPendingInviteCode();
+              }
+              resolve(token);
+            })
+            .catch(reject);
         },
         fail: (err) => reject(err)
       });
@@ -133,6 +154,47 @@ App({
 
       resolve({});
     });
+  },
+
+  setPendingInviteCode(inviteCode = "") {
+    const code = typeof inviteCode === "string" ? inviteCode.trim() : `${inviteCode || ""}`.trim();
+    if (!code) return;
+    this.globalData.pendingInviteCode = code;
+    if (typeof wx !== "undefined" && typeof wx.setStorageSync === "function") {
+      try {
+        wx.setStorageSync(INVITE_CODE_STORAGE_KEY, code);
+      } catch (err) {
+        console.warn("Failed to cache invite code", err);
+      }
+    }
+  },
+
+  getPendingInviteCode() {
+    const cached = (this.globalData.pendingInviteCode || "").trim();
+    if (cached) return cached;
+    if (typeof wx !== "undefined" && typeof wx.getStorageSync === "function") {
+      try {
+        const stored = wx.getStorageSync(INVITE_CODE_STORAGE_KEY);
+        if (typeof stored === "string" && stored.trim()) {
+          this.globalData.pendingInviteCode = stored.trim();
+          return stored.trim();
+        }
+      } catch (err) {
+        console.warn("Failed to read cached invite code", err);
+      }
+    }
+    return "";
+  },
+
+  clearPendingInviteCode() {
+    this.globalData.pendingInviteCode = "";
+    if (typeof wx !== "undefined" && typeof wx.removeStorageSync === "function") {
+      try {
+        wx.removeStorageSync(INVITE_CODE_STORAGE_KEY);
+      } catch (err) {
+        console.warn("Failed to clear cached invite code", err);
+      }
+    }
   },
 
   requestWeappLogin(payload = {}) {

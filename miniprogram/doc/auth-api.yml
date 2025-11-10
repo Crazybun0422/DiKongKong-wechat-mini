@@ -235,7 +235,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseUserProfileResponse'
     put:
       summary: 修改用户资料
-      description: 仅允许更新邮箱、手机号和头像，FLP 点数需通过专用接口调整，无法在此处修改。
+      description: 可选择更新用户名、邮箱、手机号及头像，FLP 点数需通过专用接口调整，无法在此处修改。
       requestBody:
         required: true
         content:
@@ -316,6 +316,8 @@ components:
     UserUpdateProfileRequest:
       type: object
       properties:
+        username:
+          type: string
         email:
           type: string
         phone:
@@ -358,12 +360,17 @@ components:
           type: string
         status:
           type: string
+          description: 用户状态，例如 NORMAL、BANNED。
         online:
           type: boolean
+          description: 是否在线。
         flpBalance:
           type: number
           format: double
-          description: 来自 FLP 余额表的只读虚拟代币余额。
+          description: 当前账户 FLP 余额。
+        inviteCode:
+          type: string
+          description: 绑定的 8 位邀请码。
     UserSummaryResponse:
       type: object
       properties:
@@ -468,6 +475,9 @@ components:
           type: string
         avatarUrl:
           type: string
+        inviteCode:
+          type: string
+          description: 新用户注册时填写的邀请码，可选。
     WeappLoginResponse:
       type: object
       properties:
@@ -480,6 +490,9 @@ components:
           type: string
         featureCode:
           type: string
+        inviteCode:
+          type: string
+          description: 用户当前绑定的邀请码。
     WeappConfigRequest:
       type: object
       properties:

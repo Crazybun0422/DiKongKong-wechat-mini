@@ -253,12 +253,14 @@ function normalizeProfileData(raw = {}, options = {}) {
     const parsed = Number(flpRaw.trim());
     if (isFinite(parsed)) flpValue = parsed;
   }
+  const inviteCode = normalizeInviteCodeValue(raw.inviteCode || stored.inviteCode || "");
   return {
     nickname,
     featureCode,
     avatarFileName: avatarFileName || "",
     avatarUrl: displayAvatar,
     flpValue,
+    inviteCode,
     flpDisplay: typeof flpValue === "number" && isFinite(flpValue) ? flpValue.toFixed(2) : "--"
   };
 }
@@ -333,6 +335,12 @@ function ensureFeatureCode(value) {
   return generated;
 }
 
+function normalizeInviteCodeValue(value) {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value.trim();
+  return `${value}`.trim();
+}
+
 function readStoredProfileObject() {
   if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") {
     return {};
@@ -372,18 +380,22 @@ function persistProfileLocally(profile = {}) {
   if (typeof flpValue !== "number" || !isFinite(flpValue)) {
     flpValue = null;
   }
+  const inviteCode =
+    normalizeInviteCodeValue(profile.inviteCode) || normalizeInviteCodeValue(existing.inviteCode);
 
   const payload = {
     nickname,
     avatarUrl,
     featureCode,
-    flpValue
+    flpValue,
+    inviteCode
   };
 
   const app = getAppInstance();
   if (app && app.globalData) {
     app.globalData.userProfile = { nickName: nickname, avatarUrl };
     app.globalData.userFeatureCode = featureCode;
+    app.globalData.userInviteCode = inviteCode;
     if (flpValue !== null) app.globalData.userFlp = flpValue;
   }
 
@@ -405,13 +417,16 @@ function loadStoredProfile() {
   const avatarFromGlobal = (fromGlobal && fromGlobal.avatarUrl) || "";
   const featureFromGlobal = app && app.globalData ? app.globalData.userFeatureCode || "" : "";
   const flpFromGlobal = app && app.globalData ? app.globalData.userFlp : null;
+  const inviteFromGlobal = app && app.globalData ? app.globalData.userInviteCode || "" : "";
   if (nicknameFromGlobal || avatarFromGlobal || featureFromGlobal) {
     const featureCode = ensureFeatureCode(featureFromGlobal);
+    const inviteCode = normalizeInviteCodeValue(inviteFromGlobal);
     return {
       nickname: nicknameFromGlobal || DEFAULT_NICKNAME,
       avatarUrl: avatarFromGlobal || "",
       featureCode,
-      flpValue: typeof flpFromGlobal === "number" && isFinite(flpFromGlobal) ? flpFromGlobal : null
+      flpValue: typeof flpFromGlobal === "number" && isFinite(flpFromGlobal) ? flpFromGlobal : null,
+      inviteCode
     };
   }
 
@@ -424,16 +439,19 @@ function loadStoredProfile() {
       flpValue = null;
     }
     const featureCode = ensureFeatureCode(cached.featureCode || cached.userFeatureCode || "");
+    const inviteCode = normalizeInviteCodeValue(cached.inviteCode);
     if (app && app.globalData) {
       app.globalData.userProfile = { nickName: nicknameCandidate || DEFAULT_NICKNAME, avatarUrl };
       app.globalData.userFeatureCode = featureCode;
+      app.globalData.userInviteCode = inviteCode;
       if (flpValue !== null) app.globalData.userFlp = flpValue;
     }
     return {
       nickname: nicknameCandidate || DEFAULT_NICKNAME,
       avatarUrl,
       featureCode,
-      flpValue
+      flpValue,
+      inviteCode
     };
   }
 
@@ -442,7 +460,8 @@ function loadStoredProfile() {
     nickname: DEFAULT_NICKNAME,
     avatarUrl: DEFAULT_AVATAR_PATH,
     featureCode,
-    flpValue: null
+    flpValue: null,
+    inviteCode: ""
   };
 }
 
