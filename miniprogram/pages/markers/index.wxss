@@ -301,6 +301,10 @@
   background: #ef4444;
 }
 
+.status-corner.draft {
+  background: #fbbf24;
+}
+
 .drawer-overlay {
   position: fixed;
   inset: 0;
@@ -421,6 +425,10 @@
 
 .status-text.danger {
   color: #b91c1c;
+}
+
+.status-text.draft {
+  color: #b45309;
 }
 
 .tag-display {

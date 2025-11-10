@@ -33,6 +33,7 @@ const STATIC_ASSETS = {
 
 const STATUS_TABS = [
   { id: "ALL", label: "全部" },
+  { id: "DRAFT", label: "草稿" },
   { id: "PENDING", label: "审核中" },
   { id: "APPROVED", label: "在线" },
   { id: "REJECTED", label: "被驳回" }
@@ -51,10 +52,10 @@ const CREATE_STEPS = [
   { label: "提交结果" }
 ];
 
+const DRAFT_PAYMENT_METHOD = "NONE";
 const PAYMENT_METHODS = [
   { id: "WECHAT", label: "微信支付" },
-  { id: "FLP", label: "FLP 余额抵扣" },
-  { id: "NONE", label: "暂不支付", note: "用于测试效果" }
+  { id: "FLP", label: "FLP 余额抵扣" }
 ];
 
 const WECHAT_PAYMENT_METHOD = "WECHAT";
@@ -403,6 +404,9 @@ Page({
 
   normalizeMarker(raw = {}) {
     const statusMeta = REVIEW_STATUS_META[raw.reviewStatus] || REVIEW_STATUS_META.PENDING;
+    const isDraft = !raw.paid;
+    const statusLabel = isDraft ? "草稿" : statusMeta.label;
+    const statusTone = isDraft ? "draft" : statusMeta.tone;
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
     const images = Array.isArray(raw.images)
       ? raw.images
@@ -461,9 +465,10 @@ Page({
       videoId: typeof raw.videoId === "string" ? raw.videoId : "",
       adminInfo: raw.adminInfo || {},
       reviewStatus: raw.reviewStatus || "PENDING",
-      reviewStatusLabel: statusMeta.label,
-      reviewTone: statusMeta.tone,
+      reviewStatusLabel: statusLabel,
+      reviewTone: statusTone,
       paid: !!raw.paid,
+      isDraft,
       paidLabel: raw.paid ? "已完成支付" : "待支付",
       paymentMethod: raw.paymentMethod || "",
       featureCode: raw.featureCode || "",
@@ -479,8 +484,14 @@ Page({
   applyFilters(markers, status) {
     const filter = status || this.data.filterStatus || "ALL";
     const list = Array.isArray(markers) ? markers : this.data.markers;
-    const filtered =
-      filter === "ALL" ? list : list.filter((marker) => marker.reviewStatus === filter);
+    let filtered;
+    if (filter === "ALL") {
+      filtered = list;
+    } else if (filter === "DRAFT") {
+      filtered = list.filter((marker) => !marker.paid);
+    } else {
+      filtered = list.filter((marker) => marker.reviewStatus === filter);
+    }
     this.setData({
       visibleMarkers: filtered,
       filterStatus: filter
@@ -801,7 +812,10 @@ Page({
       return;
     }
     const form = this.buildFormFromMarker(marker);
-    const selectedPaymentMethod = marker.paymentMethod || PAYMENT_METHODS[0].id;
+    const selectedPaymentMethod =
+      marker.paymentMethod && marker.paymentMethod !== DRAFT_PAYMENT_METHOD
+        ? marker.paymentMethod
+        : PAYMENT_METHODS[0].id;
     this.setData(
       {
         showCreate: true,
@@ -873,14 +887,12 @@ Page({
 
   onCloseCreate() {
     if (this.data.creationSubmitting) return;
+    if (this.shouldShowDraftExitPrompt()) {
+      this.showDraftExitPrompt();
+      return;
+    }
     if (this.data.createStep === 0 || this.data.createStep === 3) {
-      this.setData({
-        showCreate: false,
-        creationResult: null,
-        maxStepReached: 0,
-        editingMarkerId: "",
-        submitButtonText: "提交审核"
-      });
+      this.exitCreateFlow();
       return;
     }
     wx.showModal({
@@ -890,15 +902,61 @@ Page({
       confirmText: "退出",
       success: (res) => {
         if (res.confirm) {
-          this.setData({
-            showCreate: false,
-            creationResult: null,
-            maxStepReached: 0,
-            editingMarkerId: "",
-            submitButtonText: "提交审核"
-          });
+          this.exitCreateFlow();
         }
       }
+    });
+  },
+
+  shouldShowDraftExitPrompt() {
+    if (!this.data.showCreate) return false;
+    if (!this.data.showPaymentSection) return false;
+    if (this.data.createStep === 3) return false;
+    return true;
+  },
+
+  showDraftExitPrompt() {
+    wx.showModal({
+      title: "保存草稿",
+      content: "保存草稿后，地图可预览但仅自己可见。\n可随时继续提交。",
+      cancelText: "继续编辑",
+      confirmText: "保存草稿",
+      success: (res) => {
+        if (res.confirm) {
+          this.saveDraftAndExit();
+        }
+      }
+    });
+  },
+
+  saveDraftAndExit() {
+    if (this.data.creationSubmitting) return;
+    const previousMethod =
+      this.data.selectedPaymentMethod && this.data.selectedPaymentMethod !== DRAFT_PAYMENT_METHOD
+        ? this.data.selectedPaymentMethod
+        : PAYMENT_METHODS[0].id;
+    this.setData({ selectedPaymentMethod: DRAFT_PAYMENT_METHOD }, () => {
+      this.submitMarker({ skipResultPage: true }).then((result = {}) => {
+        if (result.success) {
+          wx.showToast({ title: "草稿已保存", icon: "success" });
+          this.exitCreateFlow();
+        } else if (previousMethod !== DRAFT_PAYMENT_METHOD) {
+          this.setData({ selectedPaymentMethod: previousMethod });
+        }
+      });
+    });
+  },
+
+  exitCreateFlow() {
+    this.setData({
+      showCreate: false,
+      creationResult: null,
+      maxStepReached: 0,
+      editingMarkerId: "",
+      submitButtonText: "提交审核",
+      createStep: 0,
+      showPaymentSection: true,
+      selectedPaymentMethod: PAYMENT_METHODS[0].id
     });
   },
 
@@ -1207,20 +1265,33 @@ Page({
     return true;
   },
 
-  submitMarker() {
-    if (this.data.creationSubmitting) return;
-    if (!this.validateBasicStep() || !this.validateMediaStep() || !this.validateAdminStep())
-      return;
+  submitMarker(eventOrOptions) {
+    const isEventArgument =
+      eventOrOptions &&
+      typeof eventOrOptions === "object" &&
+      typeof eventOrOptions.type === "string";
+    const options = isEventArgument ? {} : eventOrOptions || {};
+    const skipResultPage = !!options.skipResultPage;
+    if (this.data.creationSubmitting) {
+      return Promise.resolve({ success: false, reason: "submitting" });
+    }
+    if (!this.validateBasicStep() || !this.validateMediaStep() || !this.validateAdminStep()) {
+      return Promise.resolve({ success: false, reason: "validation" });
+    }
     this.setData({ creationSubmitting: true, creationError: "" });
     const payload = this.buildMarkerPayload();
     const editingId = this.data.editingMarkerId;
     const request = editingId
       ? updateMarker(editingId, payload, { apiBase: this.apiBase })
       : createMarker(payload, { apiBase: this.apiBase });
-    request
+    return request
       .then((marker) => {
         const normalized = this.normalizeMarker(marker);
         const finalizeSuccess = () => {
+          this.applySubmittedMarkerToList(normalized, editingId);
+          if (skipResultPage) {
+            return { success: true, marker: normalized };
+          }
           const resultTitle = editingId ? "更新成功" : "提交成功";
           const resultMessage = editingId ? "标记信息已更新。" : "提交成功，请等待审核。";
           const toastTitle = editingId ? "已保存" : "提交成功";
@@ -1237,18 +1308,7 @@ Page({
             editingMarkerId: ""
           });
           wx.showToast({ title: toastTitle, icon: "success" });
-          if (editingId) {
-            const updated = this.data.markers.map((item) =>
-              item.id === normalized.id ? normalized : item
-            );
-            this.setData({ markers: updated });
-            this.applyFilters(updated, this.data.filterStatus);
-            if (this.data.showDetail && this.data.activeMarker?.id === normalized.id) {
-              this.setData({ activeMarker: normalized });
-            }
-          } else {
-            this.refreshMarkers({ silent: true });
-          }
+          return { success: true, marker: normalized };
         };
 
         if (this.shouldUseWechatPayment()) {
@@ -1257,7 +1317,7 @@ Page({
               normalized.paid = true;
               normalized.paidLabel = "已完成支付";
             }
-            finalizeSuccess();
+            return finalizeSuccess();
           });
         }
 
@@ -1265,12 +1325,11 @@ Page({
           return this.handleFlpPaymentFlow(marker, normalized).then(() => {
             normalized.paid = true;
             normalized.paidLabel = "已完成支付";
-            finalizeSuccess();
+            return finalizeSuccess();
           });
         }
 
-        finalizeSuccess();
-        return null;
+        return finalizeSuccess();
       })
       .catch((err) => {
         console.error(editingId ? "更新标记失败" : "创建标记失败", err);
@@ -1278,10 +1337,27 @@ Page({
         const message = err?.displayMessage || err?.message || fallback;
         this.setData({ creationError: message });
         wx.showToast({ title: message, icon: "none" });
+        return { success: false, error: err };
       })
       .finally(() => {
         this.setData({ creationSubmitting: false });
       });
+  },
+
+  applySubmittedMarkerToList(normalized, editingId) {
+    if (!normalized) return;
+    if (editingId) {
+      const updated = this.data.markers.map((item) =>
+        item.id === normalized.id ? normalized : item
+      );
+      this.setData({ markers: updated });
+      this.applyFilters(updated, this.data.filterStatus);
+      if (this.data.showDetail && this.data.activeMarker?.id === normalized.id) {
+        this.setData({ activeMarker: normalized });
+      }
+    } else {
+      this.refreshMarkers({ silent: true });
+    }
   },
 
   buildMarkerPayload() {
