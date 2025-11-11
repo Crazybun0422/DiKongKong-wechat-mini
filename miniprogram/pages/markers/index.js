@@ -495,7 +495,7 @@ Page({
     } else if (filter === "DRAFT") {
       filtered = list.filter((marker) => !marker.paid);
     } else {
-      filtered = list.filter((marker) => marker.reviewStatus === filter);
+      filtered = list.filter((marker) => marker.paid && marker.reviewStatus === filter);
     }
     this.setData({
       visibleMarkers: filtered,
@@ -1416,27 +1416,38 @@ Page({
         };
 
         if (this.shouldUseWechatPayment()) {
-          return this.handleWechatPaymentFlow(marker, normalized).then((status) => {
-            if (status && status.paid) {
-              normalized.paid = true;
-              normalized.paidLabel = "已完成支付";
-            }
-            return finalizeSuccess();
-          });
+          return this.handleWechatPaymentFlow(marker, normalized)
+            .then((status) => {
+              if (status && status.paid) {
+                normalized.paid = true;
+                normalized.paidLabel = "已完成支付";
+              }
+              return finalizeSuccess();
+            })
+            .catch((err) =>
+              this.handlePaymentFailureAfterCreation(err, { marker, normalized, editingId })
+            );
         }
 
         if (this.shouldUseFlpPayment()) {
-          return this.handleFlpPaymentFlow(marker, normalized).then(() => {
-            normalized.paid = true;
-            normalized.paidLabel = "已完成支付";
-            return finalizeSuccess();
-          });
+          return this.handleFlpPaymentFlow(marker, normalized)
+            .then(() => {
+              normalized.paid = true;
+              normalized.paidLabel = "已完成支付";
+              return finalizeSuccess();
+            })
+            .catch((err) =>
+              this.handlePaymentFailureAfterCreation(err, { marker, normalized, editingId })
+            );
         }
 
         return finalizeSuccess();
       })
       .catch((err) => {
         console.error(editingId ? "更新标记失败" : "创建标记失败", err);
+        if (err?.skipGeneralErrorHandling) {
+          return { success: false, error: err };
+        }
         const fallback = editingId ? "更新失败，请稍后重试" : "创建失败，请稍后重试";
         const message = err?.displayMessage || err?.message || fallback;
         this.setData({ creationError: message });
@@ -1529,6 +1540,44 @@ Page({
       this.data.selectedPaymentMethod === "FLP" &&
       !this.data.flpPaymentDisabled
     );
+  },
+
+  isPaymentAbortError(err) {
+    if (!err) return false;
+    if (err.isPaymentCancelled || err.isPaymentAborted) {
+      return true;
+    }
+    const text = `${err.displayMessage || err.message || ""}`.toLowerCase();
+    return text.includes("cancel");
+  },
+
+  rollbackMarkerAfterPaymentFailure(markerId) {
+    if (!markerId) return Promise.resolve();
+    return deleteMarker(markerId, { apiBase: this.apiBase }).catch((cleanupErr) => {
+      console.warn("Failed to rollback marker after payment failure", cleanupErr);
+    });
+  },
+
+  handlePaymentFailureAfterCreation(err, context = {}) {
+    const editingId = context.editingId || "";
+    const markerId = context.marker?.id || context.normalized?.id || "";
+    const cleanupPromise = editingId
+      ? Promise.resolve()
+      : this.rollbackMarkerAfterPaymentFailure(markerId);
+    const shouldRewind = this.isPaymentAbortError(err);
+    return cleanupPromise.then(() => {
+      const patch = { resultStepsLocked: false, creationResult: null };
+      if (shouldRewind) {
+        patch.creationError = "";
+      }
+      this.setData(patch);
+      if (shouldRewind) {
+        const toastMessage = err?.displayMessage || err?.message || "支付已取消";
+        wx.showToast({ title: toastMessage, icon: "none" });
+        err.skipGeneralErrorHandling = true;
+      }
+      throw err;
+    });
   },
 
   handleWechatPaymentFlow(marker = {}, normalizedMarker = {}) {
@@ -1667,11 +1716,14 @@ Page({
         },
         fail: (err) => {
           const message = err?.errMsg || "微信支付失败";
-          const normalizedMessage = /cancel/i.test(message)
-            ? "已取消微信支付"
-            : message;
+          const cancelled = /cancel/i.test(message);
+          const normalizedMessage = cancelled ? "已取消微信支付" : message;
           const error = new Error(normalizedMessage);
           error.displayMessage = normalizedMessage;
+          if (cancelled) {
+            error.isPaymentCancelled = true;
+            error.isPaymentAborted = true;
+          }
           reject(error);
         }
       });
