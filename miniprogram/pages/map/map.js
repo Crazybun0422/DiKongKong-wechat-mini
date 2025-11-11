@@ -21,6 +21,10 @@ const {
   WMS_MAX_ZOOM
 } = require("../../utils/wms");
 const { haversineMeters, clampRadius, gcj02ToWgs84, wgs84ToGcj02 } = require("../../utils/coords");
+const {
+  formatDistanceText,
+  computeGreatCircleDistance
+} = require("../../utils/distance");
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
 const {
   DEFAULT_AVATAR_PATH,
@@ -398,6 +402,7 @@ Page({
     markerPageDetail: null,
     markerPageCurrentImage: 0,
     markerPageShareEnabled: true,
+    markerPageDistanceText: "",
     callSheetVisible: false,
     callSheetPhone: "",
     callSheetMarkerId: "",
@@ -450,6 +455,7 @@ Page({
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
     this._manualMarkers = [];
+    this._lastKnownLocation = null;
     this.captureInviteCode(options);
     this.initializeShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
@@ -1262,16 +1268,60 @@ Page({
     }
     const pageDetail = cloneMarkerDetail(detail);
     this._lastMarkerDetail = pageDetail;
+    const distanceText = this.buildMarkerDistanceText(pageDetail);
     this.setData({
       markerPageVisible: true,
       markerPageClosing: false,
       markerPageDetail: pageDetail,
       markerPageCurrentImage: 0,
-      markerPageShareEnabled: this.isDetailSharable(pageDetail)
+      markerPageShareEnabled: this.isDetailSharable(pageDetail),
+      markerPageDistanceText: distanceText
     });
     this._markerPageScrollTop = 0;
     this._markerPageTouch = null;
     this.closeMarkerDetail(true);
+  },
+
+  refreshMarkerPageDistance() {
+    if (!this.data.markerPageVisible || !this.data.markerPageDetail) {
+      return;
+    }
+    const distanceText = this.buildMarkerDistanceText(this.data.markerPageDetail);
+    if (distanceText === this.data.markerPageDistanceText) {
+      return;
+    }
+    this.setData({ markerPageDistanceText: distanceText });
+  },
+
+  buildMarkerDistanceText(detail) {
+    const distance = this.computeMarkerDistance(detail);
+    if (!Number.isFinite(distance) || distance < 0) {
+      return "";
+    }
+    return formatDistanceText(distance);
+  },
+
+  computeMarkerDistance(detail) {
+    if (!detail) return NaN;
+    const markerLat = Number(detail.latitude);
+    const markerLng = Number(detail.longitude);
+    if (!Number.isFinite(markerLat) || !Number.isFinite(markerLng)) {
+      return NaN;
+    }
+    const location = this._lastKnownLocation;
+    const userLat = Number(location?.latitude);
+    const userLng = Number(location?.longitude);
+    if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+      return NaN;
+    }
+    const userWgs = gcj02ToWgs84(userLng, userLat);
+    const userLatWgs = Number.isFinite(userWgs?.lat) ? userWgs.lat : userLat;
+    const userLngWgs = Number.isFinite(userWgs?.lng) ? userWgs.lng : userLng;
+    const meters = computeGreatCircleDistance(
+      { latitude: markerLat, longitude: markerLng },
+      { latitude: userLatWgs, longitude: userLngWgs }
+    );
+    return Number.isFinite(meters) ? meters : NaN;
   },
 
   closeMarkerPage(options = {}) {
@@ -1288,7 +1338,8 @@ Page({
         markerPageClosing: false,
         markerPageDetail: null,
         markerPageCurrentImage: 0,
-        markerPageShareEnabled: true
+        markerPageShareEnabled: true,
+        markerPageDistanceText: ""
       });
       this._markerPageTouch = null;
       this._markerPageScrollTop = 0;
@@ -2057,6 +2108,11 @@ Page({
       isHighAccuracy: true,
       highAccuracyExpireTime: 8000,
       success: (res) => {
+        this._lastKnownLocation = {
+          latitude: res.latitude,
+          longitude: res.longitude
+        };
+        this.refreshMarkerPageDistance();
         const targetScale = clampMapScale(options.scale || this.data.scale);
         this.centerOnPoint(
           { latitude: res.latitude, longitude: res.longitude },
