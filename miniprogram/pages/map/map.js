@@ -87,6 +87,7 @@ const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
 const CSS_PIXELS_PER_CM = 96 / 2.54;
 const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
+const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
 
 const clampMapScale = (value) => {
@@ -2546,11 +2547,42 @@ Page({
     const rawMeters = metersPerPixel * pxWidth;
     const nice = pickScaleBarLength(rawMeters);
     const labelText = nice.label || formatScaleLabel(rawMeters);
+    this._lastScaleBarMeters = Number.isFinite(nice?.length) && nice.length > 0 ? nice.length : rawMeters;
     this.setData({
       scaleBarVisible: true,
       scaleBarLabel: labelText,
       scaleBarWidthRpx: Math.max(30, Math.round(baseRpx))
     });
+  },
+
+  estimateScaleBarMeters(scale, latitude) {
+    if (!this._pxPerRpx || this._pxPerRpx <= 0) {
+      this.initializeSystemInfo();
+    }
+    const pxPerRpx = this._pxPerRpx || 1;
+    const baseRpx = this._scaleBarBaseRpx || DEFAULT_SCALE_BAR_BASE_RPX;
+    const pxWidth = pxPerRpx * baseRpx;
+    if (!Number.isFinite(pxWidth) || pxWidth <= 0) return null;
+    const latSource = typeof latitude === "number"
+      ? latitude
+      : (this.data.center && typeof this.data.center.latitude === "number"
+        ? this.data.center.latitude
+        : DEFAULT_CENTER.latitude);
+    const lat = Math.max(-85, Math.min(85, Number(latSource) || 0));
+    const metersPerPixel = computeMetersPerPixel(lat, clampMapScale(scale ?? this.data.scale));
+    if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
+    const rawMeters = metersPerPixel * pxWidth;
+    const nice = pickScaleBarLength(rawMeters);
+    if (Number.isFinite(nice?.length) && nice.length > 0) return nice.length;
+    return rawMeters;
+  },
+
+  shouldFetchNearbyMarkers(scale, latitude) {
+    const approxMeters = this.estimateScaleBarMeters(scale, latitude);
+    if (Number.isFinite(approxMeters) && approxMeters >= MARKER_FETCH_SCALE_LIMIT_METERS) {
+      return false;
+    }
+    return true;
   },
 
   queueRegionUpdateSkip(count = 1) {
@@ -3036,6 +3068,14 @@ Page({
     if (!center) return;
     const scale = options?.scale || this.data.scale;
     const region = options?.region || this._lastRegion;
+    if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
+      if (Array.isArray(this._nearbyMarkers) && this._nearbyMarkers.length) {
+        this._nearbyMarkers = [];
+        this.syncAllMarkers();
+      }
+      this._lastNearbyFetch = null;
+      return;
+    }
     const radiusKm = this.computeMarkerRadiusKm({ region, scale });
     if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
 
