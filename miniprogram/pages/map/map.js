@@ -1669,7 +1669,7 @@ Page({
   },
 
   onChatButtonTap() {
-    this.showPlaceholderToast("聊天功能开发中");
+    this.showPlaceholderToast("您暂未获得低空智能体（Agent）体验特权");
   },
 
   onTemporaryZoneLinkTap(event) {

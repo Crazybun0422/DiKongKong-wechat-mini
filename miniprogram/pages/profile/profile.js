@@ -58,7 +58,7 @@ Page({
           storedProfile: this._storedProfileCache,
           apiBase: resolveApiBase()
         });
-        console.log("remoteProfile:",remoteProfile);
+        console.log("remoteProfile:", remoteProfile);
         this._storedProfileCache = persistProfileLocally({
           nickname: normalized.nickname,
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
@@ -171,7 +171,7 @@ Page({
   handleAvatarSelection(tempPath) {
     if (!tempPath) return;
     const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
     if (showLoading) wx.showLoading({ title: "上传中...", mask: true });
     const apiBase = resolveApiBase();
     prepareAvatarForUpload(tempPath)
@@ -319,7 +319,7 @@ Page({
   },
 
   onChatButtonTap() {
-    wx.showToast({ title: "聊天功能开发中", icon: "none" });
+    wx.showToast({ title: "您暂未获得低空智能体（Agent）体验特权", icon: "none" });
   },
 
   onMenuHomeTap() {
