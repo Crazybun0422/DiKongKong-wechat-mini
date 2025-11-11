@@ -109,7 +109,7 @@ button.profile-avatar-button::after {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 22rpx;
+  font-size: 20rpx;
 }
 
 .profile-name-row {
@@ -126,7 +126,7 @@ button.profile-avatar-button::after {
 }
 
 .profile-name-edit {
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: rgba(15, 23, 42, 0.45);
   margin-left: 8rpx;
 }

@@ -170,7 +170,36 @@ Page({
   },
 
   onNicknameInputChange(e) {
-    this.setData({ nicknameInput: e?.detail?.value || "" });
+    const value = e?.detail?.value || "";
+    this.setData({ nicknameInput: value });
+    const inputTypeRaw = e?.detail?.inputType || "";
+    const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
+    console.log("xxxxxxx",e)
+    if (inputType === "nickname") {
+      this.saveNicknameInline(value);
+    }
+  },
+  onEditing(e){
+
+  },
+  onBlankTap(e){
+    if (this.data.nicknameSaving || !this.data.nicknameEditing) return;
+    console.log("top")
+    this.cancelNicknameEdit();
+  },
+  onNickReview(e){
+    const value = e?.detail?.value ?? this.data.nicknameInput;
+    console.log("e:",e)
+    if (!e.detail.pass) {
+      wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
+      this.setData({
+        nicknameEditing: true,
+        nicknameInput: nickname
+      });
+      return
+    }
+      this.saveNicknameInline(value);
+    
   },
 
   onNicknameInputConfirm(e) {
@@ -178,9 +207,10 @@ Page({
     this.saveNicknameInline(value);
   },
 
-  onNicknameInputBlur(e) {
-    const value = e?.detail?.value ?? this.data.nicknameInput;
-    this.saveNicknameInline(value);
+  onNicknameInputBlur() {
+    if (this.data.nicknameSaving) return;
+    console.log("xxxxxxxxxxxxxxxxxxx")
+    this.cancelNicknameEdit();
   },
 
   saveNicknameInline(nickname) {
@@ -229,6 +259,16 @@ Page({
       .finally(() => {
         this.setData({ nicknameSaving: false });
       });
+  },
+
+  cancelNicknameEdit() {
+    // if (!this.data.nicknameEditing) return;
+    const current = this.data.profile?.nickname || "";
+    console.log("xxxxx")
+    this.setData({
+      nicknameEditing: false,
+      nicknameInput: current
+    });
   },
 
   syncNicknameWithWechat(nickname) {

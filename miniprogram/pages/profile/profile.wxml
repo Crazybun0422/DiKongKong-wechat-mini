@@ -1,5 +1,5 @@
-﻿<view class="profile-page">
-  <scroll-view scroll-y="true" class="profile-scroll">
+﻿<view class="profile-page" >
+  <view scroll-y="false" class="profile-scroll" bindtap="onBlankTap">
     <block wx:if="{{loading}}">
       <view class="profile-loading">加载中...</view>
     </block>
@@ -26,7 +26,7 @@
               <text>更换</text>
             </view>
           </button>
-          <view class="profile-header-body">
+          <view class="profile-header-body" catchtap="onEditing">
             <view class="profile-name-row">
               <block wx:if="{{nicknameEditing}}">
                 <input
@@ -37,8 +37,9 @@
                   bindconfirm="onNicknameInputConfirm"
                   confirm-type="done"
                   focus="{{nicknameEditing}}"
-                  catchtap="onNicknameInputTap"
+                  catchtap="onEditProfileTap"
                   placeholder="编辑昵称"
+                  bindnicknamereview="onNickReview"
                 />
               </block>
               <block wx:else>
@@ -106,7 +107,7 @@
         <!-- <text class="profile-footnote">鎷夎捣灏忕▼搴忓鏈嶏紝鏁鏈熷緟鏇村鏈嶅姟銆?/text> -->
       </view>
     </block>
-  </scroll-view>
+  </view>
 
   <view class="bottom-controls">
     <view class="bottom-menu">
