@@ -72,6 +72,10 @@ const DEFAULT_FETCH_RADIUS = 80000;
 const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
 const MAX_SEARCH_SUGGESTIONS = 10;
 const MAX_SEARCH_RESULTS = 20;
+const MARKER_PAGE_SCROLL_TOP_THRESHOLD = 36;
+const MARKER_PAGE_CLOSE_FAST_DISTANCE = 50;
+const MARKER_PAGE_CLOSE_FAST_DURATION = 600;
+const MARKER_PAGE_CLOSE_DISTANCE = 90;
 const EARTH_RADIUS_METERS = 6378137;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
 const WEB_TILE_SIZE = 256;
@@ -1310,7 +1314,7 @@ Page({
   onMarkerPageScroll(event) {
     const top = Number(event?.detail?.scrollTop);
     if (Number.isFinite(top)) {
-      this._markerPageScrollTop = top;
+      this._markerPageScrollTop = Math.max(0, top);
       return;
     }
     this._markerPageScrollTop = 0;
@@ -1319,11 +1323,13 @@ Page({
   onMarkerPageTouchStart(event) {
     const touch = event?.touches?.[0];
     if (!touch) return;
+    const canClose = (this._markerPageScrollTop || 0) <= MARKER_PAGE_SCROLL_TOP_THRESHOLD;
     this._markerPageTouch = {
       startY: touch.clientY,
       lastY: touch.clientY,
       deltaY: 0,
-      startTime: Date.now()
+      startTime: Date.now(),
+      canClose
     };
   },
 
@@ -1332,6 +1338,17 @@ Page({
     const touch = event?.touches?.[0];
     if (!touch) return;
     const deltaY = touch.clientY - this._markerPageTouch.startY;
+    if (
+      !this._markerPageTouch.canClose &&
+      (this._markerPageScrollTop || 0) <= MARKER_PAGE_SCROLL_TOP_THRESHOLD &&
+      deltaY >= 0
+    ) {
+      // 已经滑到顶部，再次下拉触发关闭手势
+      this._markerPageTouch.canClose = true;
+      this._markerPageTouch.startY = touch.clientY;
+      this._markerPageTouch.deltaY = 0;
+      this._markerPageTouch.startTime = Date.now();
+    }
     this._markerPageTouch.lastY = touch.clientY;
     this._markerPageTouch.deltaY = deltaY;
   },
@@ -1340,11 +1357,17 @@ Page({
     const info = this._markerPageTouch;
     this._markerPageTouch = null;
     if (!info) return;
+    if (!info.canClose) {
+      return;
+    }
     const deltaY = info.deltaY || 0;
     const duration = Date.now() - info.startTime;
+    const fastSwipe =
+      deltaY >= MARKER_PAGE_CLOSE_FAST_DISTANCE && duration <= MARKER_PAGE_CLOSE_FAST_DURATION;
+    const longSwipe = deltaY >= MARKER_PAGE_CLOSE_DISTANCE;
     if (
-      this._markerPageScrollTop <= 12 &&
-      ((deltaY >= 90 && duration <= 700) || deltaY >= 160)
+      this._markerPageScrollTop <= MARKER_PAGE_SCROLL_TOP_THRESHOLD &&
+      (fastSwipe || longSwipe)
     ) {
       this.closeMarkerPage();
     }
@@ -3718,4 +3741,3 @@ Page({
     return alpha > 16;
   }
 });
-
