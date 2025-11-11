@@ -1378,7 +1378,7 @@ button.marker-button::after,
   margin-top: 48rpx;
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 8rpx;
 }
 
 .marker-page-section-title {
@@ -1459,8 +1459,10 @@ button.marker-button::after,
 .marker-page-qrcode-wrapper {
   margin-top: 72rpx;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 32rpx;
 }
 
 .marker-page-qrcode {

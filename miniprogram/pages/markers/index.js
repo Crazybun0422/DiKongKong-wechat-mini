@@ -25,9 +25,6 @@ const STATIC_ASSETS = {
   add: "/assets/add.png",
   exposure: "/assets/exposure.png",
   telephone: "/assets/telephone.png",
-  home: "/assets/home.png",
-  modify: "/assets/modify.png",
-  delete: "/assets/delete.png",
   defaultCover: "/assets/dashboard.png"
 };
 
@@ -111,6 +108,9 @@ Page({
     creationResult: null,
     showDetail: false,
     activeMarker: null,
+    actionSheetVisible: false,
+    actionSheetMarker: null,
+    actionSheetDisableModify: false,
     deletingId: "",
     hasLoaded: false,
     editingMarkerId: "",
@@ -530,8 +530,78 @@ Page({
     if (!markerId) return;
     const marker = this.data.markers.find((item) => item.id === markerId);
     if (!marker) return;
+    this.showMarkerActionSheet(marker);
+  },
+
+  showMarkerDetail(marker) {
+    if (!marker) return;
     this.setData({ showDetail: true, activeMarker: marker });
   },
+
+  showMarkerActionSheet(marker) {
+    if (!marker) return;
+    this.setData({
+      actionSheetVisible: true,
+      actionSheetMarker: marker,
+      actionSheetDisableModify: this.isModifyActionLocked(marker)
+    });
+  },
+
+  hideMarkerActionSheet() {
+    this.setData({
+      actionSheetVisible: false,
+      actionSheetMarker: null,
+      actionSheetDisableModify: false
+    });
+  },
+
+  onActionSheetCancel() {
+    this.hideMarkerActionSheet();
+  },
+
+  onActionSheetAction(e) {
+    const action = e?.currentTarget?.dataset?.action;
+    const marker = this.data.actionSheetMarker;
+    if (!action) {
+      this.hideMarkerActionSheet();
+      return;
+    }
+    if (action === "cancel") {
+      this.hideMarkerActionSheet();
+      return;
+    }
+    if (!marker) {
+      this.hideMarkerActionSheet();
+      return;
+    }
+    if ((action === "edit" || action === "delete") && this.isModifyActionLocked(marker)) {
+      wx.showToast({
+        title: action === "edit" ? "审核中暂不可编辑" : "审核中暂不可删除",
+        icon: "none"
+      });
+      return;
+    }
+    this.hideMarkerActionSheet();
+    if (action === "home") {
+      this.onGoHomeTap({ currentTarget: { dataset: { id: marker.id } } });
+      return;
+    }
+    if (action === "detail") {
+      this.showMarkerDetail(marker);
+      return;
+    }
+    if (action === "edit") {
+      this.onEditMarkerTap({ currentTarget: { dataset: { id: marker.id } } });
+      return;
+    }
+    if (action === "delete") {
+      this.onDeleteMarkerTap({
+        currentTarget: { dataset: { id: marker.id, name: marker.name } }
+      });
+    }
+  },
+
+  noop() {},
 
   onCloseDetail() {
     this.setData({ showDetail: false, activeMarker: null });

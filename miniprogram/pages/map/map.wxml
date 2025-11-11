@@ -342,23 +342,9 @@
               wx:if="{{markerPageDetail.locationText || markerPageDetail.phone}}"
             >
               <view class="marker-page-address-info" wx:if="{{markerPageDetail.locationText}}">
-                <text class="marker-page-address-label">地址</text>
                 <text class="marker-page-address-text">{{markerPageDetail.locationText}}</text>
               </view>
               <view class="marker-page-address-actions">
-                <view
-                  class="marker-page-action"
-                  wx:if="{{markerPageDetail.phone}}"
-                  data-phone="{{markerPageDetail.phone}}"
-                  data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
-                  data-name="{{markerPageDetail.name || ''}}"
-                  bindtap="onMarkerPageCallTap"
-                >
-                  <view class="marker-page-action-icon">
-                    <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
-                  </view>
-                  <text class="marker-page-action-label">电话</text>
-                </view>
                 <view
                   class="marker-page-action"
                   wx:if="{{markerPageDetail.latitude && markerPageDetail.longitude}}"
@@ -372,6 +358,19 @@
                     <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
                   </view>
                   <text class="marker-page-action-label">位置</text>
+                </view>
+                <view
+                  class="marker-page-action"
+                  wx:if="{{markerPageDetail.phone}}"
+                  data-phone="{{markerPageDetail.phone}}"
+                  data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
+                  data-name="{{markerPageDetail.name || ''}}"
+                  bindtap="onMarkerPageCallTap"
+                >
+                  <view class="marker-page-action-icon">
+                    <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+                  </view>
+                  <text class="marker-page-action-label">电话</text>
                 </view>
               </view>
             </view>
@@ -429,7 +428,14 @@
               class="marker-page-qrcode-wrapper"
               wx:if="{{markerPageDetail.qrCodes && markerPageDetail.qrCodes.length}}"
             >
-              <image class="marker-page-qrcode" src="{{markerPageDetail.qrCodes[0].url}}" mode="aspectFit" />
+              <block wx:for="{{markerPageDetail.qrCodes}}" wx:key="index">
+                <image
+                  class="marker-page-qrcode"
+                  src="{{item.url}}"
+                  mode="aspectFit"
+                  show-menu-by-longpress="true"
+                />
+              </block>
             </view>
           </view>
         </scroll-view>

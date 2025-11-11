@@ -61,55 +61,22 @@
                   <text class="marker-name">{{item.name || '未命名标记'}}</text>
                   <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
                   <text class="marker-created">提交时间：{{item.createdAtDisplay}}</text>
+                  <view class="card-stats">
+                    <view class="stat-item">
+                      <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
+                      <text class="stat-value">{{item.exposureCount}}</text>
+                    </view>
+                    <view class="stat-item">
+                      <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
+                      <text class="stat-value">{{item.phoneCallCount}}</text>
+                    </view>
+                  </view>
                 </view>
                 <image
                   class="marker-cover"
                   src="{{item.coverImage || defaultCoverImage}}"
                   mode="aspectFill"
                 />
-              </view>
-
-              <view class="card-stats">
-                <view class="stat-item" >
-                  <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
-                  <text class="stat-value">{{item.exposureCount}}</text>
-                </view>
-                <view class="stat-item" >
-                  <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
-                  <text class="stat-value">{{item.phoneCallCount}}</text>
-                </view>
-              </view>
-
-              <view class="card-divider"></view>
-
-              <view class="card-actions">
-                <view
-                  class="action-item"
-                  hover-class="action-item-hover"
-                  catchtap="onGoHomeTap"
-                  data-id="{{item.id}}"
-                >
-                  <image class="action-icon" src="{{assetPaths.home}}" mode="aspectFit" />
-                </view>
-                <view
-                  class="action-item {{item.disableModifyActions ? 'action-item-disabled' : ''}}"
-                  hover-class="{{item.disableModifyActions ? '' : 'action-item-hover'}}"
-                  catchtap="onEditMarkerTap"
-                  data-id="{{item.id}}"
-                  data-disabled="{{item.disableModifyActions}}"
-                >
-                  <image class="action-icon" src="{{assetPaths.modify}}" mode="aspectFit" />
-                </view>
-                <view
-                  class="action-item {{item.disableModifyActions ? 'action-item-disabled' : ''}}"
-                  hover-class="{{item.disableModifyActions ? '' : 'action-item-hover'}}"
-                  catchtap="onDeleteMarkerTap"
-                  data-id="{{item.id}}"
-                  data-name="{{item.name}}"
-                  data-disabled="{{item.disableModifyActions}}"
-                >
-                  <image class="action-icon" src="{{assetPaths.delete}}" mode="aspectFit" />
-                </view>
               </view>
             </view>
           </view>
@@ -198,9 +165,9 @@
 
         <view class="detail-section" wx:if="{{activeMarker.qrCodes && activeMarker.qrCodes.length}}">
           <text class="detail-title">二维码</text>
-          <view class="media-preview-grid">
+          <view class="qr-code-list">
             <block wx:for="{{activeMarker.qrCodes}}" wx:key="id">
-              <image class="media-preview" src="{{item.url}}" mode="aspectFill" />
+              <image class="qr-code-preview" src="{{item.url}}" mode="widthFix" show-menu-by-longpress />
             </block>
           </view>
         </view>
@@ -588,6 +555,35 @@
         <block wx:else>
           <button class="footer-btn primary" bindtap="goToNextStep">下一步</button>
         </block>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{actionSheetVisible}}" class="action-sheet-overlay" catchtouchmove="noop">
+    <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
+    <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
+      <view class="action-sheet-card">
+        <view class="action-sheet-item" data-action="home" bindtap="onActionSheetAction">主页预览</view>
+        <view class="action-sheet-item" data-action="detail" bindtap="onActionSheetAction">详情</view>
+        <view
+          class="action-sheet-item {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
+          data-action="edit"
+          bindtap="onActionSheetAction"
+        >
+          编辑
+        </view>
+        <view
+          class="action-sheet-item action-sheet-item-danger {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
+          data-action="delete"
+          bindtap="onActionSheetAction"
+        >
+          删除
+        </view>
+      </view>
+      <view class="action-sheet-card action-sheet-card-cancel">
+        <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
+          取消
+        </view>
       </view>
     </view>
   </view>
