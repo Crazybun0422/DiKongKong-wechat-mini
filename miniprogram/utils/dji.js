@@ -136,59 +136,18 @@ function buildAreaGraphics(areas) {
 
   areas.forEach((area) => {
     const baseStyle = styleForLevel(Number(area.level));
-    const same = findSameGeometrySub(area);
-    if (same) {
-      const merged = Object.assign({}, area);
-      if (same.color) merged.color = same.color; // 与外部一致：同几何子区域可覆盖颜色/高度
-      if (typeof same.height === 'number') merged.height = same.height;
-      drawSingleArea(merged, baseStyle, polygons, circles);
-      if (Array.isArray(area.sub_areas)) {
-        const subStyle = { ...baseStyle, fillAlphaScale: NFZ_SUBAREA_ALPHA_SCALE };
-        area.sub_areas.forEach((sub) => {
-          if (sub !== same) drawSingleArea(sub, subStyle, polygons, circles);
-        });
-      }
+    if (Array.isArray(area.sub_areas) && area.sub_areas.length) {
+      const subStyle = { ...baseStyle, fillAlphaScale: NFZ_SUBAREA_ALPHA_SCALE };
+      area.sub_areas.forEach((sub) => drawSingleArea(sub, subStyle, polygons, circles, true));
     } else {
-      if (Array.isArray(area.sub_areas)) {
-        const subStyle = { ...baseStyle, fillAlphaScale: NFZ_SUBAREA_ALPHA_SCALE };
-        area.sub_areas.forEach((sub) => drawSingleArea(sub, subStyle, polygons, circles));
-      }
-      drawSingleArea(area, baseStyle, polygons, circles);
+      drawSingleArea(area, baseStyle, polygons, circles, false);
     }
   });
 
   return { polygons, circles };
 }
 
-function findSameGeometrySub(a) {
-  if (!a || !Array.isArray(a.sub_areas)) return null;
-  for (const sa of a.sub_areas) {
-    if (sameCircle(a, sa) || samePolygon(a, sa)) return sa;
-  }
-  return null;
-}
-
-function sameCircle(a, b) {
-  const ar = Number(a.radius), br = Number(b.radius);
-  const alng = Number(a.lng), alang = Number(a.lat);
-  const blng = Number(b.lng), blat = Number(b.lat);
-  if (!isFinite(ar) || !isFinite(br) || !isFinite(alng) || !isFinite(alang) || !isFinite(blng) || !isFinite(blat)) return false;
-  const eq = (x, y, eps) => Math.abs(x - y) <= (eps || 1e-5);
-  return eq(ar, br, 1) && eq(alng, blng, 1e-5) && eq(alang, blat, 1e-5);
-}
-
-function samePolygon(a, b) {
-  const ap = a.polygon_points || a.points || a.polygon || a.geometry?.coordinates;
-  const bp = b.polygon_points || b.points || b.polygon || b.geometry?.coordinates;
-  if (!ap || !bp) return false;
-  try {
-    return JSON.stringify(ap) === JSON.stringify(bp);
-  } catch (e) {
-    return false;
-  }
-}
-
-function drawSingleArea(area, style, polygons, circles) {
+function drawSingleArea(area, style, polygons, circles, polygonOnly = false) {
   // console.log("area",area);
   let base = normalizeHex(style.strokeColor);
   const fillScale = style.fillAlphaScale || 1;
@@ -199,25 +158,29 @@ function drawSingleArea(area, style, polygons, circles) {
     base = area.color
   }
   const fillColor = colorWithAlpha(base, fillOpacity);
-  if (
-    area.shape === 0 ||
-    (!area.polygon_points && area.radius && area.lat && area.lng)
-  ) {
-    const center = wgs84ToGcj02(Number(area.lng), Number(area.lat));
-    circles.push({
-      longitude: center.lng,
-      latitude: center.lat,
-      radius: Number(area.radius) || 0,
-      color: strokeColor,
-      fillColor: fillColor,
-      strokeWidth: style.strokeWidth || 1
-    });
+  const source = polygonOnly
+    ? area?.polygon_points
+    : area?.polygon_points || area?.points || area?.polygon || area?.geometry?.coordinates;
+  const hasPolygon = Array.isArray(source) && source.length > 0;
+  if (!hasPolygon) {
+    if (
+      area.shape === 0 ||
+      (!area.polygon_points && area.radius && area.lat && area.lng)
+    ) {
+      const center = wgs84ToGcj02(Number(area.lng), Number(area.lat));
+      circles.push({
+        longitude: center.lng,
+        latitude: center.lat,
+        radius: Number(area.radius) || 0,
+        color: strokeColor,
+        fillColor: fillColor,
+        strokeWidth: style.strokeWidth || 1
+      });
+    }
     return;
   }
 
-  const pts =
-    area.polygon_points || area.points || area.polygon || area.geometry?.coordinates;
-  if (!pts || !pts.length) return;
+  const pts = source;
   // 支持 MultiPolygon / Polygon / Ring 三种深度
   if (Array.isArray(pts[0]) && Array.isArray(pts[0][0]) && Array.isArray(pts[0][0][0])) {
     // MultiPolygon: [[[ring],[ring]], [[ring], ...]]

@@ -86,6 +86,7 @@ const WEB_TILE_SIZE = 256;
 const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
 const CSS_PIXELS_PER_CM = 96 / 2.54;
 const DEFAULT_SCALE_BAR_BASE_RPX = 80;
+const LOCATE_SCALE_METERS = 500;
 const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
 
 const clampMapScale = (value) => {
@@ -420,7 +421,7 @@ Page({
     this._markersFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
-    this._suppressRegionOnce = false;
+    this._pendingRegionUpdates = 0;
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
     this._djiPolygons = [];
@@ -1473,18 +1474,20 @@ Page({
     const finderUserName = dataset.finder || "";
     const activityId = dataset.activity || "";
 
-    
+
 
     const proceed = () => {
       if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
-        console.log("here is wx.openChannelsActivity",finderUserName,activityId)
-        wx.openChannelsActivity({ finderUserName, feedId:activityId,
+        console.log("here is wx.openChannelsActivity", finderUserName, activityId)
+        wx.openChannelsActivity({
+          finderUserName, feedId: activityId,
           success: res => console.log('open ok', res),
           fail: err => {
             console.warn('open fail', err);
             // wx.showModal({ title: '打开失败', content: JSON.stringify(err) });
           },
-          complete: res => console.log('open complete', res) });
+          complete: res => console.log('open complete', res)
+        });
         return;
       }
       if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
@@ -1600,7 +1603,7 @@ Page({
 
   onShow() {
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home" ,showDashboardPanel: true});
+      this.setData({ activeTab: "home", showDashboardPanel: true });
       this.showDashboardPanel = true;
     }
     this.consumePendingMarkerFocus({ source: "show" });
@@ -1699,7 +1702,7 @@ Page({
 
   onMenuHomeTap() {
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home"});
+      this.setData({ activeTab: "home" });
     }
     this.showPlaceholderToast("已在首页");
   },
@@ -1775,13 +1778,13 @@ Page({
   applyNearbyMarkers(markers) {
     this._nearbyMarkers = Array.isArray(markers)
       ? markers.map((marker) => {
-          if (marker && marker.extData && marker.extData.detail) {
-            marker.extData = Object.assign({}, marker.extData, {
-              detail: cloneMarkerDetail(marker.extData.detail)
-            });
-          }
-          return marker;
-        })
+        if (marker && marker.extData && marker.extData.detail) {
+          marker.extData = Object.assign({}, marker.extData, {
+            detail: cloneMarkerDetail(marker.extData.detail)
+          });
+        }
+        return marker;
+      })
       : [];
     this.trackMarkerExposure(this._nearbyMarkers);
     this.syncAllMarkers();
@@ -1790,13 +1793,13 @@ Page({
   applySearchMarkers(markers) {
     this._searchMarkers = Array.isArray(markers)
       ? markers.map((marker) => {
-          if (marker && marker.extData && marker.extData.detail) {
-            marker.extData = Object.assign({}, marker.extData, {
-              detail: cloneMarkerDetail(marker.extData.detail)
-            });
-          }
-          return marker;
-        })
+        if (marker && marker.extData && marker.extData.detail) {
+          marker.extData = Object.assign({}, marker.extData, {
+            detail: cloneMarkerDetail(marker.extData.detail)
+          });
+        }
+        return marker;
+      })
       : [];
     this.syncAllMarkers();
   },
@@ -2085,7 +2088,7 @@ Page({
 
   onLocateTap() {
     this.ensureLocationPermission()
-      .then(() => this.pullAndCenterLocation({ scale: 14 }))
+      .then(() => this.pullAndCenterLocation({ scaleMeters: LOCATE_SCALE_METERS, scale: 14 }))
       .catch(() => {
         wx.showToast({ title: "未授权定位权限", icon: "none" });
       });
@@ -2113,7 +2116,19 @@ Page({
           longitude: res.longitude
         };
         this.refreshMarkerPageDistance();
-        const targetScale = clampMapScale(options.scale || this.data.scale);
+        let targetScale = null;
+        if (typeof options.scaleMeters === "number" && options.scaleMeters > 0) {
+          const computed = this.scaleForMeters(options.scaleMeters, res.latitude);
+          if (Number.isFinite(computed)) {
+            targetScale = computed;
+          }
+        }
+        if (!Number.isFinite(targetScale)) {
+          const fallbackScale = Object.prototype.hasOwnProperty.call(options, "scale")
+            ? options.scale
+            : this.data.scale;
+          targetScale = clampMapScale(fallbackScale);
+        }
         this.centerOnPoint(
           { latitude: res.latitude, longitude: res.longitude },
           targetScale,
@@ -2413,7 +2428,7 @@ Page({
       ? Promise.resolve(this.loadStoredProfile())
       : this.openProfileFill();
     const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
     return ensureProfile.then((profile) => {
       if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
       return this.ensureAccessToken({ profileOverride: profile || {} })
@@ -2519,8 +2534,8 @@ Page({
       typeof ctx.latitude === "number"
         ? ctx.latitude
         : (this.data.center && typeof this.data.center.latitude === "number"
-            ? this.data.center.latitude
-            : DEFAULT_CENTER.latitude);
+          ? this.data.center.latitude
+          : DEFAULT_CENTER.latitude);
     const zoom = clampMapScale(
       Object.prototype.hasOwnProperty.call(ctx, "scale") ? ctx.scale : this.data.scale
     );
@@ -2538,9 +2553,41 @@ Page({
     });
   },
 
+  queueRegionUpdateSkip(count = 1) {
+    const inc = Number.isFinite(count) ? Math.max(1, Math.round(count)) : 1;
+    const pending = Number.isFinite(this._pendingRegionUpdates) ? this._pendingRegionUpdates : 0;
+    this._pendingRegionUpdates = pending + inc;
+  },
+
+  scaleForMeters(targetMeters, latitude) {
+    if (!Number.isFinite(targetMeters) || targetMeters <= 0) return null;
+    if (!this._pxPerRpx || this._pxPerRpx <= 0) {
+      this.initializeSystemInfo();
+    }
+    const pxPerRpx = this._pxPerRpx || 1;
+    const baseRpx = this._scaleBarBaseRpx || DEFAULT_SCALE_BAR_BASE_RPX;
+    const pxWidth = pxPerRpx * baseRpx;
+    if (!Number.isFinite(pxWidth) || pxWidth <= 0) return null;
+    const latSource = typeof latitude === "number"
+      ? latitude
+      : (this.data.center && typeof this.data.center.latitude === "number"
+        ? this.data.center.latitude
+        : DEFAULT_CENTER.latitude);
+    const lat = Math.max(-85, Math.min(85, Number(latSource) || 0));
+    const cosLat = Math.cos((lat * Math.PI) / 180);
+    const metersPerPixel = targetMeters / pxWidth;
+    if (!Number.isFinite(cosLat) || cosLat <= 0) return null;
+    if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
+    const ratio = (METERS_PER_PIXEL_BASE * cosLat) / metersPerPixel;
+    if (!Number.isFinite(ratio) || ratio <= 0) return null;
+    const zoom = Math.log2 ? Math.log2(ratio) : Math.log(ratio) / Math.log(2);
+    if (!Number.isFinite(zoom)) return null;
+    return clampMapScale(zoom);
+  },
+
   centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false) {
     if (!point) return;
-    this._suppressRegionOnce = true;
+    this.queueRegionUpdateSkip(3);
     this._centerOverride = point;
     const targetScale = clampMapScale(scale);
     this.setData(
@@ -2730,7 +2777,7 @@ Page({
     const showLoading = typeof wx.showLoading === "function";
     const hideLoading = typeof wx.hideLoading === "function"
       ? () => wx.hideLoading()
-      : () => {};
+      : () => { };
 
     const handleFailure = (err) => {
       hideLoading();
@@ -2808,8 +2855,9 @@ Page({
       return;
     }
     if (e.type === "end") {
-      if (this._suppressRegionOnce) {
-        this._suppressRegionOnce = false;
+      const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
+      if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
+        this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
         return;
       }
       // 使用事件内的中心与范围，仅用于刷新覆盖物，避免 setData 改 center 造成回环抖动
@@ -2854,7 +2902,7 @@ Page({
           run(scaleChanged);
         };
         if (shouldSync) {
-          this._suppressRegionOnce = true;
+          this.queueRegionUpdateSkip(1);
           this.setData({ center: newCenter, scale }, afterSync);
         } else {
           afterSync();
@@ -2912,7 +2960,7 @@ Page({
           this.updateStatusPanel(this._lastAreas);
         };
         if (needSync) {
-          this._suppressRegionOnce = true;
+          this.queueRegionUpdateSkip(1);
           this.setData({ center: newCenter, scale }, afterUpdate);
         } else {
           afterUpdate();
@@ -3031,15 +3079,15 @@ Page({
           .map((item, index) => {
             const latValue = Number(
               item?.location?.latitude ??
-                item?.location?.lat ??
-                item?.latitude ??
-                item?.lat
+              item?.location?.lat ??
+              item?.latitude ??
+              item?.lat
             );
             const lngValue = Number(
               item?.location?.longitude ??
-                item?.location?.lng ??
-                item?.longitude ??
-                item?.lng
+              item?.location?.lng ??
+              item?.longitude ??
+              item?.lng
             );
             if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return null;
             const gcj = wgs84ToGcj02(lngValue, latValue);
@@ -3260,7 +3308,7 @@ Page({
       drone: this.data.selectedDrone
     })
       .then((areas) => {
-        console.log("areas",areas);
+        console.log("areas", areas);
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);
@@ -3323,15 +3371,17 @@ Page({
     const wgs = gcj02ToWgs84(center.longitude, center.latitude);
     if (!wgs) return fallback;
     const hits = [];
-    const pushIfContains = (area, parent) => {
-      if (this.areaContainsWgsPoint(area, wgs.lng, wgs.lat)) hits.push({ area, parent });
-    };
-    areas.forEach((area) => {
-      pushIfContains(area, null);
-      if (Array.isArray(area.sub_areas)) {
-        area.sub_areas.forEach((sub) => pushIfContains(sub, area));
+    const visitArea = (area, parent, polygonOnly) => {
+      if (!area) return;
+      if (Array.isArray(area.sub_areas) && area.sub_areas.length) {
+        area.sub_areas.forEach((sub) => visitArea(sub, area, true));
+        return;
       }
-    });
+      if (this.areaContainsWgsPoint(area, wgs.lng, wgs.lat, { polygonOnly })) {
+        hits.push({ area, parent });
+      }
+    };
+    areas.forEach((area) => visitArea(area, null, false));
     if (!hits.length) {
       return { status: "不在限制区", extra: "", tone: "safe" };
     }
@@ -3600,11 +3650,6 @@ Page({
   },
 
   labelForArea(area, parent) {
-    const height = this.effectiveHeight(area, parent);
-    if (typeof height === "number" && height > 0) {
-      area.level = 6;
-      return "高度限制区";
-    }
     const level = Number(area?.level);
     switch (level) {
       case 2: return "禁飞区";
@@ -3692,18 +3737,54 @@ Page({
     return null;
   },
 
-  areaContainsWgsPoint(area, lng, lat) {
+  areaContainsWgsPoint(area, lng, lat, options = {}) {
     if (!area) return false;
-    if ((area.shape === 0) || (!area.polygon_points && area.radius && area.lat && area.lng)) {
-      const dist = haversineMeters(lat, lng, Number(area.lat), Number(area.lng));
-      return dist <= Number(area.radius);
+    const polygonOnly = !!options.polygonOnly;
+    const poly = this.resolvePolygonCoords(area, polygonOnly);
+    if (this.hasPolygonCoords(poly)) {
+      return this.polygonPointsContain(poly, lng, lat);
     }
-    const poly = area.polygon_points || area.points || area.polygon || (area.geometry && area.geometry.coordinates);
-    if (!poly) return false;
+    return this.circleContainsArea(area, lng, lat);
+  },
+
+  resolvePolygonCoords(area, polygonOnly) {
+    if (!area) return null;
+    if (polygonOnly) return area.polygon_points;
+    return area.polygon_points || area.points || area.polygon || (area.geometry && area.geometry.coordinates);
+  },
+
+  hasPolygonCoords(poly) {
+    return Array.isArray(poly) && poly.length > 0;
+  },
+
+  polygonPointsContain(poly, lng, lat) {
+    if (!this.hasPolygonCoords(poly)) return false;
     if (Array.isArray(poly[0]) && Array.isArray(poly[0][0]) && Array.isArray(poly[0][0][0])) {
-      return poly.some((single) => this.ringContains(single[0] ? single[0] : single, lng, lat));
+      return poly.some((single) => {
+        const outer = Array.isArray(single[0]) ? single[0] : single;
+        const ring = Array.isArray(outer[0]) ? outer[0] : outer;
+        return this.ringContains(ring, lng, lat);
+      });
     }
-    return this.ringContains(poly[0] ? poly[0] : poly, lng, lat);
+    if (Array.isArray(poly[0]) && Array.isArray(poly[0][0])) {
+      const ring = Array.isArray(poly[0]) ? poly[0] : poly;
+      return this.ringContains(ring, lng, lat);
+    }
+    return this.ringContains(poly, lng, lat);
+  },
+
+  circleContainsArea(area, lng, lat) {
+    if (!area) return false;
+    const isCircleShape = area.shape === 0;
+    const hasCircleParams = area.radius && area.lat && area.lng;
+    if (!isCircleShape && !hasCircleParams) return false;
+    const radius = Number(area.radius);
+    const centerLng = Number(area.lng);
+    const centerLat = Number(area.lat);
+    if (!Number.isFinite(radius) || radius <= 0) return false;
+    if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat)) return false;
+    const dist = haversineMeters(lat, lng, centerLat, centerLng);
+    return Number.isFinite(dist) && dist <= radius;
   },
 
   ringContains(ring, lng, lat) {
