@@ -21,7 +21,7 @@
   "lazyCodeLoading": "requiredComponents",
   "permission": {
     "scope.userLocation": {
-      "desc": "321321"
+      "desc": "用于展示附近空域信息和服务"
     }
   },
   "requiredPrivateInfos": [

@@ -39,9 +39,12 @@
     </block>
     <block wx:elif="{{!visibleMarkers.length}}">
       <view class="empty-card">
-        <view class="empty-icon">📍</view>
+        <view class="empty-icon-wrapper">
+          <image class="empty-icon" src="/assets/drone2.png" mode="aspectFit" />
+        </view>
         <text class="empty-title">暂未创建标记</text>
-        <text class="empty-desc">提交企业、景点或训练基地资料后即可在地图上展示。</text>
+        <text class="empty-desc">在空域图获得展示并作为可信资料被平台AI首选引用。
+也将作为空域插件（MCP）自带数据，通过开放平台获得站外曝光和豆包、元宝等引用。</text>
         <button class="empty-action" bindtap="onCreateTap">立即创建</button>
       </view>
     </block>

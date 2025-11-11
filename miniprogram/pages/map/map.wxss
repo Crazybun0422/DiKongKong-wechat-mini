@@ -26,7 +26,8 @@
   display: block;
   pointer-events: none;
   z-index: 20;
-  filter: brightness(0) saturate(100%) invert(27%) sepia(92%) saturate(2594%) hue-rotate(205deg) brightness(102%) contrast(104%) drop-shadow(0 10rpx 20rpx rgba(15, 23, 42, 0.25));
+  /* filter: brightness(0) saturate(100%) invert(27%) sepia(92%) saturate(2594%) hue-rotate(205deg) brightness(102%) contrast(104%) drop-shadow(0 10rpx 20rpx rgba(15, 23, 42, 0.25)); */
+  filter: brightness(0) saturate(100%);
   opacity: 0.95;
 }
 
