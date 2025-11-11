@@ -436,6 +436,9 @@ Page({
       : [];
     const createdAtDisplay = this.formatDateTime(raw.createdAt);
     const updatedAtDisplay = this.formatDateTime(raw.updatedAt);
+    const hasUpdatedAt = !!raw.updatedAt && updatedAtDisplay !== "--";
+    const timelineLabel = hasUpdatedAt ? "更新时间" : "提交时间";
+    const timelineDisplay = hasUpdatedAt ? updatedAtDisplay : createdAtDisplay;
     const exposureCount =
       raw.exposureCount !== undefined && raw.exposureCount !== null
         ? Number(raw.exposureCount)
@@ -478,6 +481,8 @@ Page({
       featureCode: raw.featureCode || "",
       createdAtDisplay,
       updatedAtDisplay,
+      timelineLabel,
+      timelineDisplay,
       exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
       phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
       coverImage: images.length ? images[0].url : "",

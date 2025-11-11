@@ -28,8 +28,55 @@
 .edit-form {
   background: #ffffff;
   border-radius: 24rpx;
-  padding: 32rpx 36rpx 28rpx;
+  padding: 32rpx 36rpx 48rpx;
   box-shadow: 0 12rpx 32rpx rgba(15, 39, 91, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.avatar-picker {
+  width: 100%;
+}
+
+.avatar-button {
+  width: 100%;
+  padding: 24rpx 32rpx;
+  border: none;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #f5f7fb, #eef1f8);
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.avatar-button::after {
+  border: none;
+}
+
+.avatar-preview {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 30%;
+  background: #e4e7ed;
+}
+
+.avatar-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.avatar-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+.avatar-desc {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #7a7a7a;
 }
 
 .edit-form-item {
@@ -45,7 +92,7 @@
 }
 
 .edit-input {
-  width: 90%;
+  width: 100%;
   height: 88rpx;
   padding: 0 24rpx;
   border-radius: 16rpx;
@@ -69,7 +116,7 @@
 }
 
 .edit-submit {
-  margin-top: auto;
+  margin-top: 24rpx;
   height: 88rpx;
   line-height: 88rpx;
   border-radius: 44rpx;

@@ -1,4 +1,4 @@
-<view class="profile-page">
+﻿<view class="profile-page">
   <scroll-view scroll-y="true" class="profile-scroll">
     <block wx:if="{{loading}}">
       <view class="profile-loading">加载中...</view>
@@ -10,22 +10,45 @@
       </view>
     </block>
     <block wx:else>
-      <view class="profile-content">
-        <view class="profile-header-card" bindtap="onEditProfileTap">
-          <image
-            class="profile-avatar"
-            src="{{profile.avatarUrl || defaultAvatar}}"
-            mode="aspectFill"
-          />
+        <view class="profile-content">
+        <view class="profile-header-card">
+          <button
+            class="profile-avatar-button"
+            open-type="chooseAvatar"
+            bindchooseavatar="onChooseAvatar"
+          >
+            <image
+              class="profile-avatar"
+              src="{{profile.avatarUrl || defaultAvatar}}"
+              mode="aspectFill"
+            />
+            <view class="avatar-overlay">
+              <text>更换</text>
+            </view>
+          </button>
           <view class="profile-header-body">
             <view class="profile-name-row">
-              <text class="profile-name">{{profile.nickname}}</text>
-              <text class="profile-arrow">›</text>
+              <block wx:if="{{nicknameEditing}}">
+                <input
+                  class="profile-name-input"
+                  type="nickname"
+                  value="{{nicknameInput}}"
+                  bindinput="onNicknameInputChange"
+                  bindconfirm="onNicknameInputConfirm"
+                  confirm-type="done"
+                  focus="{{nicknameEditing}}"
+                  catchtap="onNicknameInputTap"
+                  placeholder="编辑昵称"
+                />
+              </block>
+              <block wx:else>
+                <text class="profile-name" bindtap="startNicknameEdit">{{profile.nickname}}</text>
+                <text class="profile-name-edit" bindtap="startNicknameEdit">点击修改</text>
+              </block>
             </view>
             <view class="profile-code-row">
               <text class="profile-code-label">低空号</text>
               <text class="profile-code-value">{{profile.featureCode}}</text>
-              <!-- <view class="profile-code-copy" catchtap="onCopyFeatureCode">复制</view> -->
             </view>
           </view>
         </view>
@@ -80,7 +103,7 @@
           </view>
         </view>
 
-        <!-- <text class="profile-footnote">拉起小程序客服，敬请期待更多服务。</text> -->
+        <!-- <text class="profile-footnote">鎷夎捣灏忕▼搴忓鏈嶏紝鏁鏈熷緟鏇村鏈嶅姟銆?/text> -->
       </view>
     </block>
   </scroll-view>
@@ -106,3 +129,4 @@
     </button>
   </view>
 </view>
+

@@ -1,29 +1,46 @@
 <view class="edit-page">
   <view class="edit-header">
-    <text class="edit-title">完善个人资料</text>
-    <text class="edit-subtitle">更新昵称，让好友更容易找到你</text>
+    <text class="edit-title">完善头像与昵称</text>
+    <text class="edit-subtitle">一键同步微信头像与昵称，可随时再次修改</text>
   </view>
 
-  <view class="edit-form">
+  <form class="edit-form" bindsubmit="onSubmit">
+    <view class="avatar-picker">
+      <button
+        class="avatar-button"
+        open-type="chooseAvatar"
+        bindchooseavatar="onChooseAvatar"
+      >
+        <image class="avatar-preview" src="{{avatarPreview || defaultAvatar}}" mode="aspectFill" />
+        <view class="avatar-text">
+          <text class="avatar-title">选择头像</text>
+          <text class="avatar-desc">使用微信头像或重新裁剪</text>
+        </view>
+      </button>
+    </view>
+
     <view class="edit-form-item">
       <text class="edit-label">昵称</text>
       <input
         class="edit-input"
+        type="nickname"
+        name="nickname"
         maxlength="{{maxLength}}"
         value="{{nickname}}"
         placeholder="请输入昵称"
         bindinput="onNicknameInput"
-        cursor-spacing="20"
+        cursor-spacing="16"
       />
     </view>
-    <text class="edit-helper">昵称支持中英文、数字及常用符号，限 {{maxLength}} 个字符</text>
-  </view>
+    <text class="edit-helper">昵称支持中文、英文、数字与常用符号，最多 {{maxLength}} 个字符</text>
 
-  <button
-    class="edit-submit"
-    type="primary"
-    loading="{{saving}}"
-    disabled="{{saving}}"
-    bindtap="onSaveTap"
-  >保存</button>
+    <button
+      class="edit-submit"
+      form-type="submit"
+      loading="{{saving}}"
+      disabled="{{saving}}"
+    >
+      保存
+    </button>
+  </form>
 </view>

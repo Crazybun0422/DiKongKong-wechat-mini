@@ -26,16 +26,7 @@ const {
   computeGreatCircleDistance
 } = require("../../utils/distance");
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
-const {
-  DEFAULT_AVATAR_PATH,
-  extractAvatarFileName: extractAvatarFileNameUtil,
-  buildAvatarDownloadUrl: buildAvatarDownloadUrlUtil,
-  prepareAvatarForUpload: prepareAvatarForUploadUtil,
-  uploadAvatarFile: uploadAvatarFileUtil,
-  loadStoredProfile: loadStoredProfileUtil,
-  persistProfileLocally: persistProfileLocallyUtil,
-  hasStoredProfile: hasStoredProfileUtil
-} = require("../../utils/profile");
+const { loadStoredProfile: loadStoredProfileUtil } = require("../../utils/profile");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -390,11 +381,6 @@ Page({
     dronePickerVisible: false,
     pendingDroneIndex: null,
     showDashboardPanel: true,
-    showPermissionChecklistPanel: false,
-    permissionChecklistLoading: false,
-    showProfileFill: false,
-    tempNickname: "",
-    tempAvatarUrl: DEFAULT_AVATAR_PATH,
     activeTab: "home",
     markerDetailVisible: false,
     markerDetail: null,
@@ -436,9 +422,6 @@ Page({
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
     this._suggestTimer = null;
     this._markerExposureCache = new Map();
-    this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
-    this._selectedAvatarFileName = "";
-    this._avatarChanged = false;
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
     this._activeNoFlyRequest = null;
@@ -478,6 +461,7 @@ Page({
     });
     this.updateScaleBar();
     this.updateStatusPanel();
+    this.autoLoginOnLaunch();
     this.requestInitialLocation();
   },
 
@@ -515,6 +499,12 @@ Page({
       return;
     }
     this.focusOnlineMarker(request);
+  },
+
+  autoLoginOnLaunch() {
+    this.ensureAccessToken().catch((err) => {
+      console.warn("自动登录失败", err);
+    });
   },
 
   captureInviteCode(options = {}) {
@@ -2428,31 +2418,19 @@ Page({
     if (this.hasAccessToken()) {
       return Promise.resolve(this.loadStoredProfile());
     }
-    const ensureProfile = this.hasProfileInfo()
-      ? Promise.resolve(this.loadStoredProfile())
-      : this.openProfileFill();
     const showLoading = typeof wx.showLoading === "function";
     const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
-    return ensureProfile.then((profile) => {
-      if (showLoading) wx.showLoading({ title: "授权中...", mask: true });
-      return this.ensureAccessToken({ profileOverride: profile || {} })
-        .then(() => {
-          hideLoading();
-          return profile;
-        })
-        .catch((err) => {
-          hideLoading();
-          throw err;
-        });
-    });
-  },
-
-  extractAvatarFileName(value) {
-    return extractAvatarFileNameUtil(value);
-  },
-
-  buildAvatarDownloadUrl(value) {
-    return buildAvatarDownloadUrlUtil(value, { apiBase: this.getApiBase() });
+    const profile = this.loadStoredProfile() || {};
+    if (showLoading) wx.showLoading({ title: "登录中...", mask: true });
+    return this.ensureAccessToken({ profileOverride: profile })
+      .then(() => {
+        hideLoading();
+        return profile;
+      })
+      .catch((err) => {
+        hideLoading();
+        throw err;
+      });
   },
 
   hasAccessToken() {
@@ -2474,36 +2452,6 @@ Page({
 
   loadStoredProfile() {
     return loadStoredProfileUtil();
-  },
-
-  hasProfileInfo() {
-    return hasStoredProfileUtil();
-  },
-
-  openPermissionChecklist(options = {}) {
-    const { includeProfile = false, resolve, reject } = options;
-    this._pendingLocationPermission = {
-      resolve,
-      reject,
-      includeProfile: !!includeProfile
-    };
-    this.setData({
-      showPermissionChecklistPanel: true,
-      permissionChecklistLoading: false
-    });
-  },
-
-  closePermissionChecklist(success) {
-    if (this._pendingLocationPermission && success && typeof this._pendingLocationPermission.resolve === "function") {
-      this._pendingLocationPermission.resolve();
-    } else if (this._pendingLocationPermission && !success && typeof this._pendingLocationPermission.reject === "function") {
-      this._pendingLocationPermission.reject(new Error("user-cancel"));
-    }
-    this._pendingLocationPermission = null;
-    this.setData({
-      showPermissionChecklistPanel: false,
-      permissionChecklistLoading: false
-    });
   },
 
   initializeSystemInfo() {
@@ -2669,12 +2617,7 @@ Page({
             resolve();
             return;
           }
-          const needsProfile = !this.hasProfileInfo();
-          this.openPermissionChecklist({
-            includeProfile: needsProfile,
-            resolve,
-            reject
-          });
+          this.authorizeLocation().then(resolve).catch(reject);
         },
         fail: reject
       });
@@ -2717,183 +2660,6 @@ Page({
         this._ensureLoginPromise = null;
       });
     return this._ensureLoginPromise;
-  },
-
-  onPermissionChecklistCancel() {
-    if (this.data.permissionChecklistLoading) return;
-    this.closePermissionChecklist(false);
-  },
-
-  openProfileFill() {
-    const existing = this.loadStoredProfile();
-    const nickname = existing?.nickname || "";
-    const avatarFileName = existing?.avatarUrl || "";
-    this._selectedAvatarFileName = avatarFileName || "";
-    this._avatarChanged = false;
-    const preview = avatarFileName ? this.buildAvatarDownloadUrl(avatarFileName) : DEFAULT_AVATAR_PATH;
-    this._selectedAvatarSource = preview;
-    return new Promise((resolve, reject) => {
-      this._profileFillResolve = resolve;
-      this._profileFillReject = reject;
-      this.setData({
-        showProfileFill: true,
-        tempNickname: nickname,
-        tempAvatarUrl: preview
-      });
-    });
-  },
-
-  onProfileFillCancel() {
-    const rej = this._profileFillReject;
-    this._profileFillResolve = null;
-    this._profileFillReject = null;
-    this._avatarChanged = false;
-    this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
-    this._selectedAvatarFileName = "";
-    this.setData({
-      showProfileFill: false,
-      tempNickname: "",
-      tempAvatarUrl: DEFAULT_AVATAR_PATH
-    });
-    if (typeof rej === "function") rej(new Error("user-cancel"));
-  },
-
-  onChooseAvatar(e) {
-    const { avatarUrl } = e.detail || {};
-    if (avatarUrl) {
-      this._selectedAvatarSource = avatarUrl;
-      this._avatarChanged = true;
-      this.setData({ tempAvatarUrl: avatarUrl });
-    }
-  },
-
-  onNicknameInput(e) {
-    this.setData({ tempNickname: (e.detail && e.detail.value) || "" });
-  },
-
-  prepareAvatarForUpload(src) {
-    return prepareAvatarForUploadUtil(src);
-  },
-
-  uploadAvatarFile(filePath) {
-    return uploadAvatarFileUtil(filePath, {
-      apiBase: this.getApiBase()
-    });
-  },
-
-  onProfileFillSubmit(e) {
-    const nickname = ((e.detail && e.detail.value && e.detail.value.nickname) || this.data.tempNickname || "").trim();
-    if (!nickname) {
-      wx.showToast({ title: "请填写昵称", icon: "none" });
-      return;
-    }
-    const hasExistingFile = !!this._selectedAvatarFileName;
-    const source = this._selectedAvatarSource || DEFAULT_AVATAR_PATH;
-    const needsUpload = this._avatarChanged || !hasExistingFile;
-    const app = getApp ? getApp() : null;
-
-    const persistProfile = (avatarFileName) => {
-      const rawValue = typeof avatarFileName === "string" ? avatarFileName.trim() : avatarFileName;
-      const normalized =
-        (typeof rawValue === "string" && /^https?:\/\//.test(rawValue))
-          ? rawValue
-          : this.extractAvatarFileName(rawValue) || (typeof rawValue === "string" ? rawValue : "");
-      persistProfileLocallyUtil({
-        nickname,
-        avatarUrl: normalized
-      });
-      this._selectedAvatarFileName = normalized;
-      this._selectedAvatarSource = this.buildAvatarDownloadUrl(normalized);
-      this._avatarChanged = false;
-      return {
-        nickname,
-        avatarUrl: normalized
-      };
-    };
-
-    const finish = (profile) => {
-      const resolve = this._profileFillResolve;
-      this._profileFillResolve = null;
-      this._profileFillReject = null;
-      this.setData({
-        showProfileFill: false,
-        tempNickname: profile.nickname,
-        tempAvatarUrl: this.buildAvatarDownloadUrl(profile.avatarUrl)
-      });
-      if (typeof resolve === "function") resolve(profile);
-    };
-
-    const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function"
-      ? () => wx.hideLoading()
-      : () => { };
-
-    const handleFailure = (err) => {
-      hideLoading();
-      console.warn("保存头像昵称失败", err);
-      wx.showToast({ title: "保存失败，请稍后再试", icon: "none" });
-      const rejecter = this._profileFillReject;
-      this._profileFillResolve = null;
-      this._profileFillReject = null;
-      this._selectedAvatarSource = DEFAULT_AVATAR_PATH;
-      this._selectedAvatarFileName = "";
-      this._avatarChanged = false;
-      this.setData({
-        showProfileFill: false,
-        tempNickname: nickname,
-        tempAvatarUrl: DEFAULT_AVATAR_PATH
-      });
-      if (typeof rejecter === "function") rejecter(err || new Error("profile-save-failed"));
-    };
-
-    if (showLoading) wx.showLoading({ title: "保存中...", mask: true });
-
-    if (!needsUpload && this._selectedAvatarFileName) {
-      const profile = persistProfile(this._selectedAvatarFileName);
-      hideLoading();
-      finish(profile);
-      return;
-    }
-
-    this.prepareAvatarForUpload(source)
-      .then((filePath) => this.uploadAvatarFile(filePath))
-      .then((fileName) => {
-        const profile = persistProfile(fileName);
-        hideLoading();
-        finish(profile);
-      })
-      .catch((err) => {
-        handleFailure(err);
-      });
-  },
-
-  onPermissionChecklistConfirm() {
-    const pending = this._pendingLocationPermission;
-    if (!pending || this.data.permissionChecklistLoading) return;
-    this.setData({ permissionChecklistLoading: true });
-    const needProfile = !!pending.includeProfile && !this.hasProfileInfo();
-    const ensureProfile = needProfile ? this.openProfileFill() : Promise.resolve(this.loadStoredProfile());
-    ensureProfile
-      .then((profile) => this.ensureAccessToken({ profileOverride: profile }))
-      .then(() => this.authorizeLocation().catch((err) => {
-        const wrapped = err || new Error("location-failed");
-        wrapped._source = "location";
-        throw wrapped;
-      }))
-      .then(() => {
-        this.closePermissionChecklist(true);
-      })
-      .catch((err) => {
-        if (err && err.message === "user-cancel") {
-          wx.showToast({ title: "已取消", icon: "none" });
-        } else if (err && err._source === "location" && err.message === "permission-denied") {
-          wx.showToast({ title: "开启定位权限后才能继续", icon: "none" });
-        } else {
-          console.warn("权限流程失败", err);
-          wx.showToast({ title: "操作失败，请稍后再试", icon: "none" });
-        }
-        this.setData({ permissionChecklistLoading: false });
-      });
   },
 
   onRegionChange(e) {
