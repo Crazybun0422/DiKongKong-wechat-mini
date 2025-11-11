@@ -2632,13 +2632,27 @@ Page({
         this._currentBounds = null;
         this.refreshWmsOverlay(this.data.center, this.data.scale, this._lastRegion);
         this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
-        this.scheduleFetchMarkers(silent ? 300 : 0, {
+        if (this._markersFetchTimer) {
+          clearTimeout(this._markersFetchTimer);
+          this._markersFetchTimer = null;
+        }
+        if (this._nfzFetchTimer) {
+          clearTimeout(this._nfzFetchTimer);
+          this._nfzFetchTimer = null;
+        }
+        if (this._fetchTimer) {
+          clearTimeout(this._fetchTimer);
+          this._fetchTimer = null;
+        }
+        const fetchOptions = {
           center: point,
           region: this._lastRegion,
           scale: targetScale,
           force: true
-        });
-        this.scheduleFetchDji(silent ? 300 : 0, true);
+        };
+        this.requestNearbyMarkers(fetchOptions);
+        this.requestNearbyNoFlyZones(fetchOptions);
+        this.requestDjiZones(true, point, this._lastRegion, targetScale);
         this.updateStatusPanel(this._lastAreas);
       }
     );
