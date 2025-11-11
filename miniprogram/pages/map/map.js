@@ -67,7 +67,7 @@ const NFZ_CENTER_COLORS = {
 };
 
 const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 20;
+const MAP_MAX_SCALE = 16;
 const DEFAULT_MAP_SCALE = 11;
 
 const MIN_FETCH_RADIUS = 80000;
@@ -3482,9 +3482,9 @@ Page({
 
   describeUomStatus() {
     const currentScale = Number(this.data?.scale);
-    if (Number.isFinite(currentScale) && currentScale > 16) {
-      return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
-    }
+    // if (Number.isFinite(currentScale) && currentScale > 16) {
+    //   return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
+    // }
     const center = this._centerOverride || this.data.center;
     if (!center) {
       return { status: "评估中", tone: "neutral" };
