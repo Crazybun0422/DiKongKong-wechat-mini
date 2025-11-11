@@ -426,6 +426,8 @@ Page({
     this._pendingRegionUpdates = 0;
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
+    this._wmsOverlayMap = new Map();
+    this._wmsOverlaySeed = 0;
     this._djiPolygons = [];
     this._djiCircles = [];
     this._nfzPolygons = [];
@@ -3583,64 +3585,87 @@ Page({
     this._currentWmsTiles = overlays;
     this.updateStatusPanel(this._lastAreas);
     overlays.forEach((tile) => this.ensureUomMask(tile));
-    const sig = overlays.map(o => o.id).join('|');
-    if (sig === this._wmsSig) {
-      return; // tile set unchanged,避免重复 setData 造成闪烁
-    }
-    this._wmsSig = sig;
     this.applyWmsOverlays(overlays);
   },
 
   applyWmsOverlays(tiles) {
     if (!this.mapCtx) return;
     const ctx = this.mapCtx;
-    const prev = this._wmsOverlayHandles || [];
-    prev.forEach((handle) => {
-      ctx.removeGroundOverlay({
-        id: handle.id,
-        fail: () => { }
-      });
-    });
-    this._wmsOverlayHandles = [];
+    this._wmsOverlayMap = this._wmsOverlayMap || new Map();
     this._wmsOverlaySeed = this._wmsOverlaySeed || 0;
-    tiles.forEach((tile) => {
+    const nextIds = new Set();
+    (tiles || []).forEach((tile) => {
+      if (tile && tile.id) nextIds.add(tile.id);
+    });
+    if (this._wmsOverlayMap.size) {
+      for (const [tileId, handle] of Array.from(this._wmsOverlayMap.entries())) {
+        if (!nextIds.has(tileId)) {
+          ctx.removeGroundOverlay({
+            id: handle.overlayId,
+            fail: () => { }
+          });
+          this._wmsOverlayMap.delete(tileId);
+        }
+      }
+    }
+    (tiles || []).forEach((tile) => {
+      if (!tile || !tile.id || !tile.bounds) return;
+      const signature = this.tileSignature(tile);
+      const existing = this._wmsOverlayMap.get(tile.id);
+      if (existing && existing.signature === signature) {
+        return;
+      }
+      if (existing) {
+        ctx.removeGroundOverlay({
+          id: existing.overlayId,
+          fail: () => { }
+        });
+        this._wmsOverlayMap.delete(tile.id);
+      }
       this._wmsOverlaySeed += 1;
-      const numericId = this._wmsOverlaySeed;
+      const overlayId = this._wmsOverlaySeed;
       const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
-
-      if (!Array.isArray(this._wmsOverlayHandles)) this._wmsOverlayHandles = [];
-      const handle = { id: numericId, key: tile.id };
-      this._wmsOverlayHandles.push(handle);
-
       ctx.addGroundOverlay({
-        id: numericId,
+        id: overlayId,
         src: tile.src,
         bounds: tile.bounds,
         alpha,
         fail: (err) => {
-          console.error('addGroundOverlay failed', tile.id, err);
-          if (Array.isArray(this._wmsOverlayHandles)) {
-            this._wmsOverlayHandles = this._wmsOverlayHandles.filter((h) => h.id !== handle.id);
-          }
+          console.error("addGroundOverlay failed", tile.id, err);
+          this._wmsOverlayMap.delete(tile.id);
         }
       });
+      this._wmsOverlayMap.set(tile.id, { overlayId, signature });
     });
   },
 
+  tileSignature(tile) {
+    if (!tile) return "";
+    const bounds = tile.bounds || {};
+    const ne = bounds.northeast || {};
+    const sw = bounds.southwest || {};
+    const values = [
+      tile.src || "",
+      tile.alpha != null ? tile.alpha : tile.opacity,
+      Number.isFinite(ne.latitude) ? ne.latitude.toFixed(6) : "",
+      Number.isFinite(ne.longitude) ? ne.longitude.toFixed(6) : "",
+      Number.isFinite(sw.latitude) ? sw.latitude.toFixed(6) : "",
+      Number.isFinite(sw.longitude) ? sw.longitude.toFixed(6) : ""
+    ];
+    return values.join("|");
+  },
+
   clearMapOverlays() {
-    if (!this.mapCtx) {
-      this._wmsOverlayHandles = [];
-      this._currentWmsTiles = [];
-      return;
+    this._wmsOverlayMap = this._wmsOverlayMap || new Map();
+    if (this.mapCtx) {
+      for (const [, handle] of this._wmsOverlayMap.entries()) {
+        this.mapCtx.removeGroundOverlay({
+          id: handle.overlayId,
+          fail: () => { }
+        });
+      }
     }
-    const handles = this._wmsOverlayHandles || [];
-    handles.forEach((handle) => {
-      this.mapCtx.removeGroundOverlay({
-        id: handle.id,
-        fail: () => { }
-      });
-    });
-    this._wmsOverlayHandles = [];
+    this._wmsOverlayMap.clear();
     this._currentWmsTiles = [];
     this.updateStatusPanel(this._lastAreas);
   },
