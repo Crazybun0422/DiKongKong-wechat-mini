@@ -92,19 +92,21 @@
                   <image class="action-icon" src="{{assetPaths.home}}" mode="aspectFit" />
                 </view>
                 <view
-                  class="action-item"
-                  hover-class="action-item-hover"
+                  class="action-item {{item.disableModifyActions ? 'action-item-disabled' : ''}}"
+                  hover-class="{{item.disableModifyActions ? '' : 'action-item-hover'}}"
                   catchtap="onEditMarkerTap"
                   data-id="{{item.id}}"
+                  data-disabled="{{item.disableModifyActions}}"
                 >
                   <image class="action-icon" src="{{assetPaths.modify}}" mode="aspectFit" />
                 </view>
                 <view
-                  class="action-item"
-                  hover-class="action-item-hover"
+                  class="action-item {{item.disableModifyActions ? 'action-item-disabled' : ''}}"
+                  hover-class="{{item.disableModifyActions ? '' : 'action-item-hover'}}"
                   catchtap="onDeleteMarkerTap"
                   data-id="{{item.id}}"
                   data-name="{{item.name}}"
+                  data-disabled="{{item.disableModifyActions}}"
                 >
                   <image class="action-icon" src="{{assetPaths.delete}}" mode="aspectFit" />
                 </view>
@@ -250,12 +252,12 @@
         <text class="drawer-title">创建地图标记</text>
         <view class="drawer-close" bindtap="onCloseCreate">✕</view>
       </view>
-      <scroll-view scroll-y class="drawer-body">
+      <view class="drawer-step-indicator">
         <view class="step-indicator">
           <block wx:for="{{createSteps}}" wx:key="label">
             <view class="step-item-wrapper">
               <view
-                class="step-item {{createStep === index ? 'is-current' : (createStep > index ? 'is-finished' : '')}}"
+                class="step-item {{createStep === index ? 'is-current' : (createStep > index ? 'is-finished' : '')}} {{resultStepsLocked && index < 3 ? 'is-disabled' : ''}}"
                 data-step="{{index}}"
                 bindtap="onStepIndicatorTap"
               >
@@ -271,7 +273,9 @@
             </view>
           </block>
         </view>
+      </view>
 
+      <scroll-view scroll-y class="drawer-body">
         <block wx:if="{{createStep === 0}}">
           <view class="form-card">
             <view class="field-row">
@@ -381,6 +385,7 @@
 
           <view class="form-card">
             <view class="field-label">行业荣誉标签</view>
+            <view class="field-tip">如高新技术企业、/培训资质/行业关键词</view>
             <view class="tag-editor">
               <block wx:for="{{form.industryHonorTags}}" wx:key="*this">
                 <view class="tag-chip">

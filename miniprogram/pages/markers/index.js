@@ -59,6 +59,7 @@ const PAYMENT_METHODS = [
 ];
 
 const WECHAT_PAYMENT_METHOD = "WECHAT";
+const INDUSTRY_HONOR_TAG_LIMIT = 5;
 
 function createEmptyForm() {
   return {
@@ -116,7 +117,8 @@ Page({
     assetPaths: STATIC_ASSETS,
     defaultCoverImage: STATIC_ASSETS.defaultCover,
     submitButtonText: "提交审核",
-    showPaymentSection: true
+    showPaymentSection: true,
+    resultStepsLocked: false
   },
 
   onLoad(options = {}) {
@@ -403,10 +405,12 @@ Page({
   },
 
   normalizeMarker(raw = {}) {
-    const statusMeta = REVIEW_STATUS_META[raw.reviewStatus] || REVIEW_STATUS_META.PENDING;
+    const reviewStatus = raw.reviewStatus || "PENDING";
+    const statusMeta = REVIEW_STATUS_META[reviewStatus] || REVIEW_STATUS_META.PENDING;
     const isDraft = !raw.paid;
     const statusLabel = isDraft ? "草稿" : statusMeta.label;
     const statusTone = isDraft ? "draft" : statusMeta.tone;
+    const disableModifyActions = !!raw.paid && reviewStatus === "PENDING";
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
     const images = Array.isArray(raw.images)
       ? raw.images
@@ -464,7 +468,7 @@ Page({
       videoChannelId: typeof raw.videoChannelId === "string" ? raw.videoChannelId : "",
       videoId: typeof raw.videoId === "string" ? raw.videoId : "",
       adminInfo: raw.adminInfo || {},
-      reviewStatus: raw.reviewStatus || "PENDING",
+      reviewStatus,
       reviewStatusLabel: statusLabel,
       reviewTone: statusTone,
       paid: !!raw.paid,
@@ -477,6 +481,7 @@ Page({
       exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
       phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
       coverImage: images.length ? images[0].url : "",
+      disableModifyActions,
       raw
     };
   },
@@ -546,7 +551,8 @@ Page({
         creationResult: null,
         editingMarkerId: "",
         submitButtonText: "提交审核",
-        showPaymentSection: true
+        showPaymentSection: true,
+        resultStepsLocked: false
       },
       () => {
         this.ensureValidPaymentSelection();
@@ -803,12 +809,22 @@ Page({
       .filter(Boolean);
   },
 
+  isModifyActionLocked(marker) {
+    if (!marker) return false;
+    if (marker.disableModifyActions) return true;
+    return !!marker.paid && marker.reviewStatus === "PENDING";
+  },
+
   onEditMarkerTap(e) {
     const markerId = e?.currentTarget?.dataset?.id;
     if (!markerId) return;
     const marker = this.data.markers.find((item) => item.id === markerId);
     if (!marker) {
       wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    if (this.isModifyActionLocked(marker)) {
+      wx.showToast({ title: "审核中暂不可编辑", icon: "none" });
       return;
     }
     const form = this.buildFormFromMarker(marker);
@@ -829,7 +845,8 @@ Page({
         creationResult: null,
         editingMarkerId: marker.id,
         submitButtonText: "保存修改",
-        showPaymentSection: !marker.paid
+        showPaymentSection: !marker.paid,
+        resultStepsLocked: false
       },
       () => {
         this.ensureValidPaymentSelection();
@@ -956,7 +973,8 @@ Page({
       submitButtonText: "提交审核",
       createStep: 0,
       showPaymentSection: true,
-      selectedPaymentMethod: PAYMENT_METHODS[0].id
+      selectedPaymentMethod: PAYMENT_METHODS[0].id,
+      resultStepsLocked: false
     });
   },
 
@@ -982,6 +1000,13 @@ Page({
     const text = (this.data.tagInput || "").trim();
     if (!text) return;
     const existing = this.data.form.industryHonorTags || [];
+    if (existing.length >= INDUSTRY_HONOR_TAG_LIMIT) {
+      wx.showToast({
+        title: `最多添加${INDUSTRY_HONOR_TAG_LIMIT}个标签`,
+        icon: "none"
+      });
+      return;
+    }
     if (existing.includes(text)) {
       wx.showToast({ title: "标签已存在", icon: "none" });
       return;
@@ -1186,6 +1211,10 @@ Page({
     const target = Number(e?.currentTarget?.dataset?.step);
     if (!Number.isFinite(target)) return;
     if (this.data.creationSubmitting) return;
+    if (this.data.resultStepsLocked && target < 3) {
+      wx.showToast({ title: "提交后无法返回", icon: "none" });
+      return;
+    }
     if (target === 3 && this.data.maxStepReached < 3) {
       wx.showToast({ title: "请先提交审核", icon: "none" });
       return;
@@ -1258,6 +1287,10 @@ Page({
       wx.showToast({ title: "请填写管理员姓名", icon: "none" });
       return false;
     }
+    if (!admin.title || !admin.title.trim()) {
+      wx.showToast({ title: "请填写管理员职位", icon: "none" });
+      return false;
+    }
     if (!admin.phone || !admin.phone.trim()) {
       wx.showToast({ title: "请填写管理员联系电话", icon: "none" });
       return false;
@@ -1305,7 +1338,8 @@ Page({
             createStep: 3,
             maxStepReached: 3,
             creationError: "",
-            editingMarkerId: ""
+            editingMarkerId: "",
+            resultStepsLocked: true
           });
           wx.showToast({ title: toastTitle, icon: "success" });
           return { success: true, marker: normalized };
@@ -1609,7 +1643,17 @@ Page({
     const markerId = e?.currentTarget?.dataset?.id;
     const markerName = (e?.currentTarget?.dataset?.name || "").trim();
     if (!markerId) return;
-    const promptName = markerName || "标记名称";
+    const marker = this.data.markers.find((item) => item.id === markerId);
+    if (!marker) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    if (this.isModifyActionLocked(marker)) {
+      wx.showToast({ title: "审核中暂不可删除", icon: "none" });
+      return;
+    }
+    const confirmName = markerName || (marker.name || "").trim();
+    const promptName = confirmName || "标记名称";
     wx.showModal({
       title: "删除标记",
       content: `请输入“${promptName}”确认删除。`,
@@ -1620,11 +1664,11 @@ Page({
       success: (res) => {
         if (res.confirm) {
           const input = (res.content || "").trim();
-          if (markerName && input !== markerName) {
+          if (confirmName && input !== confirmName) {
             wx.showToast({ title: "输入名称不匹配", icon: "none" });
             return;
           }
-          if (!markerName && !input) {
+          if (!confirmName && !input) {
             wx.showToast({ title: "请输入确认名称", icon: "none" });
             return;
           }

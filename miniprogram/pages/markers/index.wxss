@@ -266,6 +266,14 @@
   transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
 }
 
+.action-item-disabled {
+  opacity: 0.4;
+}
+
+.action-item-disabled .action-icon {
+  filter: grayscale(1) brightness(0.8);
+}
+
 
 .action-icon {
   width: 48rpx;
@@ -365,9 +373,15 @@
   font-size: 32rpx;
 }
 
+.drawer-step-indicator {
+  padding: 24rpx 32rpx 0;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
 .drawer-body {
   flex: 1;
-  padding: 24rpx 32rpx 0rpx;
+  padding: 0 32rpx 0;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -548,6 +562,16 @@
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+.step-item.is-disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.step-item.is-disabled .step-label {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
 .step-item.is-current {
   transform: scale(1.04);
 }
@@ -582,6 +606,11 @@
 .step-circle.is-finished {
   background: rgba(16, 185, 129, 0.18);
   color: #047857;
+}
+
+.step-item.is-disabled .step-circle {
+  background: #e2e8f0;
+  color: #94a3b8;
 }
 
 .step-label {
