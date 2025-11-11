@@ -379,6 +379,7 @@ Page({
     uomTone: "neutral",
     djiStatus: "评估中",
     djiTone: "neutral",
+    djiColor: "",
     djiStatusExtra: "",
     temporaryNoFlyZoneInfo: null,
     temporaryNoFlyText: "评估中",
@@ -3387,6 +3388,7 @@ Page({
       djiStatus: dji.status,
       djiStatusExtra: dji.extra,
       djiTone: dji.tone,
+      djiColor: dji.color || "",
       uomStatus: uom.status,
       uomTone: uom.tone,
       temporaryNoFlyZoneInfo: temporary.zoneInfo,
@@ -3396,15 +3398,15 @@ Page({
   },
 
   describeDjiStatus(areas) {
-    const fallback = { status: "暂无空域数据", extra: "", tone: "neutral" };
+    const fallback = { status: "暂无空域数据", extra: "", tone: "neutral", color: "" };
     if (typeof areas === "undefined") {
-      return { status: "评估中", extra: "", tone: "neutral" };
+      return { status: "评估中", extra: "", tone: "neutral", color: "" };
     }
     if (areas === null) {
-      return { status: "空域数据加载失败", extra: "", tone: "warn" };
+      return { status: "空域数据加载失败", extra: "", tone: "warn", color: "" };
     }
     if (!Array.isArray(areas) || !areas.length) {
-      return { status: "不在限制区", extra: "", tone: "safe" };
+      return { status: "不在限制区", extra: "", tone: "safe", color: "" };
     }
     const center = this._centerOverride || this.data.center;
     if (!center) return fallback;
@@ -3423,7 +3425,7 @@ Page({
     };
     areas.forEach((area) => visitArea(area, null, false));
     if (!hits.length) {
-      return { status: "不在限制区", extra: "", tone: "safe" };
+      return { status: "不在限制区", extra: "", tone: "safe", color: "" };
     }
     hits.sort((a, b) => this.severityRank(a.area) - this.severityRank(b.area));
     const target = hits[0];
@@ -3438,10 +3440,12 @@ Page({
     }
     const reason = target.area.reason || target.area.desc || target.area.description;
     if (reason) extraParts.push(reason);
+    const normalizedLevel = this.normalizedAreaLevel(target.area);
     return {
       status: this.labelForArea(target.area, target.parent),
       extra: extraParts.join(" · "),
-      tone: this.toneForLevel(Number(target.area.level))
+      tone: this.toneForLevel(normalizedLevel),
+      color: this.colorForArea(target.area)
     };
   },
 
@@ -3533,9 +3537,10 @@ Page({
   },
 
   toneForLevel(level) {
-    if (level === 2 || level === 1) return "alert";
-    if (level === 6 || level === 3 || level === 4) return "warn";
-    if (level === 7 || level === 10) return "neutral";
+    const normalized = Number(level);
+    if (normalized === 2 || normalized === 1) return "alert";
+    if (normalized === 6 || normalized === 3 || normalized === 4) return "warn";
+    if (normalized === 7 || normalized === 10) return "neutral";
     return "safe";
   },
 
@@ -3690,22 +3695,22 @@ Page({
   },
 
   labelForArea(area, parent) {
-    const level = Number(area?.level);
+    const level = this.normalizedAreaLevel(area);
     switch (level) {
       case 2: return "禁飞区";
-      case 6: return "高度限制区";
-      case 1: return "授权飞行区";
+      case 6: return "限高区";
+      case 1: return "授权区";
       case 4: return "警示区";
       case 3: return "加强警示区";
-      case 7: return "监管区";
-      case 8: return "适飞区";
-      case 10: return "景观区";
+      case 7: return "法规限制区";
+      case 8: return "法规适飞区";
+      case 10: return "风景示范区";
       default: return "空域限制";
     }
   },
 
   severityRank(area) {
-    const level = Number(area?.level);
+    const level = this.normalizedAreaLevel(area);
     if (level === 2) return 0;
     if (level === 6) return 1;
     if (level === 1) return 2;
@@ -3840,8 +3845,31 @@ Page({
     return inside;
   },
 
-  colorForArea(area) {
+  normalizedAreaLevel(area) {
     const level = Number(area?.level);
+    if (!Number.isFinite(level)) return level;
+    const color = this.normalizeHexColor(area?.color);
+    if (color === "#979797" && level === 2) {
+      return 6;
+    }
+    return level;
+  },
+
+  normalizeHexColor(hex) {
+    if (typeof hex !== "string") return "";
+    const trimmed = hex.trim();
+    if (!trimmed) return "";
+    const prefixed = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+    return prefixed.toUpperCase();
+  },
+
+  colorForArea(area) {
+    const level = this.normalizedAreaLevel(area);
+    if (level === 6) {
+      return "#FFFFFF";
+    }
+    const explicit = this.normalizeHexColor(area?.color);
+    if (explicit) return explicit;
     return NFZ_CENTER_COLORS[level] || "#DE4329";
   },
 

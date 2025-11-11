@@ -68,7 +68,7 @@
         </view>
         <view class="preflight-row">
           <text class="preflight-label">位于大疆划分：</text>
-          <text class="preflight-value {{'tone-' + djiTone}}">{{djiStatus}}</text>
+          <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
         </view>
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
 
