@@ -7,6 +7,11 @@ const {
   persistProfileLocally,
   resolveApiBase
 } = require("../../../utils/profile");
+const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery,
+  getShareInviteCode
+} = require("../../../utils/share");
 
 const BENEFIT_ITEMS = [
   {
@@ -86,16 +91,18 @@ Page({
   },
 
   onShareAppMessage() {
+    const inviteCode = getShareInviteCode();
     return {
       title: "晒晒余额~",
-      path: MAP_PAGE_PATH
+      path: appendInviteCodeToPath(MAP_PAGE_PATH, { inviteCode })
     };
   },
 
   onShareTimeline() {
+    const inviteCode = getShareInviteCode();
     return {
       title: "晒晒余额~",
-      query: ""
+      query: appendInviteCodeToQuery("", { inviteCode })
     };
   },
 

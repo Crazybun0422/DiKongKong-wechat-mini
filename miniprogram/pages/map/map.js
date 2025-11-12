@@ -27,6 +27,11 @@ const {
 } = require("../../utils/distance");
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
 const { loadStoredProfile: loadStoredProfileUtil } = require("../../utils/profile");
+const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery,
+  getShareInviteCode: getShareInviteCodeUtil
+} = require("../../utils/share");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -1580,11 +1585,24 @@ Page({
     this.showShareBlockedToast();
   },
 
+  getShareInviteCodeValue() {
+    if (typeof getShareInviteCodeUtil !== "function") {
+      return "";
+    }
+    try {
+      return getShareInviteCodeUtil();
+    } catch (err) {
+      console.warn("getShareInviteCodeValue failed", err);
+      return "";
+    }
+  },
+
   onShareAppMessage() {
     const detail = this._lastMarkerDetail;
+    const inviteCode = this.getShareInviteCodeValue();
     const fallback = {
       title: "uom、大疆100%同步且可视化，还有低空智能体~",
-      path: "/pages/map/map"
+      path: appendInviteCodeToPath("/pages/map/map", { inviteCode })
     };
     if (!detail) {
       return fallback;
@@ -1600,15 +1618,19 @@ Page({
     const shareTitle = "商户名称";
     return {
       title: shareTitle,
-      path: `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`
+      path: appendInviteCodeToPath(
+        `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`,
+        { inviteCode }
+      )
     };
   },
 
   onShareTimeline() {
     const detail = this._lastMarkerDetail;
+    const inviteCode = this.getShareInviteCodeValue();
     const fallback = {
       title: "uom、大疆100%同步且可视化，还有低空智能体~",
-      query: ""
+      query: appendInviteCodeToQuery("", { inviteCode })
     };
     if (!detail) {
       return fallback;
@@ -1621,7 +1643,10 @@ Page({
     if (!markerId) {
       return fallback;
     }
-    const query = `markerId=${encodeURIComponent(markerId)}&fromShare=1`;
+    const query = appendInviteCodeToQuery(
+      `markerId=${encodeURIComponent(markerId)}&fromShare=1`,
+      { inviteCode }
+    );
     return {
       title: fallback.title,
       query

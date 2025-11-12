@@ -1,5 +1,6 @@
 const drawQrcode = require("../../../../libs/weapp-qrcode");
 const { fetchUserProfile, resolveApiBase, loadStoredProfile } = require("../../../../utils/profile");
+const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
 const { requestWeappQrcode } = require("../../../../utils/weapp");
 
@@ -9,7 +10,6 @@ const APP_ID = "wx5ebbcb44d73c2f17";
 const POSTER_FILE_NAME = "main-page.png";
 const QR_CANVAS_ID = "invite-qrcode";
 const QR_IMAGE_SIZE = 520;
-const INVITE_QUERY_KEY = "inviteCode";
 
 const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value);
 const isFilePath = (value) =>
@@ -100,17 +100,12 @@ Page({
 
   composeSharePath(inviteCode) {
     const code = this.normalizeInviteCode(inviteCode);
-    if (!code) {
-      return MAP_PAGE_PATH;
-    }
-    const delimiter = MAP_PAGE_PATH.includes("?") ? "&" : "?";
-    return `${MAP_PAGE_PATH}${delimiter}${INVITE_QUERY_KEY}=${encodeURIComponent(code)}`;
+    return appendInviteCodeToPath(MAP_PAGE_PATH, { inviteCode: code });
   },
 
   composeQueryString(inviteCode) {
     const code = this.normalizeInviteCode(inviteCode);
-    if (!code) return "";
-    return `${INVITE_QUERY_KEY}=${encodeURIComponent(code)}`;
+    return appendInviteCodeToQuery("", { inviteCode: code });
   },
 
   prepareQrImage(inviteCode, shareLink) {
@@ -425,7 +420,9 @@ Page({
   onShareAppMessage() {
     return {
       title: SHARE_TITLE,
-      path: this.data.shareLink || MAP_PAGE_PATH,
+      path: appendInviteCodeToPath(this.data.shareLink || MAP_PAGE_PATH, {
+        inviteCode: this.normalizeInviteCode(this.data.inviteCode)
+      }),
       imageUrl: this.posterImageUrl || this.data.shareImageUrl || ""
     };
   },
