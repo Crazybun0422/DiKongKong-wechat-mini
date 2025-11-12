@@ -34,7 +34,7 @@ const formatDistanceText = (meters, options = {}) => {
   const {
     prefix = "距我",
     meterUnit = "米",
-    kilometerUnit = "千米",
+    kilometerUnit = "km",
     threshold = DISTANCE_KM_THRESHOLD
   } = options;
   if (meters >= threshold) {

@@ -533,7 +533,6 @@
             <text class="result-desc">{{creationResult.message}}</text>
             <view class="result-info">
               <text>标记名称：{{creationResult.marker.name}}</text>
-              <text>审核状态：{{creationResult.marker.reviewStatusLabel}}</text>
             </view>
             <button class="result-btn" bindtap="onCloseCreate">完成</button>
           </view>

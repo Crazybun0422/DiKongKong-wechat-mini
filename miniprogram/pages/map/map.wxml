@@ -38,12 +38,12 @@
             <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
           </view> -->
           <view class="drone-picker-display" bindtap="openDronePicker">
-            <text class="preflight-label">机型：</text>
+            <text class="preflight-label">执飞机型：</text>
             <text class="drone-picker-value picker-underline">{{selectedDroneName}}</text>
           </view>
         </view>
         <view class="preflight-row temporary-no-fly-row">
-          <text class="preflight-label">临时禁飞：</text>
+          <text class="preflight-label">临时禁飞区：</text>
           <block wx:if="{{temporaryNoFlyZoneInfo}}">
             <view class="temporary-no-fly-content">
               <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
@@ -63,7 +63,7 @@
           <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
         </view>
         <view class="preflight-row">
-          <text class="preflight-label">位于 UOM 划分：</text>
+          <text class="preflight-label">位于UOM划分：</text>
           <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
         </view>
         <view class="preflight-row">

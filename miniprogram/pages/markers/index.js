@@ -45,8 +45,8 @@ const REVIEW_STATUS_META = {
 const CREATE_STEPS = [
   { label: "基础信息" },
   { label: "资质资料" },
-  { label: "支付提交" },
-  { label: "提交结果" }
+  { label: "管理员" },
+  { label: "提交审核" }
 ];
 
 const DRAFT_PAYMENT_METHOD = "NONE";
