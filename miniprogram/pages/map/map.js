@@ -60,6 +60,7 @@ const NFZ_CENTER_COLORS = {
 const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 16;
 const DEFAULT_MAP_SCALE = 11;
+const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
 
 const MIN_FETCH_RADIUS = 80000;
 const MAX_FETCH_RADIUS = 80000;
@@ -695,7 +696,7 @@ Page({
         scale: this.data.scale
       });
     }
-    this.openMarkerDetail(marker);
+    this.openMarkerPage(detail);
     return true;
   },
 
@@ -1262,6 +1263,7 @@ Page({
       this._restoreMarkerDetailTimer = null;
     }
     const pageDetail = cloneMarkerDetail(detail);
+    this.normalizeMarkerPageDetail(pageDetail);
     this._lastMarkerDetail = pageDetail;
     const distanceText = this.buildMarkerDistanceText(pageDetail);
     this.setData({
@@ -1294,6 +1296,26 @@ Page({
       return "";
     }
     return formatDistanceText(distance);
+  },
+
+  normalizeMarkerPageDetail(detail = {}) {
+    if (!detail || typeof detail !== "object") {
+      return;
+    }
+    if (Array.isArray(detail.attachments) && detail.attachments.length) {
+      const first = detail.attachments.find((item) => item && (item.url || item.fileName));
+      if (first) {
+        const normalized = Object.assign({}, first);
+        normalized.displayName = ATTACHMENT_DISPLAY_LABEL;
+        normalized.shortName = ATTACHMENT_DISPLAY_LABEL;
+        if (!normalized.url && typeof normalized.fileName === "string" && normalized.fileName.trim()) {
+          normalized.url = normalized.fileName.trim();
+        }
+        detail.attachments = [normalized];
+        return;
+      }
+    }
+    detail.attachments = [];
   },
 
   computeMarkerDistance(detail) {
@@ -1561,7 +1583,7 @@ Page({
   onShareAppMessage() {
     const detail = this._lastMarkerDetail;
     const fallback = {
-      title: "附近商户",
+      title: "uom、大疆100%同步且可视化，还有低空智能体~",
       path: "/pages/map/map"
     };
     if (!detail) {
@@ -1575,9 +1597,34 @@ Page({
     if (!markerId) {
       return fallback;
     }
+    const shareTitle = "uom、大疆100%同步且可视化，还有低空智能体~";
     return {
-      title: detail.name || fallback.title,
+      title: shareTitle,
       path: `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`
+    };
+  },
+
+  onShareTimeline() {
+    const detail = this._lastMarkerDetail;
+    const fallback = {
+      title: "uom、大疆100%同步且可视化，还有低空智能体~",
+      query: ""
+    };
+    if (!detail) {
+      return fallback;
+    }
+    if (!this.isDetailSharable(detail)) {
+      this.showShareBlockedToast();
+      return fallback;
+    }
+    const markerId = detail.markerId || detail.id || "";
+    if (!markerId) {
+      return fallback;
+    }
+    const query = `markerId=${encodeURIComponent(markerId)}&fromShare=1`;
+    return {
+      title: fallback.title,
+      query
     };
   },
 

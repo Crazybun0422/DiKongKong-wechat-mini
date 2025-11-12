@@ -1269,10 +1269,10 @@ button.marker-button::after,
 }
 
 .marker-page-section {
-  margin-top: 48rpx;
+  margin-top: 45rpx;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 2rpx;
 }
 
 .marker-page-section-title {

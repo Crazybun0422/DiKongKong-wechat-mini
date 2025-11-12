@@ -73,14 +73,14 @@ Page({
 
   onShareAppMessage() {
     return {
-      title: "邀你上天-来空域地图探索新世界",
+      title: "晒晒余额~",
       path: MAP_PAGE_PATH
     };
   },
 
   onShareTimeline() {
     return {
-      title: "邀你上天-来空域地图探索新世界",
+      title: "晒晒余额~",
       query: ""
     };
   },

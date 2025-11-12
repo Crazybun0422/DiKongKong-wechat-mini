@@ -158,7 +158,7 @@
             <block wx:for="{{activeMarker.attachments}}" wx:key="id">
               <view class="attachment-item">
                 <text class="attachment-icon">📎</text>
-                <text class="attachment-name">{{item.fileName}}</text>
+                <text class="attachment-name">{{item.label || '企业产品和业务介绍'}}</text>
               </view>
             </block>
           </view>
@@ -379,7 +379,7 @@
               <block wx:for="{{form.attachmentFiles}}" wx:key="fileName">
                 <view class="attachment-item">
                   <text class="attachment-icon">📎</text>
-                  <text class="attachment-name">{{item.label || item.fileName}}</text>
+                  <text class="attachment-name">{{item.label || '企业产品和业务介绍'}}</text>
                   <view
                     class="attachment-remove"
                     data-type="attachments"
@@ -388,7 +388,12 @@
                   >删除</view>
                 </view>
               </block>
-              <view class="attachment-add" data-type="attachments" bindtap="onAddMediaTap">上传附件</view>
+              <view
+                wx:if="{{form.attachmentFiles.length < 1}}"
+                class="attachment-add"
+                data-type="attachments"
+                bindtap="onAddMediaTap"
+              >上传附件</view>
             </view>
           </view>
 

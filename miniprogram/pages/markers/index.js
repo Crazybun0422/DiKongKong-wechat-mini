@@ -57,6 +57,8 @@ const PAYMENT_METHODS = [
 
 const WECHAT_PAYMENT_METHOD = "WECHAT";
 const INDUSTRY_HONOR_TAG_LIMIT = 5;
+const ATTACHMENT_MAX_COUNT = 1;
+const ATTACHMENT_FIXED_LABEL = "企业产品和业务介绍";
 
 function createEmptyForm() {
   return {
@@ -414,25 +416,29 @@ Page({
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
     const images = Array.isArray(raw.images)
       ? raw.images
-          .map((img, index) => ({
-            fileName: img,
-            url: download(img),
-            id: `${raw.id || "marker"}-image-${index}`
-          }))
+        .map((img, index) => ({
+          fileName: img,
+          url: download(img),
+          id: `${raw.id || "marker"}-image-${index}`
+        }))
       : [];
     const qrCodes = Array.isArray(raw.qrCodeUrls)
       ? raw.qrCodeUrls.map((item, index) => ({
-          fileName: item,
-          url: download(item),
-          id: `${raw.id || "marker"}-qrcode-${index}`
-        }))
+        fileName: item,
+        url: download(item),
+        id: `${raw.id || "marker"}-qrcode-${index}`
+      }))
       : [];
     const attachments = Array.isArray(raw.attachmentUrls)
-      ? raw.attachmentUrls.map((item, index) => ({
+      ? raw.attachmentUrls
+        .map((item, index) => ({
           fileName: item,
           url: download(item),
-          id: `${raw.id || "marker"}-attachment-${index}`
+          id: `${raw.id || "marker"}-attachment-${index}`,
+          label: ATTACHMENT_FIXED_LABEL
         }))
+        .filter((item) => !!item.url)
+        .slice(0, ATTACHMENT_MAX_COUNT)
       : [];
     const createdAtDisplay = this.formatDateTime(raw.createdAt);
     const updatedAtDisplay = this.formatDateTime(raw.updatedAt);
@@ -461,9 +467,9 @@ Page({
       attachments,
       businessLicense: raw.businessLicense
         ? {
-            fileName: raw.businessLicense,
-            url: download(raw.businessLicense)
-          }
+          fileName: raw.businessLicense,
+          url: download(raw.businessLicense)
+        }
         : null,
       industryHonorTags: Array.isArray(raw.industryHonorTags)
         ? raw.industryHonorTags.filter((tag) => typeof tag === "string" && tag.trim())
@@ -606,7 +612,7 @@ Page({
     }
   },
 
-  noop() {},
+  noop() { },
 
   onCloseDetail() {
     this.setData({ showDetail: false, activeMarker: null });
@@ -830,8 +836,8 @@ Page({
     const cloneList = (list = []) =>
       Array.isArray(list)
         ? list
-            .map((item) => (item && typeof item === "object" ? Object.assign({}, item) : item))
-            .filter(Boolean)
+          .map((item) => (item && typeof item === "object" ? Object.assign({}, item) : item))
+          .filter(Boolean)
         : [];
     const cloneObject = (value) =>
       value && typeof value === "object" ? Object.assign({}, value) : value || null;
@@ -939,33 +945,34 @@ Page({
     form.locationLongitude = marker.longitude ?? null;
     form.images = Array.isArray(marker.images)
       ? marker.images.map((img) => ({
-          fileName: img.fileName || "",
-          url: img.url || "",
-          id: img.id
-        }))
+        fileName: img.fileName || "",
+        url: img.url || "",
+        id: img.id
+      }))
       : [];
     form.businessLicense = marker.businessLicense
       ? {
-          fileName: marker.businessLicense.fileName || "",
-          url: marker.businessLicense.url || ""
-        }
+        fileName: marker.businessLicense.fileName || "",
+        url: marker.businessLicense.url || ""
+      }
       : null;
     form.industryHonorTags = Array.isArray(marker.industryHonorTags)
       ? marker.industryHonorTags.slice()
       : [];
     form.attachmentFiles = Array.isArray(marker.attachments)
-      ? marker.attachments.map((item) => ({
-          fileName: item.fileName || "",
-          url: item.url || "",
-          id: item.id
-        }))
+      ? marker.attachments.slice(0, ATTACHMENT_MAX_COUNT).map((item) => ({
+        fileName: item.fileName || "",
+        url: item.url || "",
+        id: item.id,
+        label: ATTACHMENT_FIXED_LABEL
+      }))
       : [];
     form.qrCodeImages = Array.isArray(marker.qrCodes)
       ? marker.qrCodes.map((item) => ({
-          fileName: item.fileName || "",
-          url: item.url || "",
-          id: item.id
-        }))
+        fileName: item.fileName || "",
+        url: item.url || "",
+        id: item.id
+      }))
       : [];
     form.videoChannelId = marker.videoChannelId || "";
     form.videoId = marker.videoId || "";
@@ -1025,7 +1032,7 @@ Page({
     }
     wx.showModal({
       title: "保存草稿",
-      content: "保存草稿后，地图可预览但仅自己可见。\n可随时继续提交。",
+      content: "地图可预览(仅自己可见)\r\n可随时继续提交",
       cancelText: "继续编辑",
       confirmText: "保存草稿",
       success: (res) => {
@@ -1174,18 +1181,29 @@ Page({
       }
     }
     if (type === "attachments") {
-      const remainingCount = Math.max(1, 5 - this.data.form.attachmentFiles.length);
+      const currentCount = Array.isArray(this.data.form.attachmentFiles)
+        ? this.data.form.attachmentFiles.length
+        : 0;
+      if (currentCount >= ATTACHMENT_MAX_COUNT) {
+        wx.showToast({ title: "仅支持上传一个附件", icon: "none" });
+        return;
+      }
+      const remainingCount = Math.max(0, ATTACHMENT_MAX_COUNT - currentCount);
+      if (remainingCount <= 0) {
+        wx.showToast({ title: "仅支持上传一个附件", icon: "none" });
+        return;
+      }
       const handleSuccess = (res) => {
         const files = Array.isArray(res?.tempFiles) ? res.tempFiles : [];
         let paths = files.map((file) => file.path || file.tempFilePath).filter(Boolean);
-        let labels = files.map((file) => file.name || "附件");
+        let labels = files.map(() => ATTACHMENT_FIXED_LABEL);
         if (!paths.length) {
           const fallbackPaths = Array.isArray(res?.tempFilePaths)
             ? res.tempFilePaths.filter(Boolean)
             : [];
           if (!fallbackPaths.length) return;
           paths = fallbackPaths;
-          labels = fallbackPaths.map(() => "附件");
+          labels = fallbackPaths.map(() => ATTACHMENT_FIXED_LABEL);
         }
         this.uploadFiles(type, paths, labels);
       };
@@ -1243,8 +1261,22 @@ Page({
         } else if (type === "qrCodeImages") {
           this.setData({ "form.qrCodeImages": this.data.form.qrCodeImages.concat(mapped) });
         } else if (type === "attachments") {
+          const current = Array.isArray(this.data.form.attachmentFiles)
+            ? this.data.form.attachmentFiles.slice()
+            : [];
+          const availableSlots = Math.max(0, ATTACHMENT_MAX_COUNT - current.length);
+          if (!availableSlots) {
+            wx.showToast({ title: "仅支持上传一个附件", icon: "none" });
+            return;
+          }
+          const additions = mapped
+            .slice(0, availableSlots)
+            .map((item) => Object.assign({}, item, { label: ATTACHMENT_FIXED_LABEL }));
+          if (!additions.length) {
+            return;
+          }
           this.setData({
-            "form.attachmentFiles": this.data.form.attachmentFiles.concat(mapped)
+            "form.attachmentFiles": current.concat(additions)
           });
         }
       })
