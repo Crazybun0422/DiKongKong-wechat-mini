@@ -1,14 +1,29 @@
 .markers-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #d2d3d4;
   display: flex;
   flex-direction: column;
 }
 
+.markers-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.markers-static {
+  padding: 24rpx 32rpx 12rpx;
+  box-sizing: border-box;
+}
+
 .markers-scroll {
   flex: 1;
-  padding: 24rpx 32rpx 120rpx;
+  padding: 0 32rpx 10rpx;
   box-sizing: border-box;
+  min-height: 0;
+  margin-bottom: 1rpx;
 }
 
 .page-header {

@@ -56,6 +56,40 @@ function buildFileDownloadUrl(fileName, options = {}) {
   return "";
 }
 
+function appendQueryParams(path, query = {}) {
+  if (!query || typeof query !== "object") {
+    return path;
+  }
+  const parts = Object.keys(query)
+    .map((key) => {
+      const value = query[key];
+      if (value === undefined || value === null) {
+        return "";
+      }
+      let normalizedValue;
+      if (typeof value === "boolean") {
+        normalizedValue = value ? "true" : "false";
+      } else if (typeof value === "number") {
+        if (!Number.isFinite(value)) {
+          return "";
+        }
+        normalizedValue = value.toString();
+      } else {
+        normalizedValue = `${value}`.trim();
+        if (!normalizedValue) {
+          return "";
+        }
+      }
+      return `${encodeURIComponent(key)}=${encodeURIComponent(normalizedValue)}`;
+    })
+    .filter(Boolean);
+  if (!parts.length) {
+    return path;
+  }
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${parts.join("&")}`;
+}
+
 function requestMarkerResource(options = {}) {
   return new Promise((resolve, reject) => {
     const base = resolveApiBase(options.apiBase);
@@ -193,10 +227,11 @@ function fetchMarkerDetail(markerId, options = {}) {
 }
 
 function createMarker(payload = {}, options = {}) {
+  const path = appendQueryParams("/api/markers", options.query);
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
-    path: "/api/markers",
+    path,
     method: "POST",
     data: payload
   }).then((body = {}) => body.data || {});
@@ -204,10 +239,11 @@ function createMarker(payload = {}, options = {}) {
 
 function updateMarker(markerId, payload = {}, options = {}) {
   if (!markerId) return Promise.reject(new Error("missing-marker-id"));
+  const path = appendQueryParams(`/api/markers/${encodeURIComponent(markerId)}`, options.query);
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
-    path: `/api/markers/${encodeURIComponent(markerId)}`,
+    path,
     method: "PUT",
     data: payload
   }).then((body = {}) => body.data || {});

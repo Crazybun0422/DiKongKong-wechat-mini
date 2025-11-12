@@ -25,7 +25,7 @@ const STATIC_ASSETS = {
   add: "/assets/add.png",
   exposure: "/assets/exposure.png",
   telephone: "/assets/telephone.png",
-  defaultCover: "/assets/dashboard.png"
+  defaultCover: "/assets/no-image.png"
 };
 
 const STATUS_TABS = [
@@ -1008,6 +1008,21 @@ Page({
   },
 
   showDraftExitPrompt() {
+    const nameFilled = !!(this.data.form?.name && this.data.form.name.trim());
+    if (!nameFilled) {
+      wx.showModal({
+        title: "确认退出",
+        content: "未填写名称，关闭后内容将丢失，确认退出？",
+        cancelText: "继续编辑",
+        confirmText: "退出",
+        success: (res) => {
+          if (res.confirm) {
+            this.exitCreateFlow();
+          }
+        }
+      });
+      return;
+    }
     wx.showModal({
       title: "保存草稿",
       content: "保存草稿后，地图可预览但仅自己可见。\n可随时继续提交。",
@@ -1028,7 +1043,7 @@ Page({
         ? this.data.selectedPaymentMethod
         : PAYMENT_METHODS[0].id;
     this.setData({ selectedPaymentMethod: DRAFT_PAYMENT_METHOD }, () => {
-      this.submitMarker({ skipResultPage: true }).then((result = {}) => {
+      this.submitMarker({ skipResultPage: true, draft: true }).then((result = {}) => {
         if (result.success) {
           wx.showToast({ title: "草稿已保存", icon: "success" });
           this.exitCreateFlow();
@@ -1380,18 +1395,26 @@ Page({
       typeof eventOrOptions.type === "string";
     const options = isEventArgument ? {} : eventOrOptions || {};
     const skipResultPage = !!options.skipResultPage;
+    const isDraftRequest = !!options.draft;
     if (this.data.creationSubmitting) {
       return Promise.resolve({ success: false, reason: "submitting" });
     }
-    if (!this.validateBasicStep() || !this.validateMediaStep() || !this.validateAdminStep()) {
+    if (
+      !isDraftRequest &&
+      (!this.validateBasicStep() || !this.validateMediaStep() || !this.validateAdminStep())
+    ) {
       return Promise.resolve({ success: false, reason: "validation" });
     }
     this.setData({ creationSubmitting: true, creationError: "" });
-    const payload = this.buildMarkerPayload();
+    const payload = this.buildMarkerPayload({ draft: isDraftRequest });
     const editingId = this.data.editingMarkerId;
+    const requestOptions = { apiBase: this.apiBase };
+    if (isDraftRequest) {
+      requestOptions.query = { draft: true };
+    }
     const request = editingId
-      ? updateMarker(editingId, payload, { apiBase: this.apiBase })
-      : createMarker(payload, { apiBase: this.apiBase });
+      ? updateMarker(editingId, payload, requestOptions)
+      : createMarker(payload, requestOptions);
     return request
       .then((marker) => {
         const normalized = this.normalizeMarker(marker);
@@ -1480,7 +1503,7 @@ Page({
     }
   },
 
-  buildMarkerPayload() {
+  buildMarkerPayload(options = {}) {
     const form = this.data.form;
     const payload = {
       name: form.name.trim(),
