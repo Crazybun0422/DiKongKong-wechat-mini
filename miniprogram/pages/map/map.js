@@ -2460,14 +2460,14 @@ Page({
     }
     let width = 375;
     try {
-      if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-        const info = wx.getSystemInfoSync();
+      if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+        const info = wx.getWindowInfo();
         if (info && info.windowWidth) {
           width = info.windowWidth;
         }
       }
     } catch (err) {
-      console.warn("getSystemInfoSync failed", err);
+      console.warn("getWindowInfo failed", err);
     }
     this._pxPerRpx = width / 750;
     const pxPerRpx = this._pxPerRpx || 1;
