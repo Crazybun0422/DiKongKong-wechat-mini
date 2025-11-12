@@ -1597,7 +1597,7 @@ Page({
     if (!markerId) {
       return fallback;
     }
-    const shareTitle = "uom、大疆100%同步且可视化，还有低空智能体~";
+    const shareTitle = "商户名称";
     return {
       title: shareTitle,
       path: `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`
