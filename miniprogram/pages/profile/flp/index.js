@@ -1,5 +1,12 @@
 const DEFAULT_BALANCE_DISPLAY = "0.00";
 const MAP_PAGE_PATH = "/pages/map/map";
+const {
+  fetchUserProfile,
+  normalizeProfileData,
+  loadStoredProfile,
+  persistProfileLocally,
+  resolveApiBase
+} = require("../../../utils/profile");
 
 const BENEFIT_ITEMS = [
   {
@@ -52,7 +59,14 @@ Page({
     const balance = decodeURIComponent(options.balance || "").trim();
     if (balance) {
       this.setData({ balance });
+    } else {
+      this.applyStoredBalance();
     }
+    this.syncBalanceFromProfile({ silent: true });
+  },
+
+  onPullDownRefresh() {
+    this.syncBalanceFromProfile({ fromPullDown: true });
   },
 
   onDetailTap() {
@@ -110,5 +124,80 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/profile/flp/invite/index" });
+  },
+
+  applyStoredBalance() {
+    try {
+      const stored = loadStoredProfile ? loadStoredProfile() : null;
+      const flpValue = stored && typeof stored.flpValue === "number" && isFinite(stored.flpValue)
+        ? stored.flpValue
+        : null;
+      if (flpValue !== null) {
+        this.setData({ balance: formatBalanceDisplay(flpValue) });
+      }
+    } catch (err) {
+      console.warn("applyStoredBalance failed", err);
+    }
+  },
+
+  syncBalanceFromProfile(options = {}) {
+    const { fromPullDown = false, silent = false } = options;
+    if (this._syncingBalance) {
+      if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
+        wx.stopPullDownRefresh();
+      }
+      return Promise.resolve();
+    }
+    this._syncingBalance = true;
+    const showNavLoading = !silent && typeof wx.showNavigationBarLoading === "function";
+    if (showNavLoading) {
+      wx.showNavigationBarLoading();
+    }
+    const apiBase = resolveApiBase();
+    const storedProfile = loadStoredProfile ? loadStoredProfile() : {};
+    return fetchUserProfile({ apiBase })
+      .then((remoteProfile) => {
+        const normalized = normalizeProfileData(remoteProfile, {
+          storedProfile,
+          apiBase
+        });
+        persistProfileLocally({
+          nickname: normalized.nickname,
+          avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
+          featureCode: normalized.featureCode,
+          flpValue: normalized.flpValue,
+          inviteCode: normalized.inviteCode
+        });
+        if (normalized.flpDisplay && normalized.flpDisplay !== "--") {
+          this.setData({ balance: normalized.flpDisplay });
+        }
+      })
+      .catch((err) => {
+        const message =
+          err && err.message === "missing-token"
+            ? "请先登录后再刷新FLP"
+            : "刷新FLP失败，请稍后重试";
+        if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
+          wx.showToast({ title: message, icon: "none" });
+        }
+        console.warn("syncBalanceFromProfile failed", err);
+      })
+      .finally(() => {
+        this._syncingBalance = false;
+        if (showNavLoading && typeof wx.hideNavigationBarLoading === "function") {
+          wx.hideNavigationBarLoading();
+        }
+        if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
+          wx.stopPullDownRefresh();
+        }
+      });
   }
 });
+
+function formatBalanceDisplay(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return DEFAULT_BALANCE_DISPLAY;
+  }
+  return amount.toFixed(2);
+}
