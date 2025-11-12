@@ -411,7 +411,12 @@
                   >✕</view>
                 </view>
               </block>
-              <view class="media-add" data-type="qrCodeImages" bindtap="onAddMediaTap">
+              <view
+                wx:if="{{form.qrCodeImages.length < qrCodeMaxCount}}"
+                class="media-add"
+                data-type="qrCodeImages"
+                bindtap="onAddMediaTap"
+              >
                 <text class="media-add-icon">＋</text>
                 <text class="media-add-text">上传二维码</text>
               </view>

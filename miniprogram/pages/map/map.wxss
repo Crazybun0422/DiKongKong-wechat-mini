@@ -36,6 +36,8 @@
   top: calc(env(safe-area-inset-top) + 120rpx);
   left: 16rpx;
   width: 460rpx;
+  min-width: 460rpx;
+  max-width: 460rpx;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -47,6 +49,8 @@
   padding: 32rpx 36rpx 28rpx;
   color: #fff;
   background: transparent;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .preflight-card::before {
@@ -72,6 +76,9 @@
   font-size: 34rpx;
   font-weight: 600;
   margin-bottom: 12rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .drone-picker-block {
@@ -121,6 +128,7 @@
   margin-bottom: 10rpx;
   flex-wrap: nowrap;
   overflow: visible;
+  width: 100%;
 }
 
 .temporary-no-fly-row {
@@ -132,6 +140,10 @@
   align-items: center;
   column-gap: 8rpx;
   pointer-events: auto;
+  flex-wrap: nowrap;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .temporary-no-fly-icon {
@@ -144,6 +156,12 @@
 .temporary-no-fly-name {
   font-size: 24rpx;
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .temporary-no-fly-link {

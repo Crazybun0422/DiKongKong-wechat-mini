@@ -58,6 +58,7 @@ const PAYMENT_METHODS = [
 const WECHAT_PAYMENT_METHOD = "WECHAT";
 const INDUSTRY_HONOR_TAG_LIMIT = 5;
 const ATTACHMENT_MAX_COUNT = 1;
+const QR_CODE_MAX_COUNT = 2;
 const ATTACHMENT_FIXED_LABEL = "企业产品和业务介绍";
 
 function createEmptyForm() {
@@ -120,7 +121,8 @@ Page({
     defaultCoverImage: STATIC_ASSETS.defaultCover,
     submitButtonText: "提交审核",
     showPaymentSection: true,
-    resultStepsLocked: false
+    resultStepsLocked: false,
+    qrCodeMaxCount: QR_CODE_MAX_COUNT
   },
 
   onLoad(options = {}) {
@@ -986,12 +988,16 @@ Page({
 
   onCloseCreate() {
     if (this.data.creationSubmitting) return;
+    const shouldRefreshAfterClose = this.shouldRefreshMarkersAfterClose();
     if (this.shouldShowDraftExitPrompt()) {
       this.showDraftExitPrompt();
       return;
     }
     if (this.data.createStep === 0 || this.data.createStep === 3) {
       this.exitCreateFlow();
+      if (shouldRefreshAfterClose) {
+        this.refreshMarkers({ silent: true });
+      }
       return;
     }
     wx.showModal({
@@ -1012,6 +1018,18 @@ Page({
     if (!this.data.showPaymentSection) return false;
     if (this.data.createStep === 3) return false;
     return true;
+  },
+
+  shouldRefreshMarkersAfterClose() {
+    const result = this.data.creationResult;
+    if (!result || result.status !== "success") {
+      return false;
+    }
+    const marker = result.marker || {};
+    if (!marker.id) {
+      return false;
+    }
+    return !!marker.paid;
   },
 
   showDraftExitPrompt() {
@@ -1174,9 +1192,12 @@ Page({
       count = 1;
     }
     if (type === "qrCodeImages") {
-      count = Math.max(0, 6 - this.data.form.qrCodeImages.length);
+      const currentCount = Array.isArray(this.data.form.qrCodeImages)
+        ? this.data.form.qrCodeImages.length
+        : 0;
+      count = Math.max(0, QR_CODE_MAX_COUNT - currentCount);
       if (count <= 0) {
-        wx.showToast({ title: "最多上传6张二维码", icon: "none" });
+        wx.showToast({ title: `最多上传${QR_CODE_MAX_COUNT}张二维码`, icon: "none" });
         return;
       }
     }
@@ -1259,7 +1280,19 @@ Page({
         } else if (type === "businessLicense") {
           this.setData({ "form.businessLicense": mapped[0] || null });
         } else if (type === "qrCodeImages") {
-          this.setData({ "form.qrCodeImages": this.data.form.qrCodeImages.concat(mapped) });
+          const current = Array.isArray(this.data.form.qrCodeImages)
+            ? this.data.form.qrCodeImages.slice()
+            : [];
+          const availableSlots = Math.max(0, QR_CODE_MAX_COUNT - current.length);
+          if (!availableSlots) {
+            wx.showToast({ title: `最多上传${QR_CODE_MAX_COUNT}张二维码`, icon: "none" });
+            return;
+          }
+          const additions = mapped.slice(0, availableSlots);
+          if (!additions.length) {
+            return;
+          }
+          this.setData({ "form.qrCodeImages": current.concat(additions) });
         } else if (type === "attachments") {
           const current = Array.isArray(this.data.form.attachmentFiles)
             ? this.data.form.attachmentFiles.slice()
@@ -1516,6 +1549,7 @@ Page({
       })
       .finally(() => {
         this.setData({ creationSubmitting: false });
+        console.log("xxxx")
       });
   },
 
