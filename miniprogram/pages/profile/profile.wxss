@@ -197,9 +197,12 @@ button.profile-avatar-button::after {
 }
 
 .profile-card-arrow {
-  font-size: 80rpx;
-  font-weight: 300;
-  color: rgba(15, 23, 42, 0.5);
+  width: 50rpx;
+  height: 50rpx;
+  flex-shrink: 0;
+  filter: brightness(0) saturate(100%);
+  opacity: 0.6;
+  display: block;
 }
 
 .profile-section {
@@ -228,6 +231,7 @@ button.profile-avatar-button::after {
   justify-content: space-between;
   padding: 0rpx 16rpx;
   border-radius: 24rpx;
+  min-height: 80rpx;
   background: rgba(15, 23, 42, 0.02);
 }
 
@@ -272,9 +276,13 @@ button.profile-list-item::after {
 }
 
 .profile-list-arrow {
-  font-size: 80rpx;
-  font-weight: 300;
-  color: rgba(15, 23, 42, 0.5);
+  width: 50rpx;
+  height: 50rpx;
+  flex-shrink: 0;
+  filter: brightness(0) saturate(100%);
+  opacity: 0.6;
+  /* opacity: 0.55;
+  display: block; */
 }
 
 .profile-footnote {

@@ -59,7 +59,7 @@
             <text class="profile-card-title">FLP</text>
             <text class="profile-card-value">{{profile.flpDisplay}}</text>
           </view>
-          <text class="profile-card-arrow">›</text>
+          <image class="profile-card-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
         </view>
 
         <view class="profile-section">
@@ -75,7 +75,7 @@
                 <text class="profile-list-text">我的标记</text>
                 <!-- <text class="profile-list-tag">内测中</text> -->
               </view>
-              <text class="profile-list-arrow">›</text>
+              <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
             </view>
             <button
               class="profile-list-item profile-list-item-contact"
@@ -87,7 +87,7 @@
               <view class="profile-list-left">
                 <text class="profile-list-text">客服</text>
               </view>
-              <text class="profile-list-arrow">›</text>
+              <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
             </button>
             <view
               class="profile-list-item"
@@ -99,12 +99,10 @@
                 <text class="profile-list-text">开放平台</text>
                 <text class="profile-list-tag">插件 / API</text>
               </view>
-              <text class="profile-list-arrow">›</text>
+              <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
             </view>
           </view>
         </view>
-
-        <!-- <text class="profile-footnote">鎷夎捣灏忕▼搴忓鏈嶏紝鏁鏈熷緟鏇村鏈嶅姟銆?/text> -->
       </view>
     </block>
   </view>

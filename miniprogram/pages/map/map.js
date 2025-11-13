@@ -1615,7 +1615,7 @@ Page({
     if (!markerId) {
       return fallback;
     }
-    const shareTitle = "商户名称";
+    const shareTitle = detail.name;
     return {
       title: shareTitle,
       path: appendInviteCodeToPath(
