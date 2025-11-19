@@ -1,0 +1,10 @@
+<view class="topic-page">
+  <view class="topic-body">
+    <view class="topic-intro">
+      <text class="topic-intro-title">{{topicTitle}}</text>
+      <text class="topic-intro-subtitle">欢迎一起参与这个话题</text>
+    </view>
+
+    <official-account-publish class="topic-publish" topic="{{topicTitle}}"></official-account-publish>
+  </view>
+</view>

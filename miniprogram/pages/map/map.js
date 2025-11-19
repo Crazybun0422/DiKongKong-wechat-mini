@@ -1819,6 +1819,12 @@ Page({
       });
   },
 
+  onTopicButtonTap() {
+    wx.navigateTo({
+      url: "/pages/topic/topic",
+    });
+  },
+
   openMarkersPage() {
     const updates = {};
     if (this.data.activeTab !== "profile") {
@@ -1880,7 +1886,16 @@ Page({
 
   performSearch() {
     const keyword = this.data.keyword.trim();
-    if (!keyword) return;
+    // When keyword is empty, clear search-only markers and suggestions
+    if (!keyword) {
+      this.applySearchMarkers([]);
+      this.setData({
+        searchSuggestions: [],
+        searchSuggestLoading: false,
+        searchSuggestError: ""
+      });
+      return;
+    }
     wx.showLoading({ title: "Searching...", mask: true });
     let locationArgs = null;
     try {

@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/map/map",
+    "pages/topic/topic",
     "pages/profile/profile",
     "pages/profile/flp/index",
     "pages/profile/flp/invite/index",

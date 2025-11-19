@@ -119,6 +119,13 @@
     </view>
 
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
+      <!-- <button
+        class="dashboard-toggle topic-button"
+        hover-class="dashboard-toggle-hover"
+        bindtap="onTopicButtonTap"
+      >
+        <image class="dashboard-toggle-icon" src="/assets/topic.png" mode="aspectFit" />
+      </button> -->
       <button
         class="dashboard-toggle"
         hover-class="dashboard-toggle-hover"
