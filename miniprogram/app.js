@@ -6,8 +6,8 @@ const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
-  //develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
-  develop: "https://skylane.cn",
+  develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
+  //develop: "",
   trial:   "https://skylane.cn",                   // uploaded “体验版”
   release: "https://skylane.cn"                        // 审核 & 上线
 };
