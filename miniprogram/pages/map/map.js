@@ -20,17 +20,16 @@ const {
 } = require("../../utils/wms");
 const { haversineMeters, clampRadius, gcj02ToWgs84, wgs84ToGcj02 } = require("../../utils/coords");
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
-  const {
-    DEFAULT_AVATAR_PATH,
-    extractAvatarFileName: extractAvatarFileNameUtil,
-    buildAvatarDownloadUrl: buildAvatarDownloadUrlUtil,
-    prepareAvatarForUpload: prepareAvatarForUploadUtil,
-    uploadAvatarFile: uploadAvatarFileUtil,
-    loadStoredProfile: loadStoredProfileUtil,
-    persistProfileLocally: persistProfileLocallyUtil,
-    hasStoredProfile: hasStoredProfileUtil,
-    fetchUserProfile: fetchUserProfileRemote
-  } = require("../../utils/profile");
+const {
+  DEFAULT_AVATAR_PATH,
+  extractAvatarFileName: extractAvatarFileNameUtil,
+  buildAvatarDownloadUrl: buildAvatarDownloadUrlUtil,
+  prepareAvatarForUpload: prepareAvatarForUploadUtil,
+  uploadAvatarFile: uploadAvatarFileUtil,
+  loadStoredProfile: loadStoredProfileUtil,
+  persistProfileLocally: persistProfileLocallyUtil,
+  hasStoredProfile: hasStoredProfileUtil
+} = require("../../utils/profile");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -1582,6 +1581,7 @@ Page({
   },
 
   ensureAccessToken(options = {}) {
+    if (this.hasAccessToken()) return Promise.resolve();
     if (this._ensureLoginPromise) return this._ensureLoginPromise;
     const app = getApp ? getApp() : null;
     if (!app || typeof app.loginWithProfile !== "function") {
@@ -1589,17 +1589,7 @@ Page({
     }
     const override = options && options.profileOverride;
     const profile = override || this.loadStoredProfile() || {};
-    const validateExistingToken = () =>
-      fetchUserProfileRemote({ apiBase: this.getApiBase() })
-        .then(() => {})
-        .catch((err) => {
-          console.warn("Cached token validation failed, refreshing login", err);
-          return app.loginWithProfile(profile);
-        });
-    const ensureLoginPromise = this.hasAccessToken()
-      ? validateExistingToken()
-      : app.loginWithProfile(profile);
-    this._ensureLoginPromise = ensureLoginPromise
+    this._ensureLoginPromise = app.loginWithProfile(profile)
       .catch((err) => {
         throw err || new Error("login-failed");
       })
