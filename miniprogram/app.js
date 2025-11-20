@@ -4,6 +4,8 @@ const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const USER_PROFILE_STORAGE_KEY = "userProfile";
 const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 
+const { fetchUserProfile } = require("./utils/profile");
+
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
   develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
@@ -65,6 +67,50 @@ App({
     } catch (err) {
       console.warn("Failed to read cached invite code", err);
     }
+
+    if (this.globalData.token) {
+      this.validateStoredToken(this.globalData.token).catch((err) => {
+        console.warn("Failed to validate stored token, attempting re-login", err);
+      });
+    }
+  },
+
+  validateStoredToken(token) {
+    return fetchUserProfile({
+      token,
+      apiBase: API_BASE_URL
+    })
+      .then((profile) => {
+        const nickname = profile.nickname || profile.nickName || "";
+        const avatarUrl = profile.avatarUrl || profile.avatar || "";
+        if (nickname || avatarUrl) {
+          this.globalData.userProfile = { nickName: nickname, avatarUrl };
+          try {
+            wx.setStorageSync(USER_PROFILE_STORAGE_KEY, {
+              nickname,
+              avatarUrl
+            });
+          } catch (err) {
+            console.warn("Failed to persist validated user profile", err);
+          }
+        }
+        return profile;
+      })
+      .catch((err) => {
+        console.warn("Stored token rejected, clearing it", err);
+        this.globalData.token = null;
+        try {
+          wx.removeStorageSync(ACCESS_TOKEN_STORAGE_KEY);
+        } catch (clearErr) {
+          console.warn("Failed to clear invalid token", clearErr);
+        }
+
+        const cachedProfile = this.globalData.userProfile || {};
+        return this.loginWithProfile({
+          nickname: cachedProfile.nickName || cachedProfile.nickname || "",
+          avatarUrl: cachedProfile.avatarUrl || ""
+        });
+      });
   },
 
   loginWithProfile(profile = {}) {
