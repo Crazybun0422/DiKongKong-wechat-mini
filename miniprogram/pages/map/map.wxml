@@ -20,6 +20,14 @@
       bindcallouttap="onMarkerCalloutTap"
     />
     <image class="center-pin" src="/assets/position.png" mode="widthFix" />
+    <view class="map-scale" wx:if="{{scaleBarVisible}}">
+      <text class="map-scale-label">{{scaleBarLabel}}</text>
+      <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
+        <view class="map-scale-line"></view>
+        <view class="map-scale-tick map-scale-tick-start"></view>
+        <view class="map-scale-tick map-scale-tick-end"></view>
+      </view>
+    </view>
 
     <view class="preflight-overlay" wx:if="{{showDashboardPanel}}">
       <view class="preflight-card">
@@ -30,20 +38,12 @@
             <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
           </view> -->
           <view class="drone-picker-display" bindtap="openDronePicker">
-            <text class="preflight-label">机型：</text>
+            <text class="preflight-label">执飞机型：</text>
             <text class="drone-picker-value picker-underline">{{selectedDroneName}}</text>
           </view>
         </view>
-        <view class="preflight-row">
-          <text class="preflight-label">位于 UOM 划分：</text>
-          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
-        </view>
-        <view class="preflight-row">
-          <text class="preflight-label">位于大疆划分：</text>
-          <text class="preflight-value {{'tone-' + djiTone}}">{{djiStatus}}</text>
-        </view>
         <view class="preflight-row temporary-no-fly-row">
-          <text class="preflight-label">临时禁飞：</text>
+          <text class="preflight-label">临时禁飞区：</text>
           <block wx:if="{{temporaryNoFlyZoneInfo}}">
             <view class="temporary-no-fly-content">
               <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
@@ -62,18 +62,17 @@
           </block>
           <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
         </view>
+        <view class="preflight-row">
+          <text class="preflight-label">位于UOM划分：</text>
+          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
+        </view>
+        <view class="preflight-row">
+          <text class="preflight-label">位于大疆划分：</text>
+          <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
+        </view>
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
 
         <view class="control-row">
-          <view class="locate-wrapper">
-            <button class="locate-circle"
-        hover-class="locate-hover"
-        hover-start-time="10"
-        hover-stay-time="60"
-        bindtap="onLocateTap">
-  <image class="locate-icon" src="/assets/location.png" mode="widthFix" />
-</button>
-          </view>
           <view class="search-stack">
             <view class="search-pill">
               <input
@@ -106,7 +105,9 @@
                     data-index="{{index}}"
                     bindtap="onSuggestionTap"
                   >
-                    <text class="suggest-title">{{item.title}}</text>
+                    <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : ''}}">
+                      {{item.source === 'marker' ? (item.title || '') + '（低空星球）' : item.title}}
+                    </text>
                     <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
                   </view>
                 </block>
@@ -118,19 +119,26 @@
     </view>
 
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
-      <button
-        class="dashboard-toggle {{showDashboardPanel ? 'is-active' : ''}}"
+      <!-- <button
+        class="dashboard-toggle topic-button"
         hover-class="dashboard-toggle-hover"
-        bindtap="toggleDashboardPanel"
+        bindtap="onTopicButtonTap"
       >
-        <image class="dashboard-toggle-icon" src="/assets/dashboard.png" mode="aspectFit" />
+        <image class="dashboard-toggle-icon" src="/assets/topic.png" mode="aspectFit" />
+      </button> -->
+      <button
+        class="dashboard-toggle"
+        hover-class="dashboard-toggle-hover"
+        bindtap="onMarkerButtonTap"
+      >
+        <image class="dashboard-toggle-icon" src="/assets/target.png" mode="aspectFit" />
       </button>
       <button
         class="marker-button"
         hover-class="marker-button-hover"
-        bindtap="onMarkerButtonTap"
+        bindtap="onLocateTap"
       >
-        <image class="marker-button-icon" src="/assets/target.png" mode="aspectFit" />
+        <image class="marker-button-icon" src="/assets/location.png" mode="aspectFit" />
       </button>
     </view>
 
@@ -173,79 +181,6 @@
             </view>
           </block>
         </scroll-view>
-      </view>
-    </block>
-
-    <block wx:if="{{showPermissionChecklistPanel}}">
-      <view class="permission-mask"></view>
-      <view class="permission-panel">
-        <view class="permission-title">开启飞行服务所需权限</view>
-        <view class="permission-subtitle">以便我们提供精准空域预警与定位服务</view>
-        <view class="permission-list">
-          <view class="permission-item">
-            <view class="permission-bullet"></view>
-            <text class="permission-text">地理位置权限：帮助匹配附近空域政策与飞行保障服务</text>
-          </view>
-        </view>
-        <view class="permission-actions">
-          <button
-            class="permission-button permission-button--ghost"
-            hover-class="permission-button--ghost-hover"
-            bindtap="onPermissionChecklistCancel"
-            disabled="{{permissionChecklistLoading}}"
-          >
-            稍后再说
-          </button>
-          <button
-            class="permission-button permission-button--solid"
-            hover-class="permission-button--solid-hover"
-            bindtap="onPermissionChecklistConfirm"
-            loading="{{permissionChecklistLoading}}"
-            disabled="{{permissionChecklistLoading}}"
-          >
-            立即开启
-          </button>
-        </view>
-        <view class="permission-footnote">授权后可随时在设置中调整权限</view>
-      </view>
-    </block>
-
-    <!-- 头像昵称填写 -->
-    <block wx:if="{{showProfileFill}}">
-      <view class="permission-mask"></view>
-      <view class="permission-panel">
-        <view class="permission-title">完善头像与昵称</view>
-        <view class="permission-subtitle">用于个性化飞行档案与头像展示</view>
-
-        <form bindsubmit="onProfileFillSubmit">
-          <view class="profile-fill-row">
-            <view class="profile-avatar-slot">
-              <button
-                class="profile-avatar-button"
-                open-type="chooseAvatar"
-                bindchooseavatar="onChooseAvatar">
-                <image
-                  class="profile-avatar-image"
-                  src="{{tempAvatarUrl || '/assets/default-avatar.png'}}"
-                  mode="aspectFill" />
-              </button>
-            </view>
-            <input
-              class="profile-nickname-input"
-              type="nickname"
-              name="nickname"
-              placeholder="填写/选择微信昵称"
-              bindinput="onNicknameInput"
-              value="{{tempNickname}}" />
-          </view>
-          <text class="profile-avatar-tip">点击上传</text>
-
-          <view class="permission-actions">
-            <button class="permission-button permission-button--ghost" bindtap="onProfileFillCancel">取消</button>
-            <button class="permission-button permission-button--solid" form-type="submit">保存</button>
-          </view>
-          <view class="permission-footnote">头像昵称仅用于展示，可随时在设置中修改</view>
-        </form>
       </view>
     </block>
 
@@ -341,23 +276,15 @@
               wx:if="{{markerPageDetail.locationText || markerPageDetail.phone}}"
             >
               <view class="marker-page-address-info" wx:if="{{markerPageDetail.locationText}}">
-                <text class="marker-page-address-label">地址</text>
                 <text class="marker-page-address-text">{{markerPageDetail.locationText}}</text>
+                <text
+                  class="marker-page-address-distance"
+                  wx:if="{{markerPageDistanceText}}"
+                >
+                  {{markerPageDistanceText}}
+                </text>
               </view>
               <view class="marker-page-address-actions">
-                <view
-                  class="marker-page-action"
-                  wx:if="{{markerPageDetail.phone}}"
-                  data-phone="{{markerPageDetail.phone}}"
-                  data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
-                  data-name="{{markerPageDetail.name || ''}}"
-                  bindtap="onMarkerPageCallTap"
-                >
-                  <view class="marker-page-action-icon">
-                    <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
-                  </view>
-                  <text class="marker-page-action-label">电话</text>
-                </view>
                 <view
                   class="marker-page-action"
                   wx:if="{{markerPageDetail.latitude && markerPageDetail.longitude}}"
@@ -372,17 +299,26 @@
                   </view>
                   <text class="marker-page-action-label">位置</text>
                 </view>
+                <view
+                  class="marker-page-action"
+                  wx:if="{{markerPageDetail.phone}}"
+                  data-phone="{{markerPageDetail.phone}}"
+                  data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
+                  data-name="{{markerPageDetail.name || ''}}"
+                  bindtap="onMarkerPageCallTap"
+                >
+                  <view class="marker-page-action-icon">
+                    <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+                  </view>
+                  <text class="marker-page-action-label">电话</text>
+                </view>
               </view>
             </view>
 
             <view class="marker-page-section">
               <text class="marker-page-section-title">简介</text>
-              <text class="marker-page-section-text" wx:if="{{markerPageDetail.description}}">
-                {{markerPageDetail.description}}
-              </text>
-              <text class="marker-page-section-text marker-page-section-text--placeholder" wx:else>
-                暂无简介
-              </text>
+              <text class="marker-page-section-text" wx:if="{{markerPageDetail.description}}">{{markerPageDetail.description}}</text>
+              <text class="marker-page-section-text marker-page-section-text--placeholder" wx:else>暂无简介</text>
             </view>
 
             <view
@@ -391,18 +327,16 @@
             >
               <text class="marker-page-section-title">附件</text>
               <view class="marker-page-link-list">
-                <block wx:for="{{markerPageDetail.attachments}}" wx:key="id">
-                  <view
-                    class="marker-page-link-item"
-                    data-url="{{item.url}}"
-                    bindtap="onMarkerPageAttachmentTap"
-                  >
-                    <view class="marker-page-link-info">
-                      <text class="marker-page-link-text">{{item.shortName || item.displayName || item.fileName || '附件'}}</text>
-                    </view>
-                    <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
+                <view
+                  class="marker-page-link-item"
+                  data-url="{{markerPageDetail.attachments[0].url}}"
+                  bindtap="onMarkerPageAttachmentTap"
+                >
+                  <view class="marker-page-link-info">
+                    <text class="marker-page-link-text">企业产品和业务介绍</text>
                   </view>
-                </block>
+                  <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
+                </view>
               </view>
             </view>
 
@@ -428,15 +362,30 @@
               class="marker-page-qrcode-wrapper"
               wx:if="{{markerPageDetail.qrCodes && markerPageDetail.qrCodes.length}}"
             >
-              <image class="marker-page-qrcode" src="{{markerPageDetail.qrCodes[0].url}}" mode="aspectFit" />
+              <block wx:for="{{markerPageDetail.qrCodes}}" wx:key="index">
+                <image
+                  class="marker-page-qrcode"
+                  src="{{item.url}}"
+                  mode="aspectFit"
+                  show-menu-by-longpress="true"
+                />
+              </block>
             </view>
           </view>
         </scroll-view>
 
-        <button open-type="share" class="marker-page-share">
-          <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
-          <text class="marker-page-share-text">转发</text>
-        </button>
+        <block wx:if="{{markerPageShareEnabled}}">
+          <button open-type="share" class="marker-page-share">
+            <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
+            <text class="marker-page-share-text">转发</text>
+          </button>
+        </block>
+        <block wx:else>
+          <button class="marker-page-share marker-page-share--disabled" bindtap="onMarkerPageShareDisabledTap">
+            <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
+            <text class="marker-page-share-text">转发</text>
+          </button>
+        </block>
         <view class="marker-page-close-hint">下滑关闭详情</view>
       </view>
     </block>

@@ -2,6 +2,29 @@ const DEV_API_BASE_URL = "https://kylee-suborbital-herta.ngrok-free.dev";
 const WEAPP_LOGIN_PATH = "/api/weapp/login";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const USER_PROFILE_STORAGE_KEY = "userProfile";
+const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
+
+// miniprogram/app.js
+const API_BASE_BY_ENV = {
+  develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
+  //develop: "",
+  trial:   "https://skylane.cn",                   // uploaded “体验版”
+  release: "https://skylane.cn"                        // 审核 & 上线
+};
+
+function resolveApiBase() {
+  try {
+    const { miniProgram } = wx.getAccountInfoSync();
+    const env = miniProgram?.envVersion || "develop";       // develop | trial | release
+    console.log("env->",env);
+    return API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+  } catch (err) {
+    console.warn("Fallback to dev API base because env lookup failed", err);
+    return API_BASE_BY_ENV.develop;
+  }
+}
+
+const API_BASE_URL = resolveApiBase();
 
 App({
   globalData: {
@@ -9,7 +32,9 @@ App({
     buildFrom: "vue-tencent-map-demo",
     token: null,
     userProfile: null,
-    apiBase: DEV_API_BASE_URL
+    apiBase: API_BASE_URL,
+    pendingMarkerFocus: null,
+    pendingInviteCode: ""
   },
 
   onLaunch() {
@@ -32,6 +57,14 @@ App({
     } catch (err) {
       console.warn("Failed to read stored user profile", err);
     }
+    try {
+      const cachedInvite = wx.getStorageSync(INVITE_CODE_STORAGE_KEY);
+      if (typeof cachedInvite === "string" && cachedInvite.trim()) {
+        this.globalData.pendingInviteCode = cachedInvite.trim();
+      }
+    } catch (err) {
+      console.warn("Failed to read cached invite code", err);
+    }
   },
 
   loginWithProfile(profile = {}) {
@@ -46,8 +79,19 @@ App({
           const payload = { code };
           if (profile.nickname) payload.nickname = profile.nickname;
           if (profile.avatarUrl) payload.avatarUrl = profile.avatarUrl;
+          const inviteCode = this.getPendingInviteCode();
+          if (inviteCode) {
+            payload.inviteCode = inviteCode;
+          }
           console.log("Refreshing login with profile payload:", payload);
-          this.requestWeappLogin(payload).then(resolve).catch(reject);
+          this.requestWeappLogin(payload)
+            .then((token) => {
+              if (inviteCode) {
+                this.clearPendingInviteCode();
+              }
+              resolve(token);
+            })
+            .catch(reject);
         },
         fail: (err) => reject(err)
       });
@@ -112,11 +156,52 @@ App({
     });
   },
 
+  setPendingInviteCode(inviteCode = "") {
+    const code = typeof inviteCode === "string" ? inviteCode.trim() : `${inviteCode || ""}`.trim();
+    if (!code) return;
+    this.globalData.pendingInviteCode = code;
+    if (typeof wx !== "undefined" && typeof wx.setStorageSync === "function") {
+      try {
+        wx.setStorageSync(INVITE_CODE_STORAGE_KEY, code);
+      } catch (err) {
+        console.warn("Failed to cache invite code", err);
+      }
+    }
+  },
+
+  getPendingInviteCode() {
+    const cached = (this.globalData.pendingInviteCode || "").trim();
+    if (cached) return cached;
+    if (typeof wx !== "undefined" && typeof wx.getStorageSync === "function") {
+      try {
+        const stored = wx.getStorageSync(INVITE_CODE_STORAGE_KEY);
+        if (typeof stored === "string" && stored.trim()) {
+          this.globalData.pendingInviteCode = stored.trim();
+          return stored.trim();
+        }
+      } catch (err) {
+        console.warn("Failed to read cached invite code", err);
+      }
+    }
+    return "";
+  },
+
+  clearPendingInviteCode() {
+    this.globalData.pendingInviteCode = "";
+    if (typeof wx !== "undefined" && typeof wx.removeStorageSync === "function") {
+      try {
+        wx.removeStorageSync(INVITE_CODE_STORAGE_KEY);
+      } catch (err) {
+        console.warn("Failed to clear cached invite code", err);
+      }
+    }
+  },
+
   requestWeappLogin(payload = {}) {
     console.log("Requesting Weapp login with payload:", payload);
     return new Promise((resolve, reject) => {
       wx.request({
-        url: `${DEV_API_BASE_URL}${WEAPP_LOGIN_PATH}`,
+        url: `${API_BASE_URL}${WEAPP_LOGIN_PATH}`,
         method: "POST",
         data: payload,
         header: {

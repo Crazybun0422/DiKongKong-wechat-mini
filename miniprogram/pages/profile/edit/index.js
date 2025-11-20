@@ -1,22 +1,28 @@
 const {
+  DEFAULT_AVATAR_PATH,
   normalizeProfileData,
   persistProfileLocally,
   loadStoredProfile,
   resolveApiBase,
-  updateUserProfile
+  updateUserProfile,
+  prepareAvatarForUpload,
+  uploadAvatarFile
 } = require("../../../utils/profile");
 
 Page({
   data: {
     nickname: "",
     maxLength: 20,
-    saving: false
+    saving: false,
+    avatarPreview: DEFAULT_AVATAR_PATH,
+    defaultAvatar: DEFAULT_AVATAR_PATH
   },
 
   onLoad(options) {
     this._storedProfile = loadStoredProfile() || {};
     this._profileFromParent = null;
     this._hasInitialNickname = false;
+    this._avatarTempPath = "";
     const eventChannel = this.getOpenerEventChannel ? this.getOpenerEventChannel() : null;
     if (eventChannel && typeof eventChannel.on === "function") {
       eventChannel.on("initProfile", (payload) => {
@@ -26,68 +32,97 @@ Page({
             this.setData({ nickname: payload.profile.nickname || "" });
             this._hasInitialNickname = true;
           }
+          if (payload.profile.avatarUrl) {
+            this.setData({ avatarPreview: payload.profile.avatarUrl });
+          }
         }
       });
     }
 
-    const passedNickname = options && options.nickname ? decodeURIComponent(options.nickname) : "";
-    if (passedNickname) {
-      this.setData({ nickname: passedNickname });
-      this._hasInitialNickname = true;
-    } else if (this._storedProfile.nickname) {
-      this.setData({ nickname: this._storedProfile.nickname });
+    const passedNickname = options?.nickname ? decodeURIComponent(options.nickname) : "";
+    const fallbackNickname =
+      passedNickname || this._storedProfile.nickname || this._profileFromParent?.nickname || "";
+    if (fallbackNickname) {
+      this.setData({ nickname: fallbackNickname });
       this._hasInitialNickname = true;
     }
+    const initialAvatar =
+      this._profileFromParent?.avatarUrl ||
+      this._storedProfile.avatarUrl ||
+      DEFAULT_AVATAR_PATH;
+    this.setData({ avatarPreview: initialAvatar || DEFAULT_AVATAR_PATH });
   },
 
   onNicknameInput(e) {
-    this.setData({ nickname: (e.detail && e.detail.value) || "" });
+    this.setData({ nickname: (e.detail?.value || "").trimStart() });
   },
 
-  onSaveTap() {
-    this.saveNickname();
+  onChooseAvatar(e) {
+    const avatarUrl = e?.detail?.avatarUrl;
+    if (!avatarUrl) return;
+    this._avatarTempPath = avatarUrl;
+    this.setData({ avatarPreview: avatarUrl });
   },
 
-  saveNickname() {
+  onSubmit(e) {
+    const nicknameValue = e?.detail?.value?.nickname;
+    this.saveProfile(nicknameValue);
+  },
+
+  saveProfile(submittedNickname) {
     if (this.data.saving) return;
-    const nickname = (this.data.nickname || "").trim();
+    const nickname = (submittedNickname || this.data.nickname || "").trim();
     if (!nickname) {
-      wx.showToast({ title: "请输入昵称", icon: "none" });
+      wx.showToast({ title: "请填写昵称", icon: "none" });
       return;
     }
-
     this.setData({ saving: true });
     const apiBase = resolveApiBase();
     const showLoading = typeof wx.showLoading === "function";
     const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
     if (showLoading) wx.showLoading({ title: "保存中...", mask: true });
 
-    updateUserProfile({ nickname }, { apiBase })
-      .then((remote) => {
+    const uploadAvatarIfNeeded = () => {
+      if (!this._avatarTempPath) return Promise.resolve(null);
+      return prepareAvatarForUpload(this._avatarTempPath).then((filePath) =>
+        uploadAvatarFile(filePath, { apiBase })
+      );
+    };
+
+    uploadAvatarIfNeeded()
+      .then((uploadedFileName) =>
+        updateUserProfile(
+          Object.assign(
+            { username: nickname },
+            uploadedFileName ? { avatarUrl: uploadedFileName } : {}
+          ),
+          { apiBase }
+        ).then((remote) => ({ remote, uploadedFileName }))
+      )
+      .then(({ remote, uploadedFileName }) => {
         const baseProfile = Object.assign(
           {},
-          {
-            featureCode:
-              this._storedProfile.featureCode ||
-              (this._profileFromParent ? this._profileFromParent.featureCode : ""),
-            flpValue:
-              this._storedProfile.flpValue !== undefined
-                ? this._storedProfile.flpValue
-                : this._profileFromParent
-                ? this._profileFromParent.flpValue
-                : null
-          },
           this._storedProfile,
           this._profileFromParent || {},
           remote || {},
-          { nickname }
+          {
+            nickname,
+            avatarFileName: uploadedFileName || remote?.avatarFileName || remote?.avatarUrl
+          }
         );
-
         const persisted = persistProfileLocally({
           nickname: baseProfile.nickname,
           avatarUrl: baseProfile.avatarFileName || baseProfile.avatarUrl || "",
-          featureCode: baseProfile.featureCode,
-          flpValue: baseProfile.flpValue
+          featureCode:
+            baseProfile.featureCode ||
+            this._storedProfile.featureCode ||
+            this._profileFromParent?.featureCode ||
+            "",
+          flpValue:
+            baseProfile.flpValue ??
+            this._storedProfile.flpValue ??
+            this._profileFromParent?.flpValue ??
+            null
         });
         this._storedProfile = persisted;
         const normalized = normalizeProfileData(baseProfile, {
@@ -100,15 +135,20 @@ Page({
         }
         hideLoading();
         wx.showToast({ title: "保存成功", icon: "success" });
+        this._avatarTempPath = "";
+        this.setData({
+          nickname: normalized.nickname,
+          avatarPreview: normalized.avatarUrl || DEFAULT_AVATAR_PATH
+        });
         setTimeout(() => {
           wx.navigateBack();
-        }, 300);
+        }, 400);
       })
       .catch((err) => {
         hideLoading();
-        console.warn("保存昵称失败", err);
+        console.warn("保存资料失败", err);
         let message = "保存失败，请稍后重试";
-        if (err && err.message === "missing-token") {
+        if (err?.message === "missing-token") {
           message = "请先登录后再试";
         }
         wx.showToast({ title: message, icon: "none" });

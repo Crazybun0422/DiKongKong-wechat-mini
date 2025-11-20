@@ -80,7 +80,7 @@
         hover-stay-time="60"
         bindtap="onLocateTap"
       >
-        <image class="locate-icon" src="/assets/location.png" mode="widthFix" />
+        <image class="locate-icon" src="/assets/location2.png" mode="widthFix" />
       </button>
     </view>
   </view>

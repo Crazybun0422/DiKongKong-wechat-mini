@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "FLP明细",
+  "navigationBarBackgroundColor": "#ffffff",
+  "navigationBarTextStyle": "black",
+  "enablePullDownRefresh": true
+}

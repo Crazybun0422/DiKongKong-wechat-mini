@@ -16,7 +16,11 @@ Page({
     error: "",
     profile: null,
     defaultAvatar: DEFAULT_AVATAR_PATH,
-    activeTab: "profile"
+    activeTab: "profile",
+    customerServiceSessionFrom: "profile-customer-service",
+    nicknameEditing: false,
+    nicknameInput: "",
+    nicknameSaving: false
   },
 
   onLoad() {
@@ -28,7 +32,9 @@ Page({
     this.setData({
       profile: normalized,
       loading: true,
-      error: ""
+      error: "",
+      customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
+      nicknameInput: normalized.nickname
     });
     this.reloadProfile();
   },
@@ -56,7 +62,7 @@ Page({
           storedProfile: this._storedProfileCache,
           apiBase: resolveApiBase()
         });
-        console.log("remoteProfile:",remoteProfile);
+        console.log("remoteProfile:", remoteProfile);
         this._storedProfileCache = persistProfileLocally({
           nickname: normalized.nickname,
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
@@ -66,7 +72,9 @@ Page({
         this.setData({
           profile: normalized,
           loading: false,
-          error: ""
+          error: "",
+          customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
+          nicknameInput: this.data.nicknameEditing ? this.data.nicknameInput : normalized.nickname
         });
       })
       .catch((err) => {
@@ -106,75 +114,26 @@ Page({
   },
 
   onEditProfileTap() {
-    if (typeof wx.showActionSheet !== "function") {
-      wx.showToast({ title: "当前版本暂不支持编辑", icon: "none" });
-      return;
-    }
-    wx.showActionSheet({
-      itemList: ["更换头像", "编辑昵称"],
-      success: (res) => {
-        if (res.tapIndex === 0) {
-          this.onChangeAvatarTap();
-        } else if (res.tapIndex === 1) {
-          this.onEditNicknameTap();
-        }
-      }
-    });
+    // legacy fallback: still allow manual navigate if needed in future
+    this.startNicknameEdit();
   },
 
-  onChangeAvatarTap() {
-    if (typeof wx.showActionSheet !== "function") {
-      this.chooseAvatarFromSource(["album"]);
-      return;
-    }
-    wx.showActionSheet({
-      itemList: ["拍照", "从相册选择"],
-      success: (res) => {
-        if (res.tapIndex === 0) {
-          this.chooseAvatarFromSource(["camera"]);
-        } else if (res.tapIndex === 1) {
-          this.chooseAvatarFromSource(["album"]);
-        }
-      }
-    });
-  },
-
-  chooseAvatarFromSource(sourceType) {
-    if (typeof wx.chooseImage !== "function") {
-      wx.showToast({ title: "选择头像失败", icon: "none" });
-      return;
-    }
-    wx.chooseImage({
-      count: 1,
-      sizeType: ["compressed"],
-      sourceType,
-      success: (res) => {
-        const path = res?.tempFilePaths && res.tempFilePaths[0];
-        if (!path) {
-          wx.showToast({ title: "未选择图片", icon: "none" });
-          return;
-        }
-        this.handleAvatarSelection(path);
-      },
-      fail: (err) => {
-        if (err && typeof err.errMsg === "string" && err.errMsg.includes("cancel")) {
-          return;
-        }
-        wx.showToast({ title: "选择失败", icon: "none" });
-      }
-    });
+  onChooseAvatar(e) {
+    const avatarUrl = e?.detail?.avatarUrl;
+    if (!avatarUrl) return;
+    this.handleAvatarSelection(avatarUrl);
   },
 
   handleAvatarSelection(tempPath) {
     if (!tempPath) return;
     const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
     if (showLoading) wx.showLoading({ title: "上传中...", mask: true });
     const apiBase = resolveApiBase();
     prepareAvatarForUpload(tempPath)
       .then((filePath) => uploadAvatarFile(filePath, { apiBase }))
       .then((fileName) =>
-        updateUserProfile({ avatarFileName: fileName }, { apiBase })
+        updateUserProfile({ avatarUrl: fileName }, { apiBase })
           .then((remote) => ({ remote, fileName }))
           .catch((err) => {
             const wrapped = err || new Error("update-avatar-failed");
@@ -201,29 +160,137 @@ Page({
       });
   },
 
-  onEditNicknameTap() {
+  startNicknameEdit() {
+    if (this.data.nicknameSaving) return;
     const nickname = this.data.profile?.nickname || "";
-    if (typeof wx.navigateTo !== "function") {
-      wx.showToast({ title: "当前版本暂不支持编辑", icon: "none" });
+    this.setData({
+      nicknameEditing: true,
+      nicknameInput: nickname
+    });
+  },
+
+  onNicknameInputChange(e) {
+    const value = e?.detail?.value || "";
+    this.setData({ nicknameInput: value });
+    const inputTypeRaw = e?.detail?.inputType || "";
+    const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
+    console.log("xxxxxxx",e)
+    if (inputType === "nickname") {
+      this.saveNicknameInline(value);
+    }
+  },
+  onEditing(e){
+
+  },
+  onBlankTap(e){
+    if (this.data.nicknameSaving || !this.data.nicknameEditing) return;
+    console.log("top")
+    this.cancelNicknameEdit();
+  },
+  onNickReview(e){
+    const value = e?.detail?.value ?? this.data.nicknameInput;
+    console.log("e:",e)
+    if (!e.detail.pass) {
+      wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
+      this.setData({
+        nicknameEditing: true,
+        nicknameInput: nickname
+      });
+      return
+    }
+      this.saveNicknameInline(value);
+    
+  },
+
+  onNicknameInputConfirm(e) {
+    const value = e?.detail?.value ?? this.data.nicknameInput;
+    this.saveNicknameInline(value);
+  },
+
+  onNicknameInputBlur() {
+    if (this.data.nicknameSaving) return;
+    console.log("xxxxxxxxxxxxxxxxxxx")
+    this.cancelNicknameEdit();
+  },
+
+  saveNicknameInline(nickname) {
+    const trimmed = (nickname || "").trim();
+    if (!this.data.nicknameEditing) return;
+    if (this.data.nicknameSaving) return;
+    const current = this.data.profile?.nickname || "";
+    if (!trimmed) {
+      wx.showToast({ title: "昵称不能为空", icon: "none" });
+      this.setData({
+        nicknameEditing: false,
+        nicknameInput: current
+      });
       return;
     }
-    wx.navigateTo({
-      url: `/pages/profile/edit/index?nickname=${encodeURIComponent(nickname)}`,
-      events: {
-        profileUpdated: (payload) => {
-          if (payload && payload.profile) {
-            this.handleProfileUpdateResult(payload.profile, {});
-          }
-        }
-      },
-      success: (res) => {
-        if (res.eventChannel && typeof res.eventChannel.emit === "function") {
-          res.eventChannel.emit("initProfile", {
-            profile: this.data.profile
-          });
-        }
-      }
+    if (trimmed === current) {
+      this.setData({
+        nicknameEditing: false,
+        nicknameInput: current
+      });
+      return;
+    }
+    this.setData({ nicknameSaving: true });
+    const apiBase = resolveApiBase();
+    updateUserProfile({ username: trimmed }, { apiBase })
+      .then((remote) => {
+        this.handleProfileUpdateResult(remote, { nickname: trimmed });
+        wx.showToast({ title: "昵称已更新", icon: "success" });
+        this.setData({
+          nicknameEditing: false,
+          nicknameInput: trimmed
+        });
+      })
+      .catch((err) => {
+        console.warn("更新昵称失败", err);
+        const message =
+          err?.message === "missing-token"
+            ? "请先登录后再试"
+            : err?.displayMessage || err?.message || "更新失败，请稍后重试";
+        wx.showToast({ title: message, icon: "none" });
+        this.setData({
+          nicknameEditing: false,
+          nicknameInput: current
+        });
+      })
+      .finally(() => {
+        this.setData({ nicknameSaving: false });
+      });
+  },
+
+  cancelNicknameEdit() {
+    // if (!this.data.nicknameEditing) return;
+    const current = this.data.profile?.nickname || "";
+    console.log("xxxxx")
+    this.setData({
+      nicknameEditing: false,
+      nicknameInput: current
     });
+  },
+
+  syncNicknameWithWechat(nickname) {
+    const trimmed = (nickname || "").trim();
+    if (!trimmed) {
+      return Promise.reject(new Error("empty-nickname"));
+    }
+    const apiBase = resolveApiBase();
+    const showLoading = typeof wx.showLoading === "function";
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
+    if (showLoading) wx.showLoading({ title: "同步中...", mask: true });
+    return updateUserProfile({ username: trimmed }, { apiBase })
+      .then((remote) => {
+        hideLoading();
+        this.handleProfileUpdateResult(remote, { nickname: trimmed });
+        wx.showToast({ title: "昵称已同步", icon: "success" });
+        return remote;
+      })
+      .catch((err) => {
+        hideLoading();
+        throw err || new Error("nickname-sync-failed");
+      });
   },
 
   handleProfileUpdateResult(rawProfile = {}, fallbackChanges = {}) {
@@ -257,20 +324,44 @@ Page({
       storedProfile: persisted,
       apiBase: resolveApiBase()
     });
-    this.setData({ profile: normalized });
+    this.setData({
+      profile: normalized,
+      customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
+      nicknameInput: this.data.nicknameEditing ? this.data.nicknameInput : normalized.nickname
+    });
     return normalized;
   },
 
+  composeCustomerServiceSessionFrom(profile = {}) {
+    const payload = {
+      source: "profile-customer-service",
+      featureCode: profile.featureCode || "",
+      nickname: profile.nickname || ""
+    };
+    try {
+      return JSON.stringify(payload);
+    } catch (err) {
+      console.warn("Failed to stringify session-from payload", err);
+      return "profile-customer-service";
+    }
+  },
+
+  onCustomerServiceContact(event) {
+    console.log("Customer service contact event", event);
+  },
+
   onFlpCardTap() {
-    wx.showToast({ title: "敬请期待", icon: "none" });
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    const balance = this.data.profile?.flpDisplay || "0.00";
+    const query = encodeURIComponent(balance);
+    wx.navigateTo({ url: `/pages/profile/flp/index?balance=${query}` });
   },
 
   onListItemTap(e) {
     const action = e.currentTarget?.dataset?.action;
-    if (action === "customer-service") {
-      wx.showToast({ title: "�ͷ����ܼ�������", icon: "none" });
-      return;
-    }
     if (action === "markers") {
       if (typeof wx.navigateTo !== "function") {
         wx.showToast({ title: "��ǰ�汾�ݲ�֧��", icon: "none" });
@@ -293,7 +384,7 @@ Page({
   },
 
   onChatButtonTap() {
-    wx.showToast({ title: "聊天功能开发中", icon: "none" });
+    wx.showToast({ title: "您暂未获得低空智能体（Agent）体验特权", icon: "none" });
   },
 
   onMenuHomeTap() {

@@ -1,0 +1,57 @@
+<view class="flp-page">
+  <scroll-view class="flp-scroll" scroll-y="true">
+    <view class="flp-container">
+      <view class="flp-header">
+        <view class="flp-balance-value">
+          <text class="flp-balance-number">{{balance}}</text>
+          <text class="flp-balance-unit">FLP</text>
+        </view>
+        <view
+          class="flp-detail-entry"
+          bindtap="onDetailTap"
+          hover-class="flp-detail-entry-hover"
+        >
+          <image class="flp-detail-icon" src="/assets/details.png" mode="widthFix" />
+          <text class="flp-detail-text">明细</text>
+        </view>
+      </view>
+
+      <view class="flp-benefits-card">
+        <block wx:for="{{benefits}}" wx:key="id">
+          <view class="flp-benefit-item">
+            <view class="flp-benefit-info">
+              <text class="flp-benefit-title">{{item.title}}</text>
+              <text class="flp-benefit-desc">{{item.description}}</text>
+            </view>
+            <view class="flp-benefit-action">
+              <block wx:if="{{item.type === 'share'}}">
+                <button class="flp-action-btn" open-type="share">{{item.actionText}}</button>
+              </block>
+              <block wx:elif="{{item.type === 'link'}}">
+                <button
+                  class="flp-action-btn"
+                  data-action="{{item.action}}"
+                  bindtap="onBenefitActionTap"
+                >
+                  {{item.actionText}}
+                </button>
+              </block>
+              <block wx:elif="{{item.type === 'tag'}}">
+                <text wx:if="{{item.badge}}" class="flp-benefit-tag">{{item.badge}}</text>
+              </block>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view class="flp-help-container">
+        <text
+          class="flp-help-link"
+          bindtap="onHelpLinkTap"
+          hover-class="flp-help-link-active"
+        >
+          了解FLP产生和奖励机制>
+        </text>
+      </view>
+    </view>
+  </scroll-view>
+</view>

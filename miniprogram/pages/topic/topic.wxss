@@ -1,0 +1,39 @@
+.topic-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fefefe 0%, #f4f7fb 60%, #eef2f7 100%);
+  padding: 48rpx 32rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.topic-body {
+  max-width: 640rpx;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.topic-intro {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 32rpx;
+  padding: 36rpx;
+  box-shadow: 0 24rpx 40rpx rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.topic-intro-title {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.topic-intro-subtitle {
+  font-size: 26rpx;
+  color: #4b5563;
+}
+
+.topic-publish {
+  width: 100%;
+}

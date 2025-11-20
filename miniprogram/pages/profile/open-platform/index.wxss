@@ -21,13 +21,23 @@
 
 .open-platform-retry {
   margin-top: 24rpx;
-  width: 220rpx;
+  min-width: 220rpx;
   height: 72rpx;
-  line-height: 72rpx;
-  background: #1677ff;
+  padding: 0 48rpx;
+  line-height: 1;
+  background: linear-gradient(135deg, #000000 0%, #333333 100%);
   color: #fff;
-  border-radius: 40rpx;
+  border-radius: 999rpx;
   font-size: 28rpx;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 24rpx rgba(15, 23, 42, 0.12);
+}
+
+.open-platform-retry::after {
+  border: none;
 }
 
 .open-platform-content {

@@ -1,12 +1,16 @@
 {
   "pages": [
     "pages/map/map",
+    "pages/topic/topic",
     "pages/profile/profile",
+    "pages/profile/flp/index",
+    "pages/profile/flp/invite/index",
+    "pages/profile/flp/logs/index",
+    "pages/profile/flp/reward-help/index",
     "pages/profile/open-platform/index",
     "pages/profile/edit/index",
     "pages/markers/index",
     "pages/markers/location-picker/index",
-    "pages/merchant-detail/index",
     "pages/webview/index"
   ],
   "window": {
@@ -18,7 +22,7 @@
   "lazyCodeLoading": "requiredComponents",
   "permission": {
     "scope.userLocation": {
-      "desc": "321321"
+      "desc": "用于展示附近空域信息和服务"
     }
   },
   "requiredPrivateInfos": [

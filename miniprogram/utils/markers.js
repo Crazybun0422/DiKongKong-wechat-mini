@@ -56,6 +56,75 @@ function buildFileDownloadUrl(fileName, options = {}) {
   return "";
 }
 
+function appendQueryParams(path, query = {}) {
+  if (!query || typeof query !== "object") {
+    return path;
+  }
+  const parts = Object.keys(query)
+    .map((key) => {
+      const value = query[key];
+      if (value === undefined || value === null) {
+        return "";
+      }
+      let normalizedValue;
+      if (typeof value === "boolean") {
+        normalizedValue = value ? "true" : "false";
+      } else if (typeof value === "number") {
+        if (!Number.isFinite(value)) {
+          return "";
+        }
+        normalizedValue = value.toString();
+      } else {
+        normalizedValue = `${value}`.trim();
+        if (!normalizedValue) {
+          return "";
+        }
+      }
+      return `${encodeURIComponent(key)}=${encodeURIComponent(normalizedValue)}`;
+    })
+    .filter(Boolean);
+  if (!parts.length) {
+    return path;
+  }
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}${parts.join("&")}`;
+}
+
+function requestMarkerResource(options = {}) {
+  return new Promise((resolve, reject) => {
+    const base = resolveApiBase(options.apiBase);
+    if (!base) {
+      reject(new Error("missing-api-base"));
+      return;
+    }
+    const header = Object.assign(
+      {
+        "content-type": "application/json"
+      },
+      options.header || {}
+    );
+    const token = options.token || getAuthToken();
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
+    wx.request({
+      url: `${base}${options.path}`,
+      method: options.method || "GET",
+      data: options.data || null,
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data);
+        } else {
+          const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
+          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+        }
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 function postMarkerMetric(markerId, metricPath, options = {}) {
   if (markerId === undefined || markerId === null) {
     return Promise.reject(new Error("missing-marker-id"));
@@ -96,6 +165,7 @@ function postMarkerMetric(markerId, metricPath, options = {}) {
 
 function listMarkers(params = {}, options = {}) {
   const query = [];
+  console.log("params,options",params,options)
   if (params.page !== undefined && params.page !== null) {
     const page = Number(params.page);
     if (Number.isFinite(page) && page >= 0) {
@@ -132,7 +202,7 @@ function fetchNearbyMarkers(params = {}, options = {}) {
     query.push(`radiusInKilometers=${encodeURIComponent(radius.toFixed(3))}`);
   }
   const qs = query.length ? `?${query.join("&")}` : "";
-  return authorizedRequest({
+  return requestMarkerResource({
     apiBase: options.apiBase,
     token: options.token,
     path: `/api/markers/nearby${qs}`,
@@ -148,7 +218,7 @@ function fetchMarkerDetail(markerId, options = {}) {
   if (!id) {
     return Promise.reject(new Error("missing-marker-id"));
   }
-  return authorizedRequest({
+  return requestMarkerResource({
     apiBase: options.apiBase,
     token: options.token,
     path: `/api/markers/${encodeURIComponent(id)}`,
@@ -157,10 +227,11 @@ function fetchMarkerDetail(markerId, options = {}) {
 }
 
 function createMarker(payload = {}, options = {}) {
+  const path = appendQueryParams("/api/markers", options.query);
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
-    path: "/api/markers",
+    path,
     method: "POST",
     data: payload
   }).then((body = {}) => body.data || {});
@@ -168,10 +239,11 @@ function createMarker(payload = {}, options = {}) {
 
 function updateMarker(markerId, payload = {}, options = {}) {
   if (!markerId) return Promise.reject(new Error("missing-marker-id"));
+  const path = appendQueryParams(`/api/markers/${encodeURIComponent(markerId)}`, options.query);
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
-    path: `/api/markers/${encodeURIComponent(markerId)}`,
+    path,
     method: "PUT",
     data: payload
   }).then((body = {}) => body.data || {});
@@ -285,6 +357,26 @@ function incrementMarkerPhoneCall(markerId, options = {}) {
   return postMarkerMetric(markerId, "phone-call", options);
 }
 
+function searchMarkers(keyword, options = {}) {
+  const text = typeof keyword === "string" ? keyword.trim() : "";
+  if (!text) {
+    return Promise.resolve([]);
+  }
+  const query = [`keyword=${encodeURIComponent(text)}`];
+  const limit = Number(options.limit);
+  if (Number.isFinite(limit) && limit > 0) {
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 50));
+    query.push(`limit=${safeLimit}`);
+  }
+  const qs = query.length ? `?${query.join("&")}` : "";
+  return requestMarkerResource({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/markers/search${qs}`,
+    method: "GET"
+  }).then((body = {}) => body.data || []);
+}
+
 module.exports = {
   listMarkers,
   fetchNearbyMarkers,
@@ -297,5 +389,6 @@ module.exports = {
   fetchMapSettlementConfig,
   fetchOpenPlatformContent,
   incrementMarkerExposure,
-  incrementMarkerPhoneCall
+  incrementMarkerPhoneCall,
+  searchMarkers
 };
