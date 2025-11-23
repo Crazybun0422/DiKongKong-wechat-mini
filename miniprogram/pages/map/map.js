@@ -38,6 +38,55 @@ const DEFAULT_CENTER = {
   longitude: 116.39747
 };
 
+const matchesQQ = (val) => {
+  if (!val && val !== 0) return false;
+  return `${val}`.toLowerCase().includes("qq");
+};
+
+const isWeChatRuntime = () => {
+  try {
+    if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
+      const info = wx.getSystemInfoSync() || {};
+      const val = `${info.appName || info.AppPlatform || info.app || info.host || info.hostName || ""}`.toLowerCase();
+      if (val.includes("wechat") || val.includes("weixin")) return true;
+    }
+  } catch (err) {
+    // ignore
+  }
+  return false;
+};
+
+const readSystemInfoSafe = (provider) => {
+  try {
+    if (provider && typeof provider.getSystemInfoSync === "function") {
+      return provider.getSystemInfoSync() || {};
+    }
+  } catch (err) {
+    // ignore
+  }
+  return {};
+};
+
+const isQqMiniProgram = () => {
+  const globalQQ = typeof qq !== "undefined" ? qq : (typeof globalThis !== "undefined" ? globalThis.qq : null);
+  const qqInfo = readSystemInfoSafe(globalQQ);
+  const wxInfo = readSystemInfoSafe(typeof wx !== "undefined" ? wx : null);
+  const infoList = [qqInfo, wxInfo];
+  if (globalQQ && typeof globalQQ.getSystemInfoSync === "function") return true;
+  return infoList.some((info) => {
+    if (!info) return false;
+    return (
+      matchesQQ(info.AppPlatform) ||
+      matchesQQ(info.appName) ||
+      matchesQQ(info.app) ||
+      matchesQQ(info.platform) ||
+      matchesQQ(info.host) ||
+      matchesQQ(info.hostName) ||
+      matchesQQ(info.environment)
+    );
+  });
+};
+
 const compareVersion = (v1, v2) => {
   const s1 = `${v1 || ""}`.split(".");
   const s2 = `${v2 || ""}`.split(".");
@@ -438,6 +487,10 @@ Page({
     this._wmsOverlayMap = new Map();
     this._wmsOverlayHealth = new Map();
     this._wmsOverlaySeed = 0;
+    this._isQQ = false;
+    this._uomEnvReported = false;
+    this._uomModalShown = false;
+    this._uomFallbackTimer = null;
     this._djiPolygons = [];
     this._djiCircles = [];
     this._nfzPolygons = [];
@@ -458,6 +511,12 @@ Page({
     }
     this.detectUomOverlaySupport();
     this.updateUomTileWarning();
+    if (!this.data.uomTileWarningDismissed) {
+      if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+      this._uomFallbackTimer = setTimeout(() => {
+        this.forceShowUomWarningFallback();
+      }, 1500);
+    }
     this._markerExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
@@ -1710,6 +1769,7 @@ Page({
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
+    if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
@@ -3303,12 +3363,18 @@ Page({
   },
 
   shouldShowUomTileWarning() {
+    const dismissed = !!this.data.uomTileWarningDismissed;
+    if (this._isQQ && !dismissed) {
+      return true;
+    }
+    if (this._uomOverlayUnsupported || this._uomOverlayFailed) {
+      return true;
+    }
     const tiles = Array.isArray(this._currentWmsTiles) ? this._currentWmsTiles : [];
     const scale = clampMapScale(this.data?.scale);
     if (!tiles.length || scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
       return false;
     }
-    if (this._uomOverlayUnsupported || this._uomOverlayFailed) return true;
     const center = this._centerOverride || this.data.center;
     if (!center) return false;
     const tile = this.findUomTileForPoint(center);
@@ -3341,16 +3407,73 @@ Page({
         ? wx.getSystemInfoSync()
         : {};
       this._sdkVersion = info.SDKVersion || "";
+      const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
+      const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
       const platform = (info.platform || "").toLowerCase();
+      const isQQRuntime = isQqMiniProgram();
+      const isQQ = appName.includes("qq") || appPlatform.includes("qq") || platform.includes("qq") || isQQRuntime;
+      this._isQQ = isQQ;
+      this.reportUomEnv({
+        appName,
+        appPlatform,
+        platform,
+        host: info.host || "",
+        hostName: info.hostName || "",
+        sdk: this._sdkVersion,
+        isQQ,
+        hasGlobalQQ: typeof qq !== "undefined"
+      });
       const hasApi = !!(this.mapCtx && typeof this.mapCtx.addGroundOverlay === "function");
       const sdkOk = this._sdkVersion ? compareVersion(this._sdkVersion, MIN_GROUND_OVERLAY_SDK) >= 0 : true;
       const isDesktopEnv = platform && platform !== "ios" && platform !== "android";
-      if (!hasApi || !sdkOk || isDesktopEnv) {
+      if (!hasApi || !sdkOk || isDesktopEnv || isQQ) {
         this._uomOverlayUnsupported = true;
         this._uomOverlayFailed = true;
       }
+      if (this._isQQ && !this.data.uomTileWarningDismissed) {
+        this.setData({ uomTileWarningVisible: true });
+        if (!this._uomModalShown) {
+          this._uomModalShown = true;
+          this.showUomWarningModal();
+        }
+      }
     } catch (err) {
       console.warn("detectUomOverlaySupport failed", err);
+    }
+  },
+
+  showUomWarningModal() {
+    const modalApi =
+      (typeof wx !== "undefined" && wx && typeof wx.showModal === "function" && wx.showModal) ||
+      (typeof qq !== "undefined" && qq && typeof qq.showModal === "function" && qq.showModal);
+    if (!modalApi) return;
+    modalApi({
+      title: "提示",
+      content: "受地图组件能力限制，本页部分地图功能暂不可用。完整功能已在微信小程序「低空星球」上线，欢迎前往使用。",
+      confirmText: "知道了",
+      cancelText: "不再提示",
+      success: (res) => {
+        if (res && res.cancel) {
+          this.onUomTileWarningNever();
+        }
+      }
+    });
+  },
+
+  reportUomEnv(info = {}) {
+    // no-op: was used for debugging environment detection
+    this._uomEnvReported = true;
+  },
+
+  forceShowUomWarningFallback() {
+    if (isWeChatRuntime()) return;
+    if (this.data.uomTileWarningDismissed) return;
+    if (!this.data.uomTileWarningVisible) {
+      this.setData({ uomTileWarningVisible: true });
+      if (!this._uomModalShown) {
+        this._uomModalShown = true;
+        this.showUomWarningModal();
+      }
     }
   },
 
