@@ -38,6 +38,19 @@ const DEFAULT_CENTER = {
   longitude: 116.39747
 };
 
+const compareVersion = (v1, v2) => {
+  const s1 = `${v1 || ""}`.split(".");
+  const s2 = `${v2 || ""}`.split(".");
+  const len = Math.max(s1.length, s2.length);
+  for (let i = 0; i < len; i += 1) {
+    const n1 = Number(s1[i] || 0);
+    const n2 = Number(s2[i] || 0);
+    if (n1 > n2) return 1;
+    if (n1 < n2) return -1;
+  }
+  return 0;
+};
+
 const DEFAULT_DRONE_INDEX = (() => {
   const idx = DRONES.findIndex((d) => d.slug === "dji-mavic-3");
   return idx >= 0 ? idx : 0;
@@ -50,6 +63,8 @@ const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
+const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
+const MIN_GROUND_OVERLAY_SDK = "2.21.2";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#000000",
@@ -381,6 +396,8 @@ Page({
     temporaryNoFlyZoneInfo: null,
     temporaryNoFlyText: "评估中",
     temporaryNoFlyTone: "neutral",
+    uomTileWarningVisible: false,
+    uomTileWarningDismissed: false,
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -419,6 +436,7 @@ Page({
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
     this._wmsOverlayMap = new Map();
+    this._wmsOverlayHealth = new Map();
     this._wmsOverlaySeed = 0;
     this._djiPolygons = [];
     this._djiCircles = [];
@@ -426,7 +444,20 @@ Page({
     this._nfzCircles = [];
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
+    this._uomOverlayFailed = false;
+    this._uomOverlayUnsupported = false;
+    this._uomOverlayTimeouts = new Map();
+    this._uomOverlayPending = 0;
+    this._uomOverlayBatchId = 0;
+    this._uomOverlayTimeout = null;
     this._suggestTimer = null;
+    const storedUomDismissed = this.readStoredUomWarningDismissed();
+    if (storedUomDismissed) {
+      this.setData({ uomTileWarningDismissed: true });
+      this.data.uomTileWarningDismissed = true;
+    }
+    this.detectUomOverlaySupport();
+    this.updateUomTileWarning();
     this._markerExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
@@ -3253,6 +3284,9 @@ Page({
     const dji = this.describeDjiStatus(resolved);
     const uom = this.describeUomStatus();
     const temporary = this.describeTemporaryNoFlyStatus();
+    const shouldShowWarning = this.shouldShowUomTileWarning();
+    const dismissed = !!this.data.uomTileWarningDismissed;
+    const uomWarningVisible = shouldShowWarning && !dismissed;
     this.setData({
       djiStatus: dji.status,
       djiStatusExtra: dji.extra,
@@ -3262,8 +3296,88 @@ Page({
       uomTone: uom.tone,
       temporaryNoFlyZoneInfo: temporary.zoneInfo,
       temporaryNoFlyText: temporary.text,
-      temporaryNoFlyTone: temporary.tone
+      temporaryNoFlyTone: temporary.tone,
+      uomTileWarningVisible: uomWarningVisible,
+      uomTileWarningDismissed: dismissed
     });
+  },
+
+  shouldShowUomTileWarning() {
+    const tiles = Array.isArray(this._currentWmsTiles) ? this._currentWmsTiles : [];
+    const scale = clampMapScale(this.data?.scale);
+    if (!tiles.length || scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
+      return false;
+    }
+    if (this._uomOverlayUnsupported || this._uomOverlayFailed) return true;
+    const center = this._centerOverride || this.data.center;
+    if (!center) return false;
+    const tile = this.findUomTileForPoint(center);
+    if (!tile) return false;
+    const maskEntry = this._uomTileMasks?.get(tile.id);
+    if (maskEntry && maskEntry.status === "error") return true;
+    return false;
+  },
+
+  updateUomTileWarning() {
+    const shouldShow = this.shouldShowUomTileWarning();
+    const dismissed = !!this.data.uomTileWarningDismissed;
+    const visible = shouldShow && !dismissed;
+    if (
+      this.data &&
+      this.data.uomTileWarningVisible === visible &&
+      this.data.uomTileWarningDismissed === dismissed
+    ) {
+      return;
+    }
+    this.setData({
+      uomTileWarningVisible: visible,
+      uomTileWarningDismissed: dismissed
+    });
+  },
+
+  detectUomOverlaySupport() {
+    try {
+      const info = typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function"
+        ? wx.getSystemInfoSync()
+        : {};
+      this._sdkVersion = info.SDKVersion || "";
+      const platform = (info.platform || "").toLowerCase();
+      const hasApi = !!(this.mapCtx && typeof this.mapCtx.addGroundOverlay === "function");
+      const sdkOk = this._sdkVersion ? compareVersion(this._sdkVersion, MIN_GROUND_OVERLAY_SDK) >= 0 : true;
+      const isDesktopEnv = platform && platform !== "ios" && platform !== "android";
+      if (!hasApi || !sdkOk || isDesktopEnv) {
+        this._uomOverlayUnsupported = true;
+        this._uomOverlayFailed = true;
+      }
+    } catch (err) {
+      console.warn("detectUomOverlaySupport failed", err);
+    }
+  },
+
+  onUomTileWarningNever() {
+    this.persistUomWarningDismissed();
+    this.setData({
+      uomTileWarningVisible: false,
+      uomTileWarningDismissed: true
+    });
+  },
+
+  readStoredUomWarningDismissed() {
+    try {
+      const val = wx.getStorageSync(UOM_WARNING_DISMISS_STORAGE_KEY);
+      return !!val;
+    } catch (err) {
+      console.warn("failed to read UOM warning dismissal flag", err);
+      return false;
+    }
+  },
+
+  persistUomWarningDismissed() {
+    try {
+      wx.setStorageSync(UOM_WARNING_DISMISS_STORAGE_KEY, 1);
+    } catch (err) {
+      console.warn("failed to persist UOM warning dismissal flag", err);
+    }
   },
 
   describeDjiStatus(areas) {
@@ -3288,7 +3402,9 @@ Page({
         area.sub_areas.forEach((sub) => visitArea(sub, area, true));
         return;
       }
+
       if (this.areaContainsWgsPoint(area, wgs.lng, wgs.lat, { polygonOnly })) {
+      
         hits.push({ area, parent });
       }
     };
@@ -3424,6 +3540,7 @@ Page({
   refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
     const center = centerOverride || this.data.center;
     const scale = clampMapScale(scaleOverride || this.data.scale);
+    this._uomOverlayFailed = false;
     if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
       this.clearMapOverlays();
       this._currentWmsTiles = [];
@@ -3468,6 +3585,7 @@ Page({
       if (existing && existing.signature === signature) {
         return;
       }
+
       if (existing) {
         ctx.removeGroundOverlay({
           id: existing.overlayId,
@@ -3477,6 +3595,7 @@ Page({
       }
       this._wmsOverlaySeed += 1;
       const overlayId = this._wmsOverlaySeed;
+
       const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
       ctx.addGroundOverlay({
         id: overlayId,
@@ -3485,6 +3604,9 @@ Page({
         alpha,
         fail: (err) => {
           console.error("addGroundOverlay failed", tile.id, err);
+          this._uomOverlayFailed = true;
+          this.updateUomTileWarning();
+
           this._wmsOverlayMap.delete(tile.id);
         }
       });
@@ -3811,11 +3933,15 @@ Page({
         console.error("加载 UOM 瓦片失败", err);
         const entry = this._uomTileMasks.get(tile.id);
         if (entry) entry.status = "error";
+        this._uomOverlayFailed = true;
+        this.updateUomTileWarning();
       };
       img.src = tile.src;
     } catch (err) {
       console.error("创建 UOM 蒙版失败", err);
       this._uomTileMasks.set(tile.id, { status: "error" });
+      this._uomOverlayFailed = true;
+      this.updateUomTileWarning();
     }
   },
 

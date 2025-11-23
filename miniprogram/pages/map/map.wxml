@@ -19,6 +19,21 @@
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
     />
+    <view class="uom-dialog" wx:if="{{uomTileWarningVisible}}">
+      <view class="uom-dialog-box">
+        <text class="uom-dialog-text">受地图组件能力限制，本页部分地图功能暂不可用。
+👉 完整功能已在微信小程序 「低空星球」 上线，欢迎前往使用。</text>
+        <view class="uom-dialog-action">
+          <button
+            class="uom-dialog-btn"
+            hover-class="uom-dialog-btn--hover"
+            bindtap="onUomTileWarningNever"
+          >
+            不再提示
+          </button>
+        </view>
+      </view>
+    </view>
     <image class="center-pin" src="/assets/position.png" mode="widthFix" />
     <view class="map-scale" wx:if="{{scaleBarVisible}}">
       <text class="map-scale-label">{{scaleBarLabel}}</text>
