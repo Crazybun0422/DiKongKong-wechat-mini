@@ -434,7 +434,21 @@ Page({
     callSheetMarkerName: "",
     scaleBarVisible: false,
     scaleBarWidthRpx: DEFAULT_SCALE_BAR_BASE_RPX,
-    scaleBarLabel: ""
+    scaleBarLabel: "",
+    enableSatellite: false,
+    mapLayerType: "standard",
+    layerPanelVisible: false,
+    layerPanelClosing: false,
+    airBoardEnabled: true,
+    mapElementOptions: [
+      { id: "uom", label: "uom划分", enabled: true },
+      { id: "dji", label: "大疆划分", enabled: true },
+      { id: "tempNoFly", label: "临时禁飞区", enabled: true },
+      { id: "service", label: "商户服务", enabled: true },
+      { id: "private", label: "私有标记", enabled: false },
+      { id: "group", label: "小组共享", enabled: false },
+      { id: "platform", label: "平台共建", enabled: false }
+    ]
   },
 
   onLoad(options = {}) {
@@ -454,6 +468,7 @@ Page({
     this._uomEnvReported = false;
     this._uomModalShown = false;
     this._uomFallbackTimer = null;
+    this._layerPanelCloseTimer = null;
     this._djiPolygons = [];
     this._djiCircles = [];
     this._nfzPolygons = [];
@@ -1737,6 +1752,7 @@ Page({
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
+    if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
@@ -1846,6 +1862,64 @@ Page({
           this.showPlaceholderToast("暂时无法打开我的页面");
         }
       });
+  },
+
+  onLayerButtonTap() {
+    if (this._layerPanelCloseTimer) {
+      clearTimeout(this._layerPanelCloseTimer);
+      this._layerPanelCloseTimer = null;
+    }
+    this.setData({ layerPanelVisible: true, layerPanelClosing: false });
+  },
+
+  onLayerPanelMaskTap() {
+    this.closeLayerPanel();
+  },
+
+  onLayerPanelClose() {
+    this.closeLayerPanel();
+  },
+
+  closeLayerPanel() {
+    if (!this.data.layerPanelVisible) {
+      return;
+    }
+    if (this._layerPanelCloseTimer) {
+      clearTimeout(this._layerPanelCloseTimer);
+      this._layerPanelCloseTimer = null;
+    }
+    this.setData({ layerPanelClosing: true });
+    this._layerPanelCloseTimer = setTimeout(() => {
+      this.setData({ layerPanelVisible: false, layerPanelClosing: false });
+      this._layerPanelCloseTimer = null;
+    }, 220);
+  },
+
+  onMapLayerSelect(event = {}) {
+    const type = event?.currentTarget?.dataset?.type || "";
+    const nextType = type === "satellite" ? "satellite" : "standard";
+    const enableSatellite = nextType === "satellite";
+    this.setData({
+      mapLayerType: nextType,
+      enableSatellite
+    });
+  },
+
+  onAirBoardSwitchChange(event = {}) {
+    const enabled = !!event?.detail?.value;
+    this.setData({ airBoardEnabled: enabled });
+  },
+
+  onMapElementToggle(event = {}) {
+    const id = event?.currentTarget?.dataset?.id;
+    if (!id) return;
+    const next = (this.data.mapElementOptions || []).map((item) => {
+      if (item.id === id) {
+        return Object.assign({}, item, { enabled: !item.enabled });
+      }
+      return item;
+    });
+    this.setData({ mapElementOptions: next });
   },
 
   onMarkerButtonTap() {
