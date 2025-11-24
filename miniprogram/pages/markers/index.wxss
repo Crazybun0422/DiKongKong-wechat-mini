@@ -14,6 +14,233 @@
   background: #f5f5f7;
 }
 
+.center-tabs {
+  display: flex;
+  gap: 12rpx;
+  padding: 24rpx 32rpx 12rpx;
+  background: #f5f5f7;
+}
+
+.center-tab {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx 12rpx 18rpx;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 32rpx;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.center-tab.is-active {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.center-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 4rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #000, #3b3b3b);
+  box-shadow: 0 6rpx 14rpx rgba(0, 0, 0, 0.12);
+}
+
+.center-placeholder {
+  flex: 1;
+  padding: 120rpx 48rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 24rpx;
+  text-align: center;
+  background: #f5f5f7;
+}
+
+.center-placeholder-icon {
+  width: 120rpx;
+  height: 120rpx;
+  display: block;
+}
+
+.center-placeholder-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.center-placeholder-desc {
+  font-size: 26rpx;
+  color: #6b7280;
+}
+
+.my-marker-filters {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  padding: 0 2rpx;
+}
+
+.my-marker-filter {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 26rpx;
+  transition: all 0.2s ease;
+}
+
+.my-marker-filter.is-active {
+  background: #000;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.12);
+}
+
+.my-marker-empty-card {
+  margin-top: 8rpx;
+  gap: 14rpx;
+}
+
+.my-marker-empty-icon-wrapper {
+  box-shadow: none;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.my-marker-empty-icon {
+  width: 90rpx;
+  height: 90rpx;
+}
+
+.my-marker-desc-box {
+  width: 100%;
+  margin-top: 4rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  background: rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  box-sizing: border-box;
+}
+
+.my-marker-desc-line {
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.pin-field .pin-selector {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 16rpx;
+  padding: 18rpx 20rpx;
+}
+
+.pin-selector-text {
+  font-size: 28rpx;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.pin-selector-arrow-img {
+  width: 32rpx;
+  height: 32rpx;
+  margin-left: 14rpx;
+  flex-shrink: 0;
+  display: block;
+  opacity: 0.65;
+}
+
+.pin-selector-arrow {
+  font-size: 32rpx;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.my-pin-media-grid {
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.my-pin-media {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 16rpx;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.my-pin-media-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.my-pin-media-remove {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  width: 38rpx;
+  height: 38rpx;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.my-pin-media-add {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 16rpx;
+  border: 2rpx dashed rgba(0, 0, 0, 0.12);
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+}
+
+.my-pin-media-plus {
+  width: 54rpx;
+  height: 54rpx;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  color: #111827;
+}
+
+.my-pin-media-add-text {
+  font-size: 26rpx;
+  color: #4b5563;
+}
+
+.pin-publish-row {
+  align-items: center;
+}
+
+.pin-publish-row .field-label {
+  margin-bottom: 0;
+}
+
 .markers-static {
   padding: 24rpx 32rpx 12rpx;
   box-sizing: border-box;

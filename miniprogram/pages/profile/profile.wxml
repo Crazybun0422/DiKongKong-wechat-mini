@@ -72,7 +72,8 @@
               bindtap="onListItemTap"
             >
               <view class="profile-list-left">
-                <text class="profile-list-text">我的标记</text>
+                <image class="profile-list-icon" src="/assets/idea.png" mode="aspectFit" />
+                <text class="profile-list-text">创作中心</text>
                 <!-- <text class="profile-list-tag">内测中</text> -->
               </view>
               <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />

@@ -88,6 +88,10 @@
   opacity: 0.95;
 }
 
+.center-pin--satellite {
+  filter: brightness(0) saturate(100%) invert(1);
+}
+
 .preflight-overlay {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 120rpx);

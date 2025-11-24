@@ -262,6 +262,14 @@ button.profile-list-item::after {
   gap: 16rpx;
 }
 
+.profile-list-icon {
+  width: 44rpx;
+  height: 44rpx;
+  flex-shrink: 0;
+  filter: brightness(0) saturate(100%);
+  opacity: 0.85;
+}
+
 .profile-list-text {
   font-size: 28rpx;
   color: #0f172a;

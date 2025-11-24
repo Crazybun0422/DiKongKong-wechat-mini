@@ -1,0 +1,120 @@
+<view class="pin-picker-page">
+  <view class="picker-map-wrap">
+    <map
+      id="pin-picker-map"
+      class="picker-map"
+      latitude="{{latitude}}"
+      longitude="{{longitude}}"
+      scale="{{scale}}"
+      show-location="{{showUserLocation}}"
+      enable-overlooking="{{false}}"
+      enable-3D="{{false}}"
+      enable-zoom="{{true}}"
+      enable-scroll="{{true}}"
+      enable-satellite="{{false}}"
+      enable-traffic="{{false}}"
+      bindregionchange="onRegionChange"
+    ></map>
+    <image
+      class="center-pin {{selectedType.category === 'POINT' ? 'is-point' : ''}}"
+      src="{{selectedType.category === 'POINT' ? selectedType.icon : '/assets/position.png'}}"
+      mode="aspectFit"
+    />
+    <image class="center-pin-type" src="{{selectedType.icon}}" mode="aspectFit" />
+
+    <view class="picker-search-panel">
+      <view class="search-row">
+        <view class="search-stack">
+          <view class="search-box {{searchPanelFocused ? 'is-active' : ''}}">
+            <image class="search-icon" src="/assets/search.png" mode="aspectFit" />
+            <input
+              class="search-input"
+              type="text"
+              confirm-type="search"
+              placeholder="搜索地点、楼宇或关键字"
+              placeholder-style="color:#9ca3af"
+              value="{{searchKeyword}}"
+              maxlength="60"
+              bindinput="onSearchInput"
+              bindfocus="onSearchFocus"
+              bindblur="onSearchBlur"
+              bindconfirm="onSearchConfirm"
+            />
+            <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onSearchClear">×</view>
+          </view>
+          <view
+            class="search-suggest-card"
+            wx:if="{{(searchPanelFocused || searchSuggestions.length) && (searchSuggestions.length || searchSuggestLoading || searchSuggestError)}}"
+          >
+            <view class="search-suggest-loading" wx:if="{{searchSuggestLoading}}">
+              正在匹配周边地点...
+            </view>
+            <view class="search-suggest-empty" wx:elif="{{searchSuggestError}}">
+              {{searchSuggestError}}
+            </view>
+            <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
+              <block wx:for="{{searchSuggestions}}" wx:key="id">
+                <view class="search-suggest-item" data-index="{{index}}" bindtap="onSuggestionTap">
+                  <view class="suggest-title">{{item.title}}</view>
+                  <view class="suggest-address" wx:if="{{item.address}}">{{item.address}}</view>
+                </view>
+              </block>
+            </scroll-view>
+          </view>
+        </view>
+        <button
+          class="locate-circle"
+          hover-class="locate-hover"
+          hover-start-time="10"
+          hover-stay-time="60"
+          bindtap="onLocateTap"
+        >
+          <image class="locate-icon" src="/assets/location2.png" mode="widthFix" />
+        </button>
+      </view>
+      <view class="type-pill" bindtap="toggleTypeMenu">
+        <view class="type-pill-left">
+          <image class="type-pill-icon" src="{{selectedType.icon}}" mode="aspectFit" />
+          <text class="type-pill-label">{{selectedType.label || '通用'}}</text>
+        </view>
+        <image class="type-pill-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
+      </view>
+    </view>
+
+  </view>
+
+  <view
+    wx:if="{{typeMenuVisible}}"
+    class="type-sheet-overlay"
+    bindtap="closeTypeMenu"
+  >
+    <view class="type-sheet" catchtap="noop">
+      <view class="type-sheet-body">
+        <view class="type-sheet-categories">
+          <block wx:for="{{typeSections}}" wx:key="id">
+            <view
+              class="type-category {{activeTypeSectionId === item.id ? 'is-active' : ''}}"
+              data-section-id="{{item.id}}"
+              bindtap="onTypeSectionTap"
+            >
+              <text class="type-category-label">{{item.label}}</text>
+            </view>
+          </block>
+        </view>
+        <view class="type-sheet-options">
+          <block wx:for="{{activeTypeOptions}}" wx:key="id">
+            <view
+              class="type-option"
+              data-typeid="{{item.id}}"
+              bindtap="onTypeSelect"
+            >
+              <image class="type-option-icon" src="{{item.icon}}" mode="aspectFit" />
+              <text class="type-option-label">{{item.label}}</text>
+              <text class="type-option-check" wx:if="{{selectedType.id === item.id}}">✓</text>
+            </view>
+          </block>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

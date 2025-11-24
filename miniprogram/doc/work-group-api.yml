@@ -30,13 +30,26 @@ paths:
       description: |
         * 归属人：可看到自己创建的工作组，若状态为封禁则返回状态字段提示已封禁。
         * 成员：仅能看到自己参与且处于激活状态的工作组。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseWorkGroupList'
+                $ref: '#/components/schemas/ApiResponseWorkGroupPage'
   /api/work-groups/{id}:
     put:
       summary: 更新工作组基本信息
@@ -131,13 +144,25 @@ paths:
           schema:
             $ref: '#/components/schemas/WorkGroupStatus'
           description: 过滤指定状态的工作组，缺省返回全部。
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseWorkGroupList'
+                $ref: '#/components/schemas/ApiResponseWorkGroupPage'
   /api/admin/work-groups/{id}/ban:
     post:
       summary: 封禁指定工作组
@@ -307,6 +332,11 @@ components:
           type: array
           items:
             type: string
+        pinIds:
+          type: array
+          items:
+            type: string
+          description: 该工作组下关联的 pin 标记 ID 列表。
         status:
           $ref: '#/components/schemas/WorkGroupStatus'
         ownerFeatureCode:
@@ -338,7 +368,7 @@ components:
     FeatureCodeProfilePage:
       type: object
       properties:
-        items:
+        content:
           type: array
           items:
             $ref: '#/components/schemas/FeatureCodeProfile'
@@ -378,6 +408,36 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/WorkGroupResponse'
+    WorkGroupPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+        page:
+          type: integer
+          description: 当前页码（从 0 开始）。
+        size:
+          type: integer
+          description: 当前页容量。
+        totalElements:
+          type: integer
+          description: 总记录数。
+        totalPages:
+          type: integer
+          description: 总页数。
+    ApiResponseWorkGroupPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WorkGroupPage'
     ApiResponseFeatureCodeProfileList:
       type: object
       properties:

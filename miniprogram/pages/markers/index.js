@@ -25,8 +25,22 @@ const STATIC_ASSETS = {
   add: "/assets/add.png",
   exposure: "/assets/exposure.png",
   telephone: "/assets/telephone.png",
-  defaultCover: "/assets/no-image.png"
+  defaultCover: "/assets/no-image.png",
+  emptyPin: "/assets/empty-pin.png"
 };
+
+const CENTER_TABS = [
+  { id: "MERCHANT", label: "商户入驻" },
+  { id: "MY_MARKERS", label: "我的标记" },
+  { id: "WORKGROUP", label: "工作组" }
+];
+
+const MY_MARKER_FILTERS = [
+  { id: "ALL", label: "全部" },
+  { id: "PRIVATE", label: "私有" },
+  { id: "WORKGROUP", label: "工作组" },
+  { id: "PUBLISHED", label: "发布" }
+];
 
 const STATUS_TABS = [
   { id: "ALL", label: "全部" },
@@ -60,6 +74,12 @@ const INDUSTRY_HONOR_TAG_LIMIT = 5;
 const ATTACHMENT_MAX_COUNT = 1;
 const QR_CODE_MAX_COUNT = 2;
 const ATTACHMENT_FIXED_LABEL = "企业产品和业务介绍";
+const PIN_MEDIA_MAX_COUNT = 3;
+const PIN_CATEGORY_LABELS = {
+  POINT: "点",
+  LINE: "线",
+  AREA: "面"
+};
 
 function createEmptyForm() {
   return {
@@ -80,10 +100,42 @@ function createEmptyForm() {
   };
 }
 
+function createEmptyPinForm() {
+  return {
+    geometryType: "POINT_DEFAULT",
+    geometryLabel: "点-通用",
+    geometryCategory: "POINT",
+    latitude: null,
+    longitude: null,
+    coordinateText: "",
+    addressMain: "",
+    addressDetail: "",
+    images: [],
+    name: "",
+    description: "",
+    workspace: "",
+    publishToPlatform: false
+  };
+}
+
+function hasValidCoordinate(lat, lng) {
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
 Page({
   data: {
     loading: false,
     listRefreshing: false,
+    centerTabs: CENTER_TABS,
+    activeCenterTab: CENTER_TABS[0].id,
+    myMarkerFilters: MY_MARKER_FILTERS,
+    activeMyMarkerFilter: MY_MARKER_FILTERS[0].id,
+    myMarkers: [],
+    myVisibleMarkers: [],
+    showMyPinCreate: false,
+    myPinForm: createEmptyPinForm(),
+    pinSubmitting: false,
+    pinError: "",
     markers: [],
     visibleMarkers: [],
     error: "",
@@ -339,12 +391,55 @@ Page({
     this.applyProfileSnapshot(updatedProfile);
   },
 
+  onCenterTabTap(e) {
+    const nextTab = e?.currentTarget?.dataset?.tab;
+    if (!nextTab || nextTab === this.data.activeCenterTab) return;
+    const updates = {
+      activeCenterTab: nextTab
+    };
+    if (nextTab !== "MERCHANT" && (this.data.showCreate || this.data.showDetail)) {
+      updates.showCreate = false;
+      updates.showDetail = false;
+    }
+    if (nextTab !== "MY_MARKERS" && this.data.showMyPinCreate) {
+      updates.showMyPinCreate = false;
+    }
+    this.setData(updates);
+    if (nextTab === "MERCHANT" && !this.data.hasLoaded && !this.data.loading) {
+      this.refreshMarkers({ silent: false });
+    }
+    if (nextTab === "MY_MARKERS") {
+      this.applyMyMarkerFilters();
+    }
+  },
+
+  onMyMarkerFilterTap(e) {
+    const filter = e?.currentTarget?.dataset?.filter;
+    if (!filter || filter === this.data.activeMyMarkerFilter) return;
+    this.setData({ activeMyMarkerFilter: filter });
+    this.applyMyMarkerFilters();
+  },
+
   onPullDownRefresh() {
     this.refreshMarkers({ silent: true }).finally(() => {
       if (typeof wx.stopPullDownRefresh === "function") {
         wx.stopPullDownRefresh();
       }
     });
+  },
+
+  applyMyMarkerFilters(list = this.data.myMarkers, filter = this.data.activeMyMarkerFilter) {
+    let visible = Array.isArray(list) ? list.slice() : [];
+    if (filter !== "ALL") {
+      visible = visible.filter((item = {}) => {
+        const scope = (item.scope || item.permission || "").toUpperCase();
+        if (filter === "PRIVATE") return scope === "PRIVATE";
+        if (filter === "WORKGROUP") return scope === "WORKGROUP" || scope === "TEAM";
+        if (filter === "PUBLISHED") return scope === "PUBLISHED" || scope === "PUBLIC";
+        return true;
+      });
+    }
+    this.setData({ myVisibleMarkers: visible });
   },
 
   refreshMarkers(options = {}) {
@@ -621,6 +716,10 @@ Page({
   },
 
   onCreateTap() {
+    if (this.data.activeCenterTab === "MY_MARKERS") {
+      this.openMyPinCreate();
+      return;
+    }
     this.setData(
       {
         showCreate: true,
@@ -641,6 +740,123 @@ Page({
         this.ensureValidPaymentSelection();
       }
     );
+  },
+
+  openMyPinCreate() {
+    this.setData({
+      showMyPinCreate: true,
+      myPinForm: createEmptyPinForm(),
+      pinSubmitting: false,
+      pinError: ""
+    });
+  },
+
+  onCloseMyPinCreate() {
+    if (this.data.pinSubmitting) return;
+    this.setData({ showMyPinCreate: false, pinError: "" });
+  },
+
+  onPinPickerTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    const payload = {};
+    if (hasValidCoordinate(this.data.myPinForm.latitude, this.data.myPinForm.longitude)) {
+      payload.latitude = this.data.myPinForm.latitude;
+      payload.longitude = this.data.myPinForm.longitude;
+    }
+    payload.typeId = this.data.myPinForm.geometryType;
+    wx.navigateTo({
+      url: "/pages/markers/pin-picker/index",
+      events: {
+        pinSelected: (detail = {}) => this.applyPinSelection(detail)
+      },
+      success: (res) => {
+        const channel = res?.eventChannel;
+        if (channel && typeof channel.emit === "function") {
+          channel.emit("initLocation", payload);
+        }
+      }
+    });
+  },
+
+  applyPinSelection(detail = {}) {
+    const cat = detail.category || "";
+    const label = detail.typeLabel || detail.typeId || "通用";
+    const prefix = PIN_CATEGORY_LABELS[cat] || "";
+    const combinedLabel = prefix ? `${prefix}-${label}` : label;
+    this.setData({
+      "myPinForm.latitude": detail.latitude ?? null,
+      "myPinForm.longitude": detail.longitude ?? null,
+      "myPinForm.coordinateText": detail.coordinateText || "",
+      "myPinForm.addressMain": detail.addressMain || "",
+      "myPinForm.addressDetail": detail.addressDetail || "",
+      "myPinForm.geometryType": detail.typeId || detail.type || "POINT_DEFAULT",
+      "myPinForm.geometryCategory": cat || "POINT",
+      "myPinForm.geometryLabel": combinedLabel
+    });
+  },
+
+  onPinNameInput(e) {
+    this.setData({ "myPinForm.name": e?.detail?.value || "" });
+  },
+
+  onPinDescInput(e) {
+    this.setData({ "myPinForm.description": e?.detail?.value || "" });
+  },
+
+  onPinWorkspaceInput(e) {
+    this.setData({ "myPinForm.workspace": e?.detail?.value || "" });
+  },
+
+  onPinPublishToggle(e) {
+    this.setData({ "myPinForm.publishToPlatform": !!e?.detail?.value });
+  },
+
+  onAddPinMediaTap() {
+    const current = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images.length : 0;
+    const remaining = Math.max(0, PIN_MEDIA_MAX_COUNT - current);
+    if (remaining <= 0) {
+      wx.showToast({ title: `最多上传${PIN_MEDIA_MAX_COUNT}个`, icon: "none" });
+      return;
+    }
+    wx.chooseImage({
+      count: remaining,
+      sizeType: ["compressed"],
+      success: (res) => {
+        const paths = res?.tempFilePaths || [];
+        if (!paths.length) return;
+        this.uploadFiles("pinImages", paths);
+      }
+    });
+  },
+
+  onRemovePinMediaTap(e) {
+    const index = e?.currentTarget?.dataset?.index;
+    if (index === undefined || index === null) return;
+    const list = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images.slice() : [];
+    list.splice(index, 1);
+    this.setData({ "myPinForm.images": list });
+  },
+
+  onSubmitPinForm() {
+    if (this.data.pinSubmitting) return;
+    const { geometryType, latitude, longitude, name, images } = this.data.myPinForm;
+    if (!geometryType || !hasValidCoordinate(latitude, longitude)) {
+      wx.showToast({ title: "请先开始标记", icon: "none" });
+      return;
+    }
+    if (!name) {
+      wx.showToast({ title: "请填写名称", icon: "none" });
+      return;
+    }
+    this.setData({ pinSubmitting: true, pinError: "" });
+    // TODO: 接入 pin-api 创建接口
+    setTimeout(() => {
+      this.setData({ pinSubmitting: false, showMyPinCreate: false });
+      wx.showToast({ title: "已保存标记", icon: "success" });
+    }, 300);
   },
 
   onGoHomeTap(e) {
@@ -1277,6 +1493,10 @@ Page({
         }));
         if (type === "images") {
           this.setData({ "form.images": this.data.form.images.concat(mapped) });
+        } else if (type === "pinImages") {
+          const current = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images : [];
+          const next = current.concat(mapped).slice(0, PIN_MEDIA_MAX_COUNT);
+          this.setData({ "myPinForm.images": next });
         } else if (type === "businessLicense") {
           this.setData({ "form.businessLicense": mapped[0] || null });
         } else if (type === "qrCodeImages") {

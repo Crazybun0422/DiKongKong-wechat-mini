@@ -35,7 +35,11 @@
         </cover-view>
       </cover-view>
     </cover-view>
-    <image class="center-pin" src="/assets/position.png" mode="widthFix" />
+    <image
+      class="center-pin {{mapLayerType === 'satellite' ? 'center-pin--satellite' : ''}}"
+      src="/assets/position.png"
+      mode="widthFix"
+    />
     <view class="map-scale" wx:if="{{scaleBarVisible}}">
       <text class="map-scale-label">{{scaleBarLabel}}</text>
       <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
@@ -154,7 +158,7 @@
         hover-class="dashboard-toggle-hover"
         bindtap="onMarkerButtonTap"
       >
-        <image class="dashboard-toggle-icon" src="/assets/target.png" mode="aspectFit" />
+        <image class="dashboard-toggle-icon" src="/assets/idea.png" mode="aspectFit" />
       </button>
       <button
         class="marker-button"

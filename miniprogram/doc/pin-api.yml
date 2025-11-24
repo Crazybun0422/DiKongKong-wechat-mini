@@ -168,14 +168,33 @@ paths:
   /api/pins/mine:
     get:
       summary: 我的 Pin 标记
-      description: 需登录。返回当前用户创建的全部 Pin 标记。
+      description: 需登录。分页返回当前用户创建的 Pin 标记。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+        - in: query
+          name: visibility
+          schema:
+            type: string
+            enum: [PRIVATE, GROUP, PUBLIC]
+          description: 可选。按可见性筛选，缺省为全部；PRIVATE=私有，GROUP=共享/群组，PUBLIC=公开。
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponsePinList'
+                $ref: '#/components/schemas/ApiResponsePinPage'
         '401':
           description: 未授权
           content:
@@ -228,14 +247,33 @@ paths:
   /api/admin/pins:
     get:
       summary: 管理端读取所有 Pin 标记
-      description: 需管理员身份。返回全部 Pin 标记。
+      description: 需管理员身份。分页返回全部 Pin 标记。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+        - in: query
+          name: visibility
+          schema:
+            type: string
+            enum: [PRIVATE, GROUP, PUBLIC]
+          description: 可选。按可见性筛选，缺省为全部；PRIVATE=私有，GROUP=共享/群组，PUBLIC=公开。
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponsePinList'
+                $ref: '#/components/schemas/ApiResponsePinPage'
         '401':
           description: 未授权
           content:
@@ -342,6 +380,36 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/PinResponse'
+    PinPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PinResponse'
+        page:
+          type: integer
+          description: 当前页码（从 0 开始）。
+        size:
+          type: integer
+          description: 当前页容量。
+        totalElements:
+          type: integer
+          description: 总记录数。
+        totalPages:
+          type: integer
+          description: 总页数。
+    ApiResponsePinPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PinPage'
     ApiResponsePinList:
       type: object
       properties:
