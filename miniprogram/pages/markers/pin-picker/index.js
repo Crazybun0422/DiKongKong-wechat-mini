@@ -7,6 +7,15 @@ const DEFAULT_CENTER = {
   longitude: 116.4074,
   scale: 16
 };
+const COORD_ADJUST_STEP = 0.00001;
+const hasSavedLocationPayload = (payload = {}) => {
+  if (!payload) return false;
+  const lat = normalizeCoord(payload.latitude);
+  const lng = normalizeCoord(payload.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return true;
+  const list = normalizeCoordinateList(payload.coordinates || payload.coordinateList || []);
+  return list.some((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+};
 
 const TYPE_SECTIONS = [
   {
@@ -42,6 +51,31 @@ function normalizeCoord(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
   return Number(num.toFixed(6));
+}
+
+function normalizeAltitude(value) {
+  if (value === undefined || value === null || value === "") return "";
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "";
+  return Number(num.toFixed(2));
+}
+
+function normalizeCoordinateItem(item = {}) {
+  const lat = normalizeCoord(item.latitude);
+  const lng = normalizeCoord(item.longitude);
+  return {
+    latitude: Number.isFinite(lat) ? lat : null,
+    longitude: Number.isFinite(lng) ? lng : null,
+    altitude: normalizeAltitude(item.altitude)
+  };
+}
+
+function normalizeCoordinateList(list) {
+  if (!Array.isArray(list) || !list.length) {
+    return [normalizeCoordinateItem({})];
+  }
+  const normalized = list.map((item) => normalizeCoordinateItem(item));
+  return normalized.length ? normalized : [normalizeCoordinateItem({})];
 }
 
 function formatCoordinateText(lat, lng) {
@@ -114,7 +148,10 @@ Page({
     selectedType: Object.assign({ category: "POINT" }, DEFAULT_TYPE),
     activeTypeSectionId: TYPE_SECTIONS[0].id,
     activeTypeOptions: TYPE_SECTIONS[0].options,
-    typeMenuVisible: false
+    typeMenuVisible: false,
+    coordinateList: normalizeCoordinateList(),
+    activeCoordIndex: 0,
+    coordAdjustStep: COORD_ADJUST_STEP
   },
 
   onLoad() {
@@ -180,13 +217,11 @@ Page({
   },
 
   requestInitialLocation() {
-    if (this.applyInitialPayload(this._initialPayload)) {
+    const moved = this.applyInitialPayload(this._initialPayload);
+    if (moved || hasSavedLocationPayload(this._initialPayload)) {
       return;
     }
-    const fallback = () => {
-      this.requestCurrentLocation({ silent: true });
-    };
-    this.ensureLocationPermission().then(fallback).catch(fallback);
+    // 若无保存数据，则保持默认中心，不再自动跳转当前位置
   },
 
   ensureLocationPermission() {
@@ -280,24 +315,41 @@ Page({
     const data = payload || {};
     const lat = normalizeCoord(data.latitude);
     const lng = normalizeCoord(data.longitude);
+    const coordinateList = normalizeCoordinateList(data.coordinates || data.coordinateList);
+    const activeCoordIndex = Math.min(
+      Math.max(Number(data.activeCoordIndex || 0), 0),
+      coordinateList.length - 1
+    );
+    this.setData({
+      coordinateList,
+      activeCoordIndex
+    });
+    let effectiveLat = lat;
+    let effectiveLng = lng;
+    if (!hasValidCoordinate(effectiveLat, effectiveLng)) {
+      const activeItem = coordinateList[activeCoordIndex] || {};
+      effectiveLat = normalizeCoord(activeItem.latitude);
+      effectiveLng = normalizeCoord(activeItem.longitude);
+    }
     let moved = false;
-    if (hasValidCoordinate(lat, lng)) {
+    if (hasValidCoordinate(effectiveLat, effectiveLng)) {
       this.setData({
-        latitude: lat,
-        longitude: lng,
-        selectedLatitude: lat,
-        selectedLongitude: lng,
-        coordinateText: formatCoordinateText(lat, lng),
+        latitude: effectiveLat,
+        longitude: effectiveLng,
+        selectedLatitude: effectiveLat,
+        selectedLongitude: effectiveLng,
+        coordinateText: formatCoordinateText(effectiveLat, effectiveLng),
         hasLocation: true,
         canConfirm: true,
         addressLoading: true,
         addressError: ""
       });
+      this.updateActiveCoordinate(effectiveLat, effectiveLng);
       if (this._ready) {
-        this.mapCtx && this.mapCtx.moveToLocation && this.mapCtx.moveToLocation({ latitude: lat, longitude: lng });
-        this.reverseGeocode(lat, lng);
+        this.mapCtx && this.mapCtx.moveToLocation && this.mapCtx.moveToLocation({ latitude: effectiveLat, longitude: effectiveLng });
+        this.reverseGeocode(effectiveLat, effectiveLng);
       } else {
-        this._pendingMoveTo = { latitude: lat, longitude: lng };
+        this._pendingMoveTo = { latitude: effectiveLat, longitude: effectiveLng };
       }
       moved = true;
     }
@@ -345,6 +397,7 @@ Page({
       addressLoading: true,
       addressError: ""
     });
+    this.updateActiveCoordinate(latitude, longitude);
     if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
       this.mapCtx.moveToLocation({ latitude, longitude });
     }
@@ -414,6 +467,7 @@ Page({
         addressError: "",
         addressLoading: true
       });
+      this.updateActiveCoordinate(latitude, longitude);
       this.reverseGeocode(latitude, longitude);
     }
   },
@@ -560,12 +614,134 @@ Page({
       coordinateText: this.data.coordinateText,
       typeId: this.data.selectedType.id,
       typeLabel: this.data.selectedType.label,
-      category: this.data.selectedType.category || this.findSectionByType(this.data.selectedType.id)
+      category: this.data.selectedType.category || this.findSectionByType(this.data.selectedType.id),
+      coordinates: this.data.coordinateList,
+      activeCoordIndex: this.data.activeCoordIndex
     };
     if (this._eventChannel && typeof this._eventChannel.emit === "function") {
       this._eventChannel.emit("pinSelected", result);
     }
     wx.navigateBack({ delta: 1 });
+  },
+
+  getSafeCoordinateList() {
+    const list = normalizeCoordinateList(this.data.coordinateList);
+    const activeIndex = Math.min(Math.max(Number(this.data.activeCoordIndex || 0), 0), list.length - 1);
+    if (list.length !== (this.data.coordinateList || []).length || activeIndex !== this.data.activeCoordIndex) {
+      this.setData({ coordinateList: list, activeCoordIndex: activeIndex });
+    }
+    return { list, activeIndex };
+  },
+
+  updateActiveCoordinate(latitude, longitude) {
+    const normLat = normalizeCoord(latitude);
+    const normLng = normalizeCoord(longitude);
+    const { list, activeIndex } = this.getSafeCoordinateList();
+    list[activeIndex] = Object.assign({}, list[activeIndex] || {}, {
+      latitude: Number.isFinite(normLat) ? normLat : null,
+      longitude: Number.isFinite(normLng) ? normLng : null
+    });
+    this.setData({ coordinateList: list, activeCoordIndex: activeIndex });
+  },
+
+  onAddCoordinate() {
+    const { list } = this.getSafeCoordinateList();
+    const lat = normalizeCoord(this.data.selectedLatitude);
+    const lng = normalizeCoord(this.data.selectedLongitude);
+    list.push({
+      latitude: Number.isFinite(lat) ? lat : null,
+      longitude: Number.isFinite(lng) ? lng : null,
+      altitude: ""
+    });
+    this.setData({
+      coordinateList: list,
+      activeCoordIndex: list.length - 1
+    });
+  },
+
+  onRemoveCoordinate(e) {
+    const index = Number(e?.currentTarget?.dataset?.index);
+    const { list } = this.getSafeCoordinateList();
+    if (list.length <= 1) return;
+    if (!Number.isInteger(index) || index < 0 || index >= list.length) return;
+    list.splice(index, 1);
+    const nextActive = Math.min(this.data.activeCoordIndex, list.length - 1);
+    this.setData({
+      coordinateList: list,
+      activeCoordIndex: nextActive
+    });
+    const nextItem = list[nextActive] || {};
+    const lat = normalizeCoord(nextItem.latitude);
+    const lng = normalizeCoord(nextItem.longitude);
+    if (hasValidCoordinate(lat, lng)) {
+      this.queueMapMove(lat, lng);
+    }
+  },
+
+  onActivateCoordinate(e) {
+    const index = Number(e?.currentTarget?.dataset?.index);
+    const { list } = this.getSafeCoordinateList();
+    if (!Number.isInteger(index) || index < 0 || index >= list.length) return;
+    const item = list[index] || {};
+    const lat = normalizeCoord(item.latitude);
+    const lng = normalizeCoord(item.longitude);
+    const nextData = {
+      activeCoordIndex: index
+    };
+    if (hasValidCoordinate(lat, lng)) {
+      nextData.selectedLatitude = lat;
+      nextData.selectedLongitude = lng;
+      nextData.coordinateText = formatCoordinateText(lat, lng);
+      nextData.hasLocation = true;
+      nextData.canConfirm = true;
+      this.queueMapMove(lat, lng);
+    }
+    this.setData(nextData);
+  },
+
+  onCoordinateInput(e) {
+    const index = Number(e?.currentTarget?.dataset?.index);
+    const field = e?.currentTarget?.dataset?.field;
+    const value = (e?.detail?.value || "").trim();
+    const { list } = this.getSafeCoordinateList();
+    if (!list[index]) return;
+    if (field === "altitude") {
+      list[index].altitude = normalizeAltitude(value);
+      this.setData({ coordinateList: list });
+      return;
+    }
+    if (field === "latitude" || field === "longitude") {
+      const num = normalizeCoord(value);
+      list[index][field] = Number.isFinite(num) ? num : null;
+      this.setData({ coordinateList: list });
+      if (index === this.data.activeCoordIndex) {
+        const lat = field === "latitude" ? num : normalizeCoord(list[index].latitude);
+        const lng = field === "longitude" ? num : normalizeCoord(list[index].longitude);
+        if (hasValidCoordinate(lat, lng)) {
+          this.queueMapMove(lat, lng);
+        }
+      }
+    }
+  },
+
+  onCoordinateAdjust(e) {
+    const index = Number(e?.currentTarget?.dataset?.index);
+    const field = e?.currentTarget?.dataset?.field;
+    const delta = Number(e?.currentTarget?.dataset?.delta || 0);
+    const { list } = this.getSafeCoordinateList();
+    if (!list[index]) return;
+    if (field !== "latitude" && field !== "longitude") return;
+    const current = Number(list[index][field] || 0);
+    const next = normalizeCoord(current + delta);
+    list[index] = Object.assign({}, list[index], {
+      [field]: Number.isFinite(next) ? next : list[index][field]
+    });
+    this.setData({ coordinateList: list, activeCoordIndex: index });
+    const lat = normalizeCoord(list[index].latitude);
+    const lng = normalizeCoord(list[index].longitude);
+    if (hasValidCoordinate(lat, lng)) {
+      this.queueMapMove(lat, lng);
+    }
   },
 
   findSectionByType(typeId) {

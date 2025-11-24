@@ -223,9 +223,14 @@
   background: linear-gradient(90deg, #000000, #2f2f2f);
   color: #fff;
   border-radius: 16rpx;
-  height: 96rpx;
-  font-size: 32rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  font-size: 28rpx;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20rpx;
 }
 
 .confirm-btn::after {
@@ -241,7 +246,7 @@
   background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: flex-end;
-  z-index: 40;
+  z-index: 400;
 }
 
 .type-sheet {
@@ -255,7 +260,7 @@
   overflow-y: hidden;
   position: relative;
   top: 0;
-  z-index: 200;
+  z-index: 410;
 }
 
 .type-sheet-body {
@@ -335,4 +340,173 @@
   font-size: 32rpx;
   color: #1d4ed8;
   padding: 0 6rpx;
+}
+
+.floating-confirm {
+  position: absolute;
+  left: 50%;
+  bottom: 24rpx;
+  transform: translateX(-50%);
+  width: 58%;
+  max-width: 460rpx;
+  z-index: 120;
+}
+
+.floating-confirm .confirm-btn {
+  width: 100%;
+  box-shadow: 0 10rpx 22rpx rgba(0, 0, 0, 0.18);
+}
+
+.coord-panel {
+  position: absolute;
+  right: 24rpx;
+  bottom: 180rpx;
+  width: 420rpx;
+  max-height: 500rpx;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 14rpx;
+  box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.12);
+  padding: 14rpx 14rpx 10rpx;
+  box-sizing: border-box;
+  z-index: 100;
+}
+
+.coord-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+  column-gap: 12rpx;
+}
+
+.coord-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #111827;
+}
+
+.coord-add {
+  background: #000;
+  color: #fff;
+  border-radius: 12rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 18rpx;
+  font-size: 22rpx;
+  border: none;
+  display: inline-flex;
+  align-items: left;
+  justify-content: center;
+  margin-left: auto;
+  min-width: 120rpx;
+  transform: translate(100rpx, 20rpx);
+}
+
+.coord-add.is-disabled {
+  opacity: 0.4;
+}
+
+.coord-list {
+  max-height: 430rpx;
+}
+
+.coord-item {
+  background: rgba(248, 249, 251, 0.86);
+  border-radius: 12rpx;
+  padding: 12rpx;
+  margin-top: 10rpx;
+  border: 2rpx solid transparent;
+  box-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.06);
+}
+
+.coord-item.is-active {
+  border-color: #111;
+  box-shadow: 0 8rpx 16rpx rgba(0, 0, 0, 0.1);
+}
+
+.coord-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6rpx;
+}
+
+.coord-item-label {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #111827;
+}
+
+.coord-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.coord-link {
+  font-size: 22rpx;
+  color: #0f172a;
+}
+
+.coord-link.danger {
+  color: #ef4444;
+}
+
+.coord-field {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 10rpx;
+  padding: 8rpx 10rpx;
+  margin-bottom: 8rpx;
+}
+
+.coord-field:last-child {
+  margin-bottom: 0;
+}
+
+.coord-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 24rpx;
+  color: #111827;
+}
+
+.micro-group {
+  display: flex;
+  gap: 6rpx;
+  flex-shrink: 0;
+}
+
+.micro-btn {
+  flex: 0 0 40rpx;
+  background: transparent;
+  color: #fff;
+ 
+  height: 48rpx;
+  width: 48rpx;
+  border: none;
+  font-size: 22rpx;
+  align-items: center;
+  justify-content: center;
+}
+
+.micro-btn.icon-btn {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.icon-btn-img {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+}
+
+.coord-add-icon {
+  width: 36rpx;
+  height: 36rpx;
+  display: block;
 }

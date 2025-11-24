@@ -110,6 +110,8 @@ function createEmptyPinForm() {
     coordinateText: "",
     addressMain: "",
     addressDetail: "",
+    coordinateList: [],
+    activeCoordIndex: 0,
     images: [],
     name: "",
     description: "",
@@ -120,6 +122,28 @@ function createEmptyPinForm() {
 
 function hasValidCoordinate(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+function normalizePinCoordValue(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Number(num.toFixed(6));
+}
+
+function normalizePinAltitude(value) {
+  if (value === undefined || value === null || value === "") return "";
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "";
+  return Number(num.toFixed(2));
+}
+
+function normalizePinCoordinateList(list) {
+  if (!Array.isArray(list) || !list.length) return [];
+  return list.map((item = {}) => ({
+    latitude: normalizePinCoordValue(item.latitude),
+    longitude: normalizePinCoordValue(item.longitude),
+    altitude: normalizePinAltitude(item.altitude)
+  }));
 }
 
 Page({
@@ -767,6 +791,13 @@ Page({
       payload.longitude = this.data.myPinForm.longitude;
     }
     payload.typeId = this.data.myPinForm.geometryType;
+    if (Array.isArray(this.data.myPinForm.coordinateList) && this.data.myPinForm.coordinateList.length) {
+      payload.coordinateList = normalizePinCoordinateList(this.data.myPinForm.coordinateList);
+      payload.activeCoordIndex = Math.min(
+        Math.max(Number(this.data.myPinForm.activeCoordIndex || 0), 0),
+        payload.coordinateList.length - 1
+      );
+    }
     wx.navigateTo({
       url: "/pages/markers/pin-picker/index",
       events: {
@@ -786,15 +817,25 @@ Page({
     const label = detail.typeLabel || detail.typeId || "通用";
     const prefix = PIN_CATEGORY_LABELS[cat] || "";
     const combinedLabel = prefix ? `${prefix}-${label}` : label;
+    const coordinateList = normalizePinCoordinateList(detail.coordinates || detail.coordinateList || []);
+    const activeCoordIndex = Math.min(
+      Math.max(Number(detail.activeCoordIndex || 0), 0),
+      coordinateList.length ? coordinateList.length - 1 : 0
+    );
+    const activeCoord = coordinateList[activeCoordIndex] || {};
+    const lat = detail.latitude ?? activeCoord.latitude ?? null;
+    const lng = detail.longitude ?? activeCoord.longitude ?? null;
     this.setData({
-      "myPinForm.latitude": detail.latitude ?? null,
-      "myPinForm.longitude": detail.longitude ?? null,
+      "myPinForm.latitude": lat,
+      "myPinForm.longitude": lng,
       "myPinForm.coordinateText": detail.coordinateText || "",
       "myPinForm.addressMain": detail.addressMain || "",
       "myPinForm.addressDetail": detail.addressDetail || "",
       "myPinForm.geometryType": detail.typeId || detail.type || "POINT_DEFAULT",
       "myPinForm.geometryCategory": cat || "POINT",
-      "myPinForm.geometryLabel": combinedLabel
+      "myPinForm.geometryLabel": combinedLabel,
+      "myPinForm.coordinateList": coordinateList,
+      "myPinForm.activeCoordIndex": activeCoordIndex
     });
   },
 

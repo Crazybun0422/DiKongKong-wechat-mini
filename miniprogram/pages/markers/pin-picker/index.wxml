@@ -20,7 +20,6 @@
       src="{{selectedType.category === 'POINT' ? selectedType.icon : '/assets/position.png'}}"
       mode="aspectFit"
     />
-    <image class="center-pin-type" src="{{selectedType.icon}}" mode="aspectFit" />
 
     <view class="picker-search-panel">
       <view class="search-row">
@@ -79,6 +78,121 @@
         </view>
         <image class="type-pill-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
       </view>
+    </view>
+
+    <view wx:if="{{selectedType.category === 'POINT'}}" class="floating-confirm">
+      <button class="confirm-btn" bindtap="onConfirm" disabled="{{!canConfirm}}">确认{{selectedType.label || '通用'}}</button>
+    </view>
+
+    <view wx:if="{{selectedType.category === 'POINT'}}" class="coord-panel" catchtap="noop">
+      <view class="coord-header">
+        <text class="coord-title">经纬度列表</text>
+        <button
+          class="coord-add {{selectedType.category === 'POINT' ? 'is-disabled' : ''}}"
+          size="mini"
+          bindtap="onAddCoordinate"
+          disabled="{{selectedType.category === 'POINT'}}"
+        >
+          <image class="coord-add-icon" src="/assets/cc-plus-square.png" mode="aspectFit" />
+        </button>
+      </view>
+      <scroll-view scroll-y class="coord-list">
+        <block wx:for="{{coordinateList}}" wx:key="index">
+          <view class="coord-item {{activeCoordIndex === index ? 'is-active' : ''}}">
+            <view class="coord-item-top">
+              <text class="coord-item-label">点{{index + 1}}</text>
+              <view class="coord-item-actions">
+                <text class="coord-link" data-index="{{index}}" bindtap="onActivateCoordinate">设为当前</text>
+                <text
+                  class="coord-link danger"
+                  wx:if="{{coordinateList.length > 1}}"
+                  data-index="{{index}}"
+                  bindtap="onRemoveCoordinate"
+                >
+                  删除
+                </text>
+              </view>
+            </view>
+            <view class="coord-field">
+              <input
+                class="coord-input"
+                type="digit"
+                value="{{item.latitude === null || item.latitude === undefined ? '' : item.latitude}}"
+                placeholder="请输入纬度"
+                data-index="{{index}}"
+                data-field="latitude"
+                bindinput="onCoordinateInput"
+              />
+              <view class="micro-group">
+                <button
+                  class="micro-btn icon-btn"
+                  size="mini"
+                  data-index="{{index}}"
+                  data-field="latitude"
+                  data-delta="{{coordAdjustStep}}"
+                  bindtap="onCoordinateAdjust"
+                >
+                  <image class="icon-btn-img" src="/assets/plus-circle-fill.png" mode="aspectFit" />
+                </button>
+                <button
+                  class="micro-btn icon-btn"
+                  size="mini"
+                  data-index="{{index}}"
+                  data-field="latitude"
+                  data-delta="{{0 - coordAdjustStep}}"
+                  bindtap="onCoordinateAdjust"
+                >
+                  <image class="icon-btn-img" src="/assets/minus-circle-fill.png" mode="aspectFit" />
+                </button>
+              </view>
+            </view>
+            <view class="coord-field">
+              <input
+                class="coord-input"
+                type="digit"
+                value="{{item.longitude === null || item.longitude === undefined ? '' : item.longitude}}"
+                placeholder="请输入经度"
+                data-index="{{index}}"
+                data-field="longitude"
+                bindinput="onCoordinateInput"
+              />
+              <view class="micro-group">
+                <button
+                  class="micro-btn icon-btn"
+                  size="mini"
+                  data-index="{{index}}"
+                  data-field="longitude"
+                  data-delta="{{coordAdjustStep}}"
+                  bindtap="onCoordinateAdjust"
+                >
+                  <image class="icon-btn-img" src="/assets/plus-circle-fill.png" mode="aspectFit" />
+                </button>
+                <button
+                  class="micro-btn icon-btn"
+                  size="mini"
+                  data-index="{{index}}"
+                  data-field="longitude"
+                  data-delta="{{0 - coordAdjustStep}}"
+                  bindtap="onCoordinateAdjust"
+                >
+                  <image class="icon-btn-img" src="/assets/minus-circle-fill.png" mode="aspectFit" />
+                </button>
+              </view>
+            </view>
+            <view wx:if="{{selectedType.id === 'POINT_ELEVATION'}}" class="coord-field">
+              <input
+                class="coord-input"
+                type="digit"
+                value="{{item.altitude}}"
+                placeholder="请输入高度（必填，单位米）"
+                data-index="{{index}}"
+                data-field="altitude"
+                bindinput="onCoordinateInput"
+              />
+            </view>
+          </view>
+        </block>
+      </scroll-view>
     </view>
 
   </view>
