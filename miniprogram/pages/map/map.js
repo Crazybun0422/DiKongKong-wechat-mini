@@ -485,6 +485,7 @@ Page({
     this._djiPolygons = [];
     this._djiCircles = [];
     this._djiZonesReady = false;
+    this._mapLayerSettingsInitPromise = null;
     this._nfzPolygons = [];
     this._nfzCircles = [];
     this._uomTileMasks = new Map();
@@ -520,6 +521,7 @@ Page({
         this.forceShowUomWarningFallback();
       }, 1500);
     }
+    this.bootstrapMapLayerSettings(true);
     this._markerExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
@@ -1895,7 +1897,7 @@ Page({
       this._layerPanelCloseTimer = null;
     }
     this.setData({ layerPanelVisible: true, layerPanelClosing: false });
-    this.loadMapLayerSettings(true);
+    this.loadMapLayerSettings(false);
   },
 
   onLayerPanelMaskTap() {
@@ -2154,6 +2156,31 @@ Page({
       .finally(() => {
         this.setData({ mapLayerSettingsLoading: false });
       });
+  },
+
+  bootstrapMapLayerSettings(force = false) {
+    if (this._mapLayerSettingsInitPromise) return this._mapLayerSettingsInitPromise;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (apiBase && token) {
+      this.loadMapLayerSettings(force);
+      return Promise.resolve();
+    }
+    const promise = this.ensureProfileAuthenticated();
+    if (!promise || typeof promise.then !== "function") {
+      return Promise.resolve();
+    }
+    this._mapLayerSettingsInitPromise = promise
+      .then(() => {
+        this.loadMapLayerSettings(force);
+      })
+      .catch((err) => {
+        console.warn("bootstrap map layer settings failed", err);
+      })
+      .finally(() => {
+        this._mapLayerSettingsInitPromise = null;
+      });
+    return this._mapLayerSettingsInitPromise;
   },
 
   persistMapLayerSettings() {
@@ -3810,7 +3837,7 @@ Page({
 
   describeDjiStatus(areas) {
     if (this.data.djiNoFlyZoneEnabled === false) {
-      return { status: "已关闭", extra: "", tone: "neutral", color: "" };
+      return { status: "已禁用", extra: "", tone: "warn", color: "#f59e0b" };
     }
     const fallback = { status: "暂无空域数据", extra: "", tone: "neutral", color: "" };
     if (typeof areas === "undefined") {
@@ -3867,7 +3894,7 @@ Page({
 
   describeTemporaryNoFlyStatus() {
     if (this.data.temporaryNoFlyZoneEnabled === false) {
-      return { zoneInfo: null, text: "已关闭", tone: "neutral" };
+      return { zoneInfo: null, text: "已禁用", tone: "warn" };
     }
     if (!this._noFlyZonesReady) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
@@ -3905,7 +3932,7 @@ Page({
 
   describeUomStatus() {
     if (this.data.uomDivisionEnabled === false) {
-      return { status: "已关闭", tone: "neutral" };
+      return { status: "已禁用", tone: "warn" };
     }
     const currentScale = Number(this.data?.scale);
     // if (Number.isFinite(currentScale) && currentScale > 16) {
