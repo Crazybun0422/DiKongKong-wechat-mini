@@ -38,11 +38,6 @@ const DEFAULT_CENTER = {
   longitude: 116.39747
 };
 
-const matchesQQ = (val) => {
-  if (!val && val !== 0) return false;
-  return `${val}`.toLowerCase().includes("qq");
-};
-
 const isWeChatRuntime = () => {
   try {
     if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
@@ -54,37 +49,6 @@ const isWeChatRuntime = () => {
     // ignore
   }
   return false;
-};
-
-const readSystemInfoSafe = (provider) => {
-  try {
-    if (provider && typeof provider.getSystemInfoSync === "function") {
-      return provider.getSystemInfoSync() || {};
-    }
-  } catch (err) {
-    // ignore
-  }
-  return {};
-};
-
-const isQqMiniProgram = () => {
-  const globalQQ = typeof qq !== "undefined" ? qq : (typeof globalThis !== "undefined" ? globalThis.qq : null);
-  const qqInfo = readSystemInfoSafe(globalQQ);
-  const wxInfo = readSystemInfoSafe(typeof wx !== "undefined" ? wx : null);
-  const infoList = [qqInfo, wxInfo];
-  if (globalQQ && typeof globalQQ.getSystemInfoSync === "function") return true;
-  return infoList.some((info) => {
-    if (!info) return false;
-    return (
-      matchesQQ(info.AppPlatform) ||
-      matchesQQ(info.appName) ||
-      matchesQQ(info.app) ||
-      matchesQQ(info.platform) ||
-      matchesQQ(info.host) ||
-      matchesQQ(info.hostName) ||
-      matchesQQ(info.environment)
-    );
-  });
 };
 
 const compareVersion = (v1, v2) => {
@@ -487,7 +451,6 @@ Page({
     this._wmsOverlayMap = new Map();
     this._wmsOverlayHealth = new Map();
     this._wmsOverlaySeed = 0;
-    this._isQQ = false;
     this._uomEnvReported = false;
     this._uomModalShown = false;
     this._uomFallbackTimer = null;
@@ -3364,9 +3327,6 @@ Page({
 
   shouldShowUomTileWarning() {
     const dismissed = !!this.data.uomTileWarningDismissed;
-    if (this._isQQ && !dismissed) {
-      return true;
-    }
     if (this._uomOverlayUnsupported || this._uomOverlayFailed) {
       return true;
     }
@@ -3410,9 +3370,6 @@ Page({
       const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
       const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
       const platform = (info.platform || "").toLowerCase();
-      const isQQRuntime = isQqMiniProgram();
-      const isQQ = appName.includes("qq") || appPlatform.includes("qq") || platform.includes("qq") || isQQRuntime;
-      this._isQQ = isQQ;
       this.reportUomEnv({
         appName,
         appPlatform,
@@ -3420,22 +3377,15 @@ Page({
         host: info.host || "",
         hostName: info.hostName || "",
         sdk: this._sdkVersion,
-        isQQ,
+        isQQ: false,
         hasGlobalQQ: typeof qq !== "undefined"
       });
       const hasApi = !!(this.mapCtx && typeof this.mapCtx.addGroundOverlay === "function");
       const sdkOk = this._sdkVersion ? compareVersion(this._sdkVersion, MIN_GROUND_OVERLAY_SDK) >= 0 : true;
       const isDesktopEnv = platform && platform !== "ios" && platform !== "android";
-      if (!hasApi || !sdkOk || isDesktopEnv || isQQ) {
+      if (!hasApi || !sdkOk || isDesktopEnv) {
         this._uomOverlayUnsupported = true;
         this._uomOverlayFailed = true;
-      }
-      if (this._isQQ && !this.data.uomTileWarningDismissed) {
-        this.setData({ uomTileWarningVisible: true });
-        if (!this._uomModalShown) {
-          this._uomModalShown = true;
-          this.showUomWarningModal();
-        }
       }
     } catch (err) {
       console.warn("detectUomOverlaySupport failed", err);
