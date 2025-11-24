@@ -1,0 +1,207 @@
+openapi: 3.0.1
+info:
+  title: Like APIs
+  description: 点赞与取消赞接口，支持商户标记和 Pin 标记的点赞统计。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/likes:
+    post:
+      summary: 点赞
+      description: 需登录。对指定标记进行点赞，同一用户对同一标记仅能点赞一次。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LikeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLikeResponse'
+        '400':
+          description: 参数错误或未点赞
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '409':
+          description: 已点赞
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 取消赞
+      description: 需登录。撤销对指定标记的点赞。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LikeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLikeResponse'
+        '400':
+          description: 参数错误或未点赞
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/likes/me:
+    get:
+      summary: 我获得的赞
+      description: 需登录。统计当前用户的商户标记和 Pin 标记的点赞总数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMyLikeSummaryResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/likes/{targetType}/{targetId}:
+    get:
+      summary: 查询点赞数
+      description: 查询指定标记的点赞数量，无需登录。
+      security: []
+      parameters:
+        - in: path
+          name: targetType
+          required: true
+          schema:
+            $ref: '#/components/schemas/LikeTargetType'
+          description: 标记类型，支持 MARKER 和 PIN。
+        - in: path
+          name: targetId
+          required: true
+          schema:
+            type: string
+          description: 标记 ID。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLikeResponse'
+        '404':
+          description: 赞数或标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseLikeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/LikeResponse'
+    ApiResponseMyLikeSummaryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MyLikeSummaryResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    LikeRequest:
+      type: object
+      properties:
+        targetType:
+          $ref: '#/components/schemas/LikeTargetType'
+        targetId:
+          type: string
+      required: [targetType, targetId]
+    LikeResponse:
+      type: object
+      properties:
+        targetType:
+          $ref: '#/components/schemas/LikeTargetType'
+        targetId:
+          type: string
+        likeCount:
+          type: integer
+          format: int64
+    MyLikeSummaryResponse:
+      type: object
+      properties:
+        markerLikes:
+          type: integer
+          format: int64
+        pinLikes:
+          type: integer
+          format: int64
+        totalLikes:
+          type: integer
+          format: int64
+    LikeTargetType:
+      type: string
+      enum: [MARKER, PIN]

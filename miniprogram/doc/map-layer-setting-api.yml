@@ -1,0 +1,164 @@
+openapi: 3.0.1
+info:
+  title: Map Layer Setting APIs
+  description: 维护与用户 feature code 绑定的图层显示参数。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/map-layer-settings:
+    get:
+      summary: 查询图层显示参数
+      description: 用户查询自身的图层显示参数，管理员需携带 featureCode 查询指定用户。若不存在则按默认值创建后返回。
+      parameters:
+        - in: query
+          name: featureCode
+          required: false
+          schema:
+            type: string
+          description: 管理员查询指定用户时必填，普通用户忽略该参数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMapLayerSettingResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新图层显示参数
+      description: 用户更新自身的图层显示参数，管理员可指定 featureCode 更新对应用户配置。
+      parameters:
+        - in: query
+          name: featureCode
+          required: false
+          schema:
+            type: string
+          description: 管理员为指定用户更新时必填，普通用户忽略该参数。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapLayerSettingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMapLayerSettingResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseMapLayerSettingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MapLayerSettingResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    MapLayerSettingRequest:
+      type: object
+      required:
+        - mapType
+        - airspaceBoardEnabled
+        - uomDivisionEnabled
+        - djiNoFlyZoneEnabled
+        - merchantMarkersEnabled
+        - privateMarkersEnabled
+        - groupSharingEnabled
+        - platformCoConstructionEnabled
+      properties:
+        mapType:
+          type: string
+          enum: [STANDARD, SATELLITE]
+          description: 图层类型，默认 STANDARD。
+        airspaceBoardEnabled:
+          type: boolean
+          description: 是否显示空域看板，默认 true。
+        uomDivisionEnabled:
+          type: boolean
+          description: 是否显示 uom 划分，默认 true。
+        djiNoFlyZoneEnabled:
+          type: boolean
+          description: 是否显示大疆禁飞区，默认 true。
+        merchantMarkersEnabled:
+          type: boolean
+          description: 是否显示商户标记，默认 true。
+        privateMarkersEnabled:
+          type: boolean
+          description: 是否显示私有标记，默认 true。
+        groupSharingEnabled:
+          type: boolean
+          description: 是否显示小组共享标记，默认 true。
+        platformCoConstructionEnabled:
+          type: boolean
+          description: 是否显示平台共建标记，默认 true。
+    MapLayerSettingResponse:
+      type: object
+      properties:
+        featureCode:
+          type: string
+        mapType:
+          type: string
+          enum: [STANDARD, SATELLITE]
+        airspaceBoardEnabled:
+          type: boolean
+        uomDivisionEnabled:
+          type: boolean
+        djiNoFlyZoneEnabled:
+          type: boolean
+        merchantMarkersEnabled:
+          type: boolean
+        privateMarkersEnabled:
+          type: boolean
+        groupSharingEnabled:
+          type: boolean
+        platformCoConstructionEnabled:
+          type: boolean

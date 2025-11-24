@@ -32,6 +32,10 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode: getShareInviteCodeUtil
 } = require("../../utils/share");
+const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../utils/map-layer-settings");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -440,6 +444,13 @@ Page({
     layerPanelVisible: false,
     layerPanelClosing: false,
     airBoardEnabled: true,
+    temporaryNoFlyZoneEnabled: true,
+    uomDivisionEnabled: true,
+    djiNoFlyZoneEnabled: true,
+    merchantMarkersEnabled: true,
+    privateMarkersEnabled: false,
+    groupSharingEnabled: false,
+    platformCoConstructionEnabled: false,
     mapElementOptions: [
       { id: "uom", label: "uom划分", enabled: true },
       { id: "dji", label: "大疆划分", enabled: true },
@@ -448,7 +459,8 @@ Page({
       { id: "private", label: "私有标记", enabled: false },
       { id: "group", label: "小组共享", enabled: false },
       { id: "platform", label: "平台共建", enabled: false }
-    ]
+    ],
+    mapLayerSettingsLoading: false
   },
 
   onLoad(options = {}) {
@@ -456,6 +468,7 @@ Page({
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
     this._fetchTimer = null;
+    this._mapLayerSettingsLoaded = false;
     this._markersFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
@@ -471,6 +484,7 @@ Page({
     this._layerPanelCloseTimer = null;
     this._djiPolygons = [];
     this._djiCircles = [];
+    this._djiZonesReady = false;
     this._nfzPolygons = [];
     this._nfzCircles = [];
     this._uomTileMasks = new Map();
@@ -489,6 +503,17 @@ Page({
     }
     this.detectUomOverlaySupport();
     this.updateUomTileWarning();
+    this.setData({
+      mapElementOptions: this.composeMapElementOptions({
+        uomDivisionEnabled: this.data.uomDivisionEnabled,
+        djiNoFlyZoneEnabled: this.data.djiNoFlyZoneEnabled,
+        temporaryNoFlyZoneEnabled: this.data.temporaryNoFlyZoneEnabled,
+        merchantMarkersEnabled: this.data.merchantMarkersEnabled,
+        privateMarkersEnabled: this.data.privateMarkersEnabled,
+        groupSharingEnabled: this.data.groupSharingEnabled,
+        platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
+      })
+    });
     if (!this.data.uomTileWarningDismissed) {
       if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
       this._uomFallbackTimer = setTimeout(() => {
@@ -1870,6 +1895,7 @@ Page({
       this._layerPanelCloseTimer = null;
     }
     this.setData({ layerPanelVisible: true, layerPanelClosing: false });
+    this.loadMapLayerSettings(true);
   },
 
   onLayerPanelMaskTap() {
@@ -1902,24 +1928,245 @@ Page({
     this.setData({
       mapLayerType: nextType,
       enableSatellite
+    }, () => {
+      this.persistMapLayerSettings();
     });
   },
 
   onAirBoardSwitchChange(event = {}) {
     const enabled = !!event?.detail?.value;
-    this.setData({ airBoardEnabled: enabled });
+    this.setData(
+      { airBoardEnabled: enabled, showDashboardPanel: enabled },
+      () => {
+        this.applyAirBoardToggle(enabled);
+        this.persistMapLayerSettings();
+      }
+    );
   },
 
   onMapElementToggle(event = {}) {
     const id = event?.currentTarget?.dataset?.id;
     if (!id) return;
-    const next = (this.data.mapElementOptions || []).map((item) => {
-      if (item.id === id) {
-        return Object.assign({}, item, { enabled: !item.enabled });
-      }
-      return item;
+    const flagMap = {
+      uom: "uomDivisionEnabled",
+      dji: "djiNoFlyZoneEnabled",
+      tempNoFly: "temporaryNoFlyZoneEnabled",
+      service: "merchantMarkersEnabled",
+      private: "privateMarkersEnabled",
+      group: "groupSharingEnabled",
+      platform: "platformCoConstructionEnabled"
+    };
+    const flagKey = flagMap[id];
+    if (!flagKey) return;
+    const nextValue = !this.data[flagKey];
+    const updates = { [flagKey]: nextValue };
+    updates.mapElementOptions = this.composeMapElementOptions({
+      uomDivisionEnabled: flagKey === "uomDivisionEnabled" ? nextValue : this.data.uomDivisionEnabled,
+      djiNoFlyZoneEnabled: flagKey === "djiNoFlyZoneEnabled" ? nextValue : this.data.djiNoFlyZoneEnabled,
+      temporaryNoFlyZoneEnabled:
+        flagKey === "temporaryNoFlyZoneEnabled" ? nextValue : this.data.temporaryNoFlyZoneEnabled,
+      merchantMarkersEnabled:
+        flagKey === "merchantMarkersEnabled" ? nextValue : this.data.merchantMarkersEnabled,
+      privateMarkersEnabled: flagKey === "privateMarkersEnabled" ? nextValue : this.data.privateMarkersEnabled,
+      groupSharingEnabled: flagKey === "groupSharingEnabled" ? nextValue : this.data.groupSharingEnabled,
+      platformCoConstructionEnabled:
+        flagKey === "platformCoConstructionEnabled" ? nextValue : this.data.platformCoConstructionEnabled
     });
-    this.setData({ mapElementOptions: next });
+    this.setData(updates, () => {
+      if (flagKey === "uomDivisionEnabled") {
+        this.applyUomOverlayToggle(nextValue);
+      }
+      if (flagKey === "djiNoFlyZoneEnabled") {
+        this.applyNoFlyOverlayToggle({
+          djiEnabled: nextValue,
+          temporaryEnabled: this.data.temporaryNoFlyZoneEnabled
+        });
+      }
+      if (flagKey === "temporaryNoFlyZoneEnabled") {
+        this.applyNoFlyOverlayToggle({
+          djiEnabled: this.data.djiNoFlyZoneEnabled,
+          temporaryEnabled: nextValue
+        });
+      }
+      if (flagKey === "merchantMarkersEnabled") {
+        this.applyMerchantMarkersToggle(nextValue);
+      }
+      this.persistMapLayerSettings();
+    });
+  },
+
+  composeMapElementOptions(flags = {}) {
+    const state = Object.assign(
+      {
+        uomDivisionEnabled: true,
+        djiNoFlyZoneEnabled: true,
+        temporaryNoFlyZoneEnabled: true,
+        merchantMarkersEnabled: true,
+        privateMarkersEnabled: false,
+        groupSharingEnabled: false,
+        platformCoConstructionEnabled: false
+      },
+      flags
+    );
+    const djiEnabled = !!state.djiNoFlyZoneEnabled;
+    const tempEnabled = !!state.temporaryNoFlyZoneEnabled;
+    return [
+      { id: "uom", label: "uom划分", enabled: !!state.uomDivisionEnabled },
+      { id: "dji", label: "大疆划分", enabled: djiEnabled },
+      { id: "tempNoFly", label: "临时禁飞区", enabled: tempEnabled },
+      { id: "service", label: "商户服务", enabled: !!state.merchantMarkersEnabled },
+      { id: "private", label: "私有标记", enabled: !!state.privateMarkersEnabled },
+      { id: "group", label: "小组共享", enabled: !!state.groupSharingEnabled },
+      { id: "platform", label: "平台共建", enabled: !!state.platformCoConstructionEnabled }
+    ];
+  },
+
+  applyAirBoardToggle(enabled) {
+    this.setData({ showDashboardPanel: !!enabled });
+  },
+
+  applyUomOverlayToggle(enabled) {
+    if (!enabled) {
+      this.clearMapOverlays();
+      this.updateStatusPanel(this._lastAreas);
+      return;
+    }
+    this.refreshWmsOverlay();
+    this.updateStatusPanel(this._lastAreas);
+  },
+
+  applyNoFlyOverlayToggle(options = {}) {
+    const djiEnabled = options.djiEnabled !== false;
+    const temporaryEnabled = options.temporaryEnabled !== false;
+    if (!djiEnabled) {
+      this._djiPolygons = [];
+      this._djiCircles = [];
+      this._djiZonesReady = false;
+    }
+    if (!temporaryEnabled) {
+      this._noFlyZones = [];
+      this._nfzPolygons = [];
+      this._nfzCircles = [];
+      this._noFlyZoneShapes = [];
+      this._noFlyZonesReady = false;
+      this._lastNoFlyFetch = null;
+    }
+    this.updateOverlayGraphics();
+    if (djiEnabled && !this._djiZonesReady) {
+      this.scheduleFetchDji(0, true);
+    }
+    if (temporaryEnabled && !this._noFlyZonesReady) {
+      this.scheduleFetchNoFlyZones(0, { force: true });
+    }
+    this.updateStatusPanel(this._lastAreas);
+  },
+
+  applyMerchantMarkersToggle(enabled) {
+    if (enabled === false) {
+      this._nearbyMarkers = [];
+      this._lastNearbyFetch = null;
+      this.syncAllMarkers();
+      return;
+    }
+    this.syncAllMarkers();
+    this.scheduleFetchMarkers(0, { force: true });
+  },
+
+  buildMapLayerSettingsPayload() {
+    return {
+      mapType: this.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
+      airspaceBoardEnabled: !!this.data.airBoardEnabled,
+      uomDivisionEnabled: !!this.data.uomDivisionEnabled,
+      djiNoFlyZoneEnabled: !!this.data.djiNoFlyZoneEnabled,
+      temporaryNoFlyZoneEnabled: !!this.data.temporaryNoFlyZoneEnabled,
+      merchantMarkersEnabled: !!this.data.merchantMarkersEnabled,
+      privateMarkersEnabled: !!this.data.privateMarkersEnabled,
+      groupSharingEnabled: !!this.data.groupSharingEnabled,
+      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled
+    };
+  },
+
+  applyLayerSettings(settings = {}) {
+    const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
+    const airspace = settings.airspaceBoardEnabled !== false;
+    const uom = settings.uomDivisionEnabled !== false;
+    const dji = settings.djiNoFlyZoneEnabled !== false;
+    const temporary = settings.temporaryNoFlyZoneEnabled !== undefined
+      ? settings.temporaryNoFlyZoneEnabled !== false
+      : dji;
+    const merchant = settings.merchantMarkersEnabled !== false;
+    const privateMarkers = settings.privateMarkersEnabled !== false;
+    const groupSharing = settings.groupSharingEnabled !== false;
+    const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
+    const mapElementOptions = this.composeMapElementOptions({
+      uomDivisionEnabled: uom,
+      djiNoFlyZoneEnabled: dji,
+      temporaryNoFlyZoneEnabled: temporary,
+      merchantMarkersEnabled: merchant,
+      privateMarkersEnabled: privateMarkers,
+      groupSharingEnabled: groupSharing,
+      platformCoConstructionEnabled: platformCoConstruction
+    });
+    this.setData(
+      {
+        mapLayerType: mapType,
+        enableSatellite: mapType === "satellite",
+        airBoardEnabled: airspace,
+        showDashboardPanel: airspace,
+        uomDivisionEnabled: uom,
+        djiNoFlyZoneEnabled: dji,
+        temporaryNoFlyZoneEnabled: temporary,
+        merchantMarkersEnabled: merchant,
+        privateMarkersEnabled: privateMarkers,
+        groupSharingEnabled: groupSharing,
+        platformCoConstructionEnabled: platformCoConstruction,
+        mapElementOptions
+      },
+      () => {
+        this.applyAirBoardToggle(airspace);
+        this.applyUomOverlayToggle(uom);
+        this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
+        this.applyMerchantMarkersToggle(merchant);
+      }
+    );
+  },
+
+  loadMapLayerSettings(force = false) {
+    if (this.data.mapLayerSettingsLoading) return;
+    if (this._mapLayerSettingsLoaded && !force) return;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    this.setData({ mapLayerSettingsLoading: true });
+    fetchMapLayerSettings({
+      apiBase,
+      token
+    })
+      .then((settings) => {
+        if (settings) {
+          this.applyLayerSettings(settings);
+          this._mapLayerSettingsLoaded = true;
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load map layer settings", err);
+      })
+      .finally(() => {
+        this.setData({ mapLayerSettingsLoading: false });
+      });
+  },
+
+  persistMapLayerSettings() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    const payload = this.buildMapLayerSettingsPayload();
+    updateMapLayerSettings(payload, {
+      apiBase,
+      token
+    }).catch((err) => {
+      console.warn("Failed to update map layer settings", err);
+    });
   },
 
   onMarkerButtonTap() {
@@ -2005,7 +2252,10 @@ Page({
   },
 
   syncAllMarkers() {
-    const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const nearby =
+      this.data.merchantMarkersEnabled !== false && Array.isArray(this._nearbyMarkers)
+        ? this._nearbyMarkers
+        : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const combined = manual.concat(nearby, search);
@@ -3036,6 +3286,7 @@ Page({
   },
 
   scheduleFetchMarkers(delay = 0, options = {}) {
+    if (this.data.merchantMarkersEnabled === false) return;
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     const ms = Math.max(0, Number(delay) || 0);
     this._markersFetchTimer = setTimeout(() => {
@@ -3045,6 +3296,7 @@ Page({
   },
 
   scheduleFetchNoFlyZones(delay = 0, options = {}) {
+    if (this.data.temporaryNoFlyZoneEnabled === false) return;
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     const ms = Math.max(0, Number(delay) || 0);
     this._nfzFetchTimer = setTimeout(() => {
@@ -3054,6 +3306,7 @@ Page({
   },
 
   scheduleFetchDji(delay = 300, force = false) {
+    if (this.data.djiNoFlyZoneEnabled === false) return;
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     this._fetchTimer = setTimeout(() => {
       this._fetchTimer = null;
@@ -3062,10 +3315,16 @@ Page({
   },
 
   requestNearbyMarkers(options = {}) {
+    if (this.data.merchantMarkersEnabled === false) {
+      this._nearbyMarkers = [];
+      this.syncAllMarkers();
+      return;
+    }
     const center = options?.center || this._centerOverride || this.data.center;
     if (!center) return;
     const scale = options?.scale || this.data.scale;
     const region = options?.region || this._lastRegion;
+    const force = options.force === true;
     if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
       if (Array.isArray(this._nearbyMarkers) && this._nearbyMarkers.length) {
         this._nearbyMarkers = [];
@@ -3093,7 +3352,7 @@ Page({
     const now = Date.now();
     const prevTimestamp = Number(prev.timestamp) || 0;
     const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
       return;
     }
 
@@ -3200,6 +3459,17 @@ Page({
   },
 
   requestNearbyNoFlyZones(options = {}) {
+    if (this.data.temporaryNoFlyZoneEnabled === false) {
+      this._noFlyZones = [];
+      this._nfzPolygons = [];
+      this._nfzCircles = [];
+      this._noFlyZoneShapes = [];
+      this._noFlyZonesReady = false;
+      this._lastNoFlyFetch = null;
+      this.updateOverlayGraphics();
+      return;
+    }
+    const force = options.force === true;
     const center = options?.center || this._centerOverride || this.data.center;
     if (!center) return;
     const scale = options?.scale || this.data.scale;
@@ -3223,7 +3493,7 @@ Page({
     const now = Date.now();
     const prevTimestamp = Number(prev.timestamp) || 0;
     const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
       return;
     }
 
@@ -3284,22 +3554,31 @@ Page({
   updateOverlayGraphics() {
     const polygons = [];
     const circles = [];
-    if (Array.isArray(this._djiPolygons)) {
+    if (this.data.djiNoFlyZoneEnabled !== false && Array.isArray(this._djiPolygons)) {
       polygons.push(...this._djiPolygons);
     }
-    if (Array.isArray(this._nfzPolygons)) {
+    if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzPolygons)) {
       polygons.push(...this._nfzPolygons);
     }
-    if (Array.isArray(this._djiCircles)) {
+    if (this.data.djiNoFlyZoneEnabled !== false && Array.isArray(this._djiCircles)) {
       circles.push(...this._djiCircles);
     }
-    if (Array.isArray(this._nfzCircles)) {
+    if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
       circles.push(...this._nfzCircles);
     }
     this.setData({ polygons, circles });
   },
 
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
+    if (this.data.djiNoFlyZoneEnabled === false) {
+      this._djiPolygons = [];
+      this._djiCircles = [];
+      this._djiZonesReady = false;
+      this._lastFetch = null;
+      this._lastAreas = null;
+      this.updateOverlayGraphics();
+      return;
+    }
     const center = centerOverride || this.data.center;
     const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
     const prev = this._lastFetch || {};
@@ -3352,6 +3631,7 @@ Page({
         this.updateStatusPanel(areas);
         this._djiPolygons = graphics.polygons || [];
         this._djiCircles = graphics.circles || [];
+        this._djiZonesReady = true;
         this.updateOverlayGraphics();
         this.setData({
           djiMsg: `已获取 ${areas.length} 个空域`
@@ -3370,6 +3650,7 @@ Page({
         this.setData({
           djiMsg: "DJI 数据暂不可用"
         });
+        this._djiZonesReady = false;
       })
       .finally(() => {
         this.setData({ loadingDji: false });
@@ -3528,6 +3809,9 @@ Page({
   },
 
   describeDjiStatus(areas) {
+    if (this.data.djiNoFlyZoneEnabled === false) {
+      return { status: "已关闭", extra: "", tone: "neutral", color: "" };
+    }
     const fallback = { status: "暂无空域数据", extra: "", tone: "neutral", color: "" };
     if (typeof areas === "undefined") {
       return { status: "评估中", extra: "", tone: "neutral", color: "" };
@@ -3582,6 +3866,9 @@ Page({
   },
 
   describeTemporaryNoFlyStatus() {
+    if (this.data.temporaryNoFlyZoneEnabled === false) {
+      return { zoneInfo: null, text: "已关闭", tone: "neutral" };
+    }
     if (!this._noFlyZonesReady) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
     }
@@ -3617,6 +3904,9 @@ Page({
   },
 
   describeUomStatus() {
+    if (this.data.uomDivisionEnabled === false) {
+      return { status: "已关闭", tone: "neutral" };
+    }
     const currentScale = Number(this.data?.scale);
     // if (Number.isFinite(currentScale) && currentScale > 16) {
     //   return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
@@ -3685,6 +3975,10 @@ Page({
   },
 
   refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
+    if (this.data.uomDivisionEnabled === false) {
+      this.clearMapOverlays();
+      return;
+    }
     const center = centerOverride || this.data.center;
     const scale = clampMapScale(scaleOverride || this.data.scale);
     this._uomOverlayFailed = false;
