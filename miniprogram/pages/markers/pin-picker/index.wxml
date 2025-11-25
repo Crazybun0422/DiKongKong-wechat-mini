@@ -120,9 +120,7 @@
                       wx:if="{{coordinateList.length > 1}}"
                       data-index="{{index}}"
                       bindtap="onRemoveCoordinate"
-                    >
-                      删除
-                    </text>
+                    >删除</text>
                   </view>
                 </view>
                 <view class="coord-field">
