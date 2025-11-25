@@ -101,7 +101,11 @@
       <button class="confirm-btn" bindtap="onConfirm" disabled="{{!canConfirm}}">确认{{selectedType.label || '通用'}}</button>
     </view>
 
-    <view wx:if="{{selectedType.category === 'POINT' || selectedType.category === 'LINE'}}" class="coord-panel" catchtap="noop">
+    <view
+      wx:if="{{selectedType.category === 'POINT' || selectedType.category === 'LINE' || selectedType.category === 'AREA'}}"
+      class="coord-panel"
+      catchtap="noop"
+    >
       <view class="coord-panel-toggle" bindtap="onToggleCoordPanel">
         <image
           class="coord-panel-toggle-icon-img"
@@ -116,7 +120,7 @@
             <text class="coord-title">经纬度列表</text>
           </view>
           <scroll-view scroll-y class="coord-list">
-                                                            <block wx:for="{{displayCoordinateList}}" wx:key="index">
+            <block wx:for="{{displayCoordinateList}}" wx:key="index">
               <view class="coord-item {{activeCoordIndex === item._sourceIndex ? 'is-active' : ''}}">
                 <view class="coord-item-top">
                   <text class="coord-item-label">点{{index + 1}}</text>
@@ -219,17 +223,17 @@
               placeholder="50"
               bindinput="onBufferInput"
             />
-                    <view wx:if="{{selectedType.id === 'AREA_CIRCLE'}}" class="buffer-box">
+          </view>
+          <view wx:if="{{selectedType.id === 'AREA_CIRCLE'}}" class="buffer-box">
             <text class="buffer-label">半径（米）</text>
             <input
               class="buffer-input"
               type="number"
               value="{{circleRadiusInput}}"
-              placeholder="100"
+              placeholder="50"
               bindinput="onCircleRadiusInput"
             />
           </view>
-</view>
         </view>
       </block>
     </view>

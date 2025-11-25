@@ -232,10 +232,10 @@ Page({
     bufferPolygons: [],
     circles: [],
     lineBufferInput: "50",
-    circleRadiusInput: "100",
+    circleRadiusInput: "50",
     lineActionHint: "",
     lineRewriteIndex: null,
-    coordPanelCollapsed: true,
+    coordPanelCollapsed: false,
     lineDrawingStarted: false,
     pointActionHint: ""
   },
@@ -322,13 +322,28 @@ Page({
   },
 
   refreshDisplayCoordinateList() {
+    const typeId = this.data.selectedType?.id;
     if (!this.isLineCategory()) {
-      const base = normalizeCoordinateList(this.data.coordinateList);
+      let base = normalizeCoordinateList(this.data.coordinateList);
+      if (this.isAreaCategory()) {
+        if (typeId === "AREA_RECTANGLE" && base.length >= 2) {
+          const rectPoints = this.buildRectanglePoints(base[0], base[1]);
+          if (rectPoints.length) {
+            base = rectPoints;
+          }
+        } else if (typeId === "AREA_CIRCLE" && base.length > 1) {
+          base = [base[0]];
+        }
+      }
       const normalized = base.map((item, index) =>
         Object.assign({}, item, {
-          _sourceIndex: index,
+          _sourceIndex: this.data.coordinateList.length
+            ? Math.min(index, this.data.coordinateList.length - 1)
+            : 0,
           _isPreview: false,
-          _canDelete: base.length > 1
+          _canDelete: this.isAreaCategory()
+            ? typeId === "AREA_POLYGON" && base.length > 1
+            : base.length > 1
         })
       );
       this.setData({ displayCoordinateList: normalized });
@@ -373,6 +388,21 @@ Page({
     const value = Number(this.data.circleRadiusInput || this.data.lineBufferInput || 0);
     if (!Number.isFinite(value) || value <= 0) return null;
     return value;
+  },
+
+  buildRectanglePoints(start, end) {
+    if (!start || !end) return [];
+    const top = Math.max(Number(start.latitude) || 0, Number(end.latitude) || 0);
+    const bottom = Math.min(Number(start.latitude) || 0, Number(end.latitude) || 0);
+    const left = Math.min(Number(start.longitude) || 0, Number(end.longitude) || 0);
+    const right = Math.max(Number(start.longitude) || 0, Number(end.longitude) || 0);
+    return [
+      { latitude: normalizeCoord(top), longitude: normalizeCoord(left) },
+      { latitude: normalizeCoord(top), longitude: normalizeCoord(right) },
+      { latitude: normalizeCoord(bottom), longitude: normalizeCoord(right) },
+      { latitude: normalizeCoord(bottom), longitude: normalizeCoord(left) },
+      { latitude: normalizeCoord(top), longitude: normalizeCoord(left) }
+    ];
   },
 
   showLineHint(message) {
@@ -461,19 +491,8 @@ Page({
     const strokeColor = "#DE4329F2";
     const strokeWidth = 1;
 
-    if (typeId === "AREA_POLYGON" || typeId === "AREA_RECTANGLE") {
+    if (typeId === "AREA_POLYGON") {
       const pointsForPoly = working.slice();
-      if (typeId === "AREA_RECTANGLE" && working.length === 2) {
-        // derive rectangle from two diagonal points
-        const [a, b] = working;
-        const pts = [
-          { latitude: a.latitude, longitude: a.longitude },
-          { latitude: a.latitude, longitude: b.longitude },
-          { latitude: b.latitude, longitude: b.longitude },
-          { latitude: b.latitude, longitude: a.longitude }
-        ];
-        pointsForPoly.splice(0, pointsForPoly.length, ...pts);
-      }
       if (pointsForPoly.length >= 2) {
         const closed = [...pointsForPoly, pointsForPoly[0]];
         polygons = [
@@ -485,16 +504,25 @@ Page({
           }
         ];
       }
-      if (confirmedLength >= 1) {
-        const first = confirmedPoints[0];
-        circles.push({
-          latitude: first.latitude,
-          longitude: first.longitude,
-          color: strokeColor,
-          fillColor: "#DE432933",
-          radius: 20,
-          strokeWidth: 2
-        });
+    } else if (typeId === "AREA_RECTANGLE") {
+      if (working.length === 0 && preview) {
+        working.push(preview);
+      }
+      if (working.length === 1 && preview) {
+        working.push(preview);
+      }
+      if (working.length >= 2) {
+        const rectPoints = this.buildRectanglePoints(working[0], working[1]);
+        if (rectPoints.length) {
+          polygons = [
+            {
+              points: rectPoints,
+              fillColor,
+              strokeColor,
+              strokeWidth
+            }
+          ];
+        }
       }
     } else if (typeId === "AREA_CIRCLE") {
       const center = confirmedPoints[0] || preview;
@@ -1045,13 +1073,13 @@ Page({
     if (this.isAreaCategory()) {
       if (typeId === "AREA_POLYGON") {
         firstHint = "选好位置，点击“确认锚点”放下第一个点，至少 3 个点后回到起点闭合";
-        nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点（回到起点闭合）";
+        nextHint = "拖动地图，每次“确认锚点”追加一个顶点，回到起点闭合";
       } else if (typeId === "AREA_RECTANGLE") {
-        firstHint = "选好位置，点击“确认锚点”放下第一个角点";
-        nextHint = "拖动地图，依次确认矩形四个角点，完成后闭合";
+        firstHint = "点击“确认锚点”放下矩形左上角，再拖动地图";
+        nextHint = "拖动到右下角，对准后点击“确认锚点”闭合矩形";
       } else if (typeId === "AREA_CIRCLE") {
-        firstHint = "选好位置，点击“确认锚点”设置圆心，再填写半径后完成";
-        nextHint = "拖动地图微调圆心，填写半径后点击完成绘制";
+        firstHint = "点击“确认锚点”设置圆心，默认半径 50 米";
+        nextHint = "圆心已设，可拖动微调，填写半径后点击完成绘制";
       }
     }
     const hint = confirmedLength === 0 ? firstHint : nextHint;
@@ -1333,7 +1361,57 @@ Page({
       this.showLineHint("请选择锚点");
       return;
     }
+    const typeId = this.data.selectedType?.id;
+    const confirmedPoints = this.getConfirmedLinePoints();
     const list = Array.isArray(this.data.coordinateList) ? this.data.coordinateList.slice() : [];
+    let nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点";
+
+    if (typeId === "AREA_CIRCLE") {
+      const center = Object.assign({}, preview, { altitude: "" });
+      this.setData(
+        {
+          coordinateList: [center],
+          activeCoordIndex: 0,
+          lineRewriteIndex: null,
+          lineDrawingStarted: true,
+          lineActionHint: "圆心已设置，填写半径后点击完成绘制"
+        },
+        () => {
+          this.updateAreaShapes({ includePreview: true });
+          this.refreshDisplayCoordinateList();
+        }
+      );
+      return;
+    }
+
+    if (typeId === "AREA_RECTANGLE") {
+      let nextList = [];
+      if (confirmedPoints.length >= 2) {
+        nextList = [Object.assign({}, preview, { altitude: "" })];
+        nextHint = "已重置，请拖动到右下角点击“确认锚点”闭合矩形";
+      } else if (confirmedPoints.length === 1) {
+        nextList = [Object.assign({}, confirmedPoints[0], { altitude: "" }), Object.assign({}, preview, { altitude: "" })];
+        nextHint = "矩形已闭合，如需重画再次确认新的左上角";
+      } else {
+        nextList = [Object.assign({}, preview, { altitude: "" })];
+        nextHint = "拖动地图到右下角位置，点击“确认锚点”闭合矩形";
+      }
+      this.setData(
+        {
+          coordinateList: nextList,
+          activeCoordIndex: Math.max(nextList.length - 1, 0),
+          lineRewriteIndex: null,
+          lineDrawingStarted: true,
+          lineActionHint: nextHint
+        },
+        () => {
+          this.updateAreaShapes({ includePreview: true });
+          this.refreshDisplayCoordinateList();
+        }
+      );
+      return;
+    }
+
     const rewriteIndex =
       Number.isInteger(this.data.lineRewriteIndex) &&
       this.data.lineRewriteIndex >= 0 &&
@@ -1347,15 +1425,9 @@ Page({
       list.push(Object.assign({}, preview, { altitude: "" }));
     }
     const nextActiveIndex = rewriteIndex !== null ? nextIndex : list.length; // 下一锚点默认指向新增的预览位
-    const typeId = this.data.selectedType?.id;
-    let nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点";
     if (this.isAreaCategory()) {
       if (typeId === "AREA_POLYGON") {
         nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点（回到起点闭合）";
-      } else if (typeId === "AREA_RECTANGLE") {
-        nextHint = "继续确认矩形剩余角点，完成后闭合";
-      } else if (typeId === "AREA_CIRCLE") {
-        nextHint = "可拖动地图微调圆心，填写半径后完成绘制";
       }
     }
     this.setData(
@@ -1386,8 +1458,8 @@ Page({
           return;
         }
       } else if (typeId === "AREA_RECTANGLE") {
-        if (points.length < 4) {
-          this.showLineHint("请绘制四个角点后再闭合");
+        if (points.length < 2) {
+          this.showLineHint("请先确认左上角与右下角");
           return;
         }
       } else if (typeId === "AREA_CIRCLE") {
@@ -1401,19 +1473,19 @@ Page({
           return;
         }
       }
-      const polygonPoints =
-        typeId === "AREA_RECTANGLE" && points.length === 4
-          ? [...points, points[0]]
-          : typeId === "AREA_POLYGON" && points.length >= 3
-          ? [...points, points[0]]
-          : points;
+      let polygonPoints = points;
+      if (typeId === "AREA_RECTANGLE" && points.length >= 2) {
+        polygonPoints = this.buildRectanglePoints(points[0], points[points.length - 1]);
+      } else if (typeId === "AREA_POLYGON" && points.length >= 3) {
+        polygonPoints = [...points, points[0]];
+      }
       const result = {
-        coordinates: points,
-        coordinateList: points,
+        coordinates: typeId === "AREA_CIRCLE" ? points : polygonPoints,
+        coordinateList: typeId === "AREA_CIRCLE" ? points : polygonPoints,
         typeId: this.data.selectedType.id,
         typeLabel: this.data.selectedType.label,
         category: this.data.selectedType.category || this.findSectionByType(this.data.selectedType.id),
-        polygons: polygonPoints,
+        polygons: typeId === "AREA_CIRCLE" ? [] : polygonPoints,
         activeCoordIndex: this.data.activeCoordIndex,
         radius: typeId === "AREA_CIRCLE" ? this.parseCircleRadius() : null
       };
