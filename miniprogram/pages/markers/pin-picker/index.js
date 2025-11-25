@@ -78,6 +78,13 @@ function normalizeCoordinateList(list) {
   return normalized.length ? normalized : [normalizeCoordinateItem({})];
 }
 
+function normalizeLineCoordinateList(list) {
+  if (!Array.isArray(list) || !list.length) return [];
+  return list
+    .map((item) => normalizeCoordinateItem(item))
+    .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
+}
+
 function formatCoordinateText(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -124,11 +131,77 @@ function hasValidCoordinate(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng) && !isZeroCoordinate(lat, lng);
 }
 
+function averageValue(list = [], field) {
+  if (!Array.isArray(list) || !list.length) return 0;
+  let total = 0;
+  list.forEach((item) => {
+    total += Number(item?.[field] || 0);
+  });
+  return total / list.length;
+}
+
+function buildLineBufferPolygon(points = [], bufferMeters = 0) {
+  if (!Array.isArray(points) || points.length < 2) return [];
+  if (!Number.isFinite(bufferMeters) || bufferMeters <= 0) return [];
+  const validPoints = points.filter((pt) => hasValidCoordinate(pt?.latitude, pt?.longitude));
+  if (validPoints.length < 2) return [];
+  const baseLat = averageValue(validPoints, "latitude");
+  const baseLng = averageValue(validPoints, "longitude");
+  const cosLat = Math.max(Math.cos((baseLat * Math.PI) / 180), 0.0001);
+  const kLat = 111320;
+  const kLng = 111320 * cosLat;
+  const project = (pt) => ({
+    x: (pt.longitude - baseLng) * kLng,
+    y: (pt.latitude - baseLat) * kLat
+  });
+  const unproject = (p) => ({
+    latitude: p.y / kLat + baseLat,
+    longitude: p.x / kLng + baseLng
+  });
+  const projected = validPoints.map(project);
+  const segmentNormals = [];
+  for (let i = 0; i < projected.length - 1; i += 1) {
+    const a = projected[i];
+    const b = projected[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (!len) {
+      segmentNormals.push({ x: 0, y: 0 });
+      continue;
+    }
+    segmentNormals.push({ x: -dy / len, y: dx / len });
+  }
+  const normals = projected.map((point, index) => {
+    if (!segmentNormals.length) return { x: 0, y: 0 };
+    if (index === 0) return segmentNormals[0];
+    if (index === projected.length - 1) return segmentNormals[segmentNormals.length - 1];
+    const prev = segmentNormals[index - 1] || { x: 0, y: 0 };
+    const next = segmentNormals[index] || { x: 0, y: 0 };
+    const nx = prev.x + next.x;
+    const ny = prev.y + next.y;
+    const len = Math.sqrt(nx * nx + ny * ny) || 1;
+    return { x: nx / len, y: ny / len };
+  });
+  const left = [];
+  const right = [];
+  for (let i = 0; i < projected.length; i += 1) {
+    const normal = normals[i] || { x: 0, y: 0 };
+    const offsetX = normal.x * bufferMeters;
+    const offsetY = normal.y * bufferMeters;
+    left.push({ x: projected[i].x + offsetX, y: projected[i].y + offsetY });
+    right.push({ x: projected[i].x - offsetX, y: projected[i].y - offsetY });
+  }
+  const polygon = [...left, ...right.reverse()];
+  return polygon.map(unproject);
+}
+
 Page({
   data: {
     latitude: DEFAULT_CENTER.latitude,
     longitude: DEFAULT_CENTER.longitude,
     scale: DEFAULT_CENTER.scale,
+    enableSatellite: false,
     showUserLocation: true,
     addressMain: "",
     addressDetail: "",
@@ -151,7 +224,13 @@ Page({
     typeMenuVisible: false,
     coordinateList: normalizeCoordinateList(),
     activeCoordIndex: 0,
-    coordAdjustStep: COORD_ADJUST_STEP
+    coordAdjustStep: COORD_ADJUST_STEP,
+    polyline: [],
+    bufferPolygons: [],
+    lineBufferInput: "50",
+    lineActionHint: "",
+    lineRewriteIndex: null,
+    coordPanelCollapsed: false
   },
 
   onLoad() {
@@ -187,6 +266,103 @@ Page({
     }
   },
 
+  isLineCategory() {
+    return (this.data.selectedType?.category || this.findSectionByType(this.data.selectedType?.id)) === "LINE";
+  },
+
+  shouldSyncActiveCoordinate() {
+    return !this.isLineCategory();
+  },
+
+  getPreviewPoint() {
+    const lat = normalizeCoord(this.data.selectedLatitude);
+    const lng = normalizeCoord(this.data.selectedLongitude);
+    if (!hasValidCoordinate(lat, lng)) return null;
+    return { latitude: lat, longitude: lng };
+  },
+
+  getConfirmedLinePoints() {
+    const list = Array.isArray(this.data.coordinateList) ? this.data.coordinateList : [];
+    return list
+      .map((item = {}) => ({
+        latitude: normalizeCoord(item.latitude),
+        longitude: normalizeCoord(item.longitude)
+      }))
+      .filter((pt) => hasValidCoordinate(pt.latitude, pt.longitude));
+  },
+
+  parseBufferWidth() {
+    const value = Number(this.data.lineBufferInput);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value;
+  },
+
+  showLineHint(message) {
+    if (this._lineHintTimer) {
+      clearTimeout(this._lineHintTimer);
+      this._lineHintTimer = null;
+    }
+    this.setData({ lineActionHint: message || "" });
+    if (message) {
+      this._lineHintTimer = setTimeout(() => {
+        this.setData({ lineActionHint: "" });
+      }, 1800);
+    }
+  },
+
+  updateLineShapes(options = {}) {
+    if (!this.isLineCategory()) {
+      this.setData({ polyline: [], bufferPolygons: [] });
+      return;
+    }
+    const includePreview = options.includePreview !== false;
+    const confirmedPoints = this.getConfirmedLinePoints();
+    const preview = includePreview ? this.getPreviewPoint() : null;
+    const workingPoints = confirmedPoints.slice();
+    if (preview) {
+      workingPoints.push(preview);
+    }
+    const lines = [];
+    if (confirmedPoints.length >= 2) {
+      lines.push({
+        points: confirmedPoints,
+        color: "#0f172a",
+        width: 6,
+        arrowLine: false,
+        dottedLine: false
+      });
+    }
+    if (confirmedPoints.length >= 1 && preview) {
+      lines.push({
+        points: [confirmedPoints[confirmedPoints.length - 1], preview],
+        color: "#111827",
+        width: 4,
+        dottedLine: true
+      });
+    } else if (!confirmedPoints.length && preview) {
+      lines.push({
+        points: [preview],
+        color: "#9ca3af",
+        width: 2,
+        dottedLine: true
+      });
+    }
+    const bufferWidth = this.parseBufferWidth();
+    const polygonPoints =
+      bufferWidth && workingPoints.length >= 2 ? buildLineBufferPolygon(workingPoints, bufferWidth) : [];
+    const polygons = polygonPoints.length
+      ? [
+          {
+            points: polygonPoints,
+            fillColor: "rgba(34, 197, 94, 0.18)",
+            strokeColor: "#22c55e",
+            strokeWidth: 2
+          }
+        ]
+      : [];
+    this.setData({ polyline: lines, bufferPolygons: polygons });
+  },
+
   onReady() {
     this.mapCtx = wx.createMapContext("pin-picker-map", this);
     this._ready = true;
@@ -209,6 +385,10 @@ Page({
     if (this._searchBlurTimer) {
       clearTimeout(this._searchBlurTimer);
       this._searchBlurTimer = null;
+    }
+    if (this._lineHintTimer) {
+      clearTimeout(this._lineHintTimer);
+      this._lineHintTimer = null;
     }
     if (this._eventChannel && typeof this._eventChannel.off === "function") {
       this._eventChannel.off("initLocation");
@@ -315,14 +495,27 @@ Page({
     const data = payload || {};
     const lat = normalizeCoord(data.latitude);
     const lng = normalizeCoord(data.longitude);
-    const coordinateList = normalizeCoordinateList(data.coordinates || data.coordinateList);
-    const activeCoordIndex = Math.min(
-      Math.max(Number(data.activeCoordIndex || 0), 0),
-      coordinateList.length - 1
-    );
+    const typeId = data.typeId || data.type;
+    const sectionFromType = typeId ? this.findSectionByType(typeId) : "";
+    const isLineType = sectionFromType === "LINE" || data.category === "LINE";
+    const coordinateList = isLineType
+      ? normalizeLineCoordinateList(data.coordinates || data.coordinateList)
+      : normalizeCoordinateList(data.coordinates || data.coordinateList);
+    const activeCoordIndex = isLineType
+      ? (coordinateList.length
+        ? Math.min(Math.max(Number(data.activeCoordIndex || 0), 0), coordinateList.length - 1)
+        : -1)
+      : Math.min(Math.max(Number(data.activeCoordIndex || 0), 0), coordinateList.length - 1);
+    const bufferWidthInput =
+      data.bufferWidth !== undefined && data.bufferWidth !== null
+        ? `${data.bufferWidth}`
+        : data.pathBufferWidth !== undefined && data.pathBufferWidth !== null
+        ? `${data.pathBufferWidth}`
+        : this.data.lineBufferInput;
     this.setData({
       coordinateList,
-      activeCoordIndex
+      activeCoordIndex,
+      lineBufferInput: bufferWidthInput
     });
     let effectiveLat = lat;
     let effectiveLng = lng;
@@ -333,18 +526,28 @@ Page({
     }
     let moved = false;
     if (hasValidCoordinate(effectiveLat, effectiveLng)) {
-      this.setData({
-        latitude: effectiveLat,
-        longitude: effectiveLng,
-        selectedLatitude: effectiveLat,
-        selectedLongitude: effectiveLng,
-        coordinateText: formatCoordinateText(effectiveLat, effectiveLng),
-        hasLocation: true,
-        canConfirm: true,
-        addressLoading: true,
-        addressError: ""
-      });
-      this.updateActiveCoordinate(effectiveLat, effectiveLng);
+      const shouldSync = this.shouldSyncActiveCoordinate();
+      this.setData(
+        {
+          latitude: effectiveLat,
+          longitude: effectiveLng,
+          selectedLatitude: effectiveLat,
+          selectedLongitude: effectiveLng,
+          coordinateText: formatCoordinateText(effectiveLat, effectiveLng),
+          hasLocation: true,
+          canConfirm: true,
+          addressLoading: true,
+          addressError: ""
+        },
+        () => {
+          if (this.isLineCategory()) {
+            this.updateLineShapes({ includePreview: true });
+          }
+        }
+      );
+      if (shouldSync) {
+        this.updateActiveCoordinate(effectiveLat, effectiveLng);
+      }
       if (this._ready) {
         this.mapCtx && this.mapCtx.moveToLocation && this.mapCtx.moveToLocation({ latitude: effectiveLat, longitude: effectiveLng });
         this.reverseGeocode(effectiveLat, effectiveLng);
@@ -353,7 +556,6 @@ Page({
       }
       moved = true;
     }
-    const typeId = data.typeId || data.type;
     if (typeId) {
       const next = this.findTypeById(typeId);
       if (next) {
@@ -363,6 +565,9 @@ Page({
           activeTypeSectionId: sectionId,
           activeTypeOptions: this.getTypeOptionsBySection(sectionId)
         });
+        if (next.category === "LINE") {
+          this.updateLineShapes({ includePreview: true });
+        }
       }
     }
     return moved;
@@ -386,18 +591,28 @@ Page({
       this._pendingMoveTo = { latitude, longitude };
       return;
     }
-    this.setData({
-      latitude,
-      longitude,
-      selectedLatitude: latitude,
-      selectedLongitude: longitude,
-      hasLocation: true,
-      canConfirm: true,
-      coordinateText: formatCoordinateText(latitude, longitude),
-      addressLoading: true,
-      addressError: ""
-    });
-    this.updateActiveCoordinate(latitude, longitude);
+    const shouldSync = this.shouldSyncActiveCoordinate();
+    this.setData(
+      {
+        latitude,
+        longitude,
+        selectedLatitude: latitude,
+        selectedLongitude: longitude,
+        hasLocation: true,
+        canConfirm: true,
+        coordinateText: formatCoordinateText(latitude, longitude),
+        addressLoading: true,
+        addressError: ""
+      },
+      () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        }
+      }
+    );
+    if (shouldSync) {
+      this.updateActiveCoordinate(latitude, longitude);
+    }
     if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
       this.mapCtx.moveToLocation({ latitude, longitude });
     }
@@ -458,16 +673,26 @@ Page({
       const latitude = normalizeCoord(e.detail.centerLocation.latitude);
       const longitude = normalizeCoord(e.detail.centerLocation.longitude);
       if (!hasValidCoordinate(latitude, longitude)) return;
-      this.setData({
-        selectedLatitude: latitude,
-        selectedLongitude: longitude,
-        coordinateText: formatCoordinateText(latitude, longitude),
-        hasLocation: true,
-        canConfirm: true,
-        addressError: "",
-        addressLoading: true
-      });
-      this.updateActiveCoordinate(latitude, longitude);
+      const shouldSync = this.shouldSyncActiveCoordinate();
+      this.setData(
+        {
+          selectedLatitude: latitude,
+          selectedLongitude: longitude,
+          coordinateText: formatCoordinateText(latitude, longitude),
+          hasLocation: true,
+          canConfirm: true,
+          addressError: "",
+          addressLoading: true
+        },
+        () => {
+          if (this.isLineCategory()) {
+            this.updateLineShapes({ includePreview: true });
+          }
+        }
+      );
+      if (shouldSync) {
+        this.updateActiveCoordinate(latitude, longitude);
+      }
       this.reverseGeocode(latitude, longitude);
     }
   },
@@ -574,6 +799,15 @@ Page({
     this.setData({ typeMenuVisible: false });
   },
 
+  onToggleCoordPanel() {
+    const next = !this.data.coordPanelCollapsed;
+    this.setData({ coordPanelCollapsed: next }, () => {
+      if (!next && this.isLineCategory()) {
+        this.updateLineShapes({ includePreview: true });
+      }
+    });
+  },
+
   onTypeSectionTap(e) {
     const id = e?.currentTarget?.dataset?.sectionId;
     if (!id || id === this.data.activeTypeSectionId) return;
@@ -587,12 +821,31 @@ Page({
     const typeId = e?.currentTarget?.dataset?.typeid;
     const next = this.findTypeById(typeId);
     if (!next) return;
-    this.setData({
+    const patch = {
       selectedType: next,
       activeTypeSectionId: next.category || this.findSectionByType(next.id),
       activeTypeOptions: this.getTypeOptionsBySection(next.category || this.findSectionByType(next.id)),
-      typeMenuVisible: false
+      typeMenuVisible: false,
+      coordPanelCollapsed: false
+    };
+    if (next.category === "LINE") {
+      patch.coordinateList = [];
+      patch.activeCoordIndex = -1;
+    } else {
+      patch.lineRewriteIndex = null;
+      patch.lineActionHint = "";
+      patch.polyline = [];
+      patch.bufferPolygons = [];
+    }
+    this.setData(patch, () => {
+      if (next.category === "LINE") {
+        this.updateLineShapes({ includePreview: true });
+      }
     });
+  },
+
+  onLayerToggle() {
+    this.setData({ enableSatellite: !this.data.enableSatellite });
   },
 
   noop() { },
@@ -625,6 +878,19 @@ Page({
   },
 
   getSafeCoordinateList() {
+    if (this.isLineCategory()) {
+      const raw = Array.isArray(this.data.coordinateList) ? this.data.coordinateList : [];
+      const list = raw
+        .map((item) => normalizeCoordinateItem(item))
+        .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
+      const activeIndex = list.length
+        ? Math.min(Math.max(Number(this.data.activeCoordIndex || 0), 0), list.length - 1)
+        : -1;
+      if (activeIndex !== this.data.activeCoordIndex) {
+        this.setData({ activeCoordIndex: activeIndex });
+      }
+      return { list, activeIndex };
+    }
     const list = normalizeCoordinateList(this.data.coordinateList);
     const activeIndex = Math.min(Math.max(Number(this.data.activeCoordIndex || 0), 0), list.length - 1);
     if (list.length !== (this.data.coordinateList || []).length || activeIndex !== this.data.activeCoordIndex) {
@@ -634,6 +900,7 @@ Page({
   },
 
   updateActiveCoordinate(latitude, longitude) {
+    if (!this.shouldSyncActiveCoordinate()) return;
     const normLat = normalizeCoord(latitude);
     const normLng = normalizeCoord(longitude);
     const { list, activeIndex } = this.getSafeCoordinateList();
@@ -653,10 +920,17 @@ Page({
       longitude: Number.isFinite(lng) ? lng : null,
       altitude: ""
     });
-    this.setData({
-      coordinateList: list,
-      activeCoordIndex: list.length - 1
-    });
+    this.setData(
+      {
+        coordinateList: list,
+        activeCoordIndex: list.length - 1
+      },
+      () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        }
+      }
+    );
   },
 
   onRemoveCoordinate(e) {
@@ -666,10 +940,17 @@ Page({
     if (!Number.isInteger(index) || index < 0 || index >= list.length) return;
     list.splice(index, 1);
     const nextActive = Math.min(this.data.activeCoordIndex, list.length - 1);
-    this.setData({
-      coordinateList: list,
-      activeCoordIndex: nextActive
-    });
+    this.setData(
+      {
+        coordinateList: list,
+        activeCoordIndex: nextActive
+      },
+      () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        }
+      }
+    );
     const nextItem = list[nextActive] || {};
     const lat = normalizeCoord(nextItem.latitude);
     const lng = normalizeCoord(nextItem.longitude);
@@ -686,7 +967,8 @@ Page({
     const lat = normalizeCoord(item.latitude);
     const lng = normalizeCoord(item.longitude);
     const nextData = {
-      activeCoordIndex: index
+      activeCoordIndex: index,
+      lineRewriteIndex: this.isLineCategory() ? index : null
     };
     if (hasValidCoordinate(lat, lng)) {
       nextData.selectedLatitude = lat;
@@ -696,7 +978,11 @@ Page({
       nextData.canConfirm = true;
       this.queueMapMove(lat, lng);
     }
-    this.setData(nextData);
+    this.setData(nextData, () => {
+      if (this.isLineCategory()) {
+        this.updateLineShapes({ includePreview: true });
+      }
+    });
   },
 
   onCoordinateInput(e) {
@@ -707,13 +993,21 @@ Page({
     if (!list[index]) return;
     if (field === "altitude") {
       list[index].altitude = normalizeAltitude(value);
-      this.setData({ coordinateList: list });
+      this.setData({ coordinateList: list }, () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        }
+      });
       return;
     }
     if (field === "latitude" || field === "longitude") {
       const num = normalizeCoord(value);
       list[index][field] = Number.isFinite(num) ? num : null;
-      this.setData({ coordinateList: list });
+      this.setData({ coordinateList: list }, () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        }
+      });
       if (index === this.data.activeCoordIndex) {
         const lat = field === "latitude" ? num : normalizeCoord(list[index].latitude);
         const lng = field === "longitude" ? num : normalizeCoord(list[index].longitude);
@@ -736,12 +1030,96 @@ Page({
     list[index] = Object.assign({}, list[index], {
       [field]: Number.isFinite(next) ? next : list[index][field]
     });
-    this.setData({ coordinateList: list, activeCoordIndex: index });
+    this.setData({ coordinateList: list, activeCoordIndex: index }, () => {
+      if (this.isLineCategory()) {
+        this.updateLineShapes({ includePreview: true });
+      }
+    });
     const lat = normalizeCoord(list[index].latitude);
     const lng = normalizeCoord(list[index].longitude);
     if (hasValidCoordinate(lat, lng)) {
       this.queueMapMove(lat, lng);
     }
+  },
+
+  onBufferInput(e) {
+    const value = (e?.detail?.value || "").trim();
+    this.setData({ lineBufferInput: value }, () => {
+      if (this.isLineCategory()) {
+        this.updateLineShapes({ includePreview: true });
+      }
+    });
+  },
+
+  onConfirmAnchor() {
+    if (!this.isLineCategory()) return;
+    const preview = this.getPreviewPoint();
+    if (!preview) {
+      this.showLineHint("请选择锚点");
+      return;
+    }
+    const list = Array.isArray(this.data.coordinateList) ? this.data.coordinateList.slice() : [];
+    const rewriteIndex =
+      Number.isInteger(this.data.lineRewriteIndex) &&
+      this.data.lineRewriteIndex >= 0 &&
+      this.data.lineRewriteIndex < list.length
+        ? this.data.lineRewriteIndex
+        : null;
+    const nextIndex = rewriteIndex !== null ? rewriteIndex : list.length;
+    if (rewriteIndex !== null) {
+      list[nextIndex] = Object.assign({}, list[nextIndex], preview);
+    } else {
+      list.push(Object.assign({}, preview, { altitude: "" }));
+    }
+    this.setData(
+      {
+        coordinateList: list,
+        activeCoordIndex: nextIndex,
+        lineRewriteIndex: null
+      },
+      () => {
+        this.updateLineShapes({ includePreview: true });
+      }
+    );
+  },
+
+  onCompleteLine() {
+    if (!this.isLineCategory()) return;
+    const points = this.getConfirmedLinePoints();
+    if (points.length < 2) {
+      this.showLineHint("请绘制两个以上的点");
+      return;
+    }
+    const bufferWidth = this.parseBufferWidth();
+    if (!bufferWidth) {
+      this.showLineHint("请输入缓冲带宽度");
+      return;
+    }
+    const wgs84Coordinates = points
+      .map((pt) => {
+        const wgs = gcj02ToWgs84(pt.longitude, pt.latitude);
+        const lat = normalizeCoord(wgs?.lat);
+        const lng = normalizeCoord(wgs?.lng);
+        if (!hasValidCoordinate(lat, lng)) return null;
+        return { latitude: lat, longitude: lng };
+      })
+      .filter(Boolean);
+    const result = {
+      coordinates: points,
+      coordinateList: points,
+      wgs84Coordinates,
+      bufferWidth,
+      pathBufferWidth: bufferWidth,
+      bufferWidthMeters: bufferWidth,
+      typeId: this.data.selectedType.id,
+      typeLabel: this.data.selectedType.label,
+      category: this.data.selectedType.category || this.findSectionByType(this.data.selectedType.id),
+      activeCoordIndex: this.data.activeCoordIndex
+    };
+    if (this._eventChannel && typeof this._eventChannel.emit === "function") {
+      this._eventChannel.emit("pinSelected", result);
+    }
+    wx.navigateBack({ delta: 1 });
   },
 
   findSectionByType(typeId) {
