@@ -15,6 +15,7 @@
       enable-traffic="{{false}}"
       polyline="{{polyline}}"
       polygons="{{bufferPolygons}}"
+      circles="{{circles}}"
       bindregionchange="onRegionChange"
     ></map>
     <image
@@ -88,6 +89,12 @@
           <image class="layer-toggle-icon" src="/assets/layer.png" mode="aspectFit" />
         </view>
       </view>
+      <view wx:if="{{selectedType.category === 'POINT' && pointActionHint}}" class="line-hint-top">
+        {{pointActionHint}}
+      </view>
+      <view wx:if="{{(selectedType.category === 'LINE' || selectedType.category === 'AREA') && lineActionHint}}" class="line-hint-top">
+        {{lineActionHint}}
+      </view>
     </view>
 
     <view wx:if="{{selectedType.category === 'POINT'}}" class="floating-confirm">
@@ -109,16 +116,16 @@
             <text class="coord-title">经纬度列表</text>
           </view>
           <scroll-view scroll-y class="coord-list">
-            <block wx:for="{{coordinateList}}" wx:key="index">
-              <view class="coord-item {{activeCoordIndex === index ? 'is-active' : ''}}">
+                                                            <block wx:for="{{displayCoordinateList}}" wx:key="index">
+              <view class="coord-item {{activeCoordIndex === item._sourceIndex ? 'is-active' : ''}}">
                 <view class="coord-item-top">
                   <text class="coord-item-label">点{{index + 1}}</text>
                   <view class="coord-item-actions">
-                    <text class="coord-link" data-index="{{index}}" bindtap="onActivateCoordinate">设为当前</text>
+                    <text class="coord-link" data-index="{{item._sourceIndex}}" bindtap="onActivateCoordinate">设为当前</text>
                     <text
                       class="coord-link danger"
-                      wx:if="{{coordinateList.length > 1}}"
-                      data-index="{{index}}"
+                      wx:if="{{item._canDelete}}"
+                      data-index="{{item._sourceIndex}}"
                       bindtap="onRemoveCoordinate"
                     >删除</text>
                   </view>
@@ -129,7 +136,7 @@
                     type="digit"
                     value="{{item.latitude === null || item.latitude === undefined ? '' : item.latitude}}"
                     placeholder="请输入纬度"
-                    data-index="{{index}}"
+                    data-index="{{item._sourceIndex}}"
                     data-field="latitude"
                     bindinput="onCoordinateInput"
                   />
@@ -137,7 +144,7 @@
                     <button
                       class="micro-btn icon-btn"
                       size="mini"
-                      data-index="{{index}}"
+                      data-index="{{item._sourceIndex}}"
                       data-field="latitude"
                       data-delta="{{coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
@@ -147,7 +154,7 @@
                     <button
                       class="micro-btn icon-btn"
                       size="mini"
-                      data-index="{{index}}"
+                      data-index="{{item._sourceIndex}}"
                       data-field="latitude"
                       data-delta="{{0 - coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
@@ -162,7 +169,7 @@
                     type="digit"
                     value="{{item.longitude === null || item.longitude === undefined ? '' : item.longitude}}"
                     placeholder="请输入经度"
-                    data-index="{{index}}"
+                    data-index="{{item._sourceIndex}}"
                     data-field="longitude"
                     bindinput="onCoordinateInput"
                   />
@@ -170,7 +177,7 @@
                     <button
                       class="micro-btn icon-btn"
                       size="mini"
-                      data-index="{{index}}"
+                      data-index="{{item._sourceIndex}}"
                       data-field="longitude"
                       data-delta="{{coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
@@ -180,7 +187,7 @@
                     <button
                       class="micro-btn icon-btn"
                       size="mini"
-                      data-index="{{index}}"
+                      data-index="{{item._sourceIndex}}"
                       data-field="longitude"
                       data-delta="{{0 - coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
@@ -195,7 +202,7 @@
                     type="digit"
                     value="{{item.altitude}}"
                     placeholder="请输入高度（必填，单位米）"
-                    data-index="{{index}}"
+                    data-index="{{item._sourceIndex}}"
                     data-field="altitude"
                     bindinput="onCoordinateInput"
                   />
@@ -204,7 +211,7 @@
             </block>
           </scroll-view>
           <view wx:if="{{selectedType.category === 'LINE'}}" class="buffer-box">
-            <text class="buffer-label">沿边缓冲带 (米)</text>
+            <text class="buffer-label">缓冲区宽度（米）</text>
             <input
               class="buffer-input"
               type="number"
@@ -212,16 +219,37 @@
               placeholder="50"
               bindinput="onBufferInput"
             />
+                    <view wx:if="{{selectedType.id === 'AREA_CIRCLE'}}" class="buffer-box">
+            <text class="buffer-label">半径（米）</text>
+            <input
+              class="buffer-input"
+              type="number"
+              value="{{circleRadiusInput}}"
+              placeholder="100"
+              bindinput="onCircleRadiusInput"
+            />
           </view>
+</view>
         </view>
       </block>
     </view>
 
     <view wx:if="{{selectedType.category === 'LINE'}}" class="line-actions">
-      <view class="line-hint" wx:if="{{lineActionHint}}">{{lineActionHint}}</view>
-      <view class="line-actions-row">
+      <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
         <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
         <button class="line-btn primary" bindtap="onCompleteLine">完成绘制</button>
+      </view>
+      <view wx:else class="line-actions-row single">
+        <button class="line-btn primary" bindtap="onStartLineDrawing">开始绘制</button>
+      </view>
+    </view>
+    <view wx:elif="{{selectedType.category === 'AREA'}}" class="line-actions">
+      <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
+        <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+        <button class="line-btn primary" bindtap="onCompleteLine">完成绘制</button>
+      </view>
+      <view wx:else class="line-actions-row single">
+        <button class="line-btn primary" bindtap="onStartLineDrawing">开始绘制</button>
       </view>
     </view>
 

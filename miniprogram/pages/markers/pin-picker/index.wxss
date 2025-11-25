@@ -645,6 +645,10 @@
   gap: 16rpx;
 }
 
+.line-actions-row.single .line-btn {
+  width: 100%;
+}
+
 .line-btn {
   flex: 1;
   height: 68rpx;
@@ -669,12 +673,19 @@
   border-color: #0f172a;
 }
 
-.line-hint {
-  background: rgba(0, 0, 0, 0.58);
-  color: #fff;
-  font-size: 26rpx;
+.line-hint-top {
+  margin-top: 12rpx;
   padding: 12rpx 16rpx;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 24rpx;
   border-radius: 14rpx;
-  text-align: center;
-  backdrop-filter: blur(4rpx);
+  text-align: left;
+  box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.18);
+  animation: line-hint-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes line-hint-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }

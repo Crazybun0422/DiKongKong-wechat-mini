@@ -208,8 +208,8 @@ Page({
     addressError: "",
     addressLoading: true,
     hasLocation: false,
-    selectedLatitude: null,
-    selectedLongitude: null,
+    selectedLatitude: DEFAULT_CENTER.latitude,
+    selectedLongitude: DEFAULT_CENTER.longitude,
     coordinateText: "",
     searchKeyword: "",
     searchSuggestions: [],
@@ -223,14 +223,21 @@ Page({
     activeTypeOptions: TYPE_SECTIONS[0].options,
     typeMenuVisible: false,
     coordinateList: normalizeCoordinateList(),
+    displayCoordinateList: normalizeCoordinateList().map((item, index) =>
+      Object.assign({}, item, { _sourceIndex: index, _isPreview: false, _canDelete: false })
+    ),
     activeCoordIndex: 0,
     coordAdjustStep: COORD_ADJUST_STEP,
     polyline: [],
     bufferPolygons: [],
+    circles: [],
     lineBufferInput: "50",
+    circleRadiusInput: "100",
     lineActionHint: "",
     lineRewriteIndex: null,
-    coordPanelCollapsed: false
+    coordPanelCollapsed: true,
+    lineDrawingStarted: false,
+    pointActionHint: ""
   },
 
   onLoad() {
@@ -264,19 +271,38 @@ Page({
         });
       }
     }
+
+    this.refreshDisplayCoordinateList();
   },
 
   isLineCategory() {
     return (this.data.selectedType?.category || this.findSectionByType(this.data.selectedType?.id)) === "LINE";
   },
 
+  isAreaCategory() {
+    return (this.data.selectedType?.category || this.findSectionByType(this.data.selectedType?.id)) === "AREA";
+  },
+
   shouldSyncActiveCoordinate() {
     return !this.isLineCategory();
   },
 
-  getPreviewPoint() {
-    const lat = normalizeCoord(this.data.selectedLatitude);
-    const lng = normalizeCoord(this.data.selectedLongitude);
+  buildPointHint(label) {
+    const name = label || this.data.selectedType?.label || "通用";
+    return `选好位置，点击下方“确认${name}”完成标记`;
+  },
+
+  getPreviewPoint(useMapCenterFallback = false) {
+    let lat = normalizeCoord(this.data.selectedLatitude);
+    let lng = normalizeCoord(this.data.selectedLongitude);
+    if (useMapCenterFallback && !hasValidCoordinate(lat, lng)) {
+      const fallbackLat = normalizeCoord(this.data.latitude);
+      const fallbackLng = normalizeCoord(this.data.longitude);
+      if (hasValidCoordinate(fallbackLat, fallbackLng)) {
+        lat = fallbackLat;
+        lng = fallbackLng;
+      }
+    }
     if (!hasValidCoordinate(lat, lng)) return null;
     return { latitude: lat, longitude: lng };
   },
@@ -288,11 +314,63 @@ Page({
         latitude: normalizeCoord(item.latitude),
         longitude: normalizeCoord(item.longitude)
       }))
-      .filter((pt) => hasValidCoordinate(pt.latitude, pt.longitude));
+      .filter((pt, idx) => {
+        const original = list[idx] || {};
+        const isPreview = original.isPreview === true || original.isTemp === true;
+        return !isPreview && hasValidCoordinate(pt.latitude, pt.longitude);
+      });
+  },
+
+  refreshDisplayCoordinateList() {
+    if (!this.isLineCategory()) {
+      const base = normalizeCoordinateList(this.data.coordinateList);
+      const normalized = base.map((item, index) =>
+        Object.assign({}, item, {
+          _sourceIndex: index,
+          _isPreview: false,
+          _canDelete: base.length > 1
+        })
+      );
+      this.setData({ displayCoordinateList: normalized });
+      return;
+    }
+    const confirmed = normalizeLineCoordinateList(this.data.coordinateList);
+    const confirmedLength = confirmed.length;
+    const allowPreview = this.data.lineDrawingStarted || confirmedLength === 0;
+    const preview = allowPreview ? this.getPreviewPoint(true) : null;
+    const display = confirmed.map((item, index) =>
+      Object.assign({}, item, {
+        _sourceIndex: index,
+        _isPreview: false,
+        _canDelete: confirmedLength >= 1
+      })
+    );
+    if (preview) {
+      display.push({
+        latitude: preview.latitude,
+        longitude: preview.longitude,
+        altitude: "",
+        _sourceIndex: confirmedLength,
+        _isPreview: true,
+        _canDelete: false
+      });
+    }
+    const safeActive =
+      confirmedLength === 0 ? 0 : Math.min(Math.max(Number(this.data.activeCoordIndex || 0), 0), confirmedLength - 1);
+    if (safeActive !== this.data.activeCoordIndex) {
+      this.setData({ activeCoordIndex: safeActive });
+    }
+    this.setData({ displayCoordinateList: display });
   },
 
   parseBufferWidth() {
     const value = Number(this.data.lineBufferInput);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value;
+  },
+
+  parseCircleRadius() {
+    const value = Number(this.data.circleRadiusInput || this.data.lineBufferInput || 0);
     if (!Number.isFinite(value) || value <= 0) return null;
     return value;
   },
@@ -317,7 +395,8 @@ Page({
     }
     const includePreview = options.includePreview !== false;
     const confirmedPoints = this.getConfirmedLinePoints();
-    const preview = includePreview ? this.getPreviewPoint() : null;
+    const allowPreview = includePreview && (this.data.lineDrawingStarted || confirmedPoints.length === 0);
+    const preview = allowPreview ? this.getPreviewPoint() : null;
     const workingPoints = confirmedPoints.slice();
     if (preview) {
       workingPoints.push(preview);
@@ -354,13 +433,85 @@ Page({
       ? [
           {
             points: polygonPoints,
-            fillColor: "rgba(34, 197, 94, 0.18)",
-            strokeColor: "#22c55e",
-            strokeWidth: 2
+            fillColor: "#DE43294D",
+            strokeColor: "#DE4329F2",
+            strokeWidth: 1
           }
         ]
       : [];
-    this.setData({ polyline: lines, bufferPolygons: polygons });
+    this.setData({ polyline: lines, bufferPolygons: polygons, circles: [] });
+  },
+
+  updateAreaShapes(options = {}) {
+    if (!this.isAreaCategory || this.isLineCategory()) return;
+    const typeId = this.data.selectedType?.id;
+    const includePreview = options.includePreview !== false;
+    const confirmedPoints = this.getConfirmedLinePoints();
+    const confirmedLength = confirmedPoints.length;
+    const allowPreview = includePreview && (this.data.lineDrawingStarted || confirmedLength === 0);
+    const preview = allowPreview ? this.getPreviewPoint() : null;
+    const working = confirmedPoints.slice();
+    if (preview) {
+      working.push(preview);
+    }
+    let polygons = [];
+    let circles = [];
+
+    const fillColor = "#DE43294D";
+    const strokeColor = "#DE4329F2";
+    const strokeWidth = 1;
+
+    if (typeId === "AREA_POLYGON" || typeId === "AREA_RECTANGLE") {
+      const pointsForPoly = working.slice();
+      if (typeId === "AREA_RECTANGLE" && working.length === 2) {
+        // derive rectangle from two diagonal points
+        const [a, b] = working;
+        const pts = [
+          { latitude: a.latitude, longitude: a.longitude },
+          { latitude: a.latitude, longitude: b.longitude },
+          { latitude: b.latitude, longitude: b.longitude },
+          { latitude: b.latitude, longitude: a.longitude }
+        ];
+        pointsForPoly.splice(0, pointsForPoly.length, ...pts);
+      }
+      if (pointsForPoly.length >= 2) {
+        const closed = [...pointsForPoly, pointsForPoly[0]];
+        polygons = [
+          {
+            points: closed,
+            fillColor,
+            strokeColor,
+            strokeWidth
+          }
+        ];
+      }
+      if (confirmedLength >= 1) {
+        const first = confirmedPoints[0];
+        circles.push({
+          latitude: first.latitude,
+          longitude: first.longitude,
+          color: strokeColor,
+          fillColor: "#DE432933",
+          radius: 20,
+          strokeWidth: 2
+        });
+      }
+    } else if (typeId === "AREA_CIRCLE") {
+      const center = confirmedPoints[0] || preview;
+      const radius = this.parseCircleRadius();
+      if (center && radius) {
+        circles.push({
+          latitude: center.latitude,
+          longitude: center.longitude,
+          color: strokeColor,
+          fillColor,
+          radius,
+          strokeWidth
+        });
+      }
+    }
+
+    this.setData({ bufferPolygons: polygons, circles });
   },
 
   onReady() {
@@ -504,7 +655,7 @@ Page({
     const activeCoordIndex = isLineType
       ? (coordinateList.length
         ? Math.min(Math.max(Number(data.activeCoordIndex || 0), 0), coordinateList.length - 1)
-        : -1)
+        : 0)
       : Math.min(Math.max(Number(data.activeCoordIndex || 0), 0), coordinateList.length - 1);
     const bufferWidthInput =
       data.bufferWidth !== undefined && data.bufferWidth !== null
@@ -515,14 +666,21 @@ Page({
     this.setData({
       coordinateList,
       activeCoordIndex,
-      lineBufferInput: bufferWidthInput
+      lineBufferInput: bufferWidthInput,
+      lineDrawingStarted: false,
+      pointActionHint: isLineType ? "" : this.buildPointHint(this.data.selectedType?.label)
     });
+    this.refreshDisplayCoordinateList();
     let effectiveLat = lat;
     let effectiveLng = lng;
     if (!hasValidCoordinate(effectiveLat, effectiveLng)) {
       const activeItem = coordinateList[activeCoordIndex] || {};
       effectiveLat = normalizeCoord(activeItem.latitude);
       effectiveLng = normalizeCoord(activeItem.longitude);
+      if (!hasValidCoordinate(effectiveLat, effectiveLng)) {
+        effectiveLat = normalizeCoord(this.data.latitude);
+        effectiveLng = normalizeCoord(this.data.longitude);
+      }
     }
     let moved = false;
     if (hasValidCoordinate(effectiveLat, effectiveLng)) {
@@ -542,7 +700,10 @@ Page({
         () => {
           if (this.isLineCategory()) {
             this.updateLineShapes({ includePreview: true });
+          } else if (this.isAreaCategory()) {
+            this.updateAreaShapes({ includePreview: true });
           }
+          this.refreshDisplayCoordinateList();
         }
       );
       if (shouldSync) {
@@ -567,6 +728,8 @@ Page({
         });
         if (next.category === "LINE") {
           this.updateLineShapes({ includePreview: true });
+        } else if (next.category === "AREA") {
+          this.updateAreaShapes({ includePreview: true });
         }
       }
     }
@@ -592,22 +755,24 @@ Page({
       return;
     }
     const shouldSync = this.shouldSyncActiveCoordinate();
-    this.setData(
-      {
-        latitude,
-        longitude,
-        selectedLatitude: latitude,
-        selectedLongitude: longitude,
-        hasLocation: true,
-        canConfirm: true,
-        coordinateText: formatCoordinateText(latitude, longitude),
-        addressLoading: true,
-        addressError: ""
-      },
-      () => {
-        if (this.isLineCategory()) {
-          this.updateLineShapes({ includePreview: true });
-        }
+      this.setData(
+        {
+          latitude,
+          longitude,
+          selectedLatitude: latitude,
+          selectedLongitude: longitude,
+          hasLocation: true,
+          canConfirm: true,
+          coordinateText: formatCoordinateText(latitude, longitude),
+          addressLoading: true,
+          addressError: "",
+          pointActionHint: this.isLineCategory() ? "" : this.buildPointHint(this.data.selectedType?.label)
+        },
+        () => {
+          if (this.isLineCategory()) {
+            this.updateLineShapes({ includePreview: true });
+          }
+        this.refreshDisplayCoordinateList();
       }
     );
     if (shouldSync) {
@@ -688,6 +853,7 @@ Page({
           if (this.isLineCategory()) {
             this.updateLineShapes({ includePreview: true });
           }
+          this.refreshDisplayCoordinateList();
         }
       );
       if (shouldSync) {
@@ -804,6 +970,8 @@ Page({
     this.setData({ coordPanelCollapsed: next }, () => {
       if (!next && this.isLineCategory()) {
         this.updateLineShapes({ includePreview: true });
+      } else if (!next && this.isAreaCategory()) {
+        this.updateAreaShapes({ includePreview: true });
       }
     });
   },
@@ -821,26 +989,44 @@ Page({
     const typeId = e?.currentTarget?.dataset?.typeid;
     const next = this.findTypeById(typeId);
     if (!next) return;
+    const preview = this.getPreviewPoint(true);
     const patch = {
       selectedType: next,
       activeTypeSectionId: next.category || this.findSectionByType(next.id),
       activeTypeOptions: this.getTypeOptionsBySection(next.category || this.findSectionByType(next.id)),
       typeMenuVisible: false,
-      coordPanelCollapsed: false
+      coordPanelCollapsed: false,
+      lineDrawingStarted: next.category === "LINE" ? false : this.data.lineDrawingStarted,
+      pointActionHint: next.category === "POINT" ? this.buildPointHint(next.label) : ""
     };
     if (next.category === "LINE") {
       patch.coordinateList = [];
-      patch.activeCoordIndex = -1;
+      patch.activeCoordIndex = 0;
+      if (preview) {
+        patch.selectedLatitude = preview.latitude;
+        patch.selectedLongitude = preview.longitude;
+        patch.coordinateText = formatCoordinateText(preview.latitude, preview.longitude);
+        patch.hasLocation = true;
+        patch.canConfirm = true;
+      }
     } else {
       patch.lineRewriteIndex = null;
       patch.lineActionHint = "";
       patch.polyline = [];
       patch.bufferPolygons = [];
+      patch.circles = [];
+      if (next.category === "AREA") {
+        patch.coordinateList = [];
+        patch.activeCoordIndex = 0;
+      }
     }
     this.setData(patch, () => {
       if (next.category === "LINE") {
         this.updateLineShapes({ includePreview: true });
+      } else if (next.category === "AREA") {
+        this.updateAreaShapes({ includePreview: true });
       }
+      this.refreshDisplayCoordinateList();
     });
   },
 
@@ -849,6 +1035,35 @@ Page({
   },
 
   noop() { },
+
+  onStartLineDrawing() {
+    if (!this.isLineCategory() && !this.isAreaCategory()) return;
+    const confirmedLength = this.getConfirmedLinePoints().length;
+    const typeId = this.data.selectedType?.id;
+    let firstHint = "选好位置，点击“确认锚点”绘制第一个点";
+    let nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点";
+    if (this.isAreaCategory()) {
+      if (typeId === "AREA_POLYGON") {
+        firstHint = "选好位置，点击“确认锚点”放下第一个点，至少 3 个点后回到起点闭合";
+        nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点（回到起点闭合）";
+      } else if (typeId === "AREA_RECTANGLE") {
+        firstHint = "选好位置，点击“确认锚点”放下第一个角点";
+        nextHint = "拖动地图，依次确认矩形四个角点，完成后闭合";
+      } else if (typeId === "AREA_CIRCLE") {
+        firstHint = "选好位置，点击“确认锚点”设置圆心，再填写半径后完成";
+        nextHint = "拖动地图微调圆心，填写半径后点击完成绘制";
+      }
+    }
+    const hint = confirmedLength === 0 ? firstHint : nextHint;
+    this.setData({ lineDrawingStarted: true, lineActionHint: hint }, () => {
+      if (this.isLineCategory()) {
+        this.updateLineShapes({ includePreview: true });
+      } else if (this.isAreaCategory()) {
+        this.updateAreaShapes({ includePreview: true });
+      }
+      this.refreshDisplayCoordinateList();
+    });
+  },
 
   onConfirm() {
     if (!this.data.canConfirm || !hasValidCoordinate(this.data.selectedLatitude, this.data.selectedLongitude)) {
@@ -885,7 +1100,7 @@ Page({
         .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
       const activeIndex = list.length
         ? Math.min(Math.max(Number(this.data.activeCoordIndex || 0), 0), list.length - 1)
-        : -1;
+        : 0;
       if (activeIndex !== this.data.activeCoordIndex) {
         this.setData({ activeCoordIndex: activeIndex });
       }
@@ -928,6 +1143,12 @@ Page({
       () => {
         if (this.isLineCategory()) {
           this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
+        }
+        this.refreshDisplayCoordinateList();
+        if (this.isLineCategory() || this.isAreaCategory()) {
+          this.setData({ lineDrawingStarted: true });
         }
       }
     );
@@ -936,19 +1157,22 @@ Page({
   onRemoveCoordinate(e) {
     const index = Number(e?.currentTarget?.dataset?.index);
     const { list } = this.getSafeCoordinateList();
-    if (list.length <= 1) return;
     if (!Number.isInteger(index) || index < 0 || index >= list.length) return;
     list.splice(index, 1);
     const nextActive = Math.min(this.data.activeCoordIndex, list.length - 1);
     this.setData(
       {
         coordinateList: list,
-        activeCoordIndex: nextActive
+        activeCoordIndex: nextActive,
+        lineRewriteIndex: this.data.lineRewriteIndex
       },
       () => {
         if (this.isLineCategory()) {
           this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
         }
+        this.refreshDisplayCoordinateList();
       }
     );
     const nextItem = list[nextActive] || {};
@@ -961,8 +1185,40 @@ Page({
 
   onActivateCoordinate(e) {
     const index = Number(e?.currentTarget?.dataset?.index);
+    if (!Number.isInteger(index) || index < 0) return;
+    if (this.isLineCategory()) {
+      const confirmed = normalizeLineCoordinateList(this.data.coordinateList);
+      const confirmedLength = confirmed.length;
+      const safeIndex = Math.min(index, confirmedLength); // 最后一个索引可用于预览位
+      const item = confirmed[safeIndex] || {};
+      const lat = normalizeCoord(item.latitude);
+      const lng = normalizeCoord(item.longitude);
+      const nextData = {
+        activeCoordIndex: safeIndex,
+        lineRewriteIndex: safeIndex < confirmedLength ? safeIndex : null
+      };
+      if (hasValidCoordinate(lat, lng)) {
+        nextData.selectedLatitude = lat;
+        nextData.selectedLongitude = lng;
+        nextData.coordinateText = formatCoordinateText(lat, lng);
+        nextData.hasLocation = true;
+        nextData.canConfirm = true;
+        this.queueMapMove(lat, lng);
+      } else {
+        this.refreshDisplayCoordinateList();
+      }
+      this.setData(nextData, () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
+        }
+        this.refreshDisplayCoordinateList();
+      });
+      return;
+    }
     const { list } = this.getSafeCoordinateList();
-    if (!Number.isInteger(index) || index < 0 || index >= list.length) return;
+    if (index >= list.length) return;
     const item = list[index] || {};
     const lat = normalizeCoord(item.latitude);
     const lng = normalizeCoord(item.longitude);
@@ -982,6 +1238,7 @@ Page({
       if (this.isLineCategory()) {
         this.updateLineShapes({ includePreview: true });
       }
+      this.refreshDisplayCoordinateList();
     });
   },
 
@@ -996,7 +1253,10 @@ Page({
       this.setData({ coordinateList: list }, () => {
         if (this.isLineCategory()) {
           this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
         }
+        this.refreshDisplayCoordinateList();
       });
       return;
     }
@@ -1006,7 +1266,10 @@ Page({
       this.setData({ coordinateList: list }, () => {
         if (this.isLineCategory()) {
           this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
         }
+        this.refreshDisplayCoordinateList();
       });
       if (index === this.data.activeCoordIndex) {
         const lat = field === "latitude" ? num : normalizeCoord(list[index].latitude);
@@ -1033,7 +1296,10 @@ Page({
     this.setData({ coordinateList: list, activeCoordIndex: index }, () => {
       if (this.isLineCategory()) {
         this.updateLineShapes({ includePreview: true });
+      } else if (this.isAreaCategory()) {
+        this.updateAreaShapes({ includePreview: true });
       }
+      this.refreshDisplayCoordinateList();
     });
     const lat = normalizeCoord(list[index].latitude);
     const lng = normalizeCoord(list[index].longitude);
@@ -1051,8 +1317,17 @@ Page({
     });
   },
 
+  onCircleRadiusInput(e) {
+    const value = (e?.detail?.value || "").trim();
+    this.setData({ circleRadiusInput: value }, () => {
+      if (this.isAreaCategory()) {
+        this.updateAreaShapes({ includePreview: true });
+      }
+    });
+  },
+
   onConfirmAnchor() {
-    if (!this.isLineCategory()) return;
+    if (!this.isLineCategory() && !this.isAreaCategory()) return;
     const preview = this.getPreviewPoint();
     if (!preview) {
       this.showLineHint("请选择锚点");
@@ -1071,19 +1346,83 @@ Page({
     } else {
       list.push(Object.assign({}, preview, { altitude: "" }));
     }
+    const nextActiveIndex = rewriteIndex !== null ? nextIndex : list.length; // 下一锚点默认指向新增的预览位
+    const typeId = this.data.selectedType?.id;
+    let nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点";
+    if (this.isAreaCategory()) {
+      if (typeId === "AREA_POLYGON") {
+        nextHint = "拖动地图选取位置，点击“确认锚点”绘制下一个点（回到起点闭合）";
+      } else if (typeId === "AREA_RECTANGLE") {
+        nextHint = "继续确认矩形剩余角点，完成后闭合";
+      } else if (typeId === "AREA_CIRCLE") {
+        nextHint = "可拖动地图微调圆心，填写半径后完成绘制";
+      }
+    }
     this.setData(
       {
         coordinateList: list,
-        activeCoordIndex: nextIndex,
-        lineRewriteIndex: null
+        activeCoordIndex: nextActiveIndex,
+        lineRewriteIndex: null,
+        lineActionHint: nextHint
       },
       () => {
-        this.updateLineShapes({ includePreview: true });
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
+        }
+        this.refreshDisplayCoordinateList();
       }
     );
   },
 
   onCompleteLine() {
+    if (this.isAreaCategory()) {
+      const typeId = this.data.selectedType?.id;
+      const points = this.getConfirmedLinePoints();
+      if (typeId === "AREA_POLYGON") {
+        if (points.length < 3) {
+          this.showLineHint("请至少绘制三个点后再闭合");
+          return;
+        }
+      } else if (typeId === "AREA_RECTANGLE") {
+        if (points.length < 4) {
+          this.showLineHint("请绘制四个角点后再闭合");
+          return;
+        }
+      } else if (typeId === "AREA_CIRCLE") {
+        if (!points.length) {
+          this.showLineHint("请确认圆心");
+          return;
+        }
+        const radius = this.parseCircleRadius();
+        if (!radius) {
+          this.showLineHint("请输入有效的半径");
+          return;
+        }
+      }
+      const polygonPoints =
+        typeId === "AREA_RECTANGLE" && points.length === 4
+          ? [...points, points[0]]
+          : typeId === "AREA_POLYGON" && points.length >= 3
+          ? [...points, points[0]]
+          : points;
+      const result = {
+        coordinates: points,
+        coordinateList: points,
+        typeId: this.data.selectedType.id,
+        typeLabel: this.data.selectedType.label,
+        category: this.data.selectedType.category || this.findSectionByType(this.data.selectedType.id),
+        polygons: polygonPoints,
+        activeCoordIndex: this.data.activeCoordIndex,
+        radius: typeId === "AREA_CIRCLE" ? this.parseCircleRadius() : null
+      };
+      if (this._eventChannel && typeof this._eventChannel.emit === "function") {
+        this._eventChannel.emit("pinSelected", result);
+      }
+      wx.navigateBack({ delta: 1 });
+      return;
+    }
     if (!this.isLineCategory()) return;
     const points = this.getConfirmedLinePoints();
     if (points.length < 2) {
