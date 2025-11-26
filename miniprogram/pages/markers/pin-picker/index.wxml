@@ -16,7 +16,9 @@
       polyline="{{polyline}}"
       polygons="{{bufferPolygons}}"
       circles="{{circles}}"
+      markers="{{markers}}"
       bindregionchange="onRegionChange"
+      bindmarkertap="onMarkerTap"
     ></map>
     <image
       class="center-pin {{selectedType.category === 'POINT' ? 'is-point' : ''}}"
@@ -240,7 +242,10 @@
 
     <view wx:if="{{selectedType.category === 'LINE'}}" class="line-actions">
       <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
-        <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+        <view class="line-btn-wrap">
+          <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+          <view wx:if="{{anchorToastVisible}}" class="anchor-toast">锚点+1</view>
+        </view>
         <button class="line-btn primary" bindtap="onCompleteLine">完成绘制</button>
       </view>
       <view wx:else class="line-actions-row single">
@@ -249,7 +254,10 @@
     </view>
     <view wx:elif="{{selectedType.category === 'AREA'}}" class="line-actions">
       <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
-        <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+        <view class="line-btn-wrap">
+          <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+          <view wx:if="{{anchorToastVisible}}" class="anchor-toast">锚点+1</view>
+        </view>
         <button class="line-btn primary" bindtap="onCompleteLine">完成绘制</button>
       </view>
       <view wx:else class="line-actions-row single">

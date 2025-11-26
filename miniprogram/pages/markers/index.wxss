@@ -167,6 +167,12 @@
   color: rgba(0, 0, 0, 0.45);
 }
 
+.pin-configured-hint {
+  margin-left: 8rpx;
+  font-size: 24rpx;
+  color: #10b981;
+}
+
 .my-pin-media-grid {
   display: flex;
   gap: 16rpx;

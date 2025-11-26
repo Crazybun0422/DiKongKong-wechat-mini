@@ -689,3 +689,39 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
+
+.line-btn-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.line-btn-wrap .line-btn {
+  width: 100%;
+}
+
+.anchor-toast {
+  position: absolute;
+  bottom: 76rpx;
+  left: 50%;
+  transform: translate(-50%, 20rpx);
+  padding: 6rpx 14rpx;
+  background: rgba(17, 24, 39, 0.88);
+  color: #fff;
+  font-size: 22rpx;
+  border-radius: 14rpx;
+  box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  animation: anchorFloat 0.6s ease-out forwards;
+  pointer-events: none;
+  letter-spacing: 2rpx;
+}
+
+@keyframes anchorFloat {
+  0% { opacity: 0; transform: translate(-50%, 20rpx) scale(0.96); }
+  30% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -26rpx) scale(0.96); }
+}
+

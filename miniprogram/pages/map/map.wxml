@@ -20,7 +20,7 @@
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
     />
-    <cover-view class="uom-dialog" wx:if="{{uomTileWarningVisible}}">
+    <!-- <cover-view class="uom-dialog" wx:if="{{uomTileWarningVisible}}">
       <cover-view class="uom-dialog-box">
         <cover-view class="uom-dialog-text">受地图组件能力限制，本页部分地图功能暂不可用。
 👉 完整功能已在微信小程序 「低空星球」 上线，欢迎前往使用。</cover-view>
@@ -34,7 +34,7 @@
           </cover-view>
         </cover-view>
       </cover-view>
-    </cover-view>
+    </cover-view> -->
     <image
       class="center-pin {{mapLayerType === 'satellite' ? 'center-pin--satellite' : ''}}"
       src="/assets/position.png"

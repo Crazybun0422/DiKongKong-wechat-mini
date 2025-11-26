@@ -20,6 +20,8 @@ const {
   fetchWechatPaymentStatus
 } = require("../../utils/payments");
 const { payWithFlp } = require("../../utils/flp");
+const { reverseGeocode } = require("../../utils/geocoder");
+const { listMyPins, createPin: createPinApi } = require("../../utils/pins");
 
 const STATIC_ASSETS = {
   add: "/assets/add.png",
@@ -80,6 +82,12 @@ const PIN_CATEGORY_LABELS = {
   LINE: "线",
   AREA: "面"
 };
+const PIN_REVIEW_STATUS_META = {
+  PENDING: { label: "审核中", tone: "pending" },
+  APPROVED_A: { label: "审核通过", tone: "online" },
+  APPROVED_B: { label: "审核通过", tone: "online" },
+  REJECTED: { label: "被驳回", tone: "danger" }
+};
 
 function createEmptyForm() {
   return {
@@ -112,6 +120,9 @@ function createEmptyPinForm() {
     addressDetail: "",
     coordinateList: [],
     activeCoordIndex: 0,
+    bufferWidth: null,
+    radius: null,
+    wgs84Coordinates: [],
     images: [],
     name: "",
     description: "",
@@ -146,6 +157,19 @@ function normalizePinCoordinateList(list) {
   }));
 }
 
+function isPinLocationConfigured(form = {}) {
+  if (hasValidCoordinate(form.latitude, form.longitude)) return true;
+  if (Array.isArray(form.coordinateList)) {
+    return form.coordinateList.some((item = {}) => hasValidCoordinate(item.latitude, item.longitude));
+  }
+  if (Array.isArray(form.wgs84Coordinates)) {
+    return form.wgs84Coordinates.some((item = {}) =>
+      hasValidCoordinate(normalizePinCoordValue(item.latitude), normalizePinCoordValue(item.longitude))
+    );
+  }
+  return false;
+}
+
 Page({
   data: {
     loading: false,
@@ -156,8 +180,12 @@ Page({
     activeMyMarkerFilter: MY_MARKER_FILTERS[0].id,
     myMarkers: [],
     myVisibleMarkers: [],
+    myPinsLoading: false,
+    myPinsLoaded: false,
+    myPinsError: "",
     showMyPinCreate: false,
     myPinForm: createEmptyPinForm(),
+    myPinFormConfigured: false,
     pinSubmitting: false,
     pinError: "",
     markers: [],
@@ -204,13 +232,10 @@ Page({
   onLoad(options = {}) {
     this.apiBase = resolveApiBase();
     this.initializeProfileInfo();
-    this.ensureAccessToken()
-      .catch((err) => {
-        console.warn("ensureAccessToken failed before loading markers", err);
-      })
-      .finally(() => {
-        this.refreshMarkers({ initial: true });
-      });
+    this.ensureAccessToken().catch((err) => {
+      console.warn("ensureAccessToken failed before loading markers", err);
+    });
+    this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
     if (options.create === "1") {
       this.onCreateTap();
@@ -218,16 +243,18 @@ Page({
   },
 
   onShow() {
-    if (this.data.hasLoaded || this.data.loading) {
-      return;
+    const needMarkers = !this.data.hasLoaded && !this.data.loading;
+    const needPins = this.data.activeCenterTab === "MY_MARKERS" && !this.data.myPinsLoaded && !this.data.myPinsLoading;
+    if (!needMarkers && !needPins) return;
+    if (needMarkers) {
+      this.refreshMarkers({ initial: true });
     }
-    this.ensureAccessToken()
-      .catch((err) => {
-        console.warn("ensureAccessToken failed on show", err);
-      })
-      .finally(() => {
-        this.refreshMarkers({ initial: true });
-      });
+    if (needPins) {
+      this.refreshMyPins({ silent: false });
+    }
+    this.ensureAccessToken().catch((err) => {
+      console.warn("ensureAccessToken failed on show", err);
+    });
   },
 
   fetchSettlementConfig() {
@@ -433,15 +460,22 @@ Page({
       this.refreshMarkers({ silent: false });
     }
     if (nextTab === "MY_MARKERS") {
-      this.applyMyMarkerFilters();
+      if (!this.data.myPinsLoaded && !this.data.myPinsLoading) {
+        this.refreshMyPins({ silent: false, filter: this.data.activeMyMarkerFilter });
+      } else {
+        this.applyMyMarkerFilters();
+      }
     }
   },
 
   onMyMarkerFilterTap(e) {
     const filter = e?.currentTarget?.dataset?.filter;
     if (!filter || filter === this.data.activeMyMarkerFilter) return;
-    this.setData({ activeMyMarkerFilter: filter });
-    this.applyMyMarkerFilters();
+    if (!this.data.myPinsLoaded && !this.data.myPinsLoading) {
+      this.refreshMyPins({ silent: false, filter });
+      return;
+    }
+    this.setData({ activeMyMarkerFilter: filter }, () => this.applyMyMarkerFilters());
   },
 
   onPullDownRefresh() {
@@ -464,6 +498,374 @@ Page({
       });
     }
     this.setData({ myVisibleMarkers: visible });
+    return visible;
+  },
+
+  extractPinList(payload) {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    const direct =
+      (Array.isArray(payload.content) && payload.content) ||
+      (Array.isArray(payload.records) && payload.records) ||
+      (Array.isArray(payload.items) && payload.items) ||
+      (Array.isArray(payload.list) && payload.list);
+    if (direct) return direct;
+    const data = payload.data;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") {
+      if (Array.isArray(data.content)) return data.content;
+      if (Array.isArray(data.records)) return data.records;
+      if (Array.isArray(data.items)) return data.items;
+      if (Array.isArray(data.list)) return data.list;
+    }
+    return [];
+  },
+
+  formatPinCoordinateText(lat, lng) {
+    const la = Number(lat);
+    const lo = Number(lng);
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) return "";
+    return `${la.toFixed(6)}, ${lo.toFixed(6)}`;
+  },
+
+  normalizePin(raw = {}) {
+    const reviewStatus = raw.reviewStatus || "PENDING";
+    const statusMeta = PIN_REVIEW_STATUS_META[reviewStatus] || PIN_REVIEW_STATUS_META.PENDING;
+    const visibility = (raw.visibility || "").toUpperCase();
+    const scope = visibility || "PRIVATE";
+    const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
+    const images = Array.isArray(raw.images)
+      ? raw.images
+        .map((img, index) => ({
+          fileName: img,
+          url: download(img),
+          id: `${raw.id || "pin"}-image-${index}`
+        }))
+        .filter((item) => !!item.url)
+      : [];
+    const coords = Array.isArray(raw.shape?.coordinates) ? raw.shape.coordinates : [];
+    const firstCoord = coords[0] || {};
+    const locationText =
+      raw.location?.text ||
+      raw.locationText ||
+      "";
+    const createdAtDisplay = this.formatDateTime(raw.createdAt);
+    const updatedAtDisplay = this.formatDateTime(raw.updatedAt);
+    const hasUpdatedAt = !!raw.updatedAt && updatedAtDisplay !== "--";
+    const timelineLabel = hasUpdatedAt ? "更新时间" : "创建时间";
+    const timelineDisplay = hasUpdatedAt ? updatedAtDisplay : createdAtDisplay;
+    const exposureCount = Number(raw.exposureCount);
+    const phoneCallCount = Number(raw.phoneCallCount);
+    let statusLabel;
+    let statusTone;
+    if (scope === "PRIVATE") {
+      statusLabel = "私有";
+      statusTone = "draft";
+    } else if (scope === "GROUP" || scope === "WORKGROUP" || scope === "TEAM") {
+      statusLabel = "工作组";
+      statusTone = "pending";
+    } else {
+      statusLabel = statusMeta.label;
+      statusTone = statusMeta.tone;
+    }
+    return {
+      id: raw.id || "",
+      name: raw.name || "",
+      description: raw.description || "",
+      images,
+      coverImage: images.length ? images[0].url : "",
+      reviewStatus,
+      reviewStatusLabel: statusLabel,
+      reviewTone: statusTone,
+      scope,
+      permission: scope,
+      createdAtDisplay,
+      updatedAtDisplay,
+      timelineLabel,
+      timelineDisplay,
+      locationText,
+      exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
+      phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
+      raw
+    };
+  },
+
+  applyCachedPinAddresses(list = []) {
+    if (!Array.isArray(list) || !list.length) return [];
+    const cache = this._pinAddressCache || {};
+    let changed = false;
+    const next = list.map((item) => {
+      if (item.locationText) return item;
+      const coords = Array.isArray(item.raw?.shape?.coordinates) ? item.raw.shape.coordinates : [];
+      const first = coords[0] || {};
+      const lat = Number(first.latitude);
+      const lng = Number(first.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return item;
+      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+      if (cache[key]) {
+        changed = true;
+        return Object.assign({}, item, { locationText: cache[key] });
+      }
+      return item;
+    });
+    return changed ? next : list;
+  },
+
+  enrichPinAddresses(list = this.data.myMarkers) {
+    if (!Array.isArray(list) || !list.length) return;
+    if (!this._pinAddressCache) this._pinAddressCache = {};
+    if (!this._pendingPinGeo) this._pendingPinGeo = {};
+    list.forEach((item) => {
+      if (item.locationText) return;
+      const coords = Array.isArray(item.raw?.shape?.coordinates) ? item.raw.shape.coordinates : [];
+      const first = coords[0] || {};
+      const lat = Number(first.latitude);
+      const lng = Number(first.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+      if (this._pinAddressCache[key]) {
+        return;
+      }
+      if (this._pendingPinGeo[key]) {
+        return;
+      }
+      this._pendingPinGeo[key] = true;
+      reverseGeocode(lat, lng)
+        .then((res = {}) => {
+          const addr = this.extractAddressFromReverse(res);
+          if (!addr) return;
+          this._pinAddressCache[key] = addr;
+          const updated = (this.data.myMarkers || []).map((pin) => {
+            if (
+              !pin.locationText &&
+              pin.raw &&
+              Array.isArray(pin.raw.shape?.coordinates) &&
+              pin.raw.shape.coordinates[0] &&
+              Number(pin.raw.shape.coordinates[0].latitude) === lat &&
+              Number(pin.raw.shape.coordinates[0].longitude) === lng
+            ) {
+              return Object.assign({}, pin, { locationText: addr });
+            }
+            return pin;
+          });
+          this.setData({ myMarkers: updated }, () => this.applyMyMarkerFilters(updated, this.data.activeMyMarkerFilter));
+        })
+        .catch((err) => {
+          console.warn("reverse geocode pin failed", err);
+        })
+        .finally(() => {
+          delete this._pendingPinGeo[key];
+        });
+    });
+  },
+
+  extractAddressFromReverse(result = {}) {
+    const rec = result.result || result;
+    const fromRecommend =
+      rec?.address ||
+      rec?.formatted_addresses?.recommend ||
+      rec?.formatted_addresses?.rough_address ||
+      rec?.formatted_addresses?.standard_address;
+    if (fromRecommend && typeof fromRecommend === "string") {
+      const trimmed = fromRecommend.trim();
+      if (trimmed) return trimmed;
+    }
+    if (rec && typeof rec === "object" && rec.address_component) {
+      const comp = rec.address_component;
+      const parts = [comp.city, comp.district, comp.street, comp.street_number]
+        .map((p) => (p || "").trim())
+        .filter(Boolean);
+      const joined = parts.join("");
+      if (joined) return joined;
+    }
+    return "";
+  },
+
+  refreshMyPins(options = {}) {
+    const { silent = false, filter = this.data.activeMyMarkerFilter } = options;
+    if (!silent) {
+      this.setData({ myPinsLoading: true, myPinsError: "" });
+    } else {
+      this.setData({ myPinsError: "" });
+    }
+    const fetchPage = () =>
+      listMyPins(
+        { page: 0, size: 1000 },
+        { apiBase: this.apiBase }
+      );
+    let retriedWithAuth = false;
+    const load = () =>
+      fetchPage().catch((err) => {
+        if (!retriedWithAuth && err?.message === "missing-token") {
+          retriedWithAuth = true;
+          return this.ensureAccessToken().then(() => fetchPage());
+        }
+        throw err;
+      });
+    return load()
+      .then((page) => {
+        const content = this.extractPinList(page);
+        const normalized = content.map((item) => this.normalizePin(item));
+        this._pinAddressCache = this._pinAddressCache || {};
+        this._pendingPinGeo = this._pendingPinGeo || {};
+        const applied = this.applyCachedPinAddresses(normalized);
+        this.setData(
+          {
+            myMarkers: applied,
+            myPinsLoaded: true,
+            activeMyMarkerFilter: filter
+          },
+          () => {
+            this.applyMyMarkerFilters(applied, filter);
+            this.enrichPinAddresses(applied);
+          }
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to load my pins", err);
+        const message = err?.message || "加载我的标记失败，请稍后重试";
+        this.setData({ myPinsError: message });
+      })
+      .finally(() => {
+        this.setData({ myPinsLoading: false });
+      });
+  },
+
+  normalizePinCoordinateForPayload(item = {}) {
+    const lat = normalizePinCoordValue(item.latitude);
+    const lng = normalizePinCoordValue(item.longitude);
+    return {
+      latitude: Number.isFinite(lat) ? lat : null,
+      longitude: Number.isFinite(lng) ? lng : null
+    };
+  },
+
+  mapPointCategoryByType(typeId) {
+    switch (typeId) {
+      case "POINT_WARNING":
+        return "WARNING";
+      case "POINT_AERIAL":
+        return "AERIAL_SHOT";
+      case "POINT_DOCK":
+        return "TAKEOFF_LANDING";
+      case "POINT_ELEVATION":
+        return "TALL_BUILDING";
+      default:
+        return "GENERAL";
+    }
+  },
+
+  mapLineCategoryByType(typeId) {
+    if (typeId === "LINE_PATH_BUFFER") return "TEMPORARY_NO_FLY_ZONE_BUFFER";
+    return "STANDARD";
+  },
+
+  mapPinShapeType(category, typeId) {
+    if (category === "LINE") return "LINE";
+    if (category === "AREA") {
+      if (typeId === "AREA_CIRCLE") return "CIRCLE";
+      if (typeId === "AREA_RECTANGLE") return "RECTANGLE";
+      return "POLYGON";
+    }
+    return "POINT";
+  },
+
+  buildPinCoordinates(form, shapeType) {
+    const preferWgs = Array.isArray(form.wgs84Coordinates) ? form.wgs84Coordinates : [];
+    const sourceList = preferWgs.length ? preferWgs : form.coordinateList || [];
+    const coords = sourceList
+      .map((item) => this.normalizePinCoordinateForPayload(item))
+      .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
+    if (!coords.length && hasValidCoordinate(form.latitude, form.longitude)) {
+      coords.push(
+        this.normalizePinCoordinateForPayload({
+          latitude: form.latitude,
+          longitude: form.longitude
+        })
+      );
+    }
+    if (shapeType === "LINE" && coords.length < 2) {
+      throw new Error("请绘制两个以上的路径点");
+    }
+    if ((shapeType === "RECTANGLE" || shapeType === "POLYGON") && coords.length < 3) {
+      throw new Error("请绘制三个以上的面点位");
+    }
+    if (shapeType === "CIRCLE" && !coords.length) {
+      throw new Error("请先选择圆心");
+    }
+    if (shapeType === "POINT" && !coords.length) {
+      throw new Error("请先选择标记位置");
+    }
+    return coords;
+  },
+
+  extractPinImagesForPayload(list = []) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .map((item) => {
+        if (!item) return "";
+        if (typeof item === "string") return item;
+        return (
+          item.fileName ||
+          item.filename ||
+          item.objectName ||
+          item.name ||
+          item.location ||
+          item.path ||
+          item.url ||
+          ""
+        );
+      })
+      .map((text) => `${text}`.trim())
+      .filter(Boolean);
+  },
+
+  buildPinShapePayload(form = this.data.myPinForm) {
+    const shapeType = this.mapPinShapeType(form.geometryCategory, form.geometryType);
+    const coordinates = this.buildPinCoordinates(form, shapeType);
+    const shape = {
+      type: shapeType,
+      coordinates
+    };
+    if (shapeType === "POINT") {
+      shape.pointCategory = this.mapPointCategoryByType(form.geometryType);
+    }
+    if (shapeType === "LINE") {
+      const width = Number(form.bufferWidth);
+      if (!Number.isFinite(width) || width <= 0) {
+        throw new Error("请填写沿边宽度");
+      }
+      shape.width = Number(width.toFixed(2));
+      shape.lineCategory = this.mapLineCategoryByType(form.geometryType);
+    }
+    if (shapeType === "CIRCLE") {
+      const radius = Number(form.radius);
+      if (!Number.isFinite(radius) || radius <= 0) {
+        throw new Error("请填写半径");
+      }
+      shape.radius = Number((radius / 1000).toFixed(3)); // API 以公里为单位
+    }
+    return shape;
+  },
+
+  buildPinCreatePayload(form = this.data.myPinForm) {
+    const name = (form.name || "").trim();
+    if (!name) {
+      throw new Error("请填写名称");
+    }
+    if (!form.geometryType || !form.geometryCategory) {
+      throw new Error("请先选择标记类型");
+    }
+    const shape = this.buildPinShapePayload(form);
+    const payload = {
+      name,
+      description: (form.description || "").trim(),
+      visibility: form.publishToPlatform ? "PUBLIC" : "PRIVATE",
+      groupIds: [],
+      images: this.extractPinImagesForPayload(form.images),
+      shape
+    };
+    return payload;
   },
 
   refreshMarkers(options = {}) {
@@ -505,6 +907,10 @@ Page({
 
   onRetryTap() {
     this.refreshMarkers({ silent: false });
+  },
+
+  onRetryMyPinsTap() {
+    this.refreshMyPins({ silent: false, filter: this.data.activeMyMarkerFilter });
   },
 
   extractMarkerList(payload) {
@@ -770,6 +1176,7 @@ Page({
     this.setData({
       showMyPinCreate: true,
       myPinForm: createEmptyPinForm(),
+      myPinFormConfigured: false,
       pinSubmitting: false,
       pinError: ""
     });
@@ -825,6 +1232,29 @@ Page({
     const activeCoord = coordinateList[activeCoordIndex] || {};
     const lat = detail.latitude ?? activeCoord.latitude ?? null;
     const lng = detail.longitude ?? activeCoord.longitude ?? null;
+    const bufferWidthRaw =
+      detail.bufferWidth ?? detail.pathBufferWidth ?? detail.bufferWidthMeters ?? null;
+    const radiusRaw = detail.radius ?? null;
+    const wgsList = Array.isArray(detail.wgs84Coordinates)
+      ? detail.wgs84Coordinates
+        .map((item) => ({
+          latitude: normalizePinCoordValue(item.latitude),
+          longitude: normalizePinCoordValue(item.longitude)
+        }))
+        .filter((item) => hasValidCoordinate(item.latitude, item.longitude))
+      : [];
+    const wgsFromPoint = detail.wgs84 || {};
+    if (
+      hasValidCoordinate(
+        normalizePinCoordValue(wgsFromPoint.latitude),
+        normalizePinCoordValue(wgsFromPoint.longitude)
+      )
+    ) {
+      wgsList.push({
+        latitude: normalizePinCoordValue(wgsFromPoint.latitude),
+        longitude: normalizePinCoordValue(wgsFromPoint.longitude)
+      });
+    }
     this.setData({
       "myPinForm.latitude": lat,
       "myPinForm.longitude": lng,
@@ -835,7 +1265,18 @@ Page({
       "myPinForm.geometryCategory": cat || "POINT",
       "myPinForm.geometryLabel": combinedLabel,
       "myPinForm.coordinateList": coordinateList,
-      "myPinForm.activeCoordIndex": activeCoordIndex
+      "myPinForm.activeCoordIndex": activeCoordIndex,
+      "myPinForm.bufferWidth": Number.isFinite(Number(bufferWidthRaw)) ? Number(bufferWidthRaw) : null,
+      "myPinForm.radius": Number.isFinite(Number(radiusRaw)) ? Number(radiusRaw) : null,
+      "myPinForm.wgs84Coordinates": wgsList,
+      myPinFormConfigured: isPinLocationConfigured(
+        Object.assign({}, this.data.myPinForm, {
+          latitude: lat,
+          longitude: lng,
+          coordinateList,
+          wgs84Coordinates: wgsList
+        })
+      )
     });
   },
 
@@ -883,21 +1324,47 @@ Page({
 
   onSubmitPinForm() {
     if (this.data.pinSubmitting) return;
-    const { geometryType, latitude, longitude, name, images } = this.data.myPinForm;
-    if (!geometryType || !hasValidCoordinate(latitude, longitude)) {
+    const form = this.data.myPinForm || {};
+    if (!form.geometryType || !form.geometryCategory) {
       wx.showToast({ title: "请先开始标记", icon: "none" });
       return;
     }
-    if (!name) {
-      wx.showToast({ title: "请填写名称", icon: "none" });
+    try {
+      this.buildPinShapePayload(form);
+    } catch (err) {
+      wx.showToast({ title: err?.message || "请完善标记信息", icon: "none" });
+      return;
+    }
+    let payload;
+    try {
+      payload = this.buildPinCreatePayload(form);
+    } catch (err) {
+      wx.showToast({ title: err?.message || "请完善标记信息", icon: "none" });
       return;
     }
     this.setData({ pinSubmitting: true, pinError: "" });
-    // TODO: 接入 pin-api 创建接口
-    setTimeout(() => {
-      this.setData({ pinSubmitting: false, showMyPinCreate: false });
-      wx.showToast({ title: "已保存标记", icon: "success" });
-    }, 300);
+    const submit = () => createPinApi(payload, { apiBase: this.apiBase });
+    let retriedWithAuth = false;
+    const run = () =>
+      submit().catch((err) => {
+        if (!retriedWithAuth && err?.message === "missing-token") {
+          retriedWithAuth = true;
+          return this.ensureAccessToken().then(() => submit());
+        }
+        throw err;
+      });
+    run()
+      .then(() => {
+        this.setData({ pinSubmitting: false, showMyPinCreate: false });
+        wx.showToast({ title: "已保存标记", icon: "success" });
+        this.refreshMyPins({ silent: true });
+      })
+      .catch((err) => {
+        console.error("创建 Pin 失败", err);
+        const message = err?.message || "保存失败";
+        this.setData({ pinSubmitting: false, pinError: message });
+        wx.showToast({ title: message, icon: "none" });
+      });
   },
 
   onGoHomeTap(e) {
