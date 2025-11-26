@@ -235,9 +235,8 @@
             />
           </view>
         </view>
-      </view>
-    </block>
-  </view>
+      </block>
+    </view>
 
     <view wx:if="{{selectedType.category === 'LINE'}}" class="line-actions">
       <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
