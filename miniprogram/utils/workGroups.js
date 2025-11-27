@@ -139,6 +139,17 @@ function uploadWorkGroupImage(filePath, options = {}) {
   });
 }
 
+function joinWorkGroup(id, invitationCode, options = {}) {
+  if (!id) return Promise.reject(new Error("missing-work-group-id"));
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/work-groups/${encodeURIComponent(id)}/join`,
+    method: "POST",
+    data: { invitationCode }
+  }).then((body = {}) => body.data || {});
+}
+
 module.exports = {
   listMyWorkGroups,
   createWorkGroup,
@@ -148,5 +159,6 @@ module.exports = {
   addWorkGroupMembers,
   removeWorkGroupMembers,
   fetchFeatureCodeProfiles,
-  uploadWorkGroupImage
+  uploadWorkGroupImage,
+  joinWorkGroup
 };

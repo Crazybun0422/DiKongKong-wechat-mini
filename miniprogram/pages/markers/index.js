@@ -30,7 +30,8 @@ const {
   dissolveWorkGroup,
   exitWorkGroup,
   addWorkGroupMembers,
-  uploadWorkGroupImage
+  uploadWorkGroupImage,
+  joinWorkGroup
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
 
@@ -261,7 +262,10 @@ Page({
     showDissolveDialog: false,
     workGroupDissolveInput: "",
     workGroupDissolving: false,
-    currentFeatureCode: ""
+    currentFeatureCode: "",
+    shareWorkGroup: null,
+    joinInvitePrompt: null,
+    joinInviting: false
   },
 
   onLoad(options = {}) {
@@ -273,6 +277,7 @@ Page({
     this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
     this.refreshWorkGroups({ initial: true });
+    this.handleWorkGroupInviteOptions(options);
     if (options.create === "1") {
       this.onCreateTap();
     }
@@ -297,6 +302,18 @@ Page({
     }
     this.ensureAccessToken().catch((err) => {
       console.warn("ensureAccessToken failed on show", err);
+    });
+  },
+
+  handleWorkGroupInviteOptions(options = {}) {
+    const invitationCode = options.invitationCode || options.inviteCode || "";
+    const groupId = options.groupId || options.workGroupId || "";
+    const groupName = options.groupName || "";
+    if (!invitationCode || !groupId) return;
+    this.setData({
+      joinInvitePrompt: { invitationCode, groupId, groupName },
+      joinInviting: false,
+      activeCenterTab: "WORKGROUP"
     });
   },
 
@@ -661,7 +678,7 @@ Page({
             fallback: this.data.assetPaths.defaultAvatar
           }) ||
           this.data.assetPaths.defaultAvatar,
-      nickname: prof.nickname || "",
+        nickname: prof.nickname || "",
         id: `${raw.id || "wg"}-member-${idx}`
       };
     });
@@ -976,10 +993,6 @@ Page({
     wx.navigateTo({ url: "/pages/markers/workgroup-members/index" });
   },
 
-  onShareWorkGroupInvite() {
-    wx.showToast({ title: "微信群邀请敬请期待", icon: "none" });
-  },
-
   onWorkGroupDissolveInput(e) {
     this.setData({ workGroupDissolveInput: e?.detail?.value || "" });
   },
@@ -1023,6 +1036,39 @@ Page({
 
   onCloseDissolveDialog() {
     this.setData({ showDissolveDialog: false, workGroupDissolveInput: "", workGroupDissolving: false });
+  },
+
+  onCloseJoinPrompt() {
+    this.setData({ joinInvitePrompt: null, joinInviting: false });
+  },
+
+  onConfirmJoinWorkGroup() {
+    const prompt = this.data.joinInvitePrompt || {};
+    if (!prompt.invitationCode || !prompt.groupId || this.data.joinInviting) return;
+    this.setData({ joinInviting: true });
+    joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已加入工作组", icon: "success" });
+        this.setData({ joinInvitePrompt: null, joinInviting: false, activeCenterTab: "WORKGROUP" });
+        this.refreshWorkGroups({ silent: false });
+      })
+      .catch((err) => {
+        console.error("加入工作组失败", err);
+        wx.showToast({ title: err?.message || "加入失败", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ joinInviting: false });
+      });
+  },
+
+
+  onShareAppMessage() {
+    const group = this.data.activeWorkGroup;
+    if (!group) return {};
+    const invitationCode = ensureFeatureCode(this.data.currentFeatureCode || "");
+    const title = `邀请你加入我的工作组 ${group.name || ""}`.trim() || "邀请你加入我的工作组";
+    const path = `/pages/markers/index?invitationCode=${encodeURIComponent(invitationCode)}&groupId=${encodeURIComponent(group.id || "")}&groupName=${encodeURIComponent(group.name || "")}`;
+    return { title, path };
   },
 
   onCopyWorkGroupCode() {
