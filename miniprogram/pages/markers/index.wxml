@@ -181,12 +181,73 @@
       </scroll-view>
     </block>
 
-    <block wx:else>
-      <view class="center-placeholder">
-        <image class="center-placeholder-icon" src="/assets/idea.png" mode="aspectFit" />
-        <text class="center-placeholder-title">工作组</text>
-        <text class="center-placeholder-desc">敬请期待团队创作协同</text>
+    <block wx:elif="{{activeCenterTab === 'WORKGROUP'}}">
+      <view class="markers-static">
+        <view class="page-header">
+          <button class="create-btn" bindtap="onWorkGroupCreateTap">
+            <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+            <text class="create-btn-text">新增</text>
+          </button>
+        </view>
       </view>
+      <scroll-view
+        scroll-y
+        class="markers-scroll"
+        refresher-enabled="{{true}}"
+        refresher-triggered="{{workGroupsRefreshing}}"
+        bindrefresherrefresh="onPullDownRefresh"
+      >
+        <block wx:if="{{workGroupsLoading && !workGroupsLoaded}}">
+          <view class="state-card">加载中...</view>
+        </block>
+        <block wx:elif="{{workGroupsError}}">
+          <view class="state-card state-error">
+            <text class="state-text">{{workGroupsError}}</text>
+            <button class="retry-btn" bindtap="refreshWorkGroups">重新加载</button>
+          </view>
+        </block>
+        <block wx:elif="{{!workGroups.length}}">
+          <view class="empty-card workgroup-empty-card">
+            <view class="empty-icon-wrapper">
+              <image class="empty-icon" src="{{assetPaths.workGroup}}" mode="aspectFit" />
+            </view>
+            <text class="empty-title">暂未创建工作组</text>
+            <text class="empty-desc">与团队协作共享组内标记，效率翻倍。</text>
+            <button class="empty-action" bindtap="onWorkGroupCreateTap">立即创建</button>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="workgroup-list">
+            <block wx:for="{{workGroups}}" wx:key="id">
+              <view class="marker-card workgroup-card" data-id="{{item.id}}" bindtap="onWorkGroupCardTap">
+                <view wx:if="{{item.isOwner}}" class="status-corner online">
+                  <text class="status-corner-text">管理员</text>
+                </view>
+                <view class="card-body">
+                  <view class="card-top">
+                    <view class="card-info">
+                      <text class="marker-name">{{item.name || '未命名工作组'}}</text>
+                      <text class="marker-created">更新时间：{{item.updatedAtDisplay || '--'}}</text>
+                      <view class="workgroup-meta-row">
+                        <text class="workgroup-members-text">{{item.memberCount || 0}}人</text>
+                        <view class="location-pill">
+                          <text class="location-number">{{item.pinCount || 0}}</text>
+                          <text class="location-label">个地点</text>
+                        </view>
+                      </view>
+                    </view>
+                    <image
+                      class="marker-cover workgroup-cover"
+                      src="{{item.coverImage || assetPaths.workGroup}}"
+                      mode="aspectFill"
+                    />
+                  </view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+      </scroll-view>
     </block>
   </view>
 
@@ -315,6 +376,214 @@
           删除标记
         </button> -->
       </scroll-view>
+    </view>
+  </view>
+
+  <view wx:if="{{showWorkGroupCreate}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">创建工作组</text>
+        <view class="drawer-close" bindtap="onCloseWorkGroupCreate">×</view>
+      </view>
+      <scroll-view scroll-y class="drawer-body">
+        <view class="field-row">
+          <view class="field-label required">
+            <text class="required-star">*</text>
+            <text>图片</text>
+          </view>
+          <view class="upload-box" bindtap="onWorkGroupChooseImage">
+            <block wx:if="{{workGroupForm.images && workGroupForm.images.length}}">
+              <image class="upload-preview" src="{{workGroupForm.images[0].url}}" mode="aspectFill" />
+            </block>
+            <block wx:else>
+              <view class="upload-placeholder">
+                <text class="upload-plus">+</text>
+                <text class="upload-text">上传</text>
+              </view>
+            </block>
+          </view>
+        </view>
+        <view class="field-row">
+          <view class="field-label required">
+            <text class="required-star">*</text>
+            <text>名称</text>
+          </view>
+          <input
+            class="field-input form-input"
+            placeholder="请输入"
+            value="{{workGroupForm.name}}"
+            bindinput="onWorkGroupNameInput"
+          />
+        </view>
+        <view class="field-row">
+          <view class="field-label">
+            <text>简介</text>
+          </view>
+          <textarea
+            class="field-textarea form-textarea"
+            placeholder="请填写简介"
+            value="{{workGroupForm.description}}"
+            bindinput="onWorkGroupDescInput"
+            maxlength="500"
+            auto-height
+          />
+        </view>
+      </scroll-view>
+      <view class="drawer-footer">
+        <button
+          class="footer-btn primary"
+          loading="{{workGroupSubmitting}}"
+          disabled="{{workGroupSubmitting}}"
+          bindtap="onSubmitWorkGroupCreate"
+        >
+          立即创建
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showWorkGroupDetail && activeWorkGroup}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">工作组设置</text>
+        <view class="drawer-close" bindtap="onCloseWorkGroupDetail">×</view>
+      </view>
+      <scroll-view scroll-y class="drawer-body">
+        <view class="detail-section">
+          <text class="detail-title">{{activeWorkGroup.name || '工作组'}}</text>
+          <view class="work-code-row">
+            <view class="work-code-text">
+              <text class="work-code-label">工作码</text>
+              <text class="work-code-value">{{activeWorkGroup.id || '--'}}</text>
+            </view>
+            <text class="copy-link" bindtap="onCopyWorkGroupCode">复制</text>
+          </view>
+        </view>
+
+        <view class="detail-section">
+          <view class="detail-item horizontal">
+            <text class="detail-label">成员</text>
+            <view class="workgroup-member-bar">
+              <text class="workgroup-members-text">{{activeWorkGroup.memberCount || 0}}人</text>
+              <view class="workgroup-member-meta" bindtap="onWorkGroupMemberListTap">
+                <text>查看成员</text>
+                <image class="workgroup-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view class="detail-section">
+          <view class="field-row">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>工作组名称</text>
+            </view>
+            <input
+              class="field-input form-input"
+              placeholder="请输入名称"
+              value="{{workGroupDetailForm.name}}"
+              bindinput="onWorkGroupDetailNameInput"
+              disabled="{{!activeWorkGroup.isOwner}}"
+            />
+          </view>
+          <view class="field-row">
+            <view class="field-label">
+              <text>简介</text>
+            </view>
+            <textarea
+              class="field-textarea form-textarea"
+              placeholder="请填写简介"
+              value="{{workGroupDetailForm.description}}"
+              bindinput="onWorkGroupDetailDescInput"
+              maxlength="500"
+              auto-height
+              disabled="{{!activeWorkGroup.isOwner}}"
+            />
+          </view>
+          <button
+            wx:if="{{activeWorkGroup.isOwner}}"
+            class="footer-btn primary"
+            loading="{{workGroupDetailSaving}}"
+            disabled="{{workGroupDetailSaving}}"
+            bindtap="onSaveWorkGroupDetail"
+          >
+            保存
+          </button>
+        </view>
+
+        <view class="detail-section">
+          <button class="footer-btn" bindtap="onExitWorkGroupTap" wx:if="{{!activeWorkGroup.isOwner}}">
+            退出工作组
+          </button>
+          <view wx:if="{{activeWorkGroup.isOwner}}">
+            <button class="footer-btn primary" bindtap="onWorkGroupInviteTap">
+              邀请成员
+            </button>
+            <button class="footer-btn danger" bindtap="onDissolveWorkGroupTap">
+              解散工作组
+            </button>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <view wx:if="{{showWorkGroupInviteDialog}}" class="modal-overlay" catchtouchmove="noop">
+    <view class="modal-mask" bindtap="onCloseWorkGroupInviteDialog"></view>
+    <view class="modal-card">
+      <view class="modal-header">
+        <text class="modal-title">邀请成员</text>
+        <view class="modal-close" bindtap="onCloseWorkGroupInviteDialog">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="modal-block">
+          <text class="modal-block-title">输入用户低空码</text>
+          <view class="modal-input-row">
+            <input
+              class="modal-input"
+              placeholder="输入用户低空码，支持逗号分隔"
+              value="{{workGroupInviteInput}}"
+              bindinput="onWorkGroupInviteInput"
+            />
+            <button
+              class="modal-btn primary"
+              loading="{{workGroupInviteSubmitting}}"
+              disabled="{{workGroupInviteSubmitting}}"
+              bindtap="onSubmitWorkGroupInvite"
+            >
+              立即添加
+            </button>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showDissolveDialog}}" class="modal-overlay" catchtouchmove="noop">
+    <view class="modal-mask" bindtap="onCloseDissolveDialog"></view>
+    <view class="modal-card">
+      <view class="modal-header">
+        <text class="modal-title">解散工作组</text>
+        <view class="modal-close" bindtap="onCloseDissolveDialog">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="field-row">
+          <view class="field-label">
+            <text>输入名称确认解散</text>
+          </view>
+          <input
+            class="field-input form-input"
+            placeholder="请输入工作组名称确认解散"
+            value="{{workGroupDissolveInput}}"
+            bindinput="onWorkGroupDissolveInput"
+          />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="modal-btn" bindtap="onCloseDissolveDialog">取消</button>
+        <button class="modal-btn primary" bindtap="onConfirmDissolveWorkGroup">确认解散</button>
+      </view>
     </view>
   </view>
 

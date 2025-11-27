@@ -25,31 +25,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/work-groups/mine:
     get:
-      summary: 查询当前用户相关的工作组
-      description: |
-        * 归属人：可看到自己创建的工作组，若状态为封禁则返回状态字段提示已封禁。
-        * 成员：仅能看到自己参与且处于激活状态的工作组。
+      summary: 我的工作组
+      description: |-
+        返回当前用户拥有的工作组列表、已加入的工作组列表，以及去重合并后的分页列表，均按创建时间倒序排列。
+        * owned/joined 列表：提供非分页的拆分视图，便于首页概览或选择器使用。
+        * combinedPage：提供分页合并视图，覆盖原 `/api/work-groups` GET 的功能。
       parameters:
         - in: query
           name: page
           schema:
             type: integer
             minimum: 0
-          description: 页码（从 0 开始）。
+          description: combinedPage 的页码（从 0 开始）。
         - in: query
           name: size
           schema:
             type: integer
             minimum: 1
-          description: 每页数量。
+          description: combinedPage 的每页数量。
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApiResponseWorkGroupPage'
+                $ref: '#/components/schemas/ApiResponseWorkGroupMine'
   /api/work-groups/{id}:
     put:
       summary: 更新工作组基本信息
@@ -74,8 +76,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
     delete:
-      summary: 删除工作组
-      description: 仅归属人可删除自己创建的工作组。
+      summary: 删除/解散工作组
+      description: 仅归属人或管理员可删除工作组。
       parameters:
         - in: path
           name: id
@@ -127,6 +129,23 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/WorkGroupMembersRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/work-groups/{id}/exit:
+    post:
+      summary: 退出指定工作组
+      description: 当前用户主动退出参与的工作组，组拥有者不可退出。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: OK
@@ -384,6 +403,33 @@ components:
         totalPages:
           type: integer
           description: 总页数。
+    WorkGroupMineResponse:
+      type: object
+      properties:
+        owned:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+          description: 当前用户拥有的工作组列表。
+        joined:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+          description: 当前用户作为成员加入的工作组列表。
+        combinedPage:
+          $ref: '#/components/schemas/WorkGroupPage'
+          description: 拥有与加入的工作组去重合并后的分页列表。
+    ApiResponseWorkGroupMine:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WorkGroupMineResponse'
     ApiResponseWorkGroupResponse:
       type: object
       properties:

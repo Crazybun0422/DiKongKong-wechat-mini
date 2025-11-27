@@ -21,14 +21,29 @@ const {
 } = require("../../utils/payments");
 const { payWithFlp } = require("../../utils/flp");
 const { reverseGeocode } = require("../../utils/geocoder");
-const { listMyPins, createPin: createPinApi } = require("../../utils/pins");
+const { listMyPins, createPin: createPinApi, updatePinGroups } = require("../../utils/pins");
+const {
+  listMyWorkGroups,
+  fetchFeatureCodeProfiles,
+  createWorkGroup,
+  updateWorkGroup,
+  dissolveWorkGroup,
+  exitWorkGroup,
+  addWorkGroupMembers,
+  uploadWorkGroupImage
+} = require("../../utils/workGroups");
+const { buildImageUrl } = require("../../utils/images");
 
 const STATIC_ASSETS = {
   add: "/assets/add.png",
   exposure: "/assets/exposure.png",
   telephone: "/assets/telephone.png",
   defaultCover: "/assets/no-image.png",
-  emptyPin: "/assets/empty-pin.png"
+  emptyPin: "/assets/empty-pin.png",
+  workGroup: "/assets/work-group.png",
+  arrowRight: "/assets/arrow-right.png",
+  plus: "/assets/plus-circle-fill.png",
+  defaultAvatar: "/assets/default-avatar.png"
 };
 
 const CENTER_TABS = [
@@ -226,7 +241,26 @@ Page({
     submitButtonText: "提交审核",
     showPaymentSection: true,
     resultStepsLocked: false,
-    qrCodeMaxCount: QR_CODE_MAX_COUNT
+    qrCodeMaxCount: QR_CODE_MAX_COUNT,
+    // 工作组
+    workGroups: [],
+    workGroupsLoaded: false,
+    workGroupsLoading: false,
+    workGroupsRefreshing: false,
+    workGroupsError: "",
+    showWorkGroupCreate: false,
+    workGroupForm: { name: "", description: "", images: [] },
+    workGroupSubmitting: false,
+    showWorkGroupDetail: false,
+    activeWorkGroup: null,
+    workGroupDetailForm: { name: "", description: "", images: [] },
+    workGroupDetailSaving: false,
+    workGroupInviteSubmitting: false,
+    showWorkGroupInviteDialog: false,
+    workGroupInviteInput: "",
+    showDissolveDialog: false,
+    workGroupDissolveInput: "",
+    currentFeatureCode: ""
   },
 
   onLoad(options = {}) {
@@ -237,6 +271,7 @@ Page({
     });
     this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
+    this.refreshWorkGroups({ initial: true });
     if (options.create === "1") {
       this.onCreateTap();
     }
@@ -245,12 +280,19 @@ Page({
   onShow() {
     const needMarkers = !this.data.hasLoaded && !this.data.loading;
     const needPins = this.data.activeCenterTab === "MY_MARKERS" && !this.data.myPinsLoaded && !this.data.myPinsLoading;
-    if (!needMarkers && !needPins) return;
+    const needWorkGroups =
+      this.data.activeCenterTab === "WORKGROUP" &&
+      !this.data.workGroupsLoaded &&
+      !this.data.workGroupsLoading;
+    if (!needMarkers && !needPins && !needWorkGroups) return;
     if (needMarkers) {
       this.refreshMarkers({ initial: true });
     }
     if (needPins) {
       this.refreshMyPins({ silent: false });
+    }
+    if (needWorkGroups) {
+      this.refreshWorkGroups({ silent: false });
     }
     this.ensureAccessToken().catch((err) => {
       console.warn("ensureAccessToken failed on show", err);
@@ -340,6 +382,9 @@ Page({
       typeof profile.flpValue === "number" && Number.isFinite(profile.flpValue)
         ? profile.flpValue
         : null;
+    this.setData({
+      currentFeatureCode: ensureFeatureCode(profile.featureCode || this.data.currentFeatureCode || "")
+    });
     this.updateFlpPaymentState(balance);
   },
 
@@ -466,6 +511,11 @@ Page({
         this.applyMyMarkerFilters();
       }
     }
+    if (nextTab === "WORKGROUP") {
+      if (!this.data.workGroupsLoaded && !this.data.workGroupsLoading) {
+        this.refreshWorkGroups({ silent: false });
+      }
+    }
   },
 
   onMyMarkerFilterTap(e) {
@@ -479,11 +529,21 @@ Page({
   },
 
   onPullDownRefresh() {
-    this.refreshMarkers({ silent: true }).finally(() => {
+    const tab = this.data.activeCenterTab;
+    const finalize = () => {
       if (typeof wx.stopPullDownRefresh === "function") {
         wx.stopPullDownRefresh();
       }
-    });
+    };
+    if (tab === "MY_MARKERS") {
+      this.refreshMyPins({ silent: false, filter: this.data.activeMyMarkerFilter }).finally(finalize);
+      return;
+    }
+    if (tab === "WORKGROUP") {
+      this.refreshWorkGroups({ silent: false }).finally(finalize);
+      return;
+    }
+    this.refreshMarkers({ silent: true }).finally(finalize);
   },
 
   applyMyMarkerFilters(list = this.data.myMarkers, filter = this.data.activeMyMarkerFilter) {
@@ -519,6 +579,341 @@ Page({
       if (Array.isArray(data.list)) return data.list;
     }
     return [];
+  },
+
+  refreshWorkGroups(options = {}) {
+    const { silent = false } = options;
+    if (!silent) {
+      this.setData({ workGroupsLoading: true, workGroupsError: "" });
+    } else {
+      this.setData({ workGroupsRefreshing: true, workGroupsError: "" });
+    }
+    const fetchPage = () => listMyWorkGroups({ page: 0, size: 1000 }, { apiBase: this.apiBase });
+    let retried = false;
+    const load = () =>
+      fetchPage().catch((err) => {
+        if (!retried && err?.message === "missing-token") {
+          retried = true;
+          return this.ensureAccessToken().then(() => fetchPage());
+        }
+        throw err;
+      });
+    return load()
+      .then((payload) => {
+        const list = this.extractWorkGroupList(payload);
+        const normalized = list.map((item) => this.normalizeWorkGroup(item));
+        this.setData({ workGroups: normalized, workGroupsLoaded: true });
+        if (this.data.activeWorkGroup) {
+          const updated = normalized.find((g) => g.id === this.data.activeWorkGroup.id);
+          if (updated) this.setData({ activeWorkGroup: updated });
+        }
+      })
+      .catch((err) => {
+        console.error("加载工作组失败", err);
+        this.setData({ workGroupsError: err?.message || "加载失败，请稍后重试" });
+      })
+      .finally(() => {
+        this.setData({ workGroupsLoading: false, workGroupsRefreshing: false });
+      });
+  },
+
+  extractWorkGroupList(payload) {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    const data = payload.data || payload;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") {
+      if (Array.isArray(data.combinedPage?.content)) return data.combinedPage.content;
+      if (Array.isArray(data.owned) && data.owned.length) return data.owned;
+      if (Array.isArray(data.joined) && data.joined.length) return data.joined;
+    }
+    if (Array.isArray(payload.content)) return payload.content;
+    return [];
+  },
+
+  normalizeWorkGroup(raw = {}) {
+    const images = Array.isArray(raw.images)
+      ? raw.images
+        .map((img, index) => ({
+          fileName: img,
+          url: buildImageUrl(img, { apiBase: this.apiBase }),
+          id: `${raw.id || "wg"}-img-${index}`
+        }))
+        .filter((i) => !!i.url)
+      : [];
+    const coverImage = images.length ? images[0].url : this.data.assetPaths.workGroup;
+    const memberFeatureCodes = Array.isArray(raw.memberFeatureCodes)
+      ? raw.memberFeatureCodes.map((c) => ensureFeatureCode(c)).filter(Boolean)
+      : [];
+    const memberCount = memberFeatureCodes.length;
+    const pinCount = Array.isArray(raw.pinIds) ? raw.pinIds.length : 0;
+    return {
+      id: raw.id || "",
+      name: raw.name || "",
+      description: raw.description || "",
+      images,
+      coverImage,
+      updatedAtDisplay: this.formatDateTime(raw.updatedAt),
+      memberCount,
+      pinCount,
+      ownerFeatureCode: raw.ownerFeatureCode || "",
+      isOwner:
+        !!this.data.currentFeatureCode &&
+        !!raw.ownerFeatureCode &&
+        ensureFeatureCode(this.data.currentFeatureCode) === ensureFeatureCode(raw.ownerFeatureCode)
+    };
+  },
+
+  onWorkGroupCreateTap() {
+    this.setData({
+      showWorkGroupCreate: true,
+      workGroupForm: { name: "", description: "", images: [] }
+    });
+  },
+
+  onCloseWorkGroupCreate() {
+    this.setData({ showWorkGroupCreate: false, workGroupSubmitting: false });
+  },
+
+  onWorkGroupNameInput(e) {
+    this.setData({ "workGroupForm.name": e?.detail?.value || "" });
+  },
+
+  onWorkGroupDescInput(e) {
+    this.setData({ "workGroupForm.description": e?.detail?.value || "" });
+  },
+
+  onWorkGroupChooseImage() {
+    if (typeof wx.chooseImage !== "function") {
+      wx.showToast({ title: "当前版本不支持图片选择", icon: "none" });
+      return;
+    }
+    wx.chooseImage({
+      count: 1,
+      sizeType: ["compressed"],
+      success: (res) => {
+        const path = res?.tempFilePaths?.[0];
+        if (!path) return;
+        wx.showLoading({ title: "上传中...", mask: true });
+        uploadWorkGroupImage(path, { apiBase: this.apiBase })
+          .then((fileName) => {
+            const url = buildImageUrl(fileName, { apiBase: this.apiBase });
+            this.setData({ "workGroupForm.images": [{ fileName, url }] });
+          })
+          .catch(() => wx.showToast({ title: "上传失败", icon: "none" }))
+          .finally(() => wx.hideLoading());
+      }
+    });
+  },
+
+  onSubmitWorkGroupCreate() {
+    if (this.data.workGroupSubmitting) return;
+    const name = (this.data.workGroupForm.name || "").trim();
+    if (!name) {
+      wx.showToast({ title: "请填写名称", icon: "none" });
+      return;
+    }
+    const payload = {
+      name,
+      description: (this.data.workGroupForm.description || "").trim(),
+      images: (this.data.workGroupForm.images || []).map((i) => i.fileName)
+    };
+    this.setData({ workGroupSubmitting: true });
+    createWorkGroup(payload, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已创建", icon: "success" });
+        this.setData({
+          showWorkGroupCreate: false,
+          workGroupForm: { name: "", description: "", images: [] }
+        });
+        this.refreshWorkGroups({ silent: true });
+      })
+      .catch((err) => {
+        console.error("创建工作组失败", err);
+        wx.showToast({ title: err?.message || "创建失败", icon: "none" });
+      })
+      .finally(() => this.setData({ workGroupSubmitting: false }));
+  },
+
+  onWorkGroupCardTap(e) {
+    const id = e?.currentTarget?.dataset?.id;
+    if (!id) return;
+    const target = (this.data.workGroups || []).find((g) => g.id === id);
+    if (!target) return;
+    this.setData({
+      activeWorkGroup: target,
+      workGroupDetailForm: {
+        name: target.name || "",
+        description: target.description || "",
+        images: target.images || []
+      },
+      showWorkGroupDetail: true
+    });
+  },
+
+  onCloseWorkGroupDetail() {
+    this.setData({ showWorkGroupDetail: false, activeWorkGroup: null });
+  },
+
+  onWorkGroupDetailNameInput(e) {
+    this.setData({ "workGroupDetailForm.name": e?.detail?.value || "" });
+  },
+
+  onWorkGroupDetailDescInput(e) {
+    this.setData({ "workGroupDetailForm.description": e?.detail?.value || "" });
+  },
+
+  onSaveWorkGroupDetail() {
+    const group = this.data.activeWorkGroup;
+    if (!group || !group.isOwner) return;
+    const name = (this.data.workGroupDetailForm.name || "").trim();
+    if (!name) {
+      wx.showToast({ title: "请填写名称", icon: "none" });
+      return;
+    }
+    const payload = {
+      name,
+      description: (this.data.workGroupDetailForm.description || "").trim(),
+      images: (this.data.workGroupDetailForm.images || []).map((i) => i.fileName)
+    };
+    this.setData({ workGroupDetailSaving: true });
+    updateWorkGroup(group.id, payload, { apiBase: this.apiBase })
+      .then((res) => {
+        wx.showToast({ title: "已保存", icon: "success" });
+        const updated = this.normalizeWorkGroup(res || Object.assign({}, group, payload));
+        this.setData({ activeWorkGroup: updated });
+        this.refreshWorkGroups({ silent: true });
+      })
+      .catch((err) => {
+        console.error("更新工作组失败", err);
+        wx.showToast({ title: err?.message || "保存失败", icon: "none" });
+      })
+      .finally(() => this.setData({ workGroupDetailSaving: false }));
+  },
+
+  onWorkGroupInviteTap() {
+    if (!this.data.activeWorkGroup?.isOwner) return;
+    this.setData({ showWorkGroupInviteDialog: true, workGroupInviteInput: "" });
+  },
+
+  onCloseWorkGroupInviteDialog() {
+    this.setData({ showWorkGroupInviteDialog: false, workGroupInviteInput: "" });
+  },
+
+  onWorkGroupInviteInput(e) {
+    this.setData({ workGroupInviteInput: e?.detail?.value || "" });
+  },
+
+  onSubmitWorkGroupInvite() {
+    const group = this.data.activeWorkGroup;
+    if (!group || !group.isOwner || this.data.workGroupInviteSubmitting) return;
+    const codes = (this.data.workGroupInviteInput || "")
+      .split(/[,，\s]+/)
+      .map((c) => ensureFeatureCode(c))
+      .filter(Boolean);
+    if (!codes.length) {
+      wx.showToast({ title: "请输入成员码", icon: "none" });
+      return;
+    }
+    this.setData({ workGroupInviteSubmitting: true });
+    addWorkGroupMembers(group.id, codes, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已添加", icon: "success" });
+        this.setData({ showWorkGroupInviteDialog: false, workGroupInviteInput: "" });
+        this.refreshWorkGroups({ silent: true });
+      })
+      .catch((err) => {
+        console.error("添加成员失败", err);
+        wx.showToast({ title: err?.message || "添加失败", icon: "none" });
+      })
+      .finally(() => this.setData({ workGroupInviteSubmitting: false }));
+  },
+
+  onExitWorkGroupTap() {
+    const group = this.data.activeWorkGroup;
+    if (!group) return;
+    wx.showModal({
+      title: "退出工作组",
+      content: "退出后将无法访问组内标记，确认退出？",
+      confirmText: "退出",
+      confirmColor: "#ff3b30",
+      success: (res) => {
+        if (!res.confirm) return;
+        exitWorkGroup(group.id, { apiBase: this.apiBase })
+          .then(() => {
+            wx.showToast({ title: "已退出", icon: "success" });
+            this.onCloseWorkGroupDetail();
+            this.refreshWorkGroups({ silent: true });
+          })
+          .catch((err) => {
+            console.error("退出工作组失败", err);
+            wx.showToast({ title: err?.message || "退出失败", icon: "none" });
+          });
+      }
+    });
+  },
+
+  onWorkGroupMemberListTap() {
+    const group = this.data.activeWorkGroup;
+    if (!group || !Array.isArray(group.memberFeatureCodes)) return;
+    try {
+      wx.setStorageSync("workGroupMembersTemp", {
+        id: group.id,
+        name: group.name,
+        ownerFeatureCode: group.ownerFeatureCode,
+        memberFeatureCodes: group.memberFeatureCodes,
+        memberCount: group.memberCount,
+        isOwner: !!group.isOwner,
+        selfFeatureCode: this.data.currentFeatureCode || ""
+      });
+    } catch (err) {
+      console.warn("缓存工作组成员列表失败", err);
+    }
+    wx.navigateTo({ url: "/pages/markers/workgroup-members/index" });
+  },
+
+  onShareWorkGroupInvite() {
+    wx.showToast({ title: "微信群邀请敬请期待", icon: "none" });
+  },
+
+  onWorkGroupDissolveInput(e) {
+    this.setData({ workGroupDissolveInput: e?.detail?.value || "" });
+  },
+
+  onDissolveWorkGroupTap() {
+    const group = this.data.activeWorkGroup;
+    if (!group) return;
+    if (!group.isOwner) {
+      wx.showToast({ title: "仅管理员可解散", icon: "none" });
+      return;
+    }
+    this.setData({ showDissolveDialog: true, workGroupDissolveInput: "" });
+  },
+
+  onConfirmDissolveWorkGroup() {
+    const group = this.data.activeWorkGroup;
+    if (!group || !group.isOwner) return;
+    const name = (group.name || "").trim();
+    const input = (this.data.workGroupDissolveInput || "").trim();
+    if (name && input !== name) {
+      wx.showToast({ title: "请输入正确的工作组名称确认", icon: "none" });
+      return;
+    }
+    dissolveWorkGroup(group.id, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已解散", icon: "success" });
+        this.setData({ showDissolveDialog: false, workGroupDissolveInput: "" });
+        this.onCloseWorkGroupDetail();
+        this.refreshWorkGroups({ silent: true });
+      })
+      .catch((err) => {
+        console.error("解散工作组失败", err);
+        wx.showToast({ title: err?.message || "解散失败", icon: "none" });
+      });
+  },
+
+  onCloseDissolveDialog() {
+    this.setData({ showDissolveDialog: false, workGroupDissolveInput: "" });
   },
 
   formatPinCoordinateText(lat, lng) {

@@ -165,6 +165,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/exposure:
+    post:
+      summary: 曝光量 +1
+      description: 无需登录。将指定 Pin 的曝光量原子性地加 1，返回最新曝光量。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinMetricsResponse'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/pins/mine:
     get:
       summary: 我的 Pin 标记
@@ -423,6 +446,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PinResponse'
+    ApiResponsePinMetricsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PinMetricsResponse'
     ApiResponseVoid:
       type: object
       properties:
@@ -515,12 +549,23 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/PinStatus'
+        exposureCount:
+          type: integer
+          format: int64
+          description: 曝光次数。
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+    PinMetricsResponse:
+      type: object
+      properties:
+        exposureCount:
+          type: integer
+          format: int64
+          description: 最新曝光次数。
     PinShapeRequest:
       type: object
       properties:

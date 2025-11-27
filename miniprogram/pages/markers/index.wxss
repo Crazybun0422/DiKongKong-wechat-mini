@@ -431,6 +431,28 @@
   overflow: hidden;
 }
 
+.workgroup-list {
+  padding: 0 12rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.workgroup-card {
+  padding: 36rpx 32rpx;
+}
+
+.workgroup-card .card-top {
+  align-items: flex-start;
+  gap: 24rpx;
+}
+
+.workgroup-card .marker-cover {
+  width: 200rpx;
+  height: 140rpx;
+  margin-top: 0;
+}
+
 .card-body {
   display: flex;
   flex-direction: column;
@@ -1480,4 +1502,40 @@
 
 .detail-link {
   text-decoration: underline;
+}
+.workgroup-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 60rpx;
+  margin-top: 16rpx;
+}
+
+.workgroup-members-text {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.location-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, rgba(52, 152, 255, 0.12), rgba(52, 152, 255, 0.08));
+  margin-left: 10rpx;
+}
+
+.location-number {
+  font-size: 34rpx;
+  font-weight: 700;
+  font-style: italic;
+  color: #1d6cff;
+  transform: translateY(-2rpx);
+}
+
+.location-label {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #1d6cff;
 }

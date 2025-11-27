@@ -12,6 +12,7 @@
     "pages/markers/index",
     "pages/markers/location-picker/index",
     "pages/markers/pin-picker/index",
+    "pages/markers/workgroup-members/index",
     "pages/webview/index"
   ],
   "window": {
