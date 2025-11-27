@@ -19,6 +19,7 @@ const {
   createWechatPrepayOrder,
   fetchWechatPaymentStatus
 } = require("../../utils/payments");
+const { getShareInviteCode } = require("../../utils/share");
 const { payWithFlp } = require("../../utils/flp");
 const { reverseGeocode } = require("../../utils/geocoder");
 const { listMyPins, createPin: createPinApi, updatePinGroups } = require("../../utils/pins");
@@ -277,13 +278,14 @@ Page({
     this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
     this.refreshWorkGroups({ initial: true });
-    this.handleWorkGroupInviteOptions(options);
+    // this.handleWorkGroupInviteOptions(options);
     if (options.create === "1") {
       this.onCreateTap();
     }
   },
 
   onShow() {
+    this.consumePendingCenterTab();
     const needMarkers = !this.data.hasLoaded && !this.data.loading;
     const needPins = this.data.activeCenterTab === "MY_MARKERS" && !this.data.myPinsLoaded && !this.data.myPinsLoading;
     const needWorkGroups =
@@ -305,10 +307,27 @@ Page({
     });
   },
 
+  consumePendingCenterTab() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const targetTab = app?.globalData?.targetMarkersCenterTab;
+      if (targetTab === "WORKGROUP") {
+        console.log("consumePendingCenterTab -> WORKGROUP");
+        this.setData({ activeCenterTab: "WORKGROUP" });
+      }
+      if (app && app.globalData && app.globalData.targetMarkersCenterTab) {
+        delete app.globalData.targetMarkersCenterTab;
+      }
+    } catch (err) {
+      console.warn("consumePendingCenterTab failed", err);
+    }
+  },
+
   handleWorkGroupInviteOptions(options = {}) {
     const invitationCode = options.invitationCode || options.inviteCode || "";
     const groupId = options.groupId || options.workGroupId || "";
     const groupName = options.groupName || "";
+    console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
     if (!invitationCode || !groupId) return;
     this.setData({
       joinInvitePrompt: { invitationCode, groupId, groupName },
@@ -381,7 +400,8 @@ Page({
           nickname: normalized.nickname,
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
           featureCode: normalized.featureCode,
-          flpValue: normalized.flpValue
+          flpValue: normalized.flpValue,
+          inviteCode: normalized.inviteCode
         });
         this.applyProfileSnapshot(normalized);
       })
@@ -1061,14 +1081,17 @@ Page({
       });
   },
 
-
   onShareAppMessage() {
     const group = this.data.activeWorkGroup;
     if (!group) return {};
-    const invitationCode = ensureFeatureCode(this.data.currentFeatureCode || "");
+    const invitationCode = getShareInviteCode();
+    console.log("onShareAppMessage work group invite", { invitationCode, groupId: group.id });
+    const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: this.apiBase });
     const title = `邀请你加入我的工作组 ${group.name || ""}`.trim() || "邀请你加入我的工作组";
-    const path = `/pages/markers/index?invitationCode=${encodeURIComponent(invitationCode)}&groupId=${encodeURIComponent(group.id || "")}&groupName=${encodeURIComponent(group.name || "")}`;
-    return { title, path };
+    const path = `/pages/map/map?invitationCode=${encodeURIComponent(invitationCode)}&groupId=${encodeURIComponent(
+      group.id || ""
+    )}&groupName=${encodeURIComponent(group.name || "")}`;
+    return { title, path, imageUrl: posterUrl };
   },
 
   onCopyWorkGroupCode() {

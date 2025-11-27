@@ -1,8 +1,15 @@
-const { loadStoredProfile } = require("./profile");
+const {
+  loadStoredProfile,
+  fetchUserProfile,
+  normalizeProfileData,
+  persistProfileLocally,
+  resolveApiBase
+} = require("./profile");
 
 const INVITE_QUERY_KEY = "inviteCode";
 const PATH_PARAM_PATTERN = new RegExp(`(?:\\?|&)${INVITE_QUERY_KEY}=`);
 const QUERY_PARAM_PATTERN = new RegExp(`(?:^|&)${INVITE_QUERY_KEY}=`);
+let pendingInviteRefresh = null;
 
 const normalizeInviteCode = (value) => {
   if (value === undefined || value === null) return "";
@@ -33,7 +40,44 @@ function getShareInviteCode() {
   } catch (err) {
     console.warn("Failed to load stored invite code for sharing", err);
   }
+  triggerInviteFetchIfNeeded();
   return "";
+}
+
+function triggerInviteFetchIfNeeded() {
+  if (pendingInviteRefresh) return pendingInviteRefresh;
+  if (typeof fetchUserProfile !== "function") return null;
+  const apiBase = typeof resolveApiBase === "function" ? resolveApiBase() : "";
+  pendingInviteRefresh = fetchUserProfile({ apiBase })
+    .then((remoteProfile) => {
+      if (typeof normalizeProfileData !== "function") {
+        return normalizeInviteCode(remoteProfile?.inviteCode || "");
+      }
+      const stored = typeof loadStoredProfile === "function" ? loadStoredProfile() : {};
+      const normalized = normalizeProfileData(remoteProfile, { storedProfile: stored, apiBase }) || {};
+      if (typeof persistProfileLocally === "function") {
+        persistProfileLocally({
+          nickname: normalized.nickname,
+          avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
+          featureCode: normalized.featureCode,
+          flpValue: normalized.flpValue,
+          inviteCode: normalized.inviteCode
+        });
+      }
+      const code =
+        normalizeInviteCode(normalized.inviteCode) ||
+        normalizeInviteCode(remoteProfile?.inviteCode) ||
+        "";
+      return code;
+    })
+    .catch((err) => {
+      console.warn("Failed to fetch invite code for sharing", err);
+      return "";
+    })
+    .finally(() => {
+      pendingInviteRefresh = null;
+    });
+  return pendingInviteRefresh;
 }
 
 function appendInviteCodeToPath(path = "") {

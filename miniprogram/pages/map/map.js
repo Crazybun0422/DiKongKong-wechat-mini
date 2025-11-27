@@ -6,7 +6,7 @@ const {
   fetchMarkerDetail,
   incrementMarkerExposure,
   incrementMarkerPhoneCall,
-  searchMarkers
+  searchMarkers,
 } = require("../../utils/markers");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
@@ -32,6 +32,7 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode: getShareInviteCodeUtil
 } = require("../../utils/share");
+const { joinWorkGroup } = require("../../utils/workGroups");
 const {
   fetchMapLayerSettings,
   updateMapLayerSettings
@@ -385,6 +386,36 @@ const extractInviteCodeFromOptions = (options = {}) => {
   return "";
 };
 
+const extractWorkGroupInvite = (options = {}) => {
+  const readFromObject = (obj) => {
+    if (!obj || typeof obj !== "object") return null;
+    const invitationCode = decodeParamValue(obj.invitationCode || obj.inviteCode);
+    const groupId = decodeParamValue(obj.groupId || obj.workGroupId);
+    const groupName = decodeParamValue(obj.groupName);
+    if (!invitationCode || !groupId) return null;
+    return { invitationCode, groupId, groupName };
+  };
+
+  const direct = readFromObject(options);
+  if (direct) return direct;
+  if (options.query) {
+    const fromQuery = readFromObject(options.query);
+    if (fromQuery) return fromQuery;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  const fromScene = readFromObject(sceneParams);
+  if (fromScene) return fromScene;
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    const fromQ = readFromObject(qParams);
+    if (fromQ) return fromQ;
+  }
+  return null;
+};
+
 Page({
   data: {
     keyword: "",
@@ -460,7 +491,10 @@ Page({
       { id: "group", label: "小组共享", enabled: false },
       { id: "platform", label: "平台共建", enabled: false }
     ],
-    mapLayerSettingsLoading: false
+    mapLayerSettingsLoading: false,
+    joinInvitePrompt: null,
+    joinInviting: false,
+    shareWorkGroup: null
   },
 
   onLoad(options = {}) {
@@ -546,6 +580,7 @@ Page({
     this._manualMarkers = [];
     this._lastKnownLocation = null;
     this.captureInviteCode(options);
+    this.handleWorkGroupInviteOptions(options);
     this.initializeShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
     this.refreshWmsOverlay();
@@ -1693,11 +1728,13 @@ Page({
   },
 
   onShareAppMessage() {
+
     const detail = this._lastMarkerDetail;
     const inviteCode = this.getShareInviteCodeValue();
     const fallback = {
-      title: "uom、大疆100%同步且可视化，还有低空智能体~",
-      path: appendInviteCodeToPath("/pages/map/map", { inviteCode })
+      title: "与uom、大疆100%同步的低空地图，来一起探索~",
+      path: appendInviteCodeToPath("/pages/map/map", { inviteCode }),
+      imageUrl: posterUrl
     };
     if (!detail) {
       return fallback;
@@ -1767,6 +1804,9 @@ Page({
       this.setData({ activeTab: "home", showDashboardPanel: true });
       this.showDashboardPanel = true;
     }
+    if (this.data.joinInvitePrompt && !this.data.joinInviting) {
+      this.promptJoinWorkGroup(this.data.joinInvitePrompt);
+    }
     this.consumePendingMarkerFocus({ source: "show" });
   },
 
@@ -1783,6 +1823,88 @@ Page({
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
+  },
+
+  handleWorkGroupInviteOptions(options = {}) {
+
+    const invitationCode = options.invitationCode || options.inviteCode || "";
+    const groupId = options.groupId || options.workGroupId || "";
+    const groupName = options.groupName || "";
+    console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
+    if (!invitationCode || !groupId) return;
+    const payload = { invitationCode, groupId, groupName }
+    this.setData({ joinInvitePrompt: payload, joinInviting: false });
+  },
+
+  promptJoinWorkGroup(promptPayload) {
+    if (this._joinPromptShowing) return;
+    const prompt = promptPayload || this.data.joinInvitePrompt;
+    if (!prompt?.invitationCode || !prompt?.groupId) return;
+    this._joinPromptShowing = true;
+    const name = prompt.groupName || prompt.groupId;
+    wx.showModal({
+      title: "加入工作组",
+      content: `是否加入工作组：${name}`,
+      confirmText: "加入",
+      cancelText: "取消",
+      success: (res) => {
+        if (res.confirm) {
+          this.confirmJoinWorkGroup(prompt);
+        } else {
+          this.setData({ joinInvitePrompt: null, joinInviting: false });
+        }
+      },
+      complete: () => {
+        this._joinPromptShowing = false;
+      }
+    });
+  },
+
+  confirmJoinWorkGroup(promptPayload) {
+    const prompt = promptPayload || this.data.joinInvitePrompt || {};
+    if (!prompt.invitationCode || !prompt.groupId || this.data.joinInviting) return;
+    this.setData({ joinInviting: true });
+    joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已加入工作组", icon: "success" });
+        this.setData({ joinInvitePrompt: null });
+        this.navigateToWorkGroupCenter();
+      })
+      .catch((err) => {
+        console.error("加入工作组失败", err);
+        wx.showToast({ title: err?.message || "加入失败", icon: "none" });
+      })
+      .finally(() => this.setData({ joinInviting: false }));
+  },
+
+  navigateToWorkGroupCenter() {
+    const url = "/pages/markers/index";
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.targetMarkersCenterTab = "WORKGROUP";
+      }
+    } catch (err) {
+      console.warn("set targetMarkersCenterTab failed", err);
+    }
+    if (typeof wx?.switchTab === "function") {
+      wx.switchTab({
+        url,
+        success: () => {
+          console.log("switchTab to markers succeeded");
+        },
+        fail: (err) => {
+          console.warn("switchTab to markers failed, fallback to navigateTo", err);
+          if (typeof wx?.navigateTo === "function") {
+            wx.navigateTo({ url });
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx?.navigateTo === "function") {
+      wx.navigateTo({ url });
+    }
   },
 
   scheduleRestoreMarkerDetail(delay = 0) {
@@ -3862,7 +3984,7 @@ Page({
       }
 
       if (this.areaContainsWgsPoint(area, wgs.lng, wgs.lat, { polygonOnly })) {
-      
+
         hits.push({ area, parent });
       }
     };

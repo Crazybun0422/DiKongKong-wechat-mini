@@ -67,7 +67,8 @@ Page({
           nickname: normalized.nickname,
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
           featureCode: normalized.featureCode,
-          flpValue: normalized.flpValue
+          flpValue: normalized.flpValue,
+          inviteCode: normalized.inviteCode
         });
         this.setData({
           profile: normalized,
