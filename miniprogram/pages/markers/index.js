@@ -32,7 +32,8 @@ const {
   exitWorkGroup,
   addWorkGroupMembers,
   uploadWorkGroupImage,
-  joinWorkGroup
+  joinWorkGroup,
+  fetchWorkGroupById
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
 
@@ -266,7 +267,17 @@ Page({
     currentFeatureCode: "",
     shareWorkGroup: null,
     joinInvitePrompt: null,
-    joinInviting: false
+    joinInviting: false,
+    // work group picker for pin stats
+    showWorkGroupPicker: false,
+    workGroupPickerLoading: false,
+    workGroupPickerPage: 0,
+    workGroupPickerHasMore: true,
+    workGroupPickerList: [],
+    workGroupPickerSelected: [],
+    workGroupPickerSelectedMap: {},
+    workGroupPickerTarget: "",
+    workGroupPickerSaving: false
   },
 
   onLoad(options = {}) {
@@ -1142,6 +1153,31 @@ Page({
     const timelineDisplay = hasUpdatedAt ? updatedAtDisplay : createdAtDisplay;
     const exposureCount = Number(raw.exposureCount);
     const phoneCallCount = Number(raw.phoneCallCount);
+    const workGroupIdsRaw =
+      raw.groupIds ||
+      raw.workGroupIds ||
+      raw.workGroupIdList ||
+      raw.workGroupId ||
+      raw.groupId ||
+      [];
+    console.log("normalizePin workGroupIdsRaw", workGroupIdsRaw);
+    const workGroupIds = Array.isArray(workGroupIdsRaw)
+      ? workGroupIdsRaw.filter(Boolean)
+      : [`${workGroupIdsRaw || ""}`.trim()].filter(Boolean);
+    const primaryGroupId = workGroupIds[0] || "";
+    const hasWorkGroup = workGroupIds.length > 0;
+    if (primaryGroupId) {
+      this.fetchWorkGroupMeta(primaryGroupId);
+    }
+    const workGroupName = raw.workGroupName || primaryGroupId || "";
+    const workGroupDisplayName = workGroupName || primaryGroupId || "工作组";
+    const workGroupCoverImage = this.data.assetPaths.workGroup;
+    const workGroupMemberCount =
+      raw.workGroupMemberCount ||
+      raw.workGroupMembers ||
+      raw.memberCount ||
+      raw.membersCount ||
+      0;
     let statusLabel;
     let statusTone;
     if (scope === "PRIVATE") {
@@ -1172,8 +1208,276 @@ Page({
       locationText,
       exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
       phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
+      workGroupName,
+      workGroupMemberCount: Number.isFinite(Number(workGroupMemberCount))
+        ? Number(workGroupMemberCount)
+        : 0,
+      workGroupCoverImage: workGroupCoverImage,
+      workGroupDisplayName,
+      workGroupId: primaryGroupId,
+      workGroupIds: workGroupIds,
+      hasWorkGroup,
       raw
     };
+  },
+
+  fetchWorkGroupMeta(id) {
+    if (!id) return;
+    if (!this._fetchingWorkGroup) this._fetchingWorkGroup = {};
+    if (this._fetchingWorkGroup[id]) return;
+    this._fetchingWorkGroup[id] = true;
+    const apiBase = this.apiBase;
+    // fallback: use我的工作组列表获取元数据
+    const fetchList = () =>
+      listMyWorkGroups({ page: 0, size: 500 }, { apiBase }).then((res) => {
+        const list = this.extractWorkGroupList(res) || [];
+        const found = list.find((g) => g && (g.id === id || g.groupId === id));
+        if (found) {
+          const img =
+            (Array.isArray(found.images) && found.images.length && found.images[0]) ||
+            found.coverImage ||
+            found.cover ||
+            "";
+          const cover = img ? buildImageUrl(img, { apiBase }) : this.data.assetPaths.workGroup;
+          const memberCount = Array.isArray(found.memberFeatureCodes)
+            ? found.memberFeatureCodes.length
+            : found.memberCount || 0;
+          console.log("fetchWorkGroupMeta via list found", id, found);
+          this.updatePinsByGroupId(id, {
+            workGroupName: found.name || found.groupName || id,
+            workGroupCoverImage: cover,
+            workGroupMemberCount: memberCount
+          });
+        } else {
+          this.updatePinsByGroupId(id, { workGroupName: id });
+        }
+      });
+    fetchList()
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          return this.ensureAccessToken().then(() => fetchList());
+        }
+        console.warn("fetchWorkGroupMeta via list failed", err);
+      })
+      .finally(() => {
+        this._fetchingWorkGroup[id] = false;
+      });
+  },
+
+  updatePinsByGroupId(groupId, patch = {}) {
+    console.log("updatePinsByGroupId", groupId, patch);
+    const apply = (list = []) =>
+      list.map((item = {}) => {
+        const candidates = [];
+        const pushId = (val) => {
+          if (val === undefined || val === null) return;
+          const text = `${val}`.trim();
+          if (text) candidates.push(text);
+        };
+        pushId(item.raw?.workGroupId);
+        pushId(item.raw?.groupId);
+        if (Array.isArray(item.raw?.groupIds)) item.raw.groupIds.forEach(pushId);
+        if (Array.isArray(item.raw?.workGroupIds)) item.raw.workGroupIds.forEach(pushId);
+        pushId(item.workGroupId);
+        pushId(item.groupId);
+        if (Array.isArray(item.workGroupIds)) item.workGroupIds.forEach(pushId);
+        const target = `${groupId}`.trim();
+        if (!target || !candidates.includes(target)) return item;
+        const next = Object.assign({}, item);
+        if (patch.workGroupName) {
+          next.workGroupName = patch.workGroupName;
+          next.workGroupDisplayName =
+            patch.workGroupName ||
+            next.workGroupId ||
+            (Array.isArray(next.workGroupIds) ? next.workGroupIds[0] : "") ||
+            "工作组";
+        }
+        if (patch.workGroupCoverImage) {
+          next.workGroupCoverImage = patch.workGroupCoverImage;
+        }
+        if (
+          typeof patch.workGroupMemberCount === "number" &&
+          !Number.isNaN(patch.workGroupMemberCount) &&
+          patch.workGroupMemberCount >= 0
+        ) {
+          next.workGroupMemberCount = patch.workGroupMemberCount;
+        }
+        return next;
+      });
+    this.setData({
+      myMarkers: apply(this.data.myMarkers),
+      myVisibleMarkers: apply(this.data.myVisibleMarkers)
+    });
+  },
+
+  sanitizeWorkGroupName(value) {
+    const text = typeof value === "string" ? value.trim() : `${value || ""}`.trim();
+    if (!text) return "工作组";
+    const lower = text.toLowerCase();
+    if (lower === "undefined" || lower === "null") return "工作组";
+    return text;
+  },
+
+  onOpenWorkGroupPicker(event = {}) {
+    const targetId = event?.currentTarget?.dataset?.id || "";
+    if (!targetId) return;
+    if (this.data.workGroupPickerLoading) return;
+    this.setData(
+      {
+        showWorkGroupPicker: true,
+        workGroupPickerList: [],
+        workGroupPickerPage: 0,
+        workGroupPickerHasMore: true,
+        workGroupPickerSelected: [],
+        workGroupPickerSelectedMap: {},
+        workGroupPickerTarget: targetId,
+        workGroupPickerSaving: false
+      },
+      () => {
+        this.loadWorkGroupPickerPage({ reset: true });
+      }
+    );
+  },
+
+  onCloseWorkGroupPicker() {
+    if (this.data.workGroupPickerLoading) return;
+    this.setData({ showWorkGroupPicker: false });
+  },
+
+  onWorkGroupPickerScrollLower() {
+    if (!this.data.workGroupPickerHasMore || this.data.workGroupPickerLoading) return;
+    this.loadWorkGroupPickerPage({ reset: false });
+  },
+
+  loadWorkGroupPickerPage(options = {}) {
+    const { reset = false } = options;
+    const page = reset ? 0 : this.data.workGroupPickerPage + 1;
+    const size = 10;
+    this.setData({ workGroupPickerLoading: true });
+    const fetchPage = () => listMyWorkGroups({ page, size }, { apiBase: this.apiBase });
+    let retried = false;
+    const load = () =>
+      fetchPage().catch((err) => {
+        if (!retried && err?.message === "missing-token") {
+          retried = true;
+          return this.ensureAccessToken().then(() => fetchPage());
+        }
+        throw err;
+      });
+    load()
+      .then((payload) => {
+        const list = this.extractWorkGroupList(payload).map((item) => this.normalizeWorkGroup(item));
+        const merged = reset ? list : (this.data.workGroupPickerList || []).concat(list);
+        const hasMore = Array.isArray(list) && list.length === size;
+        this.setData({
+          workGroupPickerList: merged,
+          workGroupPickerPage: page,
+          workGroupPickerHasMore: hasMore
+        });
+      })
+      .catch((err) => {
+        console.warn("loadWorkGroupPickerPage failed", err);
+        wx.showToast({ title: err?.message || "加载工作组失败", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ workGroupPickerLoading: false });
+      });
+  },
+
+  onWorkGroupPickerSelect(event = {}) {
+    const id = event?.currentTarget?.dataset?.id || "";
+    if (!id) return;
+    const current = Array.isArray(this.data.workGroupPickerSelected)
+      ? this.data.workGroupPickerSelected.slice()
+      : [];
+    const idx = current.indexOf(id);
+    if (idx >= 0) {
+      current.splice(idx, 1);
+    } else {
+      current.push(id);
+    }
+    const map = {};
+    current.forEach((gid) => {
+      map[gid] = true;
+    });
+    this.setData({ workGroupPickerSelected: current, workGroupPickerSelectedMap: map });
+  },
+
+  onWorkGroupPickerSave() {
+    if (this.data.workGroupPickerSaving) return;
+    const pinId = this.data.workGroupPickerTarget;
+    if (!pinId) {
+      wx.showToast({ title: "未选择标记", icon: "none" });
+      return;
+    }
+    const selectedGroupId = this.data.workGroupPickerSelected;
+    const pin = this.findPinById(pinId);
+    if (!pin) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    const selectedIds = Array.isArray(this.data.workGroupPickerSelected)
+      ? this.data.workGroupPickerSelected.filter(Boolean)
+      : [];
+    const isCurrentlyGroup =
+      pin.scope === "WORKGROUP" || pin.scope === "GROUP" || pin.scope === "TEAM";
+    const shouldClear = !selectedIds.length && isCurrentlyGroup;
+    this.setData({ workGroupPickerSaving: true });
+    const payload = selectedIds.length ? { groupIds: selectedIds } : { groupIds: [] };
+    const fetch = () =>
+      updatePinGroups(pinId, payload, { apiBase: this.apiBase }).catch((err) => {
+        if (err?.message === "missing-token") {
+          return this.ensureAccessToken().then(() =>
+            updatePinGroups(pinId, payload, { apiBase: this.apiBase })
+          );
+        }
+        throw err;
+      });
+    fetch()
+      .then(() => {
+        const firstGroupId = selectedIds[0] || "";
+        const groupInfo = this.data.workGroupPickerList.find((g) => g.id === firstGroupId) || {};
+        const updates = {
+          scope: selectedIds.length ? "WORKGROUP" : "PRIVATE",
+          workGroupName: selectedIds.length ? groupInfo.name || "工作组" : "",
+          workGroupMemberCount: selectedIds.length ? Number(groupInfo.memberCount || 0) : 0
+        };
+        this.updatePinLocalState(pinId, updates);
+        wx.showToast({ title: "已保存", icon: "success" });
+        this.setData({
+          showWorkGroupPicker: false,
+          workGroupPickerSaving: false,
+          workGroupPickerSelected: [],
+          workGroupPickerTarget: ""
+        });
+      })
+      .catch((err) => {
+        console.warn("update pin groups failed", err);
+        wx.showToast({ title: err?.message || "保存失败", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ workGroupPickerSaving: false });
+      });
+  },
+
+  findPinById(id) {
+    if (!id) return null;
+    const list = Array.isArray(this.data.myMarkers) ? this.data.myMarkers : [];
+    const visible = Array.isArray(this.data.myVisibleMarkers) ? this.data.myVisibleMarkers : [];
+    const combined = list.concat(visible);
+    return combined.find((p) => p.id === id) || null;
+  },
+
+  updatePinLocalState(id, patch = {}) {
+    const applyPatch = (list = []) =>
+      list.map((item) => {
+        if (item.id !== id) return item;
+        return Object.assign({}, item, patch);
+      });
+    this.setData({
+      myMarkers: applyPatch(this.data.myMarkers),
+      myVisibleMarkers: applyPatch(this.data.myVisibleMarkers)
+    });
   },
 
   applyCachedPinAddresses(list = []) {

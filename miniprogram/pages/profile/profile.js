@@ -175,22 +175,22 @@ Page({
     this.setData({ nicknameInput: value });
     const inputTypeRaw = e?.detail?.inputType || "";
     const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
-    console.log("xxxxxxx",e)
+    console.log("xxxxxxx", e)
     if (inputType === "nickname") {
       this.saveNicknameInline(value);
     }
   },
-  onEditing(e){
+  onEditing(e) {
 
   },
-  onBlankTap(e){
+  onBlankTap(e) {
     if (this.data.nicknameSaving || !this.data.nicknameEditing) return;
-    console.log("top")
+
     this.cancelNicknameEdit();
   },
-  onNickReview(e){
+  onNickReview(e) {
     const value = e?.detail?.value ?? this.data.nicknameInput;
-    console.log("e:",e)
+
     if (!e.detail.pass) {
       wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
       this.setData({
@@ -199,8 +199,8 @@ Page({
       });
       return
     }
-      this.saveNicknameInline(value);
-    
+    this.saveNicknameInline(value);
+
   },
 
   onNicknameInputConfirm(e) {

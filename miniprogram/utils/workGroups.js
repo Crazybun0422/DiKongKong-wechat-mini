@@ -20,6 +20,16 @@ function listMyWorkGroups(params = {}, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function fetchWorkGroupById(id, options = {}) {
+  if (!id) return Promise.reject(new Error("missing-work-group-id"));
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/work-groups/${encodeURIComponent(id)}`,
+    method: "GET"
+  }).then((body = {}) => body.data || {});
+}
+
 function createWorkGroup(payload = {}, options = {}) {
   return authorizedRequest({
     apiBase: options.apiBase,
@@ -160,5 +170,6 @@ module.exports = {
   removeWorkGroupMembers,
   fetchFeatureCodeProfiles,
   uploadWorkGroupImage,
-  joinWorkGroup
+  joinWorkGroup,
+  fetchWorkGroupById
 };

@@ -10,7 +10,7 @@ const { fetchUserProfile } = require("./utils/profile");
 const API_BASE_BY_ENV = {
   develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
   //develop: "",
-  trial:   "https://skylane.cn",                   // uploaded “体验版”
+  trial: "https://skylane.cn",                   // uploaded “体验版”
   release: "https://skylane.cn"                        // 审核 & 上线
 };
 
@@ -18,7 +18,7 @@ function resolveApiBase() {
   try {
     const { miniProgram } = wx.getAccountInfoSync();
     const env = miniProgram?.envVersion || "develop";       // develop | trial | release
-    console.log("env->",env);
+
     return API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
   } catch (err) {
     console.warn("Fallback to dev API base because env lookup failed", err);
