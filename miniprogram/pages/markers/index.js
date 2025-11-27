@@ -260,6 +260,7 @@ Page({
     workGroupInviteInput: "",
     showDissolveDialog: false,
     workGroupDissolveInput: "",
+    workGroupDissolving: false,
     currentFeatureCode: ""
   },
 
@@ -607,6 +608,7 @@ Page({
           const updated = normalized.find((g) => g.id === this.data.activeWorkGroup.id);
           if (updated) this.setData({ activeWorkGroup: updated });
         }
+        this.prefetchWorkGroupProfiles(normalized);
       })
       .catch((err) => {
         console.error("加载工作组失败", err);
@@ -647,6 +649,22 @@ Page({
       : [];
     const memberCount = memberFeatureCodes.length;
     const pinCount = Array.isArray(raw.pinIds) ? raw.pinIds.length : 0;
+    const cache = this._workGroupProfileCache || {};
+    const memberAvatars = memberFeatureCodes.slice(0, 5).map((code, idx) => {
+      const prof = cache[code] || {};
+      return {
+        featureCode: code,
+        avatarUrl:
+          prof.avatarUrl ||
+          buildImageUrl(prof.fileName || prof.avatar || "", {
+            apiBase: this.apiBase,
+            fallback: this.data.assetPaths.defaultAvatar
+          }) ||
+          this.data.assetPaths.defaultAvatar,
+      nickname: prof.nickname || "",
+        id: `${raw.id || "wg"}-member-${idx}`
+      };
+    });
     return {
       id: raw.id || "",
       name: raw.name || "",
@@ -654,14 +672,72 @@ Page({
       images,
       coverImage,
       updatedAtDisplay: this.formatDateTime(raw.updatedAt),
+      memberFeatureCodes,
       memberCount,
       pinCount,
+      memberAvatars,
       ownerFeatureCode: raw.ownerFeatureCode || "",
       isOwner:
         !!this.data.currentFeatureCode &&
         !!raw.ownerFeatureCode &&
         ensureFeatureCode(this.data.currentFeatureCode) === ensureFeatureCode(raw.ownerFeatureCode)
     };
+  },
+
+  prefetchWorkGroupProfiles(list = []) {
+    const codes = [];
+    list.forEach((g) => {
+      if (Array.isArray(g.memberFeatureCodes)) {
+        g.memberFeatureCodes.slice(0, 5).forEach((c) => c && codes.push(c));
+      }
+    });
+    const unique = Array.from(new Set(codes)).filter(Boolean);
+    if (!unique.length) return;
+    fetchFeatureCodeProfiles(unique, { apiBase: this.apiBase })
+      .then((profiles = []) => {
+        const cache = this._workGroupProfileCache || {};
+        profiles.forEach((p) => {
+          if (!p || !p.featureCode) return;
+          const code = ensureFeatureCode(p.featureCode);
+          cache[code] = {
+            avatarUrl: buildImageUrl(p.avatarUrl || p.avatar || p.fileName || "", {
+              apiBase: this.apiBase,
+              fallback: this.data.assetPaths.defaultAvatar
+            }),
+            nickname: p.nickname || ""
+          };
+        });
+        this._workGroupProfileCache = cache;
+        this.refreshWorkGroupAvatarsFromCache();
+      })
+      .catch((err) => console.warn("拉取工作组成员头像失败", err));
+  },
+
+  refreshWorkGroupAvatarsFromCache() {
+    const cache = this._workGroupProfileCache || {};
+    const updated = (this.data.workGroups || []).map((g) => {
+      const memberAvatars = (g.memberFeatureCodes || []).slice(0, 5).map((code, idx) => {
+        const prof = cache[code] || {};
+        return {
+          featureCode: code,
+          avatarUrl:
+            prof.avatarUrl ||
+            buildImageUrl(prof.fileName || prof.avatar || "", {
+              apiBase: this.apiBase,
+              fallback: this.data.assetPaths.defaultAvatar
+            }) ||
+            this.data.assetPaths.defaultAvatar,
+          nickname: prof.nickname || "",
+          id: `${g.id || "wg"}-member-${idx}`
+        };
+      });
+      return Object.assign({}, g, { memberAvatars });
+    });
+    this.setData({ workGroups: updated });
+    if (this.data.activeWorkGroup) {
+      const active = updated.find((g) => g.id === this.data.activeWorkGroup.id);
+      if (active) this.setData({ activeWorkGroup: active });
+    }
   },
 
   onWorkGroupCreateTap() {
@@ -713,10 +789,12 @@ Page({
       wx.showToast({ title: "请填写名称", icon: "none" });
       return;
     }
+    const selfCode = ensureFeatureCode(this.data.currentFeatureCode || "");
     const payload = {
       name,
       description: (this.data.workGroupForm.description || "").trim(),
-      images: (this.data.workGroupForm.images || []).map((i) => i.fileName)
+      images: (this.data.workGroupForm.images || []).map((i) => i.fileName),
+      memberFeatureCodes: selfCode ? [selfCode] : []
     };
     this.setData({ workGroupSubmitting: true });
     createWorkGroup(payload, { apiBase: this.apiBase })
@@ -749,6 +827,7 @@ Page({
       },
       showWorkGroupDetail: true
     });
+    this.prefetchWorkGroupProfiles([target]);
   },
 
   onCloseWorkGroupDetail() {
@@ -761,6 +840,31 @@ Page({
 
   onWorkGroupDetailDescInput(e) {
     this.setData({ "workGroupDetailForm.description": e?.detail?.value || "" });
+  },
+
+  onWorkGroupDetailChooseImage() {
+    const group = this.data.activeWorkGroup;
+    if (!group || !group.isOwner) return;
+    if (typeof wx.chooseImage !== "function") {
+      wx.showToast({ title: "当前版本不支持图片选择", icon: "none" });
+      return;
+    }
+    wx.chooseImage({
+      count: 1,
+      sizeType: ["compressed"],
+      success: (res) => {
+        const path = res?.tempFilePaths?.[0];
+        if (!path) return;
+        wx.showLoading({ title: "上传中...", mask: true });
+        uploadWorkGroupImage(path, { apiBase: this.apiBase })
+          .then((fileName) => {
+            const url = buildImageUrl(fileName, { apiBase: this.apiBase });
+            this.setData({ "workGroupDetailForm.images": [{ fileName, url }] });
+          })
+          .catch(() => wx.showToast({ title: "上传失败", icon: "none" }))
+          .finally(() => wx.hideLoading());
+      }
+    });
   },
 
   onSaveWorkGroupDetail() {
@@ -887,10 +991,11 @@ Page({
       wx.showToast({ title: "仅管理员可解散", icon: "none" });
       return;
     }
-    this.setData({ showDissolveDialog: true, workGroupDissolveInput: "" });
+    this.setData({ showDissolveDialog: true, workGroupDissolveInput: "", workGroupDissolving: false });
   },
 
   onConfirmDissolveWorkGroup() {
+    if (this.data.workGroupDissolving) return;
     const group = this.data.activeWorkGroup;
     if (!group || !group.isOwner) return;
     const name = (group.name || "").trim();
@@ -899,6 +1004,7 @@ Page({
       wx.showToast({ title: "请输入正确的工作组名称确认", icon: "none" });
       return;
     }
+    this.setData({ workGroupDissolving: true });
     dissolveWorkGroup(group.id, { apiBase: this.apiBase })
       .then(() => {
         wx.showToast({ title: "已解散", icon: "success" });
@@ -909,11 +1015,27 @@ Page({
       .catch((err) => {
         console.error("解散工作组失败", err);
         wx.showToast({ title: err?.message || "解散失败", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ workGroupDissolving: false });
       });
   },
 
   onCloseDissolveDialog() {
-    this.setData({ showDissolveDialog: false, workGroupDissolveInput: "" });
+    this.setData({ showDissolveDialog: false, workGroupDissolveInput: "", workGroupDissolving: false });
+  },
+
+  onCopyWorkGroupCode() {
+    const code = this.data.activeWorkGroup?.id || "";
+    if (!code) {
+      wx.showToast({ title: "暂无工作组码", icon: "none" });
+      return;
+    }
+    wx.setClipboardData({
+      data: `${code}`,
+      success: () => wx.showToast({ title: "已复制", icon: "success" }),
+      fail: () => wx.showToast({ title: "复制失败", icon: "none" })
+    });
   },
 
   formatPinCoordinateText(lat, lng) {

@@ -391,16 +391,16 @@
             <text class="required-star">*</text>
             <text>图片</text>
           </view>
-          <view class="upload-box" bindtap="onWorkGroupChooseImage">
+          <view class="image-uploader">
             <block wx:if="{{workGroupForm.images && workGroupForm.images.length}}">
-              <image class="upload-preview" src="{{workGroupForm.images[0].url}}" mode="aspectFill" />
-            </block>
-            <block wx:else>
-              <view class="upload-placeholder">
-                <text class="upload-plus">+</text>
-                <text class="upload-text">上传</text>
+              <view class="image-thumb">
+                <image class="image-thumb-img" src="{{workGroupForm.images[0].url}}" mode="aspectFill" />
               </view>
             </block>
+            <view class="image-add" wx:if="{{!workGroupForm.images || !workGroupForm.images.length}}" bindtap="onWorkGroupChooseImage">
+              <text class="image-add-plus">+</text>
+              <text class="image-add-text">上传</text>
+            </view>
           </view>
         </view>
         <view class="field-row">
@@ -448,51 +448,66 @@
         <text class="drawer-title">工作组设置</text>
         <view class="drawer-close" bindtap="onCloseWorkGroupDetail">×</view>
       </view>
-      <scroll-view scroll-y class="drawer-body">
-        <view class="detail-section">
-          <text class="detail-title">{{activeWorkGroup.name || '工作组'}}</text>
-          <view class="work-code-row">
-            <view class="work-code-text">
-              <text class="work-code-label">工作码</text>
-              <text class="work-code-value">{{activeWorkGroup.id || '--'}}</text>
-            </view>
+      <scroll-view scroll-y class="drawer-body wg-settings">
+        <view class="wg-card">
+          <view class="wg-card-title">{{activeWorkGroup.name || '工作组'}}</view>
+          <view class="wg-card-code">
+            <text class="wg-code-label">工作组码</text>
+            <text class="wg-code-value">{{activeWorkGroup.id || '--'}}</text>
             <text class="copy-link" bindtap="onCopyWorkGroupCode">复制</text>
           </view>
         </view>
 
-        <view class="detail-section">
-          <view class="detail-item horizontal">
-            <text class="detail-label">成员</text>
-            <view class="workgroup-member-bar">
-              <text class="workgroup-members-text">{{activeWorkGroup.memberCount || 0}}人</text>
-              <view class="workgroup-member-meta" bindtap="onWorkGroupMemberListTap">
-                <text>查看成员</text>
-                <image class="workgroup-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
-              </view>
+        <view class="wg-block">
+          <view class="wg-block-header">
+            <text class="wg-block-title">地图成员</text>
+            <view class="wg-block-count" bindtap="onWorkGroupMemberListTap">
+              <text>{{activeWorkGroup.memberCount || 0}}人</text>
+              <image class="workgroup-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
             </view>
+          </view>
+          <view class="wg-avatar-row">
+            <block wx:for="{{activeWorkGroup.memberAvatars}}" wx:key="featureCode">
+              <image class="wg-avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+            </block>
+            <view wx:if="{{activeWorkGroup.isOwner}}" class="wg-avatar add" bindtap="onWorkGroupInviteTap">+</view>
           </view>
         </view>
 
-        <view class="detail-section">
-          <view class="field-row">
-            <view class="field-label required">
-              <text class="required-star">*</text>
-              <text>工作组名称</text>
+        <view class="wg-block">
+          <text class="wg-block-title">工作组信息</text>
+          <view class="wg-field">
+            <text class="wg-field-label">图片</text>
+            <view class="image-uploader">
+              <block wx:if="{{workGroupDetailForm.images && workGroupDetailForm.images.length}}">
+                <view class="image-thumb">
+                  <image class="image-thumb-img" src="{{workGroupDetailForm.images[0].url}}" mode="aspectFill" />
+                </view>
+              </block>
+              <view
+                class="image-add"
+                wx:if="{{activeWorkGroup.isOwner && (!workGroupDetailForm.images || !workGroupDetailForm.images.length)}}"
+                bindtap="onWorkGroupDetailChooseImage"
+              >
+                <text class="image-add-plus">+</text>
+                <text class="image-add-text">上传</text>
+              </view>
             </view>
+          </view>
+          <view class="wg-field">
+            <text class="wg-field-label">工作组名称</text>
             <input
-              class="field-input form-input"
+              class="wg-field-input"
               placeholder="请输入名称"
               value="{{workGroupDetailForm.name}}"
               bindinput="onWorkGroupDetailNameInput"
               disabled="{{!activeWorkGroup.isOwner}}"
             />
           </view>
-          <view class="field-row">
-            <view class="field-label">
-              <text>简介</text>
-            </view>
+          <view class="wg-field">
+            <text class="wg-field-label">简介</text>
             <textarea
-              class="field-textarea form-textarea"
+              class="wg-field-textarea"
               placeholder="请填写简介"
               value="{{workGroupDetailForm.description}}"
               bindinput="onWorkGroupDetailDescInput"
@@ -501,8 +516,15 @@
               disabled="{{!activeWorkGroup.isOwner}}"
             />
           </view>
+        </view>
+
+      </scroll-view>
+      <view class="wg-actions">
+        <button class="footer-btn" bindtap="onExitWorkGroupTap" wx:if="{{!activeWorkGroup.isOwner}}">
+          退出工作组
+        </button>
+        <view wx:if="{{activeWorkGroup.isOwner}}">
           <button
-            wx:if="{{activeWorkGroup.isOwner}}"
             class="footer-btn primary"
             loading="{{workGroupDetailSaving}}"
             disabled="{{workGroupDetailSaving}}"
@@ -510,22 +532,16 @@
           >
             保存
           </button>
-        </view>
-
-        <view class="detail-section">
-          <button class="footer-btn" bindtap="onExitWorkGroupTap" wx:if="{{!activeWorkGroup.isOwner}}">
-            退出工作组
+          <button
+            class="footer-btn danger"
+            loading="{{workGroupDissolving}}"
+            disabled="{{workGroupDissolving}}"
+            bindtap="onDissolveWorkGroupTap"
+          >
+            解散工作组
           </button>
-          <view wx:if="{{activeWorkGroup.isOwner}}">
-            <button class="footer-btn primary" bindtap="onWorkGroupInviteTap">
-              邀请成员
-            </button>
-            <button class="footer-btn danger" bindtap="onDissolveWorkGroupTap">
-              解散工作组
-            </button>
-          </view>
         </view>
-      </scroll-view>
+      </view>
     </view>
   </view>
 
@@ -582,7 +598,14 @@
       </view>
       <view class="modal-footer">
         <button class="modal-btn" bindtap="onCloseDissolveDialog">取消</button>
-        <button class="modal-btn primary" bindtap="onConfirmDissolveWorkGroup">确认解散</button>
+        <button
+          class="modal-btn primary"
+          loading="{{workGroupDissolving}}"
+          disabled="{{workGroupDissolving}}"
+          bindtap="onConfirmDissolveWorkGroup"
+        >
+          确认解散
+        </button>
       </view>
     </view>
   </view>
