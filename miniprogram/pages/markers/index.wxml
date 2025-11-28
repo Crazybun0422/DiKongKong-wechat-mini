@@ -126,7 +126,14 @@
         </view>
       </view>
 
-      <scroll-view scroll-y class="markers-scroll">
+      <scroll-view
+        scroll-y
+        class="markers-scroll"
+        refresher-enabled="{{true}}"
+        refresher-triggered="{{myPinsRefreshing}}"
+        bindrefresherrefresh="onPullDownRefresh"
+      >
+
         <block wx:if="{{myPinsLoading && !myPinsLoaded}}">
           <view class="state-card">加载中...</view>
         </block>
@@ -219,6 +226,9 @@
       <scroll-view
         scroll-y
         class="markers-scroll"
+        refresher-enabled="{{true}}"
+        refresher-triggered="{{workGroupsRefreshing}}"
+        bindrefresherrefresh="onPullDownRefresh"
       >
         <block wx:if="{{workGroupsLoading && !workGroupsLoaded}}">
           <view class="state-card">加载中...</view>
@@ -514,33 +524,6 @@
           bindtap="onWorkGroupPickerSave"
         >
           保存
-        </button>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{joinInvitePrompt}}" class="modal-overlay" catchtouchmove="noop">
-    <view class="modal-mask" bindtap="onCloseJoinPrompt"></view>
-    <view class="modal-card">
-      <view class="modal-header">
-        <text class="modal-title">加入工作组</text>
-        <view class="modal-close" bindtap="onCloseJoinPrompt">×</view>
-      </view>
-      <view class="modal-body">
-        <view class="modal-block">
-          <text class="modal-block-title">是否加入工作组：{{joinInvitePrompt.groupName || '--'}}</text>
-          <text class="modal-tip">确认后将加入该工作组并同步你的标记协同</text>
-        </view>
-      </view>
-      <view class="modal-footer">
-        <button class="modal-btn" bindtap="onCloseJoinPrompt">取消</button>
-        <button
-          class="modal-btn primary"
-          loading="{{joinInviting}}"
-          disabled="{{joinInviting}}"
-          bindtap="onConfirmJoinWorkGroup"
-        >
-          确认加入
         </button>
       </view>
     </view>

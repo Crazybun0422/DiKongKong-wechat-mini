@@ -215,6 +215,26 @@ const pickScaleBarLength = (rawMeters) => {
   };
 };
 
+const decodeMaybeURI = (text = "") => {
+  if (typeof text !== "string") return "";
+  let current = text.replace(/\+/g, " ");
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      if (/%[0-9a-fA-F]{2}/.test(current)) {
+        const decoded = decodeURIComponent(current);
+        if (decoded === current) break;
+        current = decoded;
+        continue;
+      }
+    } catch (err) {
+      console.warn("decodeMaybeURI failed", err);
+      break;
+    }
+    break;
+  }
+  return current;
+};
+
 const settleWithValue = (promise, options = {}) => {
   const defaultValue =
     options && Object.prototype.hasOwnProperty.call(options, "defaultValue")
@@ -495,6 +515,7 @@ Page({
     mapLayerSettingsLoading: false,
     joinInvitePrompt: null,
     joinInviting: false,
+    joinInviteLoginPending: false,
     shareWorkGroup: null
   },
 
@@ -1830,52 +1851,57 @@ Page({
 
     const invitationCode = options.invitationCode || options.inviteCode || "";
     const groupId = options.groupId || options.workGroupId || "";
-    const groupName = options.groupName || "";
+    const groupName = decodeMaybeURI(options.groupName || "");
     console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
     if (!invitationCode || !groupId) return;
-    const payload = { invitationCode, groupId, groupName }
-    this.setData({ joinInvitePrompt: payload, joinInviting: false });
+    const payload = { invitationCode, groupId, groupName };
+    this.setData({
+      joinInvitePrompt: payload,
+      joinInviting: false,
+      joinInviteLoginPending: false
+    });
+    this.promptJoinWorkGroup(payload);
   },
 
   promptJoinWorkGroup(promptPayload) {
-    if (this._joinPromptShowing) return;
     const prompt = promptPayload || this.data.joinInvitePrompt;
     if (!prompt?.invitationCode || !prompt?.groupId) return;
-    this._joinPromptShowing = true;
-    const name = prompt.groupName || prompt.groupId;
-    wx.showModal({
-      title: "加入工作组",
-      content: `是否加入工作组：${name}`,
-      confirmText: "加入",
-      cancelText: "取消",
-      success: (res) => {
-        if (res.confirm) {
-          this.confirmJoinWorkGroup(prompt);
-        } else {
-          this.setData({ joinInvitePrompt: null, joinInviting: false });
-        }
-      },
-      complete: () => {
-        this._joinPromptShowing = false;
-      }
+    const name = decodeMaybeURI(prompt.groupName || prompt.groupId || "");
+    this.setData({
+      joinInvitePrompt: { invitationCode: prompt.invitationCode, groupId: prompt.groupId, groupName: name },
+      joinInviting: false,
+      joinInviteLoginPending: false
     });
   },
 
   confirmJoinWorkGroup(promptPayload) {
-    const prompt = promptPayload || this.data.joinInvitePrompt || {};
+    const evt = promptPayload && promptPayload.currentTarget ? promptPayload : null;
+    const ds = (evt && evt.currentTarget && evt.currentTarget.dataset) || {};
+    const prompt =
+      (ds.invitationCode && ds.groupId && {
+        invitationCode: ds.invitationCode,
+        groupId: ds.groupId,
+        groupName: ds.groupName
+      }) ||
+      this.data.joinInvitePrompt ||
+      {};
+    console.log("confirmJoinWorkGroup", prompt);
     if (!prompt.invitationCode || !prompt.groupId || this.data.joinInviting) return;
-    this.setData({ joinInviting: true });
-    joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
-      .then(() => {
-        wx.showToast({ title: "已加入工作组", icon: "success" });
-        this.setData({ joinInvitePrompt: null });
-        this.navigateToWorkGroupCenter();
-      })
-      .catch((err) => {
-        console.error("加入工作组失败", err);
-        wx.showToast({ title: err?.message || "加入失败", icon: "none" });
-      })
-      .finally(() => this.setData({ joinInviting: false }));
+    const run = () => {
+      this.setData({ joinInviting: true });
+      joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
+        .then(() => {
+          wx.showToast({ title: "已加入工作组", icon: "success" });
+          this.setData({ joinInvitePrompt: null });
+          this.navigateToWorkGroupCenter();
+        })
+        .catch((err) => {
+          console.error("加入工作组失败", err);
+          wx.showToast({ title: err?.message || "加入失败", icon: "none" });
+        })
+        .finally(() => this.setData({ joinInviting: false }));
+    };
+    run();
   },
 
   navigateToWorkGroupCenter() {

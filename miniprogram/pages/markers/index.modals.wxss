@@ -50,6 +50,11 @@
   color: #4b5563;
 }
 
+.modal-close.modal-close-disabled {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
 .modal-body {
   display: flex;
   flex-direction: column;

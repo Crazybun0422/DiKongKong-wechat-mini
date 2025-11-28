@@ -496,4 +496,30 @@
     </block>
 
   </view>
+
+  <view wx:if="{{joinInvitePrompt}}" class="invite-overlay" catchtouchmove="noop">
+    <view class="invite-mask"></view>
+    <view class="invite-card">
+      <view class="invite-title">加入工作组</view>
+      <view class="invite-body">
+        <text wx:if="{{joinInviteLoginPending}}">登录中...</text>
+        <block wx:else>
+          <text class="invite-text">是否加入工作组：{{joinInvitePrompt.groupName || joinInvitePrompt.groupId || '--'}}</text>
+          <text class="invite-tip">确认后将加入该工作组并同步标记协同</text>
+        </block>
+      </view>
+      <view class="invite-footer">
+        <button
+          class="invite-btn primary"
+          loading="{{joinInviting || joinInviteLoginPending}}"
+          data-invitation-code="{{joinInvitePrompt.invitationCode}}"
+          data-group-id="{{joinInvitePrompt.groupId}}"
+          data-group-name="{{joinInvitePrompt.groupName}}"
+          bindtap="confirmJoinWorkGroup"
+        >
+          确认加入
+        </button>
+      </view>
+    </view>
+  </view>
 </view>

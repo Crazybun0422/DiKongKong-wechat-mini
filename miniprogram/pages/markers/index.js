@@ -32,7 +32,6 @@ const {
   exitWorkGroup,
   addWorkGroupMembers,
   uploadWorkGroupImage,
-  joinWorkGroup,
   fetchWorkGroupById
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
@@ -201,6 +200,7 @@ Page({
     myPinsLoading: false,
     myPinsLoaded: false,
     myPinsError: "",
+    myPinsRefreshing: false,
     showMyPinCreate: false,
     myPinForm: createEmptyPinForm(),
     myPinFormConfigured: false,
@@ -266,8 +266,6 @@ Page({
     workGroupDissolving: false,
     currentFeatureCode: "",
     shareWorkGroup: null,
-    joinInvitePrompt: null,
-    joinInviting: false,
     // work group picker for pin stats
     showWorkGroupPicker: false,
     workGroupPickerLoading: false,
@@ -332,19 +330,6 @@ Page({
     } catch (err) {
       console.warn("consumePendingCenterTab failed", err);
     }
-  },
-
-  handleWorkGroupInviteOptions(options = {}) {
-    const invitationCode = options.invitationCode || options.inviteCode || "";
-    const groupId = options.groupId || options.workGroupId || "";
-    const groupName = options.groupName || "";
-    console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
-    if (!invitationCode || !groupId) return;
-    this.setData({
-      joinInvitePrompt: { invitationCode, groupId, groupName },
-      joinInviting: false,
-      activeCenterTab: "WORKGROUP"
-    });
   },
 
   fetchSettlementConfig() {
@@ -431,10 +416,24 @@ Page({
       typeof profile.flpValue === "number" && Number.isFinite(profile.flpValue)
         ? profile.flpValue
         : null;
+    const featureCode = ensureFeatureCode(profile.featureCode || this.data.currentFeatureCode || "");
     this.setData({
-      currentFeatureCode: ensureFeatureCode(profile.featureCode || this.data.currentFeatureCode || "")
+      currentFeatureCode: featureCode
     });
+    this.refreshWorkGroupOwnerFlags(featureCode);
     this.updateFlpPaymentState(balance);
+  },
+
+  refreshWorkGroupOwnerFlags(featureCode) {
+    const code = ensureFeatureCode(featureCode || this.data.currentFeatureCode || "");
+    if (!code) return;
+    const updated = (this.data.workGroups || []).map((g = {}) => {
+      const owner = ensureFeatureCode(g.ownerFeatureCode || g.ownerCode || "");
+      return Object.assign({}, g, {
+        isOwner: !!owner && owner === code
+      });
+    });
+    this.setData({ workGroups: updated });
   },
 
   updateFlpPaymentState(balanceValue) {
@@ -644,6 +643,7 @@ Page({
     } else {
       this.setData({ workGroupsRefreshing: true, workGroupsError: "" });
     }
+    const ensureProfile = typeof this.ensureProfileReady === "function" ? this.ensureProfileReady() : Promise.resolve();
     const fetchPage = () => listMyWorkGroups({ page: 0, size: 1000 }, { apiBase: this.apiBase });
     let retried = false;
     const load = () =>
@@ -654,7 +654,8 @@ Page({
         }
         throw err;
       });
-    return load()
+    return Promise.resolve(ensureProfile)
+      .then(() => load())
       .then((payload) => {
         const list = this.extractWorkGroupList(payload);
         const normalized = list.map((item) => this.normalizeWorkGroup(item));
@@ -664,6 +665,7 @@ Page({
           if (updated) this.setData({ activeWorkGroup: updated });
         }
         this.prefetchWorkGroupProfiles(normalized);
+        this.refreshWorkGroupOwnerFlags();
       })
       .catch((err) => {
         console.error("加载工作组失败", err);
@@ -1076,29 +1078,6 @@ Page({
     this.setData({ showDissolveDialog: false, workGroupDissolveInput: "", workGroupDissolving: false });
   },
 
-  onCloseJoinPrompt() {
-    this.setData({ joinInvitePrompt: null, joinInviting: false });
-  },
-
-  onConfirmJoinWorkGroup() {
-    const prompt = this.data.joinInvitePrompt || {};
-    if (!prompt.invitationCode || !prompt.groupId || this.data.joinInviting) return;
-    this.setData({ joinInviting: true });
-    joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
-      .then(() => {
-        wx.showToast({ title: "已加入工作组", icon: "success" });
-        this.setData({ joinInvitePrompt: null, joinInviting: false, activeCenterTab: "WORKGROUP" });
-        this.refreshWorkGroups({ silent: false });
-      })
-      .catch((err) => {
-        console.error("加入工作组失败", err);
-        wx.showToast({ title: err?.message || "加入失败", icon: "none" });
-      })
-      .finally(() => {
-        this.setData({ joinInviting: false });
-      });
-  },
-
   onShareAppMessage() {
     const group = this.data.activeWorkGroup;
     if (!group) return {};
@@ -1130,6 +1109,23 @@ Page({
     const lo = Number(lng);
     if (!Number.isFinite(la) || !Number.isFinite(lo)) return "";
     return `${la.toFixed(6)}, ${lo.toFixed(6)}`;
+  },
+
+  ensureProfileReady() {
+    if (this.data.currentFeatureCode) return Promise.resolve();
+    if (this._ensureProfileReadyPromise) return this._ensureProfileReadyPromise;
+    const fetchProfile =
+      typeof this.refreshProfileFromRemote === "function"
+        ? this.refreshProfileFromRemote()
+        : Promise.resolve();
+    this._ensureProfileReadyPromise = Promise.resolve(fetchProfile)
+      .catch((err) => {
+        console.warn("ensureProfileReady failed", err);
+      })
+      .finally(() => {
+        this._ensureProfileReadyPromise = null;
+      });
+    return this._ensureProfileReadyPromise;
   },
 
   formatExposureDisplay(value) {
@@ -1660,9 +1656,9 @@ Page({
   refreshMyPins(options = {}) {
     const { silent = false, filter = this.data.activeMyMarkerFilter } = options;
     if (!silent) {
-      this.setData({ myPinsLoading: true, myPinsError: "" });
+      this.setData({ myPinsLoading: true, myPinsError: "", myPinsRefreshing: true });
     } else {
-      this.setData({ myPinsError: "" });
+      this.setData({ myPinsError: "", myPinsRefreshing: true });
     }
     const fetchPage = () =>
       listMyPins(
@@ -1703,7 +1699,7 @@ Page({
         this.setData({ myPinsError: message });
       })
       .finally(() => {
-        this.setData({ myPinsLoading: false });
+        this.setData({ myPinsLoading: false, myPinsRefreshing: false });
       });
   },
 
