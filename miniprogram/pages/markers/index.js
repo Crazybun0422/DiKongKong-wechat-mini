@@ -198,6 +198,7 @@ Page({
     activeMyMarkerFilter: MY_MARKER_FILTERS[0].id,
     myMarkers: [],
     myVisibleMarkers: [],
+    workGroupMarkers: [],
     myPinsLoading: false,
     myPinsLoaded: false,
     myPinsError: "",
@@ -561,6 +562,9 @@ Page({
       }
     }
     if (nextTab === "WORKGROUP") {
+      if (!this.data.myPinsLoaded && !this.data.myPinsLoading) {
+        this.refreshMyPins({ silent: false, filter: this.data.activeMyMarkerFilter });
+      }
       if (!this.data.workGroupsLoaded && !this.data.workGroupsLoading) {
         this.refreshWorkGroups({ silent: false });
       }
@@ -600,13 +604,31 @@ Page({
     if (filter !== "ALL") {
       visible = visible.filter((item = {}) => {
         const scope = (item.scope || item.permission || "").toUpperCase();
+        const hasGroupScope = scope === "WORKGROUP" || scope === "GROUP" || scope === "TEAM";
+        const hasGroupId = !!item.workGroupId;
+        const hasGroupIds = Array.isArray(item.workGroupIds) && item.workGroupIds.length > 0;
+        const rawGroups =
+          (item.raw && Array.isArray(item.raw.groups) && item.raw.groups.length > 0) || false;
+        const hasGroupFlag = !!item.hasWorkGroup;
+        const isWorkGroup = hasGroupScope || hasGroupId || hasGroupIds || rawGroups || hasGroupFlag;
         if (filter === "PRIVATE") return scope === "PRIVATE";
-        if (filter === "WORKGROUP") return scope === "WORKGROUP" || scope === "TEAM";
+        if (filter === "WORKGROUP") return isWorkGroup;
         if (filter === "PUBLISHED") return scope === "PUBLISHED" || scope === "PUBLIC";
         return true;
       });
     }
-    this.setData({ myVisibleMarkers: visible });
+    const workGroupMarkers = (Array.isArray(list) ? list : []).filter((item = {}) => {
+      const scope = (item.scope || item.permission || "").toUpperCase();
+      const hasGroupScope = scope === "WORKGROUP" || scope === "GROUP" || scope === "TEAM";
+      const hasGroupId = !!item.workGroupId;
+      const hasGroupIds = Array.isArray(item.workGroupIds) && item.workGroupIds.length > 0;
+      const rawGroups =
+        (item.raw && Array.isArray(item.raw.groups) && item.raw.groups.length > 0) || false;
+      const hasGroupFlag = !!item.hasWorkGroup;
+      const isWorkGroup = hasGroupScope || hasGroupId || hasGroupIds || rawGroups || hasGroupFlag;
+      return isWorkGroup;
+    });
+    this.setData({ myVisibleMarkers: visible, workGroupMarkers });
     return visible;
   },
 
@@ -1130,6 +1152,8 @@ Page({
     const statusMeta = PIN_REVIEW_STATUS_META[reviewStatus] || PIN_REVIEW_STATUS_META.PENDING;
     const visibility = (raw.visibility || "").toUpperCase();
     const scope = visibility || "PRIVATE";
+    const groups = Array.isArray(raw.groups) ? raw.groups.filter(Boolean) : [];
+    const primaryGroup = groups[0] || {};
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
     const images = Array.isArray(raw.images)
       ? raw.images
@@ -1154,6 +1178,7 @@ Page({
     const exposureCount = Number(raw.exposureCount);
     const phoneCallCount = Number(raw.phoneCallCount);
     const workGroupIdsRaw =
+      (groups.length ? groups.map((g) => g && (g.id || g.groupId)).filter(Boolean) : null) ||
       raw.groupIds ||
       raw.workGroupIds ||
       raw.workGroupIdList ||
@@ -1166,13 +1191,39 @@ Page({
       : [`${workGroupIdsRaw || ""}`.trim()].filter(Boolean);
     const primaryGroupId = workGroupIds[0] || "";
     const hasWorkGroup = workGroupIds.length > 0;
-    if (primaryGroupId) {
-      this.fetchWorkGroupMeta(primaryGroupId);
-    }
-    const workGroupName = raw.workGroupName || primaryGroupId || "";
-    const workGroupDisplayName = workGroupName || primaryGroupId || "工作组";
-    const workGroupCoverImage = this.data.assetPaths.workGroup;
+    const workGroupName =
+      primaryGroup.name ||
+      primaryGroup.groupName ||
+      raw.workGroupName ||
+      raw.workGroupNickname ||
+      primaryGroupId ||
+      "";
+    const workGroupDisplayName = this.sanitizeWorkGroupName(
+      primaryGroup.displayName ||
+      primaryGroup.nickname ||
+      raw.workGroupDisplayName ||
+      raw.workGroupNickname ||
+      workGroupName ||
+      primaryGroupId
+    );
+    const rawCoverImage =
+      (Array.isArray(primaryGroup.images) && primaryGroup.images.length && primaryGroup.images[0]) ||
+      primaryGroup.coverImage ||
+      primaryGroup.avatarUrl ||
+      raw.workGroupCoverImage ||
+      raw.workGroupCover ||
+      raw.workGroupAvatar ||
+      raw.groupCoverImage ||
+      raw.groupCover ||
+      "";
+    const workGroupCoverImage =
+      buildImageUrl(rawCoverImage, {
+        apiBase: this.apiBase,
+        fallback: this.data.assetPaths.workGroup
+      }) || this.data.assetPaths.workGroup;
     const workGroupMemberCount =
+      primaryGroup.memberCount ||
+      (Array.isArray(primaryGroup.memberFeatureCodes) ? primaryGroup.memberFeatureCodes.length : 0) ||
       raw.workGroupMemberCount ||
       raw.workGroupMembers ||
       raw.memberCount ||
@@ -1322,14 +1373,24 @@ Page({
     const targetId = event?.currentTarget?.dataset?.id || "";
     if (!targetId) return;
     if (this.data.workGroupPickerLoading) return;
+    const pin = this.findPinById(targetId) || {};
+    const selected = Array.isArray(pin.workGroupIds)
+      ? pin.workGroupIds.filter(Boolean)
+      : pin.workGroupId
+        ? [`${pin.workGroupId}`.trim()].filter(Boolean)
+        : [];
+    const selectedMap = selected.reduce((acc, id) => {
+      acc[id] = true;
+      return acc;
+    }, {});
     this.setData(
       {
         showWorkGroupPicker: true,
         workGroupPickerList: [],
         workGroupPickerPage: 0,
         workGroupPickerHasMore: true,
-        workGroupPickerSelected: [],
-        workGroupPickerSelectedMap: {},
+        workGroupPickerSelected: selected,
+        workGroupPickerSelectedMap: selectedMap,
         workGroupPickerTarget: targetId,
         workGroupPickerSaving: false
       },
@@ -1410,18 +1471,9 @@ Page({
       wx.showToast({ title: "未选择标记", icon: "none" });
       return;
     }
-    const selectedGroupId = this.data.workGroupPickerSelected;
-    const pin = this.findPinById(pinId);
-    if (!pin) {
-      wx.showToast({ title: "未找到标记", icon: "none" });
-      return;
-    }
     const selectedIds = Array.isArray(this.data.workGroupPickerSelected)
       ? this.data.workGroupPickerSelected.filter(Boolean)
       : [];
-    const isCurrentlyGroup =
-      pin.scope === "WORKGROUP" || pin.scope === "GROUP" || pin.scope === "TEAM";
-    const shouldClear = !selectedIds.length && isCurrentlyGroup;
     this.setData({ workGroupPickerSaving: true });
     const payload = selectedIds.length ? { groupIds: selectedIds } : { groupIds: [] };
     const fetch = () =>
@@ -1435,14 +1487,6 @@ Page({
       });
     fetch()
       .then(() => {
-        const firstGroupId = selectedIds[0] || "";
-        const groupInfo = this.data.workGroupPickerList.find((g) => g.id === firstGroupId) || {};
-        const updates = {
-          scope: selectedIds.length ? "WORKGROUP" : "PRIVATE",
-          workGroupName: selectedIds.length ? groupInfo.name || "工作组" : "",
-          workGroupMemberCount: selectedIds.length ? Number(groupInfo.memberCount || 0) : 0
-        };
-        this.updatePinLocalState(pinId, updates);
         wx.showToast({ title: "已保存", icon: "success" });
         this.setData({
           showWorkGroupPicker: false,
@@ -1450,6 +1494,7 @@ Page({
           workGroupPickerSelected: [],
           workGroupPickerTarget: ""
         });
+        this.refreshMyPins({ silent: true, filter: this.data.activeMyMarkerFilter });
       })
       .catch((err) => {
         console.warn("update pin groups failed", err);

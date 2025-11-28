@@ -114,6 +114,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/work-groups/{id}/join:
+    post:
+      summary: 通过邀请码加入指定工作组
+      description: 用户根据群组 ID 与邀请码加入工作组，需要携带登录态。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupJoinRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
     delete:
       summary: 删除成员
       description: 归属人从指定工作组移除成员 feature code。
@@ -325,6 +348,13 @@ components:
           items:
             type: string
           description: 需要添加或移除的成员 feature code 列表。
+    WorkGroupJoinRequest:
+      type: object
+      required: [invitationCode]
+      properties:
+        invitationCode:
+          type: string
+          description: 邀请码，用户需提供正确的邀请码才能加入。
     WorkGroupBanRequest:
       type: object
       properties:

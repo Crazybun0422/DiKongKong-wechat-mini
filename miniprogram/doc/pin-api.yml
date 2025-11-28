@@ -121,7 +121,10 @@ paths:
   /api/pins/{id}/groups:
     put:
       summary: 更新 Pin 标记的群组列表
-      description: 需登录。仅创建者可更新自己 Pin 的群组列表，且群组归属需属于当前用户。
+      description: |
+        需登录。仅创建者可更新自己 Pin 的群组列表，且群组归属需属于当前用户。
+
+        公开可见的 Pin 不允许更新群组列表；当更新后的群组列表为空时自动转为私有标记（visibility=PRIVATE），当列表不为空时自动转为群组标记（visibility=GROUP）。
       parameters:
         - in: path
           name: id
@@ -134,6 +137,88 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PinGroupUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/publish:
+    post:
+      summary: 发布 Pin 标记为公开
+      description: 需登录。仅创建者可将自身 Pin 标记发布为公开（visibility=PUBLIC）。发布时会清空群组列表并重置审核状态为 PENDING。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/revoke:
+    post:
+      summary: 撤销发布（公开改为私有）
+      description: 需登录。仅创建者可将公开的 Pin 标记撤回为私有（visibility=PRIVATE）。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: OK
@@ -494,10 +579,11 @@ components:
           type: string
         visibility:
           $ref: '#/components/schemas/PinVisibility'
-        groupIds:
+        groups:
           type: array
+          description: 群组详情列表（包含名称、头像、成员、标记列表等）。
           items:
-            type: string
+            $ref: '#/components/schemas/WorkGroupResponse'
           description: 可为空数组，仅在 GROUP 可见时使用。
         shape:
           $ref: '#/components/schemas/PinShapeRequest'
@@ -505,10 +591,11 @@ components:
     PinGroupUpdateRequest:
       type: object
       properties:
-        groupIds:
+        groups:
           type: array
+          description: 群组详情列表（包含名称、头像、成员、标记列表等）。
           items:
-            type: string
+            $ref: '#/components/schemas/WorkGroupResponse'
       required: [groupIds]
     PinReviewRequest:
       type: object
@@ -537,10 +624,11 @@ components:
           type: string
         visibility:
           $ref: '#/components/schemas/PinVisibility'
-        groupIds:
+        groups:
           type: array
+          description: 群组详情列表（包含名称、头像、成员、标记列表等）。
           items:
-            type: string
+            $ref: '#/components/schemas/WorkGroupResponse'
         reviewStatus:
           $ref: '#/components/schemas/PinReviewStatus'
         shape:
@@ -559,6 +647,43 @@ components:
         updatedAt:
           type: string
           format: date-time
+    WorkGroupResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        images:
+          type: array
+          description: 群组头像或展示图。
+          items:
+            type: string
+        name:
+          type: string
+        description:
+          type: string
+        memberFeatureCodes:
+          type: array
+          description: 成员 featureCode 列表。
+          items:
+            type: string
+        pinIds:
+          type: array
+          description: 群组下的标记 ID 列表。
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/WorkGroupStatus'
+        ownerFeatureCode:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkGroupStatus:
+      type: string
+      enum: [ACTIVE, BANNED]
     PinMetricsResponse:
       type: object
       properties:
