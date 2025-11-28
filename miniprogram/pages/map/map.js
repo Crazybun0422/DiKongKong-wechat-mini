@@ -360,8 +360,9 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
 const extractInviteCodeFromOptions = (options = {}) => {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
-    if (source.inviteCode === undefined || source.inviteCode === null) return "";
-    return decodeParamValue(source.inviteCode);
+    const candidate = source.inviteCode ?? source.invitationCode;
+    if (candidate === undefined || candidate === null) return "";
+    return decodeParamValue(candidate);
   };
   if (!options || typeof options !== "object") {
     return "";

@@ -29,6 +29,78 @@ function resolveApiBase() {
 
 const API_BASE_URL = resolveApiBase();
 
+function decodeParamValue(value) {
+  if (value === undefined || value === null) return "";
+  const text = `${value}`.trim();
+  if (!text) return "";
+  try {
+    return decodeURIComponent(text);
+  } catch (err) {
+    return text;
+  }
+}
+
+function parseSceneParams(scene) {
+  if (!scene || typeof scene !== "string") {
+    return {};
+  }
+  let decoded = scene;
+  try {
+    decoded = decodeURIComponent(scene);
+  } catch (err) {
+    decoded = `${scene}`;
+  }
+  decoded = decoded.replace(/\+/g, " ");
+  const params = {};
+  decoded.split(/[&,|]/).forEach((segment) => {
+    const chunk = segment.trim();
+    if (!chunk) return;
+    let separatorIndex = chunk.indexOf("=");
+    if (separatorIndex < 0) {
+      separatorIndex = chunk.indexOf(":");
+    }
+    if (separatorIndex < 0) {
+      params[chunk] = "";
+      return;
+    }
+    const key = chunk.slice(0, separatorIndex).trim();
+    const value = chunk.slice(separatorIndex + 1).trim();
+    if (!key) return;
+    params[key] = value;
+  });
+  return params;
+}
+
+function extractInviteCodeFromOptions(options = {}) {
+  const readInviteFromObject = (source) => {
+    if (!source || typeof source !== "object") return "";
+    const candidate = source.inviteCode ?? source.invitationCode;
+    if (candidate === undefined || candidate === null) return "";
+    return decodeParamValue(candidate);
+  };
+  if (!options || typeof options !== "object") {
+    return "";
+  }
+  const direct = readInviteFromObject(options);
+  if (direct) return direct;
+  if (options.query) {
+    const fromQuery = readInviteFromObject(options.query);
+    if (fromQuery) return fromQuery;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  const fromScene = readInviteFromObject(sceneParams);
+  if (fromScene) return fromScene;
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    const fromQ = readInviteFromObject(qParams);
+    if (fromQ) return fromQ;
+  }
+  return "";
+}
+
 App({
   globalData: {
     version: "0.0.1",
@@ -40,8 +112,13 @@ App({
     pendingInviteCode: ""
   },
 
-  onLaunch() {
+  onLaunch(options = {}) {
     console.log("Mini program launched");
+    const launchInvite = extractInviteCodeFromOptions(options);
+    if (launchInvite) {
+      this.setPendingInviteCode(launchInvite);
+      console.log("Extracted invite code from launch options:", launchInvite);
+    }
     try {
       const storedToken = wx.getStorageSync(ACCESS_TOKEN_STORAGE_KEY);
       if (storedToken) this.globalData.token = storedToken;
@@ -127,6 +204,7 @@ App({
           if (profile.nickname) payload.nickname = profile.nickname;
           if (profile.avatarUrl) payload.avatarUrl = profile.avatarUrl;
           const inviteCode = this.getPendingInviteCode();
+          console.log("Found pending invite code during login:", inviteCode);
           if (inviteCode) {
             payload.inviteCode = inviteCode;
           }
