@@ -1132,6 +1132,14 @@ Page({
     return `${la.toFixed(6)}, ${lo.toFixed(6)}`;
   },
 
+  formatExposureDisplay(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return { display: "--", full: "--" };
+    const text = `${num}`;
+    if (text.length > 5) return { display: `${text.slice(0, 5)}...`, full: text };
+    return { display: text, full: text };
+  },
+
   normalizePin(raw = {}) {
     const reviewStatus = raw.reviewStatus || "PENDING";
     const statusMeta = PIN_REVIEW_STATUS_META[reviewStatus] || PIN_REVIEW_STATUS_META.PENDING;
@@ -1161,6 +1169,7 @@ Page({
     const timelineLabel = hasUpdatedAt ? "更新时间" : "创建时间";
     const timelineDisplay = hasUpdatedAt ? updatedAtDisplay : createdAtDisplay;
     const exposureCount = Number(raw.exposureCount);
+    const exposureDisplay = this.formatExposureDisplay(exposureCount);
     const phoneCallCount = Number(raw.phoneCallCount);
     const workGroupIdsRaw =
       (groups.length ? groups.map((g) => g && (g.id || g.groupId)).filter(Boolean) : null) ||
@@ -1243,6 +1252,8 @@ Page({
       timelineDisplay,
       locationText,
       exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
+      exposureDisplay: exposureDisplay.display,
+      exposureFull: exposureDisplay.full,
       phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
       workGroupName,
       workGroupMemberCount: Number.isFinite(Number(workGroupMemberCount))
@@ -1878,6 +1889,17 @@ Page({
     this.refreshMyPins({ silent: false, filter: this.data.activeMyMarkerFilter });
   },
 
+  onExposureTap(e = {}) {
+    const val = e?.currentTarget?.dataset?.value;
+    const text =
+      val === undefined || val === null
+        ? "--"
+        : typeof val === "number" || typeof val === "string"
+          ? `${val}`
+          : "--";
+    wx.showToast({ title: `曝光：${text}`, icon: "none" });
+  },
+
   extractMarkerList(payload) {
     if (!payload) return [];
     if (Array.isArray(payload)) return payload;
@@ -1941,6 +1963,7 @@ Page({
       raw.exposureCount !== undefined && raw.exposureCount !== null
         ? Number(raw.exposureCount)
         : 0;
+    const exposureDisplay = this.formatExposureDisplay(exposureCount);
     const phoneCallCount =
       raw.phoneCallCount !== undefined && raw.phoneCallCount !== null
         ? Number(raw.phoneCallCount)
@@ -1982,6 +2005,8 @@ Page({
       timelineLabel,
       timelineDisplay,
       exposureCount: Number.isFinite(exposureCount) ? exposureCount : 0,
+      exposureDisplay: exposureDisplay.display,
+      exposureFull: exposureDisplay.full,
       phoneCallCount: Number.isFinite(phoneCallCount) ? phoneCallCount : 0,
       coverImage: images.length ? images[0].url : "",
       disableModifyActions,

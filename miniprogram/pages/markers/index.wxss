@@ -501,14 +501,17 @@
   display: flex;
   gap: 5rpx;
   margin-top: 16rpx;
+  flex-wrap: nowrap;
 }
 
 .stat-item {
-  flex: 1;
+  flex: 0 0 160rpx;
   display: flex;
   align-items: center;
   gap: 12rpx;
   justify-content: flex-start;
+  max-width: 180rpx;
+  overflow: hidden;
 }
 
 .stat-icon {
@@ -523,6 +526,11 @@
   font-weight: 400;
   letter-spacing: 0.5rpx;
   color: #1f2937;
+  max-width: 100rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-15rpx);
 }
 
 .stat-phone-pill {
@@ -538,6 +546,8 @@
   justify-content: center;
   box-sizing: border-box;
   transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+  flex-shrink: 0;
+  max-width: 200rpx;
 }
 
 .stat-phone-pill.is-private {
@@ -545,7 +555,7 @@
 }
 
 .stat-phone-pill.is-workgroup {
-  min-width: 240rpx;
+  min-width: 200rpx;
   padding-right: 18rpx;
   padding-left: 18rpx;
 }
@@ -556,12 +566,21 @@
   display: block;
   border-radius: 50%;
   overflow: hidden;
+  flex-shrink: 0;
+}
+
+.stat-phone-pill.is-private .pill-icon {
+  filter: brightness(0);
+}
+
+.stat-phone-pill.is-workgroup .pill-icon {
+  filter: none;
 }
 
 .pill-name {
   font-size: 22rpx;
   color: #111827;
-  max-width: 180rpx;
+  max-width: 120rpx;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

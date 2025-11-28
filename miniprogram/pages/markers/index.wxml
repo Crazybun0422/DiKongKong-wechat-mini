@@ -76,7 +76,13 @@
                       <view class="card-stats">
                         <view class="stat-item">
                           <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
-                          <text class="stat-value">{{item.exposureCount}}</text>
+                          <text
+                            class="stat-value"
+                            data-value="{{item.exposureFull || item.exposureCount}}"
+                            bindtap="onExposureTap"
+                          >
+                            {{item.exposureDisplay || item.exposureCount}}
+                          </text>
                         </view>
                         <view class="stat-item">
                           <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
@@ -159,7 +165,13 @@
                       <view class="card-stats">
                         <view class="stat-item">
                           <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
-                          <text class="stat-value">{{item.exposureCount}}</text>
+                          <text
+                            class="stat-value"
+                            data-value="{{item.exposureFull || item.exposureCount}}"
+                            bindtap="onExposureTap"
+                          >
+                            {{item.exposureDisplay || item.exposureCount}}
+                          </text>
                         </view>
                         <view
                           class="stat-phone-pill {{item.hasWorkGroup ? 'is-workgroup' : 'is-private'}}"
@@ -521,7 +533,7 @@
         </view>
       </view>
       <view class="modal-footer">
-        <button class="modal-btn" bindtap="onCloseJoinPrompt">暂不加入</button>
+        <button class="modal-btn" bindtap="onCloseJoinPrompt">取消</button>
         <button
           class="modal-btn primary"
           loading="{{joinInviting}}"
