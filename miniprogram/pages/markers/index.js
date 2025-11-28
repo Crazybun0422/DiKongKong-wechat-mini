@@ -198,7 +198,6 @@ Page({
     activeMyMarkerFilter: MY_MARKER_FILTERS[0].id,
     myMarkers: [],
     myVisibleMarkers: [],
-    workGroupMarkers: [],
     myPinsLoading: false,
     myPinsLoaded: false,
     myPinsError: "",
@@ -562,9 +561,6 @@ Page({
       }
     }
     if (nextTab === "WORKGROUP") {
-      if (!this.data.myPinsLoaded && !this.data.myPinsLoading) {
-        this.refreshMyPins({ silent: false, filter: this.data.activeMyMarkerFilter });
-      }
       if (!this.data.workGroupsLoaded && !this.data.workGroupsLoading) {
         this.refreshWorkGroups({ silent: false });
       }
@@ -617,18 +613,7 @@ Page({
         return true;
       });
     }
-    const workGroupMarkers = (Array.isArray(list) ? list : []).filter((item = {}) => {
-      const scope = (item.scope || item.permission || "").toUpperCase();
-      const hasGroupScope = scope === "WORKGROUP" || scope === "GROUP" || scope === "TEAM";
-      const hasGroupId = !!item.workGroupId;
-      const hasGroupIds = Array.isArray(item.workGroupIds) && item.workGroupIds.length > 0;
-      const rawGroups =
-        (item.raw && Array.isArray(item.raw.groups) && item.raw.groups.length > 0) || false;
-      const hasGroupFlag = !!item.hasWorkGroup;
-      const isWorkGroup = hasGroupScope || hasGroupId || hasGroupIds || rawGroups || hasGroupFlag;
-      return isWorkGroup;
-    });
-    this.setData({ myVisibleMarkers: visible, workGroupMarkers });
+    this.setData({ myVisibleMarkers: visible });
     return visible;
   },
 
@@ -1474,35 +1459,67 @@ Page({
     const selectedIds = Array.isArray(this.data.workGroupPickerSelected)
       ? this.data.workGroupPickerSelected.filter(Boolean)
       : [];
-    this.setData({ workGroupPickerSaving: true });
-    const payload = selectedIds.length ? { groupIds: selectedIds } : { groupIds: [] };
-    const fetch = () =>
-      updatePinGroups(pinId, payload, { apiBase: this.apiBase }).catch((err) => {
-        if (err?.message === "missing-token") {
-          return this.ensureAccessToken().then(() =>
-            updatePinGroups(pinId, payload, { apiBase: this.apiBase })
-          );
-        }
-        throw err;
-      });
-    fetch()
-      .then(() => {
-        wx.showToast({ title: "已保存", icon: "success" });
-        this.setData({
-          showWorkGroupPicker: false,
-          workGroupPickerSaving: false,
-          workGroupPickerSelected: [],
-          workGroupPickerTarget: ""
+    const pin = this.findPinById(pinId);
+    if (!pin) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    const scope = (pin.scope || pin.permission || "").toUpperCase();
+    const hadGroupScope = scope === "WORKGROUP" || scope === "GROUP" || scope === "TEAM";
+    const hadGroupId = !!pin.workGroupId;
+    const hadGroupIds = Array.isArray(pin.workGroupIds) && pin.workGroupIds.length > 0;
+    const hadRawGroups =
+      (pin.raw && Array.isArray(pin.raw.groups) && pin.raw.groups.length > 0) || false;
+    const hadGroupFlag = !!pin.hasWorkGroup;
+    const hadGroup = hadGroupScope || hadGroupId || hadGroupIds || hadRawGroups || hadGroupFlag;
+    const willHaveGroup = selectedIds.length > 0;
+
+    const proceed = () => {
+      this.setData({ workGroupPickerSaving: true });
+      const payload = selectedIds.length ? { groupIds: selectedIds } : { groupIds: [] };
+      const fetch = () =>
+        updatePinGroups(pinId, payload, { apiBase: this.apiBase }).catch((err) => {
+          if (err?.message === "missing-token") {
+            return this.ensureAccessToken().then(() =>
+              updatePinGroups(pinId, payload, { apiBase: this.apiBase })
+            );
+          }
+          throw err;
         });
-        this.refreshMyPins({ silent: true, filter: this.data.activeMyMarkerFilter });
-      })
-      .catch((err) => {
-        console.warn("update pin groups failed", err);
-        wx.showToast({ title: err?.message || "保存失败", icon: "none" });
-      })
-      .finally(() => {
-        this.setData({ workGroupPickerSaving: false });
+      fetch()
+        .then(() => {
+          wx.showToast({ title: "已保存", icon: "success" });
+          this.setData({
+            showWorkGroupPicker: false,
+            workGroupPickerSaving: false,
+            workGroupPickerSelected: [],
+            workGroupPickerTarget: ""
+          });
+          this.refreshMyPins({ silent: true, filter: this.data.activeMyMarkerFilter });
+        })
+        .catch((err) => {
+          console.warn("update pin groups failed", err);
+          wx.showToast({ title: err?.message || "保存失败", icon: "none" });
+        })
+        .finally(() => {
+          this.setData({ workGroupPickerSaving: false });
+        });
+    };
+
+    if (!hadGroup && willHaveGroup) {
+      wx.showModal({
+        title: "切换到工作组",
+        content: "保存后该标记将从私有转为工作组可见，是否继续？",
+        cancelText: "取消",
+        confirmText: "继续",
+        success: (res) => {
+          if (res.confirm) proceed();
+        }
       });
+      return;
+    }
+
+    proceed();
   },
 
   findPinById(id) {
