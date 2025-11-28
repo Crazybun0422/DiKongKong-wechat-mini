@@ -1519,6 +1519,19 @@ Page({
       return;
     }
 
+    if (hadGroup && !willHaveGroup) {
+      wx.showModal({
+        title: "切换为私有",
+        content: "保存后该标记将从工作组改为私有，仅自己可见，是否继续？",
+        cancelText: "取消",
+        confirmText: "继续",
+        success: (res) => {
+          if (res.confirm) proceed();
+        }
+      });
+      return;
+    }
+
     proceed();
   },
 
