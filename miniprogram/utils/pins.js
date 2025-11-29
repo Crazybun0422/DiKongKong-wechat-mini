@@ -85,8 +85,31 @@ function updatePinGroups(pinId, payload = {}, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function performPinAction(pinId, actionPath, options = {}) {
+  const id = `${pinId || ""}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("missing-pin-id"));
+  }
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/${encodeURIComponent(id)}${actionPath}`,
+    method: "POST"
+  }).then((body = {}) => body.data || {});
+}
+
+function publishPin(pinId, options = {}) {
+  return performPinAction(pinId, "/publish", options);
+}
+
+function revokePin(pinId, options = {}) {
+  return performPinAction(pinId, "/revoke", options);
+}
+
 module.exports = {
   listMyPins,
   createPin,
-  updatePinGroups
+  updatePinGroups,
+  publishPin,
+  revokePin
 };

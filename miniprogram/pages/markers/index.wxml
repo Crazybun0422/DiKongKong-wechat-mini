@@ -114,11 +114,11 @@
         </view>
 
         <view class="my-marker-filters">
-          <block wx:for="{{myMarkerFilters}}" wx:key="id">
+          <block wx:for="{{pinFilters}}" wx:key="id">
             <view
-              class="my-marker-filter {{activeMyMarkerFilter === item.id ? 'is-active' : ''}}"
+              class="my-marker-filter {{activePinFilter === item.id ? 'is-active' : ''}}"
               data-filter="{{item.id}}"
-              bindtap="onMyMarkerFilterTap"
+              bindtap="onPinFilterTap"
             >
               <text>{{item.label}}</text>
             </view>
@@ -130,20 +130,20 @@
         scroll-y
         class="markers-scroll"
         refresher-enabled="{{true}}"
-        refresher-triggered="{{myPinsRefreshing}}"
+        refresher-triggered="{{pinsRefreshing}}"
         bindrefresherrefresh="onPullDownRefresh"
       >
 
-        <block wx:if="{{myPinsLoading && !myPinsLoaded}}">
+        <block wx:if="{{pinsLoading && !pinsLoaded}}">
           <view class="state-card">加载中...</view>
         </block>
-        <block wx:elif="{{myPinsError}}">
+        <block wx:elif="{{pinsError}}">
           <view class="state-card state-error">
-            <text class="state-text">{{myPinsError}}</text>
-            <button class="retry-btn" bindtap="onRetryMyPinsTap">重新加载</button>
+            <text class="state-text">{{pinsError}}</text>
+            <button class="retry-btn" bindtap="onRetryPinRefreshTap">重新加载</button>
           </view>
         </block>
-        <block wx:elif="{{!myVisibleMarkers.length}}">
+        <block wx:elif="{{!visiblePins.length}}">
           <view class="empty-card my-marker-empty-card">
             <view class="empty-icon-wrapper my-marker-empty-icon-wrapper">
               <image class="empty-icon my-marker-empty-icon" src="{{assetPaths.emptyPin}}" mode="aspectFit" />
@@ -158,8 +158,8 @@
         </block>
         <block wx:else>
           <view class="marker-list">
-            <block wx:for="{{myVisibleMarkers}}" wx:key="id">
-              <view class="marker-card" bindtap="onMarkerCardTap" data-id="{{item.id}}">
+            <block wx:for="{{visiblePins}}" wx:key="id">
+              <view class="marker-card" bindtap="onPinCardTap" data-pin-id="{{item.id}}">
                 <view class="status-corner {{item.reviewTone}}">
                   <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
                 </view>
@@ -1157,32 +1157,99 @@
     </view>
   </view>
 
-  <view wx:if="{{actionSheetVisible}}" class="action-sheet-overlay" catchtouchmove="noop">
-    <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
-    <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
-      <view class="action-sheet-card">
-        <view class="action-sheet-item" data-action="home" bindtap="onActionSheetAction">主页预览</view>
-        <view class="action-sheet-item" data-action="detail" bindtap="onActionSheetAction">详情</view>
-        <view
-          class="action-sheet-item {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
-          data-action="edit"
-          bindtap="onActionSheetAction"
-        >
-          编辑
-        </view>
-        <view
-          class="action-sheet-item action-sheet-item-danger {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
-          data-action="delete"
-          bindtap="onActionSheetAction"
-        >
-          删除
-        </view>
-      </view>
-      <view class="action-sheet-card action-sheet-card-cancel">
-        <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
-          取消
+  <block wx:if="{{deleteDialogVisible}}">
+    <view class="delete-dialog-overlay" catchtouchmove="noop">
+      <view class="delete-dialog-mask" bindtap="onDeleteDialogCancel"></view>
+      <view class="delete-dialog-card" catchtouchmove="noop">
+        <text class="delete-dialog-title">删除标记</text>
+        <text class="delete-dialog-desc">
+          为防误删，请输入标记全称：
+          <text class="delete-dialog-name">{{deleteDialogMarkerName}}</text>
+        </text>
+        <input
+          class="delete-dialog-input"
+          placeholder="{{deleteDialogMarkerName}}"
+          value="{{deleteDialogInput}}"
+          bindinput="onDeleteDialogInput"
+        />
+        <text wx:if="{{deleteDialogError}}" class="delete-dialog-error">{{deleteDialogError}}</text>
+        <view class="delete-dialog-actions">
+          <button class="delete-dialog-btn delete-dialog-btn--secondary" bindtap="onDeleteDialogCancel">
+            取消
+          </button>
+          <button class="delete-dialog-btn delete-dialog-btn--primary" bindtap="onDeleteDialogConfirm">
+            删除
+          </button>
         </view>
       </view>
     </view>
-  </view>
+  </block>
+
+  <block wx:if="{{actionSheetVisible && activeCenterTab === 'MY_MARKERS'}}">
+    <view class="action-sheet-overlay" catchtouchmove="noop">
+      <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
+      <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
+        <view class="action-sheet-card action-sheet-card-my">
+          <block wx:if="{{actionSheetPrimaryOption}}">
+            <view
+              class="action-sheet-item action-sheet-item-my {{!actionSheetPrimaryOption.enabled ? 'action-sheet-item-disabled' : ''}}"
+              data-action="{{actionSheetPrimaryOption.action}}"
+              bindtap="onActionSheetAction"
+            >
+              <view class="action-sheet-icon-box">
+                <image class="action-sheet-icon" src="{{actionSheetPrimaryOption.icon}}" mode="aspectFit" />
+              </view>
+              <text class="action-sheet-label">{{actionSheetPrimaryOption.label}}</text>
+              <text wx:if="{{actionSheetPrimaryOption.note}}" class="action-sheet-note">{{actionSheetPrimaryOption.note}}</text>
+            </view>
+          </block>
+          <block wx:for="{{actionSheetSecondaryOptions}}" wx:key="action">
+            <view
+              class="action-sheet-item action-sheet-item-my {{!item.enabled ? 'action-sheet-item-disabled' : ''}}"
+              data-action="{{item.action}}"
+              bindtap="onActionSheetAction"
+            >
+              <text class="action-sheet-label action-sheet-label--single">{{item.label}}</text>
+              <text wx:if="{{item.note}}" class="action-sheet-note">{{item.note}}</text>
+            </view>
+          </block>
+        </view>
+        <view class="action-sheet-card action-sheet-card-cancel">
+          <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
+            取消
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+  <block wx:elif="{{actionSheetVisible}}">
+    <view class="action-sheet-overlay" catchtouchmove="noop">
+      <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
+      <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
+        <view class="action-sheet-card">
+          <view class="action-sheet-item" data-action="home" bindtap="onActionSheetAction">主页预览</view>
+          <view class="action-sheet-item" data-action="detail" bindtap="onActionSheetAction">详情</view>
+          <view
+            class="action-sheet-item {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
+            data-action="edit"
+            bindtap="onActionSheetAction"
+          >
+            编辑
+          </view>
+          <view
+            class="action-sheet-item action-sheet-item-danger {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
+            data-action="delete"
+            bindtap="onActionSheetAction"
+          >
+            删除
+          </view>
+        </view>
+        <view class="action-sheet-card action-sheet-card-cancel">
+          <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
+            取消
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
 </view>

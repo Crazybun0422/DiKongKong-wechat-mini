@@ -109,6 +109,7 @@ App({
     userProfile: null,
     apiBase: API_BASE_URL,
     pendingMarkerFocus: null,
+    pendingPinPreview: null,
     pendingInviteCode: ""
   },
 

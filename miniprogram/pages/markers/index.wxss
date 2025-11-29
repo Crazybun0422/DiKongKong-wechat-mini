@@ -1100,6 +1100,51 @@
   border-top: 1px solid #f3f4f6;
 }
 
+.action-sheet-card-my {
+  padding: 0;
+}
+
+.action-sheet-item-my {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22rpx 24rpx;
+  text-align: center;
+  font-weight: 400;
+  min-height: 60rpx;
+  gap: 12rpx;
+}
+
+.action-sheet-item-my + .action-sheet-item-my {
+  border-top: 1px solid #f3f4f6;
+}
+
+.action-sheet-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-sheet-icon {
+  width: 32rpx;
+  height: 32rpx;
+}
+
+.action-sheet-label {
+  font-size: 28rpx;
+  font-weight: 400;
+  color: #111827;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.action-sheet-note {
+  font-size: 24rpx;
+  color: #6b7280;
+  margin-top: 0;
+  text-align: center;
+}
+
 .action-sheet-item-danger {
   color: #b91c1c;
 }
@@ -1110,6 +1155,88 @@
 
 .action-sheet-item-cancel {
   font-weight: 600;
+}
+
+.delete-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+}
+
+.delete-dialog-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.delete-dialog-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 85%;
+  max-width: 640rpx;
+  background: #fff;
+  border-radius: 32rpx;
+  padding: 48rpx 40rpx;
+  box-shadow: 0 24rpx 48rpx rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.delete-dialog-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.delete-dialog-desc {
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.delete-dialog-name {
+  color: #111827;
+  font-weight: 600;
+}
+
+.delete-dialog-input {
+  border-radius: 18rpx;
+  border: 1rpx solid #e5e7eb;
+  padding: 18rpx 24rpx;
+  font-size: 28rpx;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.delete-dialog-error {
+  font-size: 24rpx;
+  color: #b91c1c;
+}
+
+.delete-dialog-actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.delete-dialog-btn {
+  flex: 1;
+  height: 84rpx;
+  border-radius: 22rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.delete-dialog-btn--secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.delete-dialog-btn--primary {
+  background: #b91c1c;
+  color: #fff;
 }
 
 .status-text.pending {

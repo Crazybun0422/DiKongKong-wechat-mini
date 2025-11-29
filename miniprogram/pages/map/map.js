@@ -329,6 +329,9 @@ const parseSceneParams = (scene) => {
   return params;
 };
 
+const hasValidCoordinate = (lat, lng) =>
+  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+
 const normalizeLaunchMarkerOptions = (options = {}) => {
   const normalized = {
     markerId: "",
@@ -600,6 +603,9 @@ Page({
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
     this._manualMarkers = [];
+    this._previewPolygons = [];
+    this._previewCircles = [];
+    this._previewMarker = null;
     this._lastKnownLocation = null;
     this.captureInviteCode(options);
     this.handleWorkGroupInviteOptions(options);
@@ -657,6 +663,166 @@ Page({
       return;
     }
     this.focusOnlineMarker(request);
+  },
+
+  consumePendingPinPreview() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData) return;
+    const preview = app.globalData.pendingPinPreview;
+    if (!preview) return;
+    app.globalData.pendingPinPreview = null;
+    this.applyPinPreview(preview);
+  },
+
+  applyPinPreview(payload = {}) {
+    if (!payload || !payload.shape) return;
+    this.clearPinPreview();
+    const shape = payload.shape;
+    if (shape.type === "POINT") {
+      this._previewMarker = this.buildPinPreviewMarker(payload);
+    } else {
+      const zone = this.buildPinPreviewZone(shape);
+      if (zone) {
+        const graphics = buildNoFlyZoneGraphics([zone]);
+        this._previewPolygons = graphics.polygons || [];
+        this._previewCircles = graphics.circles || [];
+      }
+    }
+    this.updateOverlayGraphics();
+    if (this._previewMarker) {
+      this.syncAllMarkers();
+    }
+    const center = this.computePinPreviewCenter(shape, payload);
+    if (center) {
+      this.centerOnPoint(center, clampMapScale(payload.zoom || 16));
+    }
+  },
+
+  clearPinPreview() {
+    this._previewPolygons = [];
+    this._previewCircles = [];
+    this._previewMarker = null;
+    this.updateOverlayGraphics();
+    this.syncAllMarkers();
+  },
+
+  buildPinPreviewZone(shape = {}) {
+    const type = `${shape.type || ""}`.toUpperCase();
+    const coordinates = Array.isArray(shape.coordinates)
+      ? shape.coordinates
+          .map((coord) => this.normalizePreviewCoordinate(coord))
+          .filter(Boolean)
+      : [];
+    if (!coordinates.length) return null;
+    if (type === "CIRCLE") {
+      const center = coordinates[0];
+      const radiusKm = Number(shape.radius);
+      if (!center || !Number.isFinite(radiusKm) || radiusKm <= 0) {
+        return null;
+      }
+      return {
+        type: "CIRCLE",
+        circle: {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusMeters: radiusKm * 1000
+        }
+      };
+    }
+    if (type === "LINE" || type === "PATH") {
+      return {
+        type: "PATH",
+        coordinates,
+        pathDistanceMeters: Number(shape.width) || 0
+      };
+    }
+    return {
+      type: "POLYGON",
+      coordinates
+    };
+  },
+
+  buildPinPreviewMarker(payload = {}) {
+    const location = payload.location || {};
+    const lat = Number(location.latitude);
+    const lng = Number(location.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+    const converted = wgs84ToGcj02(lng, lat);
+    const latitude = Number.isFinite(converted?.lat) ? converted.lat : lat;
+    const longitude = Number.isFinite(converted?.lng) ? converted.lng : lng;
+    const contentParts = [];
+    if (payload.name) {
+      contentParts.push(payload.name);
+    }
+    if (Number.isFinite(payload.height)) {
+      contentParts.push(`${Math.round(payload.height)}米`);
+    }
+    const content = contentParts.join(" ");
+    return {
+      id: payload.id || `pin-preview-${Date.now()}`,
+      latitude,
+      longitude,
+      iconPath: "/assets/location.png",
+      width: 48,
+      height: 48,
+      callout: {
+        content: content || "标记位置",
+        color: "#111827",
+        fontSize: 26,
+        padding: 10,
+        display: "ALWAYS",
+        borderRadius: 6,
+        borderColor: "#111827",
+        borderWidth: 1
+      }
+    };
+  },
+
+  computePinPreviewCenter(shape = {}, payload = {}) {
+    const location = payload.location;
+    const coords = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+    const target = (location && hasValidCoordinate(location.latitude, location.longitude))
+      ? location
+      : coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude));
+    if (target && hasValidCoordinate(target.latitude, target.longitude)) {
+      const converted = wgs84ToGcj02(Number(target.longitude), Number(target.latitude));
+      const latitude = Number.isFinite(converted?.lat) ? converted.lat : Number(target.latitude);
+      const longitude = Number.isFinite(converted?.lng) ? converted.lng : Number(target.longitude);
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+    if (coords.length) {
+      const normalized = coords
+        .map((coord) => this.normalizePreviewCoordinate(coord))
+        .filter(Boolean);
+      if (!normalized.length) return null;
+      const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
+      const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
+      const conv = wgs84ToGcj02(avgLng, avgLat);
+      const latitude = Number.isFinite(conv?.lat) ? conv.lat : avgLat;
+      const longitude = Number.isFinite(conv?.lng) ? conv.lng : avgLng;
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+    return null;
+  },
+
+  normalizePreviewCoordinate(entry) {
+    if (!entry) return null;
+    if (Array.isArray(entry) && entry.length >= 2) {
+      const lng = Number(entry[0]);
+      const lat = Number(entry[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { latitude: lat, longitude: lng };
+    }
+    const lat = Number(entry.latitude ?? entry.lat);
+    const lng = Number(entry.longitude ?? entry.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { latitude: lat, longitude: lng };
   },
 
   autoLoginOnLaunch() {
@@ -1830,6 +1996,11 @@ Page({
       this.promptJoinWorkGroup(this.data.joinInvitePrompt);
     }
     this.consumePendingMarkerFocus({ source: "show" });
+    this.consumePendingPinPreview();
+  },
+
+  onHide() {
+    this.clearPinPreview();
   },
 
   onUnload() {
@@ -2434,7 +2605,8 @@ Page({
         : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const combined = manual.concat(nearby, search);
+    const preview = this._previewMarker ? [this._previewMarker] : [];
+    const combined = manual.concat(nearby, search, preview);
     this.setData({ markers: combined });
   },
 
@@ -3741,6 +3913,12 @@ Page({
     }
     if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
       circles.push(...this._nfzCircles);
+    }
+    if (Array.isArray(this._previewPolygons)) {
+      polygons.push(...this._previewPolygons);
+    }
+    if (Array.isArray(this._previewCircles)) {
+      circles.push(...this._previewCircles);
     }
     this.setData({ polygons, circles });
   },
