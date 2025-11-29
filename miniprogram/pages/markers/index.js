@@ -222,6 +222,7 @@ Page({
     pinError: "",
     editingPinId: "",
     pinLocationDisplay: "",
+    myPinSelectedGroups: [],
     markers: [],
     visibleMarkers: [],
     error: "",
@@ -1460,6 +1461,7 @@ Page({
         const list = this.extractWorkGroupList(payload).map((item) => this.normalizeWorkGroup(item));
         const merged = reset ? list : (this.data.workGroupPickerList || []).concat(list);
         const hasMore = Array.isArray(list) && list.length === size;
+        console.log("this.data.workGroupPickerList->",this.data.workGroupPickerList);
         this.setData({
           workGroupPickerList: merged,
           workGroupPickerPage: page,
@@ -1508,11 +1510,15 @@ Page({
     if (isCreateTarget) {
       this.setData({
         "myPinForm.groupIds": selectedIds,
+        myPinSelectedGroups: this.data.workGroupPickerList
+          .filter((g) => selectedIds.includes(g.id))
+          .map((g) => this.buildSelectedGroupDisplay(g)),
         showWorkGroupPicker: false,
         workGroupPickerSaving: false,
         workGroupPickerSelected: [],
         workGroupPickerTarget: ""
       });
+      this.updatePinLocationDisplay();
       return;
     }
     const pin = this.findPinById(pinId);
@@ -1550,6 +1556,14 @@ Page({
             workGroupPickerSaving: false,
             workGroupPickerSelected: [],
             workGroupPickerTarget: ""
+          });
+          if (this.data.editingPinId && this.data.editingPinId === pinId) {
+            this.setData({ "myPinForm.groupIds": selectedIds });
+          }
+          this.setData({
+            myPinSelectedGroups: this.data.workGroupPickerList
+              .filter((g) => selectedIds.includes(g.id))
+              .map((g) => this.buildSelectedGroupDisplay(g))
           });
           this.refreshPins({ silent: true, filter: this.data.activePinFilter });
         })
@@ -1683,6 +1697,14 @@ Page({
     form.publishToPlatform = `${pin.scope || ""}`.toUpperCase() === "PUBLIC";
     form.groupIds = Array.isArray(pin.workGroupIds) ? pin.workGroupIds.filter(Boolean) : [];
     return form;
+  },
+
+  buildPinSelectedGroupsFromPin(pin = {}) {
+    const groups = Array.isArray(pin.raw?.groups) ? pin.raw.groups : [];
+    if (!groups.length) return [];
+    return groups
+      .map((g) => this.buildSelectedGroupDisplay(g))
+      .filter((item) => item.id);
   },
 
   updatePinLocalState(id, patch = {}) {
@@ -1880,6 +1902,37 @@ Page({
       return "POLYGON";
     }
     return "POINT";
+  },
+
+  buildSelectedGroupDisplay(item = {}) {
+    const name =
+      item.displayName ||
+      item.name ||
+      item.groupName ||
+      item.nickname ||
+      item.title ||
+      "";
+    
+    const memberCount =
+      item.memberCount ??
+      (Array.isArray(item.memberFeatureCodes) ? item.memberFeatureCodes.length : null);
+    const coverRaw =
+      item.coverImage ||
+      item.cover ||
+      (Array.isArray(item.images) && item.images.length ? item.images[0] : "") ||
+      "";
+    const coverImage =
+      buildImageUrl(coverRaw, {
+        apiBase: this.apiBase,
+        fallback: this.data.assetPaths.workGroup
+      }) || this.data.assetPaths.workGroup;
+    console.log("memberCount",memberCount);
+    return {
+      id: item.id || item.groupId || "",
+      name: name || "工作组",
+      memberCount: Number.isFinite(Number(memberCount)) ? Number(memberCount) : null,
+      coverImage
+    };
   },
 
   getPinTypeLabel(typeId) {
@@ -2683,7 +2736,8 @@ Page({
       pinSubmitting: false,
       pinError: "",
       editingPinId: "",
-      pinLocationDisplay: ""
+      pinLocationDisplay: "",
+      myPinSelectedGroups: []
     });
   },
 
@@ -3215,7 +3269,8 @@ Page({
         myPinFormConfigured: true,
         pinSubmitting: false,
         pinError: "",
-        editingPinId: marker.id || ""
+        editingPinId: marker.id || "",
+        myPinSelectedGroups: this.buildPinSelectedGroupsFromPin(marker)
       }, () => {
         this.updatePinLocationDisplay();
         const coord = (pinForm.coordinateList || [])[pinForm.activeCoordIndex || 0] || {};
