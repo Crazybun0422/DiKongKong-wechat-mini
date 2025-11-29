@@ -1126,21 +1126,33 @@
             <view class="field-label">
               <text>工作组</text>
             </view>
-            <input
-              class="field-input form-input"
-              placeholder="请选择工作组"
-              value="{{myPinForm.workspace}}"
-              bindinput="onPinWorkspaceInput"
-            />
+            <view class="workgroup-selector">
+              <view
+                wx:if="{{!myPinForm.publishToPlatform}}"
+                class="stat-phone-pill is-private"
+                catchtap="onOpenWorkGroupPickerForCreate"
+              >
+                <image class="pill-icon" src="{{assetPaths.workGroup}}" mode="aspectFit" />
+                <text class="pill-name">
+                  {{myPinForm.groupIds && myPinForm.groupIds.length ? ('已选 ' + myPinForm.groupIds.length + ' 个') : '选择工作组'}}
+                </text>
+                <image class="pill-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
+              </view>
+              <text wx:else class="workgroup-disabled-text">发布状态不可设置</text>
+            </view>
           </view>
           <view class="field-row pin-publish-row">
             <view class="field-label">
               <text>发布到平台（需审核）</text>
             </view>
-            <switch
-              checked="{{myPinForm.publishToPlatform}}"
-              bindchange="onPinPublishToggle"
-            />
+            <view class="publish-toggle">
+              <switch
+                checked="{{myPinForm.publishToPlatform}}"
+                bindchange="onPinPublishToggle"
+                color="#111111"
+                style="transform: scale(0.82); transform-origin: center;"
+              />
+            </view>
           </view>
         </view>
       </scroll-view>

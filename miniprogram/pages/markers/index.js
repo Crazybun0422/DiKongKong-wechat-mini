@@ -149,7 +149,8 @@ function createEmptyPinForm() {
     name: "",
     description: "",
     workspace: "",
-    publishToPlatform: false
+    publishToPlatform: false,
+    groupIds: []
   };
 }
 
@@ -1386,12 +1387,14 @@ Page({
     const targetId = event?.currentTarget?.dataset?.id || "";
     if (!targetId) return;
     if (this.data.workGroupPickerLoading) return;
-    const pin = this.findPinById(targetId) || {};
+    const pin = targetId === "create-pin" ? {} : this.findPinById(targetId) || {};
     const selected = Array.isArray(pin.workGroupIds)
       ? pin.workGroupIds.filter(Boolean)
       : pin.workGroupId
         ? [`${pin.workGroupId}`.trim()].filter(Boolean)
-        : [];
+        : (targetId === "create-pin" && Array.isArray(this.data.myPinForm?.groupIds)
+          ? this.data.myPinForm.groupIds.filter(Boolean)
+          : []);
     const selectedMap = selected.reduce((acc, id) => {
       acc[id] = true;
       return acc;
@@ -1411,6 +1414,10 @@ Page({
         this.loadWorkGroupPickerPage({ reset: true });
       }
     );
+  },
+
+  onOpenWorkGroupPickerForCreate() {
+    this.onOpenWorkGroupPicker({ currentTarget: { dataset: { id: "create-pin" } } });
   },
 
   onCloseWorkGroupPicker() {
@@ -1480,6 +1487,7 @@ Page({
   onWorkGroupPickerSave() {
     if (this.data.workGroupPickerSaving) return;
     const pinId = this.data.workGroupPickerTarget;
+    const isCreateTarget = pinId === "create-pin";
     if (!pinId) {
       wx.showToast({ title: "未选择标记", icon: "none" });
       return;
@@ -1487,6 +1495,16 @@ Page({
     const selectedIds = Array.isArray(this.data.workGroupPickerSelected)
       ? this.data.workGroupPickerSelected.filter(Boolean)
       : [];
+    if (isCreateTarget) {
+      this.setData({
+        "myPinForm.groupIds": selectedIds,
+        showWorkGroupPicker: false,
+        workGroupPickerSaving: false,
+        workGroupPickerSelected: [],
+        workGroupPickerTarget: ""
+      });
+      return;
+    }
     const pin = this.findPinById(pinId);
     if (!pin) {
       wx.showToast({ title: "未找到标记", icon: "none" });
@@ -1652,6 +1670,7 @@ Page({
       id: img.id
     })) : [];
     form.publishToPlatform = `${pin.scope || ""}`.toUpperCase() === "PUBLIC";
+    form.groupIds = Array.isArray(pin.workGroupIds) ? pin.workGroupIds.filter(Boolean) : [];
     return form;
   },
 
@@ -1938,7 +1957,7 @@ Page({
       name,
       description: (form.description || "").trim(),
       visibility: form.publishToPlatform ? "PUBLIC" : "PRIVATE",
-      groupIds: [],
+      groupIds: Array.isArray(form.groupIds) ? form.groupIds.filter(Boolean) : [],
       images: this.extractPinImagesForPayload(form.images),
       shape
     };
@@ -2199,7 +2218,7 @@ Page({
     const scope = `${marker.scope || ""}`.toUpperCase();
     const isPrivate = scope === "PRIVATE";
     const isPublic = scope === "PUBLIC";
-    const isPending = `${marker.reviewStatus || ""}`.toUpperCase() === "PENDING";
+    const isPending = (`${marker.reviewStatus || ""}`.toUpperCase() === "PENDING") && marker.scope === "PUBLIC";
     const firstActionType = isPublic ? "revoke" : "publish";
     const firstActionLabel = isPublic ? "撤回发布" : "发布到平台";
     const firstActionIcon = isPublic ? assetPaths.revoke : assetPaths.publish;
@@ -2231,15 +2250,15 @@ Page({
         action: "edit",
         label: "编辑",
         icon: "",
-        enabled: !disableModify,
-        note: disableModify ? "审核中暂不可编辑" : ""
+        enabled: !disableModify && !isPending,
+        note: disableModify || isPending ? "（审核中暂不可编辑）" : ""
       },
       {
         action: "delete",
         label: "删除",
         icon: assetPaths.delete,
-        enabled: !disableModify,
-        note: disableModify ? "审核中暂不可删除" : ""
+        enabled: !disableModify && !isPending,
+        note: disableModify || isPending ? "（审核中暂不可删除）" : ""
       }
     ];
     return options;
@@ -2725,7 +2744,8 @@ Page({
   },
 
   onPinPublishToggle(e) {
-    this.setData({ "myPinForm.publishToPlatform": !!e?.detail?.value });
+    const publish = !!e?.detail?.value;
+    this.setData({ "myPinForm.publishToPlatform": publish });
   },
 
   onAddPinMediaTap() {

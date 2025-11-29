@@ -243,10 +243,28 @@
 
 .pin-publish-row {
   align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 0;
 }
 
 .pin-publish-row .field-label {
   margin-bottom: 0;
+}
+
+.publish-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.workgroup-selector {
+  display: flex;
+  align-items: center;
+}
+
+.workgroup-disabled-text {
+  font-size: 26rpx;
+  color: #9ca3af;
 }
 
 .markers-static {
