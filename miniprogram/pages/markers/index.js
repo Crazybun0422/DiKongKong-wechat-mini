@@ -114,8 +114,8 @@ const PIN_CATEGORY_LABELS = {
 };
 const PIN_REVIEW_STATUS_META = {
   PENDING: { label: "审核中", tone: "pending" },
-  APPROVED_A: { label: "审核通过", tone: "online" },
-  APPROVED_B: { label: "审核通过", tone: "online" },
+  APPROVED_A: { label: "通过", tone: "online" },
+  APPROVED_B: { label: "通过", tone: "online" },
   REJECTED: { label: "被驳回", tone: "danger" }
 };
 
