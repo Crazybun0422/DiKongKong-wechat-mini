@@ -704,7 +704,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PinCoordinateDto'
-          description: 经纬度列表，线、多边形等需闭合。
+          description: 经纬度（含可选高程）列表，线、多边形等需闭合。
         radius:
           type: number
           format: double
@@ -726,6 +726,10 @@ components:
         longitude:
           type: number
           format: double
+        altitude:
+          type: number
+          format: double
+          description: 高程，单位米，可选；未提供时默认仅表示平面位置。
       required: [latitude, longitude]
     PinVisibility:
       type: string

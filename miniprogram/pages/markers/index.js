@@ -22,7 +22,15 @@ const {
 const { getShareInviteCode } = require("../../utils/share");
 const { payWithFlp } = require("../../utils/flp");
 const { reverseGeocode } = require("../../utils/geocoder");
-const { listMyPins, createPin: createPinApi, updatePinGroups, publishPin, revokePin } = require("../../utils/pins");
+const {
+  listMyPins,
+  createPin: createPinApi,
+  updatePin: updatePinApi,
+  deletePin: deletePinApi,
+  updatePinGroups,
+  publishPin,
+  revokePin
+} = require("../../utils/pins");
 const {
   listMyWorkGroups,
   fetchFeatureCodeProfiles,
@@ -212,6 +220,7 @@ Page({
     myPinFormConfigured: false,
     pinSubmitting: false,
     pinError: "",
+    editingPinId: "",
     markers: [],
     visibleMarkers: [],
     error: "",
@@ -1830,10 +1839,15 @@ Page({
   normalizePinCoordinateForPayload(item = {}) {
     const lat = normalizePinCoordValue(item.latitude);
     const lng = normalizePinCoordValue(item.longitude);
-    return {
+    const altitude = normalizePinAltitude(item.altitude ?? item.height ?? item.alt);
+    const coord = {
       latitude: Number.isFinite(lat) ? lat : null,
       longitude: Number.isFinite(lng) ? lng : null
     };
+    if (altitude !== "") {
+      coord.altitude = altitude;
+    }
+    return coord;
   },
 
   mapPointCategoryByType(typeId) {
@@ -2629,7 +2643,8 @@ Page({
       myPinForm: createEmptyPinForm(),
       myPinFormConfigured: false,
       pinSubmitting: false,
-      pinError: ""
+      pinError: "",
+      editingPinId: ""
     });
   },
 
@@ -2794,8 +2809,12 @@ Page({
       wx.showToast({ title: err?.message || "请完善标记信息", icon: "none" });
       return;
     }
+    const editingId = this.data.editingPinId;
     this.setData({ pinSubmitting: true, pinError: "" });
-    const submit = () => createPinApi(payload, { apiBase: this.apiBase });
+    const submit = () =>
+      editingId
+        ? updatePinApi(editingId, payload, { apiBase: this.apiBase })
+        : createPinApi(payload, { apiBase: this.apiBase });
     let retriedWithAuth = false;
     const run = () =>
       submit().catch((err) => {
@@ -2807,12 +2826,12 @@ Page({
       });
     run()
       .then(() => {
-        this.setData({ pinSubmitting: false, showMyPinCreate: false });
-        wx.showToast({ title: "已保存标记", icon: "success" });
+        this.setData({ pinSubmitting: false, showMyPinCreate: false, editingPinId: "" });
+        wx.showToast({ title: editingId ? "已更新标记" : "已保存标记", icon: "success" });
         this.refreshPins({ silent: true });
       })
       .catch((err) => {
-        console.error("创建 Pin 失败", err);
+        console.error(editingId ? "更新 Pin 失败" : "创建 Pin 失败", err);
         const message = err?.message || "保存失败";
         this.setData({ pinSubmitting: false, pinError: message });
         wx.showToast({ title: message, icon: "none" });
@@ -3093,7 +3112,8 @@ Page({
         myPinForm: pinForm,
         myPinFormConfigured: true,
         pinSubmitting: false,
-        pinError: ""
+        pinError: "",
+        editingPinId: marker.id || ""
       });
       return;
     }
@@ -4118,7 +4138,40 @@ Page({
 
   performDelete(markerId) {
     if (!markerId) return;
+    const isPin = this.data.activeCenterTab === "MY_MARKERS" || !!this.findPinById(markerId);
     this.setData({ deletingId: markerId });
+    if (isPin) {
+      const request = () => deletePinApi(markerId, { apiBase: this.apiBase });
+      let retriedWithAuth = false;
+      request()
+        .catch((err) => {
+          if (!retriedWithAuth && err?.message === "missing-token") {
+            retriedWithAuth = true;
+            return this.ensureAccessToken().then(() => request());
+          }
+          throw err;
+        })
+        .then(() => {
+          wx.showToast({ title: "已删除", icon: "success" });
+          const filterPins = (list = []) => list.filter((item) => item.id !== markerId);
+          this.setData({
+            pins: filterPins(this.data.pins),
+            visiblePins: filterPins(this.data.visiblePins)
+          });
+          if (this.data.showDetail && this.data.activeMarker?.id === markerId) {
+            this.setData({ showDetail: false, activeMarker: null });
+          }
+        })
+        .catch((err) => {
+          console.error("删除 Pin 失败", err);
+          const message = err?.message || "删除失败，请稍后重试";
+          wx.showToast({ title: message, icon: "none" });
+        })
+        .finally(() => {
+          this.setData({ deletingId: "" });
+        });
+      return;
+    }
     deleteMarker(markerId, { apiBase: this.apiBase })
       .then(() => {
         wx.showToast({ title: "已删除", icon: "success" });

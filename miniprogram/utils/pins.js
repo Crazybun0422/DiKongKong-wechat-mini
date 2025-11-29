@@ -70,6 +70,33 @@ function createPin(payload = {}, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function updatePin(pinId, payload = {}, options = {}) {
+  const id = `${pinId || ""}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("缺少标记ID"));
+  }
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/${encodeURIComponent(id)}`,
+    method: "PUT",
+    data: payload
+  }).then((body = {}) => body.data || {});
+}
+
+function deletePin(pinId, options = {}) {
+  const id = `${pinId || ""}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("缺少标记ID"));
+  }
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/${encodeURIComponent(id)}`,
+    method: "DELETE"
+  }).then((body = {}) => body.data || {});
+}
+
 function updatePinGroups(pinId, payload = {}, options = {}) {
   const id = `${pinId || ""}`.trim();
   if (!id) {
@@ -109,6 +136,8 @@ function revokePin(pinId, options = {}) {
 module.exports = {
   listMyPins,
   createPin,
+  updatePin,
+  deletePin,
   updatePinGroups,
   publishPin,
   revokePin
