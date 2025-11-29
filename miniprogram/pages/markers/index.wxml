@@ -1,4 +1,4 @@
-<view class="markers-page">
+﻿<view class="markers-page">
   <view wx:if="{{!showCreate && !showDetail}}" class="markers-shell">
     <view class="center-tabs">
       <block wx:for="{{centerTabs}}" wx:key="id">
@@ -1073,6 +1073,9 @@
             <view class="pin-selector" bindtap="onPinPickerTap">
               <text class="pin-selector-text">{{myPinForm.geometryLabel || '点-通用'}}</text>
               <image class="pin-selector-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
+            </view>
+            <view wx:if="{{myPinFormConfigured && pinLocationDisplay}}" class="pin-location-hint">
+              <text class="pin-location-text">{{pinLocationDisplay}}</text>
             </view>
           </view>
           <view class="field-row">

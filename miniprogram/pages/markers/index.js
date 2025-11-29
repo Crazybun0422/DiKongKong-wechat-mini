@@ -221,6 +221,7 @@ Page({
     pinSubmitting: false,
     pinError: "",
     editingPinId: "",
+    pinLocationDisplay: "",
     markers: [],
     visibleMarkers: [],
     error: "",
@@ -1664,11 +1665,12 @@ Page({
     const form = createEmptyPinForm();
     form.geometryCategory = geometry.category;
     form.geometryType = typeId;
-    form.geometryLabel = pin.geometryLabel || "";
+    form.geometryLabel = pin.geometryLabel || this.computePinGeometryLabel(form.geometryCategory, form.geometryType);
     form.latitude = first.latitude ?? null;
     form.longitude = first.longitude ?? null;
     form.coordinateList = coordinateList;
     form.activeCoordIndex = 0;
+    form.addressMain = pin.locationText || "";
     form.bufferWidth = Number.isFinite(shape.width) ? Number(shape.width) : null;
     form.radius = Number.isFinite(shape.radius) ? Math.round(Number(shape.radius) * 1000) : null; // km -> m
     form.name = pin.name || "";
@@ -1878,6 +1880,31 @@ Page({
       return "POLYGON";
     }
     return "POINT";
+  },
+
+  getPinTypeLabel(typeId) {
+    const map = {
+      POINT_DEFAULT: "通用",
+      POINT_WARNING: "警示点",
+      POINT_AERIAL: "航拍点",
+      POINT_DOCK: "起降场",
+      POINT_ELEVATION: "高程建筑",
+      LINE_PATH_BUFFER: "路径",
+      AREA_CIRCLE: "圆形",
+      AREA_RECTANGLE: "矩形",
+      AREA_POLYGON: "多边形"
+    };
+    return map[typeId] || "";
+  },
+
+  computePinGeometryLabel(category, typeId) {
+    const cat = `${category || ""}`.toUpperCase();
+    const catLabel = PIN_CATEGORY_LABELS[cat] || "";
+    const typeLabel = this.getPinTypeLabel(typeId);
+    if (catLabel && typeLabel) return `${catLabel}-${typeLabel}`;
+    if (typeLabel) return typeLabel;
+    if (catLabel) return catLabel;
+    return "点-通用";
   },
 
   buildPinCoordinates(form, shapeType) {
@@ -2655,7 +2682,8 @@ Page({
       myPinFormConfigured: false,
       pinSubmitting: false,
       pinError: "",
-      editingPinId: ""
+      editingPinId: "",
+      pinLocationDisplay: ""
     });
   },
 
@@ -2767,8 +2795,13 @@ Page({
           coordinateList,
           wgs84Coordinates: wgsList
         })
-      )
+      ),
+      pinLocationDisplay: ""
     });
+    this.updatePinLocationDisplay();
+    if (!detail.addressMain && hasValidCoordinate(lat, lng)) {
+      this.reverseGeocodePinLocation(lat, lng);
+    }
   },
 
   onPinNameInput(e) {
@@ -2858,8 +2891,52 @@ Page({
       .catch((err) => {
         console.error(editingId ? "更新 Pin 失败" : "创建 Pin 失败", err);
         const message = err?.message || "保存失败";
-        this.setData({ pinSubmitting: false, pinError: message });
-        wx.showToast({ title: message, icon: "none" });
+      this.setData({ pinSubmitting: false, pinError: message });
+      wx.showToast({ title: message, icon: "none" });
+    });
+  },
+
+  updatePinLocationDisplay() {
+    const form = this.data.myPinForm || {};
+    const coords = Array.isArray(form.coordinateList) ? form.coordinateList : [];
+    const activeIndex = Math.min(Math.max(Number(form.activeCoordIndex || 0), 0), Math.max(coords.length - 1, 0));
+    const coord = coords[activeIndex] || {};
+    const lat = Number(coord.latitude ?? form.latitude);
+    const lng = Number(coord.longitude ?? form.longitude);
+    const alt = Number(
+      coord.altitude ??
+      coord.height ??
+      coord.alt ??
+      form.altitude
+    );
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      this.setData({ pinLocationDisplay: "" });
+      return;
+    }
+    const parts = [`${lat.toFixed(6)}, ${lng.toFixed(6)}`];
+    if (Number.isFinite(alt)) {
+      parts.push(`${alt.toFixed(1)}米`);
+    }
+    const address = (form.addressMain || form.addressDetail || "").trim();
+    if (address) {
+      parts.push(address);
+    }
+    this.setData({ pinLocationDisplay: parts.join(" · ") });
+  },
+
+  reverseGeocodePinLocation(lat, lng) {
+    reverseGeocode(lat, lng)
+      .then((res = {}) => {
+        const addr = this.extractAddressFromReverse(res);
+        if (!addr) return;
+        this.setData({
+          "myPinForm.addressMain": addr,
+          pinLocationDisplay: this.data.pinLocationDisplay
+        });
+        this.updatePinLocationDisplay();
+      })
+      .catch((err) => {
+        console.warn("pin reverse geocode failed", err);
       });
   },
 
@@ -3139,6 +3216,12 @@ Page({
         pinSubmitting: false,
         pinError: "",
         editingPinId: marker.id || ""
+      }, () => {
+        this.updatePinLocationDisplay();
+        const coord = (pinForm.coordinateList || [])[pinForm.activeCoordIndex || 0] || {};
+        if (!pinForm.addressMain && hasValidCoordinate(coord.latitude, coord.longitude)) {
+          this.reverseGeocodePinLocation(coord.latitude, coord.longitude);
+        }
       });
       return;
     }
@@ -4164,39 +4247,51 @@ Page({
   performDelete(markerId) {
     if (!markerId) return;
     const isPin = this.data.activeCenterTab === "MY_MARKERS" || !!this.findPinById(markerId);
-    this.setData({ deletingId: markerId });
     if (isPin) {
-      const request = () => deletePinApi(markerId, { apiBase: this.apiBase });
-      let retriedWithAuth = false;
-      request()
-        .catch((err) => {
-          if (!retriedWithAuth && err?.message === "missing-token") {
-            retriedWithAuth = true;
-            return this.ensureAccessToken().then(() => request());
-          }
-          throw err;
-        })
-        .then(() => {
-          wx.showToast({ title: "已删除", icon: "success" });
-          const filterPins = (list = []) => list.filter((item) => item.id !== markerId);
-          this.setData({
-            pins: filterPins(this.data.pins),
-            visiblePins: filterPins(this.data.visiblePins)
-          });
-          if (this.data.showDetail && this.data.activeMarker?.id === markerId) {
-            this.setData({ showDetail: false, activeMarker: null });
-          }
-        })
-        .catch((err) => {
-          console.error("删除 Pin 失败", err);
-          const message = err?.message || "删除失败，请稍后重试";
-          wx.showToast({ title: message, icon: "none" });
-        })
-        .finally(() => {
-          this.setData({ deletingId: "" });
-        });
-      return;
+      this.performDeletePin(markerId);
+    } else {
+      this.performDeleteMarker(markerId);
     }
+  },
+
+  performDeletePin(markerId) {
+    if (!markerId) return;
+    this.setData({ deletingId: markerId });
+    const request = () => deletePinApi(markerId, { apiBase: this.apiBase });
+    let retriedWithAuth = false;
+    request()
+      .catch((err) => {
+        if (!retriedWithAuth && err?.message === "missing-token") {
+          retriedWithAuth = true;
+          return this.ensureAccessToken().then(() => request());
+        }
+        throw err;
+      })
+      .then(() => {
+        wx.showToast({ title: "已删除", icon: "success" });
+        const filterPins = (list = []) => list.filter((item) => item.id !== markerId);
+        this.setData({
+          pins: filterPins(this.data.pins),
+          visiblePins: filterPins(this.data.visiblePins),
+          deletingId: ""
+        });
+        if (this.data.showDetail && this.data.activeMarker?.id === markerId) {
+          this.setData({ showDetail: false, activeMarker: null });
+        }
+      })
+      .catch((err) => {
+        console.error("删除 Pin 失败", err);
+        const message = err?.message || "删除失败，请稍后重试";
+        wx.showToast({ title: message, icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ deletingId: "" });
+      });
+  },
+
+  performDeleteMarker(markerId) {
+    if (!markerId) return;
+    this.setData({ deletingId: markerId });
     deleteMarker(markerId, { apiBase: this.apiBase })
       .then(() => {
         wx.showToast({ title: "已删除", icon: "success" });

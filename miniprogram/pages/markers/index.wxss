@@ -175,6 +175,19 @@
   color: #10b981;
 }
 
+.pin-location-hint {
+  margin-top: 8rpx;
+  padding: 6rpx 10rpx;
+  border-radius: 12rpx;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.pin-location-text {
+  font-size: 22rpx;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
 .my-pin-media-grid {
   display: flex;
   gap: 16rpx;
