@@ -245,6 +245,12 @@ Page({
     actionSheetPrimaryOption: null,
     actionSheetSecondaryOptions: [],
     actionProcessingId: "",
+    // pin confirm dialog
+    pinConfirmVisible: false,
+    pinConfirmAction: "",
+    pinConfirmTargetId: "",
+    pinConfirmMessage: "",
+    pinConfirmBusy: false,
     deletingId: "",
     hasLoaded: false,
     editingMarkerId: "",
@@ -1517,7 +1523,7 @@ Page({
             workGroupPickerSelected: [],
             workGroupPickerTarget: ""
           });
-        this.refreshPins({ silent: true, filter: this.data.activePinFilter });
+          this.refreshPins({ silent: true, filter: this.data.activePinFilter });
         })
         .catch((err) => {
           console.warn("update pin groups failed", err);
@@ -1563,6 +1569,90 @@ Page({
     const visible = Array.isArray(this.data.visiblePins) ? this.data.visiblePins : [];
     const combined = list.concat(visible);
     return combined.find((p) => p.id === id) || null;
+  },
+
+  findAnyMarkerById(id) {
+    if (!id) return null;
+    const markers = Array.isArray(this.data.markers) ? this.data.markers : [];
+    const pins = Array.isArray(this.data.pins) ? this.data.pins : [];
+    const visiblePins = Array.isArray(this.data.visiblePins) ? this.data.visiblePins : [];
+    return (
+      pins.find((p) => p.id === id) ||
+      visiblePins.find((p) => p.id === id) ||
+      markers.find((m) => m.id === id) ||
+      null
+    );
+  },
+
+  mapPointCategoryToTypeId(category = "") {
+    const cat = `${category || ""}`.toUpperCase();
+    switch (cat) {
+      case "WARNING":
+        return "POINT_WARNING";
+      case "AERIAL_SHOT":
+        return "POINT_AERIAL";
+      case "TAKEOFF_LANDING":
+        return "POINT_DOCK";
+      case "TALL_BUILDING":
+        return "POINT_ELEVATION";
+      default:
+        return "POINT_DEFAULT";
+    }
+  },
+
+  mapShapeTypeToGeometry(shape = {}) {
+    const type = `${shape.type || ""}`.toUpperCase();
+    if (type === "LINE" || type === "PATH") {
+      return { category: "LINE", typeId: "LINE_PATH_BUFFER" };
+    }
+    if (type === "CIRCLE") {
+      return { category: "AREA", typeId: "AREA_CIRCLE" };
+    }
+    if (type === "RECTANGLE") {
+      return { category: "AREA", typeId: "AREA_RECTANGLE" };
+    }
+    if (type === "POLYGON" || type === "AREA") {
+      return { category: "AREA", typeId: "AREA_POLYGON" };
+    }
+    return { category: "POINT", typeId: "POINT_DEFAULT" };
+  },
+
+  buildPinFormFromPin(pin = {}) {
+    const shape = pin?.raw?.shape || {};
+    if (!shape || !shape.type || !Array.isArray(shape.coordinates)) return null;
+    const geometry = this.mapShapeTypeToGeometry(shape);
+    const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
+    const typeId = geometry.category === "POINT"
+      ? this.mapPointCategoryToTypeId(pointCategory)
+      : geometry.typeId;
+    const coords = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+    const coordinateList = coords
+      .map((item) => ({
+        latitude: normalizePinCoordValue(item.latitude ?? item.lat),
+        longitude: normalizePinCoordValue(item.longitude ?? item.lng),
+        altitude: normalizePinAltitude(item.altitude ?? item.height ?? item.alt)
+      }))
+      .filter((c) => hasValidCoordinate(c.latitude, c.longitude));
+    const first = coordinateList[0] || {};
+    const form = createEmptyPinForm();
+    form.geometryCategory = geometry.category;
+    form.geometryType = typeId;
+    form.geometryLabel = pin.geometryLabel || "";
+    form.latitude = first.latitude ?? null;
+    form.longitude = first.longitude ?? null;
+    form.coordinateList = coordinateList;
+    form.activeCoordIndex = 0;
+    form.bufferWidth = Number.isFinite(shape.width) ? Number(shape.width) : null;
+    form.radius = Number.isFinite(shape.radius) ? Math.round(Number(shape.radius) * 1000) : null; // km -> m
+    form.name = pin.name || "";
+    form.description = pin.description || "";
+    form.images = Array.isArray(pin.images) ? pin.images.map((img) => ({
+      fileName: img.fileName || "",
+      url: img.url || "",
+      id: img.id
+    })) : [];
+    form.publishToPlatform = `${pin.scope || ""}`.toUpperCase() === "PUBLIC";
+    return form;
   },
 
   updatePinLocalState(id, patch = {}) {
@@ -2109,14 +2199,19 @@ Page({
     const scope = `${marker.scope || ""}`.toUpperCase();
     const isPrivate = scope === "PRIVATE";
     const isPublic = scope === "PUBLIC";
+    const isPending = `${marker.reviewStatus || ""}`.toUpperCase() === "PENDING";
     const firstActionType = isPublic ? "revoke" : "publish";
     const firstActionLabel = isPublic ? "撤回发布" : "发布到平台";
     const firstActionIcon = isPublic ? assetPaths.revoke : assetPaths.publish;
-    const firstActionEnabled = isPublic ? !disableModify : isPrivate && !disableModify;
+    const firstActionEnabled = isPublic
+      ? !disableModify && !isPending
+      : isPrivate && !disableModify;
     const firstActionNote = !firstActionEnabled
       ? disableModify
         ? `审核中暂不可${firstActionLabel}`
-        : "当前状态无法发布"
+        : isPending
+          ? "（审核中不可撤回）"
+          : "（当前状态无法发布）"
       : "";
     const options = [
       {
@@ -2222,11 +2317,11 @@ Page({
       return;
     }
     if (action === "publish") {
-      this.handlePinPublish(marker);
+      this.showPinConfirm("publish", marker);
       return;
     }
     if (action === "revoke") {
-      this.handlePinRevoke(marker);
+      this.showPinConfirm("revoke", marker);
       return;
     }
     if (action === "preview") {
@@ -2246,6 +2341,10 @@ Page({
 
   handlePinPublish(marker = {}) {
     if (!marker?.id) return;
+    if (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "publish") {
+      this.showPinConfirm("publish", marker);
+      return;
+    }
     if (this._pinActionPending) return;
     const startAction = () => publishPin(marker.id, { apiBase: this.apiBase });
     let retried = false;
@@ -2276,6 +2375,10 @@ Page({
 
   handlePinRevoke(marker = {}) {
     if (!marker?.id) return;
+    if (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "revoke") {
+      this.showPinConfirm("revoke", marker);
+      return;
+    }
     if (this._pinActionPending) return;
     const startAction = () => revokePin(marker.id, { apiBase: this.apiBase });
     let retried = false;
@@ -2330,23 +2433,84 @@ Page({
     return navigated;
   },
 
+  showPinConfirm(action, marker = {}) {
+    if (!marker?.id) return;
+    const isPublish = action === "publish";
+    const message = isPublish ? "确认发布到平台？" : "确认撤回发布？";
+    this.setData({
+      pinConfirmVisible: true,
+      pinConfirmAction: action,
+      pinConfirmTargetId: marker.id,
+      pinConfirmMessage: message,
+      pinConfirmBusy: false
+    });
+  },
+
+  onPinConfirmCancel() {
+    if (this.data.pinConfirmBusy) return;
+    this.setData({
+      pinConfirmVisible: false,
+      pinConfirmAction: "",
+      pinConfirmTargetId: "",
+      pinConfirmMessage: "",
+      pinConfirmBusy: false
+    });
+  },
+
+  onPinConfirmProceed() {
+    if (this.data.pinConfirmBusy) return;
+    const action = this.data.pinConfirmAction;
+    const markerId = this.data.pinConfirmTargetId;
+    if (!action || !markerId) {
+      this.onPinConfirmCancel();
+      return;
+    }
+    const marker =
+      (this.data.pins || []).find((p) => p.id === markerId) ||
+      (this.data.visiblePins || []).find((p) => p.id === markerId) ||
+      {};
+    this.setData({ pinConfirmBusy: true });
+    const after = () => {
+      this.setData({
+        pinConfirmVisible: false,
+        pinConfirmAction: "",
+        pinConfirmTargetId: "",
+        pinConfirmMessage: "",
+        pinConfirmBusy: false
+      });
+    };
+    if (action === "publish") {
+      this.handlePinPublish(marker);
+      after();
+      return;
+    }
+    if (action === "revoke") {
+      this.handlePinRevoke(marker);
+      after();
+      return;
+    }
+    after();
+  },
+
   buildPinPreviewPayload(marker = {}) {
     const shape = marker?.raw?.shape;
     if (!shape) return null;
     const coordinates = this.normalizePinPreviewCoordinates(shape.coordinates);
     if (!coordinates.length) return null;
     const type = `${shape.type || "POINT"}`.toUpperCase();
+    const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
     const normalizedShape = {
       type,
       coordinates,
       radius: Number(shape.radius ?? shape.radiusKm ?? 0),
       width: Number(
         shape.width ??
-          shape.bufferWidth ??
-          shape.bufferWidthMeters ??
-          shape.pathDistanceMeters ??
-          0
-      )
+        shape.bufferWidth ??
+        shape.bufferWidthMeters ??
+        shape.pathDistanceMeters ??
+        0
+      ),
+      pointCategory
     };
     return {
       id: marker.id || "",
@@ -2893,9 +3057,24 @@ Page({
   onEditMarkerTap(e) {
     const markerId = e?.currentTarget?.dataset?.id;
     if (!markerId) return;
-    const marker = this.data.markers.find((item) => item.id === markerId);
+    const marker = this.findAnyMarkerById(markerId);
     if (!marker) {
       wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    if (this.data.activeCenterTab === "MY_MARKERS" || marker?.raw?.shape) {
+      const pinForm = this.buildPinFormFromPin(marker);
+      if (!pinForm) {
+        wx.showToast({ title: "标记数据不完整，无法编辑", icon: "none" });
+        return;
+      }
+      this.setData({
+        showMyPinCreate: true,
+        myPinForm: pinForm,
+        myPinFormConfigured: true,
+        pinSubmitting: false,
+        pinError: ""
+      });
       return;
     }
     if (this.isModifyActionLocked(marker)) {
@@ -3855,7 +4034,7 @@ Page({
     const markerId = e?.currentTarget?.dataset?.id;
     const markerName = (e?.currentTarget?.dataset?.name || "").trim();
     if (!markerId) return;
-    const marker = this.data.markers.find((item) => item.id === markerId);
+    const marker = this.findAnyMarkerById(markerId);
     if (!marker) {
       wx.showToast({ title: "未找到标记", icon: "none" });
       return;

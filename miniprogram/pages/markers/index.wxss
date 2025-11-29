@@ -1112,7 +1112,6 @@
   text-align: center;
   font-weight: 400;
   min-height: 60rpx;
-  gap: 12rpx;
 }
 
 .action-sheet-item-my + .action-sheet-item-my {
@@ -1145,12 +1144,79 @@
   text-align: center;
 }
 
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 340;
+}
+
+.confirm-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.confirm-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 78%;
+  max-width: 640rpx;
+  background: #fff;
+  border-radius: 32rpx;
+  padding: 36rpx 32rpx;
+  box-shadow: 0 18rpx 40rpx rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.confirm-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #111827;
+  text-align: center;
+}
+
+.confirm-message {
+  font-size: 28rpx;
+  color: #1f2937;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 6rpx;
+}
+
+.confirm-btn {
+  flex: 1;
+  height: 84rpx;
+  border-radius: 22rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.confirm-btn--secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.confirm-btn--primary {
+  background: #111827;
+  color: #fff;
+}
+
 .action-sheet-item-danger {
   color: #b91c1c;
 }
 
 .action-sheet-item-disabled {
   color: #c4c8d4;
+  pointer-events: none;
 }
 
 .action-sheet-item-cancel {

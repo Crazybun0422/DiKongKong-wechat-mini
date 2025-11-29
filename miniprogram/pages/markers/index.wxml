@@ -175,17 +175,17 @@
                           <text
                             class="stat-value"
                             data-value="{{item.exposureFull || item.exposureCount}}"
-                            bindtap="onExposureTap"
+                            catchtap="onExposureTap"
                           >
                             {{item.exposureDisplay || item.exposureCount}}
                           </text>
                         </view>
-                        <view
-                          class="stat-phone-pill {{item.hasWorkGroup ? 'is-workgroup' : 'is-private'}}"
-                          wx:if="{{activeCenterTab === 'MY_MARKERS'}}"
-                          bindtap="onOpenWorkGroupPicker"
-                          data-id="{{item.id}}"
-                        >
+        <view
+          class="stat-phone-pill {{item.hasWorkGroup ? 'is-workgroup' : 'is-private'}}"
+          wx:if="{{activeCenterTab === 'MY_MARKERS' && item.scope !== 'PUBLIC'}}"
+          catchtap="onOpenWorkGroupPicker"
+          data-id="{{item.id}}"
+        >
                           <block wx:if="{{item.hasWorkGroup}}">
                             <image class="pill-icon" src="{{item.workGroupCoverImage || assetPaths.workGroup}}" mode="aspectFill" lazy-load="true" />
                             <text class="pill-name">
@@ -1222,6 +1222,7 @@
       </view>
     </view>
   </block>
+
   <block wx:elif="{{actionSheetVisible}}">
     <view class="action-sheet-overlay" catchtouchmove="noop">
       <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
@@ -1248,6 +1249,24 @@
           <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
             取消
           </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{pinConfirmVisible}}">
+    <view class="confirm-overlay" catchtouchmove="noop">
+      <view class="confirm-mask" bindtap="onPinConfirmCancel"></view>
+      <view class="confirm-card">
+        <text class="confirm-title">提示</text>
+        <text class="confirm-message">{{pinConfirmMessage}}</text>
+        <view class="confirm-actions">
+          <button class="confirm-btn confirm-btn--secondary" bindtap="onPinConfirmCancel" disabled="{{pinConfirmBusy}}">
+            取消
+          </button>
+          <button class="confirm-btn confirm-btn--primary" bindtap="onPinConfirmProceed" disabled="{{pinConfirmBusy}}">
+            确认
+          </button>
         </view>
       </view>
     </view>

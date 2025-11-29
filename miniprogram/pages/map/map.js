@@ -752,28 +752,44 @@ Page({
     const converted = wgs84ToGcj02(lng, lat);
     const latitude = Number.isFinite(converted?.lat) ? converted.lat : lat;
     const longitude = Number.isFinite(converted?.lng) ? converted.lng : lng;
+    const category = `${payload.shape?.pointCategory || ""}`.toUpperCase();
+    const ICON_MAP = {
+      GENERAL: "/assets/default.png",
+      WARNING: "/assets/drone-warning.png",
+      AERIAL_SHOT: "/assets/aerial.png",
+      TAKEOFF_LANDING: "/assets/dock.png",
+      TALL_BUILDING: "/assets/elevation.png"
+    };
+    const iconPath = ICON_MAP[category] || "/assets/default.png";
     const contentParts = [];
-    if (payload.name) {
+    const hasName = !!payload.name;
+    const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
+    if (hasName) {
       contentParts.push(payload.name);
     }
-    if (Number.isFinite(payload.height)) {
-      contentParts.push(`${Math.round(payload.height)}米`);
+    if (hasHeight) {
+      const hText = `${Math.round(payload.height)}米`;
+      if (hasName) {
+        contentParts.push(hText);
+      } else {
+        contentParts.push(`高程${hText}`);
+      }
     }
-    const content = contentParts.join(" ");
+    const content = contentParts.join(" ") || "标记位置";
     return {
       id: payload.id || `pin-preview-${Date.now()}`,
       latitude,
       longitude,
-      iconPath: "/assets/location.png",
-      width: 48,
-      height: 48,
+      iconPath,
+      width: 32,
+      height: 32,
       callout: {
-        content: content || "标记位置",
+        content,
         color: "#111827",
-        fontSize: 26,
-        padding: 10,
+        fontSize: 12,
+        padding: 6,
         display: "ALWAYS",
-        borderRadius: 6,
+        borderRadius: 4,
         borderColor: "#111827",
         borderWidth: 1
       }
