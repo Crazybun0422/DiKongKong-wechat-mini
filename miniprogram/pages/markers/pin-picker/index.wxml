@@ -1,0 +1,304 @@
+<view class="pin-picker-page">
+  <view class="picker-map-wrap">
+    <map
+      id="pin-picker-map"
+      class="picker-map"
+      latitude="{{latitude}}"
+      longitude="{{longitude}}"
+      scale="{{scale}}"
+      show-location="{{showUserLocation}}"
+      enable-overlooking="{{false}}"
+      enable-3D="{{false}}"
+      enable-zoom="{{true}}"
+      enable-scroll="{{true}}"
+      enable-satellite="{{enableSatellite}}"
+      enable-traffic="{{false}}"
+      polyline="{{polyline}}"
+      polygons="{{bufferPolygons}}"
+      circles="{{circles}}"
+      markers="{{markers}}"
+      bindregionchange="onRegionChange"
+      bindmarkertap="onMarkerTap"
+    ></map>
+    <image
+      class="center-pin {{selectedType.category === 'POINT' ? 'is-point' : ''}}"
+      src="{{selectedType.category === 'POINT' ? selectedType.icon : '/assets/anchor.png'}}"
+      mode="aspectFit"
+    />
+
+    <view class="picker-search-panel">
+      <view class="search-row">
+        <view class="search-stack">
+          <view class="search-box {{searchPanelFocused ? 'is-active' : ''}}">
+            <image class="search-icon" src="/assets/search.png" mode="aspectFit" />
+            <input
+              class="search-input"
+              type="text"
+              confirm-type="search"
+              placeholder="搜索地点、楼宇或关键字"
+              placeholder-style="color:#9ca3af"
+              value="{{searchKeyword}}"
+              maxlength="60"
+              bindinput="onSearchInput"
+              bindfocus="onSearchFocus"
+              bindblur="onSearchBlur"
+              bindconfirm="onSearchConfirm"
+            />
+            <view class="search-clear" wx:if="{{searchKeyword}}" bindtap="onSearchClear">×</view>
+          </view>
+          <view
+            class="search-suggest-card"
+            wx:if="{{(searchPanelFocused || searchSuggestions.length) && (searchSuggestions.length || searchSuggestLoading || searchSuggestError)}}"
+          >
+            <view class="search-suggest-loading" wx:if="{{searchSuggestLoading}}">
+              正在匹配周边地点...
+            </view>
+            <view class="search-suggest-empty" wx:elif="{{searchSuggestError}}">
+              {{searchSuggestError}}
+            </view>
+            <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
+              <block wx:for="{{searchSuggestions}}" wx:key="id">
+                <view class="search-suggest-item" data-index="{{index}}" bindtap="onSuggestionTap">
+                  <view class="suggest-title">{{item.title}}</view>
+                  <view class="suggest-address" wx:if="{{item.address}}">{{item.address}}</view>
+                </view>
+              </block>
+            </scroll-view>
+          </view>
+        </view>
+        <button
+          class="locate-circle"
+          hover-class="locate-hover"
+          hover-start-time="10"
+          hover-stay-time="60"
+          bindtap="onLocateTap"
+        >
+          <image class="locate-icon" src="/assets/location2.png" mode="widthFix" />
+        </button>
+      </view>
+      <view class="type-row">
+        <view class="type-pill" bindtap="toggleTypeMenu">
+          <view class="type-pill-left">
+            <image class="type-pill-icon" src="{{selectedType.icon}}" mode="aspectFit" />
+            <text class="type-pill-label">{{selectedType.label || '通用'}}</text>
+          </view>
+          <image class="type-pill-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
+        </view>
+        <view
+          class="layer-toggle {{enableSatellite ? 'is-satellite' : ''}}"
+          bindtap="onLayerToggle"
+        >
+          <image class="layer-toggle-icon" src="/assets/layer.png" mode="aspectFit" />
+        </view>
+      </view>
+      <view wx:if="{{selectedType.category === 'POINT' && pointActionHint}}" class="line-hint-top">
+        {{pointActionHint}}
+      </view>
+      <view wx:if="{{(selectedType.category === 'LINE' || selectedType.category === 'AREA') && lineActionHint}}" class="line-hint-top">
+        {{lineActionHint}}
+      </view>
+    </view>
+
+    <view wx:if="{{selectedType.category === 'POINT'}}" class="floating-confirm">
+      <button class="confirm-btn" bindtap="onConfirm" disabled="{{!canConfirm}}">确认{{selectedType.label || '通用'}}</button>
+    </view>
+
+    <view
+      wx:if="{{selectedType.category === 'POINT' || selectedType.category === 'LINE' || selectedType.category === 'AREA'}}"
+      class="coord-panel"
+      catchtap="noop"
+    >
+      <view class="coord-panel-toggle" bindtap="onToggleCoordPanel">
+        <image
+          class="coord-panel-toggle-icon-img"
+          src="{{coordPanelCollapsed ? '/assets/expand.png' : '/assets/collapse.png'}}"
+          mode="aspectFit"
+        />
+        <text class="coord-panel-toggle-text">{{coordPanelCollapsed ? '展开参数' : '收起参数'}}</text>
+      </view>
+      <block wx:if="{{!coordPanelCollapsed}}">
+        <view class="coord-panel-body">
+          <view class="coord-header">
+            <text class="coord-title">经纬度列表</text>
+          </view>
+          <scroll-view scroll-y class="coord-list">
+                                                            <block wx:for="{{displayCoordinateList}}" wx:key="index">
+              <view class="coord-item {{activeCoordIndex === item._sourceIndex ? 'is-active' : ''}}">
+                <view class="coord-item-top">
+                  <text class="coord-item-label">点{{index + 1}}</text>
+                  <view class="coord-item-actions">
+                    <text class="coord-link" data-index="{{item._sourceIndex}}" bindtap="onActivateCoordinate">设为当前</text>
+                    <text
+                      class="coord-link danger"
+                      wx:if="{{item._canDelete}}"
+                      data-index="{{item._sourceIndex}}"
+                      bindtap="onRemoveCoordinate"
+                    >删除</text>
+                  </view>
+                </view>
+                <view class="coord-field">
+                  <input
+                    class="coord-input"
+                    type="digit"
+                    value="{{item.latitude === null || item.latitude === undefined ? '' : item.latitude}}"
+                    placeholder="请输入纬度"
+                    data-index="{{item._sourceIndex}}"
+                    data-field="latitude"
+                    bindinput="onCoordinateInput"
+                  />
+                  <view class="micro-group">
+                    <button
+                      class="micro-btn icon-btn"
+                      size="mini"
+                      data-index="{{item._sourceIndex}}"
+                      data-field="latitude"
+                      data-delta="{{coordAdjustStep}}"
+                      bindtap="onCoordinateAdjust"
+                    >
+                      <image class="icon-btn-img" src="/assets/plus-circle-fill.png" mode="aspectFit" />
+                    </button>
+                    <button
+                      class="micro-btn icon-btn"
+                      size="mini"
+                      data-index="{{item._sourceIndex}}"
+                      data-field="latitude"
+                      data-delta="{{0 - coordAdjustStep}}"
+                      bindtap="onCoordinateAdjust"
+                    >
+                      <image class="icon-btn-img" src="/assets/minus-circle-fill.png" mode="aspectFit" />
+                    </button>
+                  </view>
+                </view>
+                <view class="coord-field">
+                  <input
+                    class="coord-input"
+                    type="digit"
+                    value="{{item.longitude === null || item.longitude === undefined ? '' : item.longitude}}"
+                    placeholder="请输入经度"
+                    data-index="{{item._sourceIndex}}"
+                    data-field="longitude"
+                    bindinput="onCoordinateInput"
+                  />
+                  <view class="micro-group">
+                    <button
+                      class="micro-btn icon-btn"
+                      size="mini"
+                      data-index="{{item._sourceIndex}}"
+                      data-field="longitude"
+                      data-delta="{{coordAdjustStep}}"
+                      bindtap="onCoordinateAdjust"
+                    >
+                      <image class="icon-btn-img" src="/assets/plus-circle-fill.png" mode="aspectFit" />
+                    </button>
+                    <button
+                      class="micro-btn icon-btn"
+                      size="mini"
+                      data-index="{{item._sourceIndex}}"
+                      data-field="longitude"
+                      data-delta="{{0 - coordAdjustStep}}"
+                      bindtap="onCoordinateAdjust"
+                    >
+                      <image class="icon-btn-img" src="/assets/minus-circle-fill.png" mode="aspectFit" />
+                    </button>
+                  </view>
+                </view>
+                <view wx:if="{{selectedType.id === 'POINT_ELEVATION'}}" class="coord-field">
+                  <input
+                    class="coord-input"
+                    type="digit"
+                    value="{{item.altitude}}"
+                    placeholder="请输入高度（必填，单位米）"
+                    data-index="{{item._sourceIndex}}"
+                    data-field="altitude"
+                    bindinput="onCoordinateInput"
+                  />
+                </view>
+              </view>
+            </block>
+          </scroll-view>
+          <view wx:if="{{selectedType.category === 'LINE'}}" class="buffer-box">
+            <text class="buffer-label">缓冲区宽度（米）</text>
+            <input
+              class="buffer-input"
+              type="number"
+              value="{{lineBufferInput}}"
+              placeholder="50"
+              bindinput="onBufferInput"
+            />
+          </view>
+          <view wx:if="{{selectedType.id === 'AREA_CIRCLE'}}" class="buffer-box">
+            <text class="buffer-label">半径（米）</text>
+            <input
+              class="buffer-input"
+              type="number"
+              value="{{circleRadiusInput}}"
+              placeholder="50"
+              bindinput="onCircleRadiusInput"
+            />
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <view wx:if="{{selectedType.category === 'LINE'}}" class="line-actions">
+      <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
+        <view class="line-btn-wrap">
+          <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+          <view wx:if="{{anchorToastVisible}}" class="anchor-toast">锚点+1</view>
+        </view>
+        <button class="line-btn primary" bindtap="onCompleteLine">完成绘制</button>
+      </view>
+      <view wx:else class="line-actions-row single">
+        <button class="line-btn primary" bindtap="onStartLineDrawing">开始绘制</button>
+      </view>
+    </view>
+    <view wx:elif="{{selectedType.category === 'AREA'}}" class="line-actions">
+      <view wx:if="{{lineDrawingStarted}}" class="line-actions-row">
+        <view class="line-btn-wrap">
+          <button class="line-btn" bindtap="onConfirmAnchor">确认锚点</button>
+          <view wx:if="{{anchorToastVisible}}" class="anchor-toast">锚点+1</view>
+        </view>
+        <button class="line-btn primary" bindtap="onCompleteLine">完成绘制</button>
+      </view>
+      <view wx:else class="line-actions-row single">
+        <button class="line-btn primary" bindtap="onStartLineDrawing">开始绘制</button>
+      </view>
+    </view>
+
+  </view>
+
+  <view
+    wx:if="{{typeMenuVisible}}"
+    class="type-sheet-overlay"
+    bindtap="closeTypeMenu"
+  >
+    <view class="type-sheet" catchtap="noop">
+      <view class="type-sheet-body">
+        <view class="type-sheet-categories">
+          <block wx:for="{{typeSections}}" wx:key="id">
+            <view
+              class="type-category {{activeTypeSectionId === item.id ? 'is-active' : ''}}"
+              data-section-id="{{item.id}}"
+              bindtap="onTypeSectionTap"
+            >
+              <text class="type-category-label">{{item.label}}</text>
+            </view>
+          </block>
+        </view>
+        <view class="type-sheet-options">
+          <block wx:for="{{activeTypeOptions}}" wx:key="id">
+            <view
+              class="type-option"
+              data-typeid="{{item.id}}"
+              bindtap="onTypeSelect"
+            >
+              <image class="type-option-icon" src="{{item.icon}}" mode="aspectFit" />
+              <text class="type-option-label">{{item.label}}</text>
+              <text class="type-option-check" wx:if="{{selectedType.id === item.id}}">✓</text>
+            </view>
+          </block>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

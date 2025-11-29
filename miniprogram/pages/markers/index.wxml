@@ -1,102 +1,245 @@
-<view class="markers-page">
+﻿<view class="markers-page">
   <view wx:if="{{!showCreate && !showDetail}}" class="markers-shell">
-    <view class="markers-static">
-      <view class="page-header">
-        <button class="create-btn" bindtap="onCreateTap">
-          <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
-          <text class="create-btn-text">新增</text>
-        </button>
-      </view>
-
-      <view class="status-tabs">
-        <block wx:for="{{statusTabs}}" wx:key="id">
-          <view
-            class="status-tab {{filterStatus === item.id ? 'is-active' : ''}}"
-            data-status="{{item.id}}"
-            bindtap="onStatusTabTap"
-          >
-            <text>{{item.label}}</text>
-          </view>
-        </block>
-      </view>
+    <view class="center-tabs">
+      <block wx:for="{{centerTabs}}" wx:key="id">
+        <view class="center-tab {{activeCenterTab === item.id ? 'is-active' : ''}}" data-tab="{{item.id}}" bindtap="onCenterTabTap">
+          <text>{{item.label}}</text>
+        </view>
+      </block>
     </view>
 
-    <scroll-view
-      scroll-y
-      class="markers-scroll"
-      refresher-enabled="{{true}}"
-      refresher-triggered="{{listRefreshing}}"
-      bindrefresherrefresh="onPullDownRefresh"
-    >
-      <block wx:if="{{loading && !hasLoaded}}">
-        <view class="state-card">加载中...</view>
-      </block>
-      <block wx:elif="{{error}}">
-        <view class="state-card state-error">
-          <text class="state-text">{{error}}</text>
-          <button class="retry-btn" bindtap="onRetryTap">重新加载</button>
+    <block wx:if="{{activeCenterTab === 'MERCHANT'}}">
+      <view class="markers-static">
+        <view class="page-header">
+          <button class="create-btn" bindtap="onCreateTap">
+            <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+            <text class="create-btn-text">新增</text>
+          </button>
         </view>
-      </block>
-      <block wx:elif="{{!visibleMarkers.length}}">
-        <view class="empty-card">
-          <view class="empty-icon-wrapper">
-            <image class="empty-icon" src="/assets/drone2.png" mode="aspectFit" />
-          </view>
-          <text class="empty-title">暂未创建标记</text>
-          <text class="empty-desc">在空域图获得展示并作为可信资料被平台AI首选引用。
-也将作为空域插件（MCP）自带数据，通过开放平台获得站外曝光和豆包、元宝等引用。</text>
-          <button class="empty-action" bindtap="onCreateTap">立即创建</button>
-        </view>
-      </block>
-      <block wx:else>
-        <view class="marker-list">
-          <block wx:for="{{visibleMarkers}}" wx:key="id">
-            <view class="marker-card" bindtap="onMarkerCardTap" data-id="{{item.id}}">
-              <view class="status-corner {{item.reviewTone}}">
-                <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
-              </view>
-              <view class="card-body">
-                <view class="card-top">
-                  <view class="card-info">
-                    <text class="marker-name">{{item.name || '未命名标记'}}</text>
-                    <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
-                    <text class="marker-created">{{item.timelineLabel}}: {{item.timelineDisplay}}</text>
-                    <view class="card-stats">
-                      <view class="stat-item">
-                        <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
-                        <text class="stat-value">{{item.exposureCount}}</text>
-                      </view>
-                      <view class="stat-item">
-                        <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
-                        <text class="stat-value">{{item.phoneCallCount}}</text>
-                      </view>
-                    </view>
-                  </view>
-                  <image
-                    class="marker-cover"
-                    src="{{item.coverImage || defaultCoverImage}}"
-                    mode="aspectFill"
-                  />
-                </view>
-              </view>
+
+        <view class="status-tabs">
+          <block wx:for="{{statusTabs}}" wx:key="id">
+            <view class="status-tab {{filterStatus === item.id ? 'is-active' : ''}}" data-status="{{item.id}}" bindtap="onStatusTabTap">
+              <text>{{item.label}}</text>
             </view>
           </block>
         </view>
-      </block>
-    </scroll-view>
+      </view>
+
+      <scroll-view scroll-y class="markers-scroll" refresher-enabled="{{true}}" refresher-triggered="{{listRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
+        <block wx:if="{{loading && !hasLoaded}}">
+          <view class="state-card">加载中...</view>
+        </block>
+        <block wx:elif="{{error}}">
+          <view class="state-card state-error">
+            <text class="state-text">{{error}}</text>
+            <button class="retry-btn" bindtap="onRetryTap">重新加载</button>
+          </view>
+        </block>
+        <block wx:elif="{{!visibleMarkers.length}}">
+          <view class="empty-card">
+            <view class="empty-icon-wrapper">
+              <image class="empty-icon" src="/assets/idea.png" mode="aspectFit" />
+            </view>
+            <text class="empty-title">暂未入驻</text>
+            <text class="empty-desc">在空域图获得展示并作为可信资料被平台首选引用，也将作为空域插件（MCP）自带数据，通过开放平台获得站外曝光和豆包、元宝等引用。</text>
+            <button class="empty-action" bindtap="onCreateTap">立即入驻</button>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="marker-list">
+            <block wx:for="{{visibleMarkers}}" wx:key="id">
+              <view class="marker-card" bindtap="onMarkerCardTap" data-id="{{item.id}}">
+                <view class="status-corner {{item.reviewTone}}">
+                  <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
+                </view>
+                <view class="card-body">
+                  <view class="card-top">
+                    <view class="card-info">
+                      <text class="marker-name">{{item.name || '未命名标记'}}</text>
+                      <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
+                      <text class="marker-created">{{item.timelineLabel}}: {{item.timelineDisplay}}</text>
+                      <view class="card-stats">
+                        <view class="stat-item">
+                          <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
+                          <text class="stat-value exp" data-value="{{item.exposureFull || item.exposureCount}}" catchtap="onExposureTap">
+                            {{item.exposureDisplay || item.exposureCount}}
+                          </text>
+                        </view>
+                        <view class="stat-item">
+                          <image class="stat-icon" src="{{assetPaths.telephone}}" mode="aspectFit" />
+                          <text class="stat-value">{{item.phoneCallCount}}</text>
+                        </view>
+                      </view>
+                    </view>
+                    <image class="marker-cover" src="{{item.coverImage || defaultCoverImage}}" mode="aspectFill" />
+                  </view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+      </scroll-view>
+    </block>
+
+    <block wx:elif="{{activeCenterTab === 'MY_MARKERS'}}">
+      <view class="markers-static">
+        <view class="page-header">
+          <button class="create-btn" bindtap="onCreateTap">
+            <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+            <text class="create-btn-text">新增</text>
+          </button>
+        </view>
+
+        <view class="my-marker-filters">
+          <block wx:for="{{pinFilters}}" wx:key="id">
+            <view class="my-marker-filter {{activePinFilter === item.id ? 'is-active' : ''}}" data-filter="{{item.id}}" bindtap="onPinFilterTap">
+              <text>{{item.label}}</text>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <scroll-view scroll-y class="markers-scroll" refresher-enabled="{{true}}" refresher-triggered="{{pinsRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
+
+        <block wx:if="{{pinsLoading && !pinsLoaded}}">
+          <view class="state-card">加载中...</view>
+        </block>
+        <block wx:elif="{{pinsError}}">
+          <view class="state-card state-error">
+            <text class="state-text">{{pinsError}}</text>
+            <button class="retry-btn" bindtap="onRetryPinRefreshTap">重新加载</button>
+          </view>
+        </block>
+        <block wx:elif="{{!visiblePins.length}}">
+          <view class="empty-card my-marker-empty-card">
+            <view class="empty-icon-wrapper my-marker-empty-icon-wrapper">
+              <image class="empty-icon my-marker-empty-icon" src="{{assetPaths.emptyPin}}" mode="aspectFit" />
+            </view>
+            <text class="empty-title">暂未创建标记</text>
+            <view class="my-marker-desc-box">
+              <text class="my-marker-desc-line">支持标记面、线和点3种类型</text>
+              <text class="my-marker-desc-line">权限可以设为私有、工作组共享和发布到平台。</text>
+            </view>
+            <button class="empty-action" bindtap="onCreateTap">立即创建</button>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="marker-list">
+            <block wx:for="{{visiblePins}}" wx:key="id">
+              <view class="marker-card" bindtap="onPinCardTap" data-pin-id="{{item.id}}">
+                <view class="status-corner {{item.reviewTone}}">
+                  <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
+                </view>
+                <view class="card-body">
+                  <view class="card-top">
+                    <view class="card-info">
+                      <text class="marker-name">{{item.name || '未命名标记'}}</text>
+                      <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
+                      <text class="marker-created">{{item.timelineLabel}}: {{item.timelineDisplay}}</text>
+                      <view class="card-stats">
+                        <view class="stat-item">
+                          <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
+                          <text class="stat-value exp" data-value="{{item.exposureFull || item.exposureCount}}" catchtap="onExposureTap">
+                            {{item.exposureDisplay || item.exposureCount}}
+                          </text>
+                        </view>
+                        <view class="stat-phone-pill {{item.hasWorkGroup ? 'is-workgroup' : 'is-private'}}" wx:if="{{activeCenterTab === 'MY_MARKERS' && item.scope !== 'PUBLIC'}}" catchtap="onOpenWorkGroupPicker" data-id="{{item.id}}">
+                          <block wx:if="{{item.hasWorkGroup}}">
+                            <image class="pill-icon" src="{{item.workGroupCoverImage || assetPaths.workGroup}}" mode="aspectFill" lazy-load="true" />
+                            <text class="pill-name is_card">
+                              {{item.workGroupDisplayName}}
+                            </text>
+                            <text class="pill-count">({{item.workGroupMemberCount || 0}})</text>
+                            <image class="pill-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
+                          </block>
+                          <block wx:else>
+                            <image class="pill-icon" src="{{assetPaths.workGroup}}" mode="aspectFit" />
+                          </block>
+                        </view>
+                      </view>
+                    </view>
+                    <image class="marker-cover" src="{{item.coverImage || defaultCoverImage}}" mode="aspectFill" />
+                  </view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+      </scroll-view>
+    </block>
+
+    <block wx:elif="{{activeCenterTab === 'WORKGROUP'}}">
+      <view class="markers-static">
+        <view class="page-header">
+          <button class="create-btn" bindtap="onWorkGroupCreateTap">
+            <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
+            <text class="create-btn-text">新增</text>
+          </button>
+        </view>
+      </view>
+      <scroll-view scroll-y class="markers-scroll" refresher-enabled="{{true}}" refresher-triggered="{{workGroupsRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
+        <block wx:if="{{workGroupsLoading && !workGroupsLoaded}}">
+          <view class="state-card">加载中...</view>
+        </block>
+        <block wx:elif="{{workGroupsError}}">
+          <view class="state-card state-error">
+            <text class="state-text">{{workGroupsError}}</text>
+            <button class="retry-btn" bindtap="refreshWorkGroups">重新加载</button>
+          </view>
+        </block>
+        <block wx:elif="{{!workGroups.length}}">
+          <view class="empty-card workgroup-empty-card">
+            <view class="empty-icon-wrapper">
+              <image class="empty-icon" src="{{assetPaths.workGroup}}" mode="aspectFit" />
+            </view>
+            <text class="empty-title">暂未创建工作组</text>
+            <text class="empty-desc">与团队协作共享组内标记，效率翻倍。</text>
+            <button class="empty-action" bindtap="onWorkGroupCreateTap">立即创建</button>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="workgroup-list">
+            <block wx:for="{{workGroups}}" wx:key="id">
+              <view class="marker-card workgroup-card" data-id="{{item.id}}" bindtap="onWorkGroupCardTap">
+                <view wx:if="{{item.isOwner}}" class="status-corner online">
+                  <text class="status-corner-text">管理员</text>
+                </view>
+                <view class="card-body">
+                  <view class="card-top">
+                    <view class="card-info">
+                      <text class="marker-name">{{item.name || '未命名工作组'}}</text>
+                      <text class="marker-created">更新时间：{{item.updatedAtDisplay || '--'}}</text>
+                      <view class="workgroup-meta-row">
+                        <text class="workgroup-members-text">{{item.memberCount || 0}}人</text>
+                        <view class="location-pill">
+                          <text class="location-number">{{item.pinCount || 0}}</text>
+                          <text class="location-label">个地点</text>
+                        </view>
+                      </view>
+                    </view>
+                    <image class="marker-cover workgroup-cover" src="{{item.coverImage || assetPaths.workGroup}}" mode="aspectFill" />
+                  </view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+      </scroll-view>
+    </block>
   </view>
 
-  <view wx:if="{{showDetail}}" class="drawer-overlay">
+  <view wx:if="{{activeCenterTab === 'MERCHANT' && showDetail}}" class="drawer-overlay">
     <view class="drawer">
       <view class="drawer-header">
-        <text class="drawer-title">标记详情</text>
+        <text class="drawer-title">入驻详情</text>
         <view class="drawer-close" bindtap="onCloseDetail">✕</view>
       </view>
       <scroll-view scroll-y class="drawer-body">
         <view class="detail-section">
           <text class="detail-title">基础信息</text>
           <view class="detail-item">
-            <text class="detail-label">标记名称</text>
+            <text class="detail-label">入驻名称</text>
             <text class="detail-value">{{activeMarker.name}}</text>
           </view>
           <view class="detail-item">
@@ -182,10 +325,7 @@
           </view>
         </view>
 
-        <view
-          class="detail-section"
-          wx:if="{{activeMarker.adminInfo &&(activeMarker.adminInfo.name || activeMarker.adminInfo.phone || activeMarker.adminInfo.title)}}"
-        >
+        <view class="detail-section" wx:if="{{activeMarker.adminInfo &&(activeMarker.adminInfo.name || activeMarker.adminInfo.phone || activeMarker.adminInfo.title)}}">
           <text class="detail-title">管理员联系</text>
           <view class="detail-item">
             <text class="detail-label">姓名</text>
@@ -214,30 +354,233 @@
     </view>
   </view>
 
-  <view wx:if="{{showCreate}}" class="drawer-overlay">
+  <view wx:if="{{showWorkGroupCreate}}" class="drawer-overlay">
     <view class="drawer">
       <view class="drawer-header">
-        <text class="drawer-title">创建地图标记</text>
+        <text class="drawer-title">创建工作组</text>
+        <view class="drawer-close" bindtap="onCloseWorkGroupCreate">×</view>
+      </view>
+      <scroll-view scroll-y class="drawer-body">
+        <view class="field-row">
+          <view class="field-label required">
+            <text class="required-star">*</text>
+            <text>图片</text>
+          </view>
+          <view class="image-uploader">
+            <block wx:if="{{workGroupForm.images && workGroupForm.images.length}}">
+              <view class="image-thumb">
+                <image class="image-thumb-img" src="{{workGroupForm.images[0].url}}" mode="aspectFill" />
+              </view>
+            </block>
+            <view class="image-add" wx:if="{{!workGroupForm.images || !workGroupForm.images.length}}" bindtap="onWorkGroupChooseImage">
+              <text class="image-add-plus">+</text>
+              <text class="image-add-text">上传</text>
+            </view>
+          </view>
+        </view>
+        <view class="field-row">
+          <view class="field-label required">
+            <text class="required-star">*</text>
+            <text>名称</text>
+          </view>
+          <input class="field-input form-input" placeholder="请输入" value="{{workGroupForm.name}}" bindinput="onWorkGroupNameInput" />
+        </view>
+        <view class="field-row">
+          <view class="field-label">
+            <text>简介</text>
+          </view>
+          <textarea class="field-textarea form-textarea" placeholder="请填写简介" value="{{workGroupForm.description}}" bindinput="onWorkGroupDescInput" maxlength="500" auto-height />
+        </view>
+      </scroll-view>
+      <view class="drawer-footer">
+        <button class="footer-btn primary" loading="{{workGroupSubmitting}}" disabled="{{workGroupSubmitting}}" bindtap="onSubmitWorkGroupCreate">
+          立即创建
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showWorkGroupPicker}}" class="modal-overlay" catchtouchmove="noop">
+    <view class="modal-mask" bindtap="onCloseWorkGroupPicker"></view>
+    <view class="sheet">
+      <view class="sheet-header">
+        <text class="sheet-title">选择工作组</text>
+        <view class="sheet-close" bindtap="onCloseWorkGroupPicker">×</view>
+      </view>
+      <scroll-view scroll-y class="sheet-list" bindscrolltolower="onWorkGroupPickerScrollLower" lower-threshold="40">
+        <block wx:if="{{workGroupPickerLoading && !workGroupPickerList.length}}">
+          <view class="sheet-state">加载中...</view>
+        </block>
+        <block wx:elif="{{!workGroupPickerLoading && !workGroupPickerList.length}}">
+          <view class="sheet-state">暂无工作组</view>
+        </block>
+        <block wx:else>
+          <block wx:for="{{workGroupPickerList}}" wx:key="id">
+            <view class="sheet-item" data-id="{{item.id}}" bindtap="onWorkGroupPickerSelect">
+              <view class="sheet-item-left">
+                <image class="sheet-avatar small-round" src="{{item.coverImage || assetPaths.workGroup}}" mode="aspectFill" />
+                <view class="sheet-info">
+                  <text class="sheet-name">
+                    {{item.name || '未命名工作组'}} ({{item.memberCount || 0}})
+                  </text>
+                </view>
+              </view>
+              <view class="sheet-check {{workGroupPickerSelectedMap[item.id] ? 'is-checked' : ''}}" data-id="{{item.id}}" catchtap="onWorkGroupPickerSelect"></view>
+            </view>
+          </block>
+          <view class="sheet-state" wx:if="{{workGroupPickerLoading}}">加载更多...</view>
+          <view class="sheet-state" wx:elif="{{!workGroupPickerHasMore}}">没有更多了</view>
+        </block>
+      </scroll-view>
+      <view class="sheet-footer">
+        <button class="sheet-save-btn" loading="{{workGroupPickerSaving}}" disabled="{{workGroupPickerSaving}}" bindtap="onWorkGroupPickerSave">
+          保存
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showWorkGroupDetail && activeWorkGroup}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">工作组设置</text>
+        <view class="drawer-close" bindtap="onCloseWorkGroupDetail">×</view>
+      </view>
+      <scroll-view scroll-y class="drawer-body wg-settings">
+        <view class="wg-card">
+          <view class="wg-card-title">{{activeWorkGroup.name || '工作组'}}</view>
+          <view class="wg-card-code">
+            <text class="wg-code-label">工作组码</text>
+            <text class="wg-code-value">{{activeWorkGroup.id || '--'}}</text>
+            <text class="copy-link" bindtap="onCopyWorkGroupCode">复制</text>
+          </view>
+        </view>
+
+        <view class="wg-block">
+          <view class="wg-block-header">
+            <text class="wg-block-title">地图成员</text>
+            <view class="wg-block-count" bindtap="onWorkGroupMemberListTap">
+              <text>{{activeWorkGroup.memberCount || 0}}人</text>
+              <image class="workgroup-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
+            </view>
+          </view>
+          <view class="wg-avatar-row">
+            <block wx:for="{{activeWorkGroup.memberAvatars}}" wx:key="featureCode">
+              <image class="wg-avatar" src="{{item.avatarUrl}}" mode="aspectFill" />
+            </block>
+            <view wx:if="{{activeWorkGroup.isOwner}}" class="wg-avatar add" bindtap="onWorkGroupInviteTap">+</view>
+          </view>
+        </view>
+
+        <view class="wg-block">
+          <text class="wg-block-title">工作组信息</text>
+          <view class="wg-field">
+            <text class="wg-field-label">图片</text>
+            <view class="image-uploader">
+              <block wx:if="{{workGroupDetailForm.images && workGroupDetailForm.images.length}}">
+                <view class="image-thumb">
+                  <image class="image-thumb-img" src="{{workGroupDetailForm.images[0].url}}" mode="aspectFill" />
+                </view>
+              </block>
+              <view class="image-add" wx:if="{{activeWorkGroup.isOwner && (!workGroupDetailForm.images || !workGroupDetailForm.images.length)}}" bindtap="onWorkGroupDetailChooseImage">
+                <text class="image-add-plus">+</text>
+                <text class="image-add-text">上传</text>
+              </view>
+            </view>
+          </view>
+          <view class="wg-field">
+            <text class="wg-field-label">工作组名称</text>
+            <input class="wg-field-input" placeholder="请输入名称" value="{{workGroupDetailForm.name}}" bindinput="onWorkGroupDetailNameInput" disabled="{{!activeWorkGroup.isOwner}}" />
+          </view>
+          <view class="wg-field">
+            <text class="wg-field-label">简介</text>
+            <textarea class="wg-field-textarea" placeholder="请填写简介" value="{{workGroupDetailForm.description}}" bindinput="onWorkGroupDetailDescInput" maxlength="500" auto-height disabled="{{!activeWorkGroup.isOwner}}" />
+          </view>
+        </view>
+
+      </scroll-view>
+      <view class="wg-actions">
+        <button class="footer-btn" bindtap="onExitWorkGroupTap" wx:if="{{!activeWorkGroup.isOwner}}">
+          退出工作组
+        </button>
+        <view wx:if="{{activeWorkGroup.isOwner}}">
+          <button class="footer-btn primary" loading="{{workGroupDetailSaving}}" disabled="{{workGroupDetailSaving}}" bindtap="onSaveWorkGroupDetail">
+            保存
+          </button>
+          <button class="footer-btn danger" loading="{{workGroupDissolving}}" disabled="{{workGroupDissolving}}" bindtap="onDissolveWorkGroupTap">
+            解散工作组
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showWorkGroupInviteDialog}}" class="modal-overlay" catchtouchmove="noop">
+    <view class="modal-mask" bindtap="onCloseWorkGroupInviteDialog"></view>
+    <view class="modal-card">
+      <view class="modal-header">
+        <text class="modal-title">邀请成员</text>
+        <view class="modal-close" bindtap="onCloseWorkGroupInviteDialog">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="modal-block">
+          <text class="modal-block-title">输入用户低空码</text>
+          <view class="modal-input-row">
+            <input class="modal-input" placeholder="输入用户低空码" value="{{workGroupInviteInput}}" bindinput="onWorkGroupInviteInput" />
+            <button class="modal-btn primary" loading="{{workGroupInviteSubmitting}}" disabled="{{workGroupInviteSubmitting}}" bindtap="onSubmitWorkGroupInvite">
+              立即添加
+            </button>
+          </view>
+        </view>
+        <view class="modal-block">
+          <text class="modal-block-title">发送微信邀请</text>
+          <button class="modal-btn" open-type="share">发送邀请</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showDissolveDialog}}" class="modal-overlay" catchtouchmove="noop">
+    <view class="modal-mask" bindtap="onCloseDissolveDialog"></view>
+    <view class="modal-card">
+      <view class="modal-header">
+        <text class="modal-title">解散工作组</text>
+        <view class="modal-close" bindtap="onCloseDissolveDialog">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="field-row">
+          <view class="field-label">
+            <text>输入名称确认解散</text>
+          </view>
+          <input class="field-input form-input" placeholder="请输入工作组名称确认解散" value="{{workGroupDissolveInput}}" bindinput="onWorkGroupDissolveInput" />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="modal-btn" bindtap="onCloseDissolveDialog">取消</button>
+        <button class="modal-btn primary" loading="{{workGroupDissolving}}" disabled="{{workGroupDissolving}}" bindtap="onConfirmDissolveWorkGroup">
+          确认解散
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{activeCenterTab === 'MERCHANT' && showCreate}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">创建入驻信息</text>
         <view class="drawer-close" bindtap="onCloseCreate">✕</view>
       </view>
       <view class="drawer-step-indicator">
         <view class="step-indicator">
           <block wx:for="{{createSteps}}" wx:key="label">
             <view class="step-item-wrapper">
-              <view
-                class="step-item {{createStep === index ? 'is-current' : (createStep > index ? 'is-finished' : '')}} {{resultStepsLocked && index < 3 ? 'is-disabled' : ''}}"
-                data-step="{{index}}"
-                bindtap="onStepIndicatorTap"
-              >
+              <view class="step-item {{createStep === index ? 'is-current' : (createStep > index ? 'is-finished' : '')}} {{resultStepsLocked && index < 3 ? 'is-disabled' : ''}}" data-step="{{index}}" bindtap="onStepIndicatorTap">
                 <view class="step-circle {{createStep === index ? 'is-active' : (createStep > index ? 'is-finished' : '')}}">
                   <text>{{index + 1}}</text>
                 </view>
                 <text class="step-label">{{item.label}}</text>
               </view>
-              <view
-                wx:if="{{index < createSteps.length - 1}}"
-                class="step-connector {{createStep > index ? 'is-active' : ''}}"
-              ></view>
+              <view wx:if="{{index < createSteps.length - 1}}" class="step-connector {{createStep > index ? 'is-active' : ''}}"></view>
             </view>
           </block>
         </view>
@@ -255,12 +598,7 @@
                 <block wx:for="{{form.images}}" wx:key="fileName">
                   <view class="image-thumb">
                     <image class="image-thumb-img" src="{{item.url}}" mode="aspectFill" />
-                    <view
-                      class="image-remove"
-                      data-type="images"
-                      data-index="{{index}}"
-                      bindtap="onRemoveMediaTap"
-                    >✕</view>
+                    <view class="image-remove" data-type="images" data-index="{{index}}" bindtap="onRemoveMediaTap">✕</view>
                   </view>
                 </block>
                 <view class="image-add" data-type="images" bindtap="onAddMediaTap">
@@ -275,13 +613,7 @@
                 <text class="required-star">*</text>
                 <text>名称</text>
               </view>
-              <input
-                class="field-input form-input"
-                placeholder="请输入"
-                value="{{form.name}}"
-                data-field="name"
-                bindinput="onFormInput"
-              />
+              <input class="field-input form-input" placeholder="请输入" value="{{form.name}}" data-field="name" bindinput="onFormInput" />
             </view>
 
             <view class="field-row">
@@ -289,15 +621,7 @@
                 <text class="required-star">*</text>
                 <text>简介</text>
               </view>
-              <textarea
-                class="field-textarea form-textarea"
-                placeholder="请输入"
-                value="{{form.description}}"
-                data-field="description"
-                bindinput="onFormInput"
-                maxlength="500"
-                auto-height
-              />
+              <textarea class="field-textarea form-textarea" placeholder="请输入" value="{{form.description}}" data-field="description" bindinput="onFormInput" maxlength="500" auto-height />
             </view>
 
             <view class="field-row">
@@ -315,13 +639,7 @@
                 <text class="required-star">*</text>
                 <text>电话</text>
               </view>
-              <input
-                class="field-input form-input"
-                placeholder="请输入联系电话"
-                value="{{form.phone}}"
-                data-field="phone"
-                bindinput="onFormInput"
-              />
+              <input class="field-input form-input" placeholder="请输入联系电话" value="{{form.phone}}" data-field="phone" bindinput="onFormInput" />
             </view>
           </view>
         </block>
@@ -339,12 +657,7 @@
                   <view class="media-remove" data-type="businessLicense" bindtap="onRemoveMediaTap">✕</view>
                 </view>
               </block>
-              <view
-                class="media-add"
-                data-type="businessLicense"
-                bindtap="onAddMediaTap"
-                wx:if="{{!form.businessLicense}}"
-              >
+              <view class="media-add" data-type="businessLicense" bindtap="onAddMediaTap" wx:if="{{!form.businessLicense}}">
                 <text class="media-add-icon">＋</text>
                 <text class="media-add-text">上传执照</text>
               </view>
@@ -361,14 +674,7 @@
                   <view class="tag-remove" data-index="{{index}}" bindtap="onRemoveTag">✕</view>
                 </view>
               </block>
-              <input
-                class="tag-input"
-                placeholder="输入后回车添加"
-                value="{{tagInput}}"
-                confirm-type="done"
-                bindinput="onTagInput"
-                bindconfirm="onTagConfirm"
-              />
+              <input class="tag-input" placeholder="输入后回车添加" value="{{tagInput}}" confirm-type="done" bindinput="onTagInput" bindconfirm="onTagConfirm" />
             </view>
           </view>
 
@@ -380,20 +686,10 @@
                 <view class="attachment-item">
                   <text class="attachment-icon">📎</text>
                   <text class="attachment-name">{{item.label || '企业产品和业务介绍'}}</text>
-                  <view
-                    class="attachment-remove"
-                    data-type="attachments"
-                    data-index="{{index}}"
-                    bindtap="onRemoveMediaTap"
-                  >删除</view>
+                  <view class="attachment-remove" data-type="attachments" data-index="{{index}}" bindtap="onRemoveMediaTap">删除</view>
                 </view>
               </block>
-              <view
-                wx:if="{{form.attachmentFiles.length < 1}}"
-                class="attachment-add"
-                data-type="attachments"
-                bindtap="onAddMediaTap"
-              >上传附件</view>
+              <view wx:if="{{form.attachmentFiles.length < 1}}" class="attachment-add" data-type="attachments" bindtap="onAddMediaTap">上传附件</view>
             </view>
           </view>
 
@@ -403,20 +699,10 @@
               <block wx:for="{{form.qrCodeImages}}" wx:key="fileName">
                 <view class="media-item">
                   <image class="media-image" src="{{item.url}}" mode="aspectFill" />
-                  <view
-                    class="media-remove"
-                    data-type="qrCodeImages"
-                    data-index="{{index}}"
-                    bindtap="onRemoveMediaTap"
-                  >✕</view>
+                  <view class="media-remove" data-type="qrCodeImages" data-index="{{index}}" bindtap="onRemoveMediaTap">✕</view>
                 </view>
               </block>
-              <view
-                wx:if="{{form.qrCodeImages.length < qrCodeMaxCount}}"
-                class="media-add"
-                data-type="qrCodeImages"
-                bindtap="onAddMediaTap"
-              >
+              <view wx:if="{{form.qrCodeImages.length < qrCodeMaxCount}}" class="media-add" data-type="qrCodeImages" bindtap="onAddMediaTap">
                 <text class="media-add-icon">＋</text>
                 <text class="media-add-text">上传二维码</text>
               </view>
@@ -428,23 +714,11 @@
             <view class="video-form">
               <view class="video-field">
                 <text class="video-field-label">视频号ID</text>
-                <input
-                  class="field-input form-input"
-                  placeholder="请输入"
-                  value="{{form.videoChannelId}}"
-                  data-field="videoChannelId"
-                  bindinput="onFormInput"
-                />
+                <input class="field-input form-input" placeholder="请输入" value="{{form.videoChannelId}}" data-field="videoChannelId" bindinput="onFormInput" />
               </view>
               <view class="video-field">
                 <text class="video-field-label">视频ID</text>
-                <input
-                  class="field-input form-input"
-                  placeholder="请输入"
-                  value="{{form.videoId}}"
-                  data-field="videoId"
-                  bindinput="onFormInput"
-                />
+                <input class="field-input form-input" placeholder="请输入" value="{{form.videoId}}" data-field="videoId" bindinput="onFormInput" />
               </view>
             </view>
           </view>
@@ -458,30 +732,9 @@
             </view>
             <text class="field-tip">不对外展示，仅用于审核等重要通知</text>
             <view class="admin-grid">
-              <input
-                class="field-input form-input"
-                placeholder="姓名"
-                value="{{form.adminInfo.name}}"
-                data-group="adminInfo"
-                data-field="name"
-                bindinput="onFormInput"
-              />
-              <input
-                class="field-input form-input"
-                placeholder="职位"
-                value="{{form.adminInfo.title}}"
-                data-group="adminInfo"
-                data-field="title"
-                bindinput="onFormInput"
-              />
-              <input
-                class="field-input form-input"
-                placeholder="联系电话"
-                value="{{form.adminInfo.phone}}"
-                data-group="adminInfo"
-                data-field="phone"
-                bindinput="onFormInput"
-              />
+              <input class="field-input form-input" placeholder="姓名" value="{{form.adminInfo.name}}" data-group="adminInfo" data-field="name" bindinput="onFormInput" />
+              <input class="field-input form-input" placeholder="职位" value="{{form.adminInfo.title}}" data-group="adminInfo" data-field="title" bindinput="onFormInput" />
+              <input class="field-input form-input" placeholder="联系电话" value="{{form.adminInfo.phone}}" data-group="adminInfo" data-field="phone" bindinput="onFormInput" />
             </view>
           </view>
 
@@ -492,11 +745,7 @@
             </view>
             <view class="payment-options">
               <block wx:for="{{paymentMethods}}" wx:key="id">
-                <view
-                  class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}} {{item.id === 'FLP' && flpPaymentDisabled ? 'is-disabled' : ''}}"
-                  data-method="{{item.id}}"
-                  bindtap="onSelectPaymentMethod"
-                >
+                <view class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}} {{item.id === 'FLP' && flpPaymentDisabled ? 'is-disabled' : ''}}" data-method="{{item.id}}" bindtap="onSelectPaymentMethod">
                   <view class="payment-option-header">
                     <text class="payment-option-title">{{item.label}}</text>
                     <text class="payment-option-note" wx:if="{{item.id === 'FLP'}}">{{flpPaymentNote}}</text>
@@ -553,12 +802,7 @@
       <view class="drawer-footer" wx:if="{{createStep < 3}}">
         <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
         <block wx:if="{{createStep === 2}}">
-          <button
-            class="footer-btn primary"
-            bindtap="submitMarker"
-            loading="{{creationSubmitting}}"
-            disabled="{{creationSubmitting}}"
-          >
+          <button class="footer-btn primary" bindtap="submitMarker" loading="{{creationSubmitting}}" disabled="{{creationSubmitting}}">
             {{submitButtonText}}
           </button>
         </block>
@@ -569,32 +813,202 @@
     </view>
   </view>
 
-  <view wx:if="{{actionSheetVisible}}" class="action-sheet-overlay" catchtouchmove="noop">
-    <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
-    <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
-      <view class="action-sheet-card">
-        <view class="action-sheet-item" data-action="home" bindtap="onActionSheetAction">主页预览</view>
-        <view class="action-sheet-item" data-action="detail" bindtap="onActionSheetAction">详情</view>
-        <view
-          class="action-sheet-item {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
-          data-action="edit"
-          bindtap="onActionSheetAction"
-        >
-          编辑
-        </view>
-        <view
-          class="action-sheet-item action-sheet-item-danger {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}"
-          data-action="delete"
-          bindtap="onActionSheetAction"
-        >
-          删除
-        </view>
+  <view wx:if="{{activeCenterTab === 'MY_MARKERS' && showMyPinCreate}}" class="drawer-overlay">
+    <view class="drawer">
+      <view class="drawer-header">
+        <text class="drawer-title">创建地图标记</text>
+        <view class="drawer-close" bindtap="onCloseMyPinCreate">✕</view>
       </view>
-      <view class="action-sheet-card action-sheet-card-cancel">
-        <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
-          取消
-        </view>
+      <scroll-view scroll-y class="drawer-body">
+        <view class="form-card">
+          <view class="field-row pin-field">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>开始标记</text>
+              <text wx:if="{{myPinFormConfigured}}" class="pin-configured-hint">(已配置)</text>
+            </view>
+            <view class="pin-selector" bindtap="onPinPickerTap">
+              <text class="pin-selector-text">{{myPinForm.geometryLabel || '点-通用'}}</text>
+              <image class="pin-selector-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
+            </view>
+            <view wx:if="{{myPinFormConfigured && pinLocationDisplay}}" class="pin-location-hint">
+              <text class="pin-location-text">{{pinLocationDisplay}}</text>
+            </view>
+          </view>
+          <view class="field-row">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>图片</text>
+            </view>
+            <view class="my-pin-media-grid">
+              <block wx:for="{{myPinForm.images}}" wx:key="fileName">
+                <view class="my-pin-media">
+                  <image class="my-pin-media-img" src="{{item.url}}" mode="aspectFill" />
+                  <view class="my-pin-media-remove" data-index="{{index}}" bindtap="onRemovePinMediaTap">×</view>
+                </view>
+              </block>
+              <view wx:if="{{!myPinForm.images || myPinForm.images.length < 3}}" class="my-pin-media-add" bindtap="onAddPinMediaTap">
+                <view class="my-pin-media-plus">+</view>
+                <text class="my-pin-media-add-text">上传</text>
+              </view>
+            </view>
+          </view>
+          <view class="field-row">
+            <view class="field-label required">
+              <text class="required-star">*</text>
+              <text>名称</text>
+            </view>
+            <input class="field-input form-input" placeholder="请输入名称" value="{{myPinForm.name}}" bindinput="onPinNameInput" />
+          </view>
+          <view class="field-row">
+            <view class="field-label">
+              <text>简介</text>
+            </view>
+            <textarea class="field-textarea form-textarea" placeholder="选填，可描述标记背景或用途" value="{{myPinForm.description}}" bindinput="onPinDescInput" maxlength="300" auto-height />
+          </view>
+          <view class="field-row">
+            <view class="field-label">
+              <text>工作组</text>
+            </view>
+            <view class="workgroup-selector">
+              <!-- <view class="stat-phone-pill {{item.hasWorkGroup ? 'is-workgroup' : 'is-private'}}" wx:if="{{activeCenterTab === 'MY_MARKERS' && item.scope !== 'PUBLIC'}}" bindtap="onOpenWorkGroupPickerForCreate" data-id="{{item.id}}">
+                <block wx:if="{{item.hasWorkGroup}}">
+                  <image class="pill-icon" src="{{item.workGroupCoverImage || assetPaths.workGroup}}" mode="aspectFill" lazy-load="true" />
+                  <text class="pill-name">
+                    {{item.workGroupDisplayName}}
+                  </text>
+                  <text class="pill-count">({{item.workGroupMemberCount || 0}})</text>
+                  <image class="pill-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
+                </block>
+                <block wx:else>
+                  <image class="pill-icon" src="{{assetPaths.workGroup}}" mode="aspectFit" />
+                </block>
+              </view> -->
+              <view wx:if="{{!myPinForm.publishToPlatform}}" class="stat-phone-pill is-workgroup" bindtap="onOpenWorkGroupPickerForCreate"> 
+                <block wx:if="{{myPinSelectedGroups && myPinSelectedGroups.length}}">
+                  <view class="pill-icon">
+                    <image  src="{{myPinSelectedGroups[0].coverImage || assetPaths.workGroup}}" mode="aspectFit" />
+                  </view>
+                  <text class="pill-name">{{myPinSelectedGroups[0].name || '工作组'}}</text>
+                  <text class="pill-count">({{myPinSelectedGroups[0].memberCount || 0}})</text>
+                  <image class="pill-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
+                </block>
+                <block wx:else>
+                  <image class="pill-icon" src="{{assetPaths.workGroup}}" mode="aspectFit" />
+                </block>
+              </view>
+              <text wx:else class="workgroup-disabled-text">发布状态不可设置</text>
+            </view>
+            </view>
+            <view class="field-row pin-publish-row">
+              <view class="field-label">
+                <text>发布到平台（需审核）</text>
+              </view>
+              <view class="publish-toggle">
+                <switch checked="{{myPinForm.publishToPlatform}}" bindchange="onPinPublishToggle" color="#111111" style="transform: scale(0.82); transform-origin: center;" />
+              </view>
+            </view>
+          </view>
+      </scroll-view>
+      <view class="drawer-footer">
+        <button class="footer-btn primary" loading="{{pinSubmitting}}" disabled="{{pinSubmitting}}" bindtap="onSubmitPinForm">
+          确认
+        </button>
       </view>
     </view>
   </view>
+
+  <block wx:if="{{deleteDialogVisible}}">
+    <view class="delete-dialog-overlay" catchtouchmove="noop">
+      <view class="delete-dialog-mask" bindtap="onDeleteDialogCancel"></view>
+      <view class="delete-dialog-card" catchtouchmove="noop">
+        <text class="delete-dialog-title">删除标记</text>
+        <text class="delete-dialog-desc">
+          为防误删，请输入标记全称：
+          <text class="delete-dialog-name">{{deleteDialogMarkerName}}</text>
+        </text>
+        <input class="delete-dialog-input" placeholder="{{deleteDialogMarkerName}}" value="{{deleteDialogInput}}" bindinput="onDeleteDialogInput" />
+        <text wx:if="{{deleteDialogError}}" class="delete-dialog-error">{{deleteDialogError}}</text>
+        <view class="delete-dialog-actions">
+          <button class="delete-dialog-btn delete-dialog-btn--secondary" bindtap="onDeleteDialogCancel">
+            取消
+          </button>
+          <button class="delete-dialog-btn delete-dialog-btn--primary" bindtap="onDeleteDialogConfirm">
+            删除
+          </button>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{actionSheetVisible && activeCenterTab === 'MY_MARKERS'}}">
+    <view class="action-sheet-overlay" catchtouchmove="noop">
+      <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
+      <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
+        <view class="action-sheet-card action-sheet-card-my">
+          <block wx:if="{{actionSheetPrimaryOption}}">
+            <view class="action-sheet-item action-sheet-item-my {{!actionSheetPrimaryOption.enabled ? 'action-sheet-item-disabled' : ''}}" data-action="{{actionSheetPrimaryOption.action}}" bindtap="onActionSheetAction">
+              <view class="action-sheet-icon-box">
+                <image class="action-sheet-icon" src="{{actionSheetPrimaryOption.icon}}" mode="aspectFit" />
+              </view>
+              <text class="action-sheet-label">{{actionSheetPrimaryOption.label}}</text>
+              <text wx:if="{{actionSheetPrimaryOption.note}}" class="action-sheet-note">{{actionSheetPrimaryOption.note}}</text>
+            </view>
+          </block>
+          <block wx:for="{{actionSheetSecondaryOptions}}" wx:key="action">
+            <view class="action-sheet-item action-sheet-item-my {{!item.enabled ? 'action-sheet-item-disabled' : ''}}" data-action="{{item.action}}" bindtap="onActionSheetAction">
+              <text class="action-sheet-label action-sheet-label--single">{{item.label}}</text>
+              <text wx:if="{{item.note}}" class="action-sheet-note">{{item.note}}</text>
+            </view>
+          </block>
+        </view>
+        <view class="action-sheet-card action-sheet-card-cancel">
+          <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
+            取消
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:elif="{{actionSheetVisible}}">
+    <view class="action-sheet-overlay" catchtouchmove="noop">
+      <view class="action-sheet-mask" bindtap="onActionSheetCancel" catchtouchmove="noop"></view>
+      <view class="action-sheet-container" catchtap="noop" catchtouchmove="noop">
+        <view class="action-sheet-card">
+          <view class="action-sheet-item" data-action="home" bindtap="onActionSheetAction">主页预览</view>
+          <view class="action-sheet-item" data-action="detail" bindtap="onActionSheetAction">详情</view>
+          <view class="action-sheet-item {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}" data-action="edit" bindtap="onActionSheetAction">
+            编辑
+          </view>
+          <view class="action-sheet-item action-sheet-item-danger {{actionSheetDisableModify ? 'action-sheet-item-disabled' : ''}}" data-action="delete" bindtap="onActionSheetAction">
+            删除
+          </view>
+        </view>
+        <view class="action-sheet-card action-sheet-card-cancel">
+          <view class="action-sheet-item action-sheet-item-cancel" data-action="cancel" bindtap="onActionSheetAction">
+            取消
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{pinConfirmVisible}}">
+    <view class="confirm-overlay" catchtouchmove="noop">
+      <view class="confirm-mask" bindtap="onPinConfirmCancel"></view>
+      <view class="confirm-card">
+        <text class="confirm-title">提示</text>
+        <text class="confirm-message">{{pinConfirmMessage}}</text>
+        <view class="confirm-actions">
+          <button class="confirm-btn confirm-btn--secondary" bindtap="onPinConfirmCancel" disabled="{{pinConfirmBusy}}">
+            取消
+          </button>
+          <button class="confirm-btn confirm-btn--primary" bindtap="onPinConfirmProceed" disabled="{{pinConfirmBusy}}">
+            确认
+          </button>
+        </view>
+      </view>
+    </view>
+  </block>
 </view>

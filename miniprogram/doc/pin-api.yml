@@ -1,0 +1,751 @@
+openapi: 3.0.1
+info:
+  title: Pin APIs
+  description: 自定义 Pin 标记管理接口，支持私有、群组和公开可见性，并区分于既有 markers。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/pins:
+    post:
+      summary: 创建 Pin 标记
+      description: 需登录。仅以当前用户 feature code 创建 Pin 标记。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}:
+    put:
+      summary: 更新 Pin 标记
+      description: 需登录。仅创建者可更新自身 Pin 标记。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除 Pin 标记
+      description: 需登录。仅创建者可删除自身 Pin 标记。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/groups:
+    put:
+      summary: 更新 Pin 标记的群组列表
+      description: |
+        需登录。仅创建者可更新自己 Pin 的群组列表，且群组归属需属于当前用户。
+
+        公开可见的 Pin 不允许更新群组列表；当更新后的群组列表为空时自动转为私有标记（visibility=PRIVATE），当列表不为空时自动转为群组标记（visibility=GROUP）。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinGroupUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/publish:
+    post:
+      summary: 发布 Pin 标记为公开
+      description: 需登录。仅创建者可将自身 Pin 标记发布为公开（visibility=PUBLIC）。发布时会清空群组列表并重置审核状态为 PENDING。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/revoke:
+    post:
+      summary: 撤销发布（公开改为私有）
+      description: 需登录。仅创建者可将公开的 Pin 标记撤回为私有（visibility=PRIVATE）。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/exposure:
+    post:
+      summary: 曝光量 +1
+      description: 无需登录。将指定 Pin 的曝光量原子性地加 1，返回最新曝光量。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinMetricsResponse'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/mine:
+    get:
+      summary: 我的 Pin 标记
+      description: 需登录。分页返回当前用户创建的 Pin 标记。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+        - in: query
+          name: visibility
+          schema:
+            type: string
+            enum: [PRIVATE, GROUP, PUBLIC]
+          description: 可选。按可见性筛选，缺省为全部；PRIVATE=私有，GROUP=共享/群组，PUBLIC=公开。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinPage'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/nearby:
+    get:
+      summary: 查询附近 Pin 标记
+      description: 支持未登录查询。根据中心点与半径返回符合可见性规则的存活 Pin 标记。
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 查询中心纬度。
+        - in: query
+          name: longitude
+          required: true
+          schema:
+            type: number
+            format: double
+          description: 查询中心经度。
+        - in: query
+          name: radiusInKilometers
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          description: 查询半径，单位公里。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinList'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/pins:
+    get:
+      summary: 管理端读取所有 Pin 标记
+      description: 需管理员身份。分页返回全部 Pin 标记。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+        - in: query
+          name: visibility
+          schema:
+            type: string
+            enum: [PRIVATE, GROUP, PUBLIC]
+          description: 可选。按可见性筛选，缺省为全部；PRIVATE=私有，GROUP=共享/群组，PUBLIC=公开。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinPage'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/pins/{id}/review:
+    post:
+      summary: 审核公开 Pin 标记
+      description: 需管理员身份。仅对公开可见的 Pin 更新审核状态。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinReviewRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/pins/{id}/status:
+    post:
+      summary: 更新 Pin 存活状态
+      description: 需管理员身份。封禁或恢复指定 Pin 标记。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinStatusUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponsePinResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PinResponse'
+    PinPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PinResponse'
+        page:
+          type: integer
+          description: 当前页码（从 0 开始）。
+        size:
+          type: integer
+          description: 当前页容量。
+        totalElements:
+          type: integer
+          description: 总记录数。
+        totalPages:
+          type: integer
+          description: 总页数。
+    ApiResponsePinPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PinPage'
+    ApiResponsePinList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PinResponse'
+    ApiResponsePinMetricsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PinMetricsResponse'
+    ApiResponseVoid:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 始终为 null。
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    PinRequest:
+      type: object
+      properties:
+        images:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/PinVisibility'
+        groups:
+          type: array
+          description: 群组详情列表（包含名称、头像、成员、标记列表等）。
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+          description: 可为空数组，仅在 GROUP 可见时使用。
+        shape:
+          $ref: '#/components/schemas/PinShapeRequest'
+      required: [name, visibility, shape]
+    PinGroupUpdateRequest:
+      type: object
+      properties:
+        groups:
+          type: array
+          description: 群组详情列表（包含名称、头像、成员、标记列表等）。
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+      required: [groupIds]
+    PinReviewRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/PinReviewStatus'
+      required: [status]
+    PinStatusUpdateRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/PinStatus'
+      required: [status]
+    PinResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/PinVisibility'
+        groups:
+          type: array
+          description: 群组详情列表（包含名称、头像、成员、标记列表等）。
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+        reviewStatus:
+          $ref: '#/components/schemas/PinReviewStatus'
+        shape:
+          $ref: '#/components/schemas/PinShapeResponse'
+        featureCode:
+          type: string
+        status:
+          $ref: '#/components/schemas/PinStatus'
+        exposureCount:
+          type: integer
+          format: int64
+          description: 曝光次数。
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkGroupResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        images:
+          type: array
+          description: 群组头像或展示图。
+          items:
+            type: string
+        name:
+          type: string
+        description:
+          type: string
+        memberFeatureCodes:
+          type: array
+          description: 成员 featureCode 列表。
+          items:
+            type: string
+        pinIds:
+          type: array
+          description: 群组下的标记 ID 列表。
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/WorkGroupStatus'
+        ownerFeatureCode:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkGroupStatus:
+      type: string
+      enum: [ACTIVE, BANNED]
+    PinMetricsResponse:
+      type: object
+      properties:
+        exposureCount:
+          type: integer
+          format: int64
+          description: 最新曝光次数。
+    PinShapeRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/PinShapeType'
+        width:
+          type: number
+          format: double
+          description: 线宽，仅 type=LINE 时必填。
+        coordinates:
+          type: array
+          items:
+            $ref: '#/components/schemas/PinCoordinateDto'
+          description: 经纬度（含可选高程）列表，线、多边形等需闭合。
+        radius:
+          type: number
+          format: double
+          description: 半径，type=CIRCLE 时必填，单位公里。
+        lineCategory:
+          $ref: '#/components/schemas/PinLineCategory'
+        pointCategory:
+          $ref: '#/components/schemas/PinPointCategory'
+      required: [type, coordinates]
+    PinShapeResponse:
+      allOf:
+        - $ref: '#/components/schemas/PinShapeRequest'
+    PinCoordinateDto:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        altitude:
+          type: number
+          format: double
+          description: 高程，单位米，可选；未提供时默认仅表示平面位置。
+      required: [latitude, longitude]
+    PinVisibility:
+      type: string
+      enum: [PRIVATE, GROUP, PUBLIC]
+    PinReviewStatus:
+      type: string
+      enum: [PENDING, APPROVED_A, APPROVED_B, REJECTED]
+    PinStatus:
+      type: string
+      enum: [ALIVE, BANNED]
+    PinShapeType:
+      type: string
+      enum: [LINE, CIRCLE, RECTANGLE, POLYGON, POINT]
+    PinLineCategory:
+      type: string
+      enum: [STANDARD, TEMPORARY_NO_FLY_ZONE_BUFFER]
+    PinPointCategory:
+      type: string
+      enum: [GENERAL, WARNING, AERIAL_SHOT, TAKEOFF_LANDING, TALL_BUILDING]

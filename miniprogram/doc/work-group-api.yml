@@ -1,0 +1,556 @@
+openapi: 3.0.1
+info:
+  title: Work Group APIs
+  description: 工作组创建、成员维护与管理端封禁的接口定义。
+  version: 1.0.0
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /api/work-groups:
+    post:
+      summary: 新增工作组
+      description: 归属人根据自身 feature code 创建工作组，可同时添加初始成员列表。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupCreateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/work-groups/mine:
+    get:
+      summary: 我的工作组
+      description: |-
+        返回当前用户拥有的工作组列表、已加入的工作组列表，以及去重合并后的分页列表，均按创建时间倒序排列。
+        * owned/joined 列表：提供非分页的拆分视图，便于首页概览或选择器使用。
+        * combinedPage：提供分页合并视图，覆盖原 `/api/work-groups` GET 的功能。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: combinedPage 的页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: combinedPage 的每页数量。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupMine'
+  /api/work-groups/{id}:
+    put:
+      summary: 更新工作组基本信息
+      description: 仅归属人可修改名称、简介、图片等基础信息。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+    delete:
+      summary: 删除/解散工作组
+      description: 仅归属人或管理员可删除工作组。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/work-groups/{id}/members:
+    post:
+      summary: 增加成员
+      description: 归属人为指定工作组批量增加成员 feature code。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupMembersRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/work-groups/{id}/join:
+    post:
+      summary: 通过邀请码加入指定工作组
+      description: 用户根据群组 ID 与邀请码加入工作组，需要携带登录态。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupJoinRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+    delete:
+      summary: 删除成员
+      description: 归属人从指定工作组移除成员 feature code。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupMembersRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/work-groups/{id}/exit:
+    post:
+      summary: 退出指定工作组
+      description: 当前用户主动退出参与的工作组，组拥有者不可退出。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/admin/work-groups:
+    get:
+      summary: 管理端查询所有工作组
+      description: 管理端可查看所有工作组，支持按状态筛选。
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/WorkGroupStatus'
+          description: 过滤指定状态的工作组，缺省返回全部。
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupPage'
+  /api/admin/work-groups/{id}/ban:
+    post:
+      summary: 封禁指定工作组
+      description: 管理端封禁工作组，业务上仅可将状态置为 BANNED。
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkGroupBanRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWorkGroupResponse'
+  /api/users/feature-code-profiles:
+    post:
+      summary: 根据 feature code 列表查询昵称和头像
+      description: 提供批量查询用户昵称与头像的能力，供工作组成员展示使用。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureCodeProfileRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFeatureCodeProfileList'
+  /api/users/profiles:
+    get:
+      summary: 分页查询用户昵称和头像
+      description: 按分页获取全量用户的昵称与头像，适用于管理端或成员选择列表等场景。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFeatureCodeProfilePage'
+  /api/users/profiles/search:
+    get:
+      summary: 根据昵称或 feature code 模糊查询用户
+      description: 通过昵称或 feature code 模糊匹配，分页返回符合条件的用户昵称与头像。
+      parameters:
+        - in: query
+          name: keyword
+          required: true
+          schema:
+            type: string
+          description: 昵称或 feature code 的关键字，支持模糊匹配。
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFeatureCodeProfilePage'
+components:
+  schemas:
+    WorkGroupStatus:
+      type: string
+      description: 工作组状态。
+      enum: [ACTIVE, BANNED]
+    WorkGroupCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        images:
+          type: array
+          items:
+            type: string
+          description: 工作组图片 URL 列表。
+        name:
+          type: string
+          description: 工作组名称。
+        description:
+          type: string
+          description: 工作组简介。
+        memberFeatureCodes:
+          type: array
+          items:
+            type: string
+          description: 初始成员 feature code 列表。
+    WorkGroupUpdateRequest:
+      type: object
+      properties:
+        images:
+          type: array
+          items:
+            type: string
+          description: 更新后的图片 URL 列表。
+        name:
+          type: string
+          description: 新的工作组名称。
+        description:
+          type: string
+          description: 新的工作组简介。
+    WorkGroupMembersRequest:
+      type: object
+      required: [memberFeatureCodes]
+      properties:
+        memberFeatureCodes:
+          type: array
+          items:
+            type: string
+          description: 需要添加或移除的成员 feature code 列表。
+    WorkGroupJoinRequest:
+      type: object
+      required: [invitationCode]
+      properties:
+        invitationCode:
+          type: string
+          description: 邀请码，用户需提供正确的邀请码才能加入。
+    WorkGroupBanRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/WorkGroupStatus'
+        reason:
+          type: string
+          description: 封禁原因，便于前端提示。
+      required: [status]
+    WorkGroupResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        description:
+          type: string
+        memberFeatureCodes:
+          type: array
+          items:
+            type: string
+        pinIds:
+          type: array
+          items:
+            type: string
+          description: 该工作组下关联的 pin 标记 ID 列表。
+        status:
+          $ref: '#/components/schemas/WorkGroupStatus'
+        ownerFeatureCode:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FeatureCodeProfileRequest:
+      type: object
+      required: [featureCodes]
+      properties:
+        featureCodes:
+          type: array
+          items:
+            type: string
+          description: 需要查询的 feature code 列表。
+    FeatureCodeProfile:
+      type: object
+      properties:
+        featureCode:
+          type: string
+        nickname:
+          type: string
+        avatarUrl:
+          type: string
+    FeatureCodeProfilePage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeatureCodeProfile'
+        page:
+          type: integer
+          description: 当前页码（从 0 开始）。
+        size:
+          type: integer
+          description: 当前页容量。
+        totalElements:
+          type: integer
+          description: 总记录数。
+        totalPages:
+          type: integer
+          description: 总页数。
+    WorkGroupMineResponse:
+      type: object
+      properties:
+        owned:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+          description: 当前用户拥有的工作组列表。
+        joined:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+          description: 当前用户作为成员加入的工作组列表。
+        combinedPage:
+          $ref: '#/components/schemas/WorkGroupPage'
+          description: 拥有与加入的工作组去重合并后的分页列表。
+    ApiResponseWorkGroupMine:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WorkGroupMineResponse'
+    ApiResponseWorkGroupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WorkGroupResponse'
+    ApiResponseWorkGroupList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+    WorkGroupPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkGroupResponse'
+        page:
+          type: integer
+          description: 当前页码（从 0 开始）。
+        size:
+          type: integer
+          description: 当前页容量。
+        totalElements:
+          type: integer
+          description: 总记录数。
+        totalPages:
+          type: integer
+          description: 总页数。
+    ApiResponseWorkGroupPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WorkGroupPage'
+    ApiResponseFeatureCodeProfileList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeatureCodeProfile'
+    ApiResponseFeatureCodeProfilePage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/FeatureCodeProfilePage'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: object
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

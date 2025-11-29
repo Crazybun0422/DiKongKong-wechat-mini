@@ -6,7 +6,7 @@ const {
   fetchMarkerDetail,
   incrementMarkerExposure,
   incrementMarkerPhoneCall,
-  searchMarkers
+  searchMarkers,
 } = require("../../utils/markers");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
@@ -32,10 +32,41 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode: getShareInviteCodeUtil
 } = require("../../utils/share");
+const { joinWorkGroup } = require("../../utils/workGroups");
+const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../utils/map-layer-settings");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
   longitude: 116.39747
+};
+
+const isWeChatRuntime = () => {
+  try {
+    if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
+      const info = wx.getSystemInfoSync() || {};
+      const val = `${info.appName || info.AppPlatform || info.app || info.host || info.hostName || ""}`.toLowerCase();
+      if (val.includes("wechat") || val.includes("weixin")) return true;
+    }
+  } catch (err) {
+    // ignore
+  }
+  return false;
+};
+
+const compareVersion = (v1, v2) => {
+  const s1 = `${v1 || ""}`.split(".");
+  const s2 = `${v2 || ""}`.split(".");
+  const len = Math.max(s1.length, s2.length);
+  for (let i = 0; i < len; i += 1) {
+    const n1 = Number(s1[i] || 0);
+    const n2 = Number(s2[i] || 0);
+    if (n1 > n2) return 1;
+    if (n1 < n2) return -1;
+  }
+  return 0;
 };
 
 const DEFAULT_DRONE_INDEX = (() => {
@@ -50,6 +81,8 @@ const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
+const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
+const MIN_GROUND_OVERLAY_SDK = "2.21.2";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#000000",
@@ -182,6 +215,26 @@ const pickScaleBarLength = (rawMeters) => {
   };
 };
 
+const decodeMaybeURI = (text = "") => {
+  if (typeof text !== "string") return "";
+  let current = text.replace(/\+/g, " ");
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      if (/%[0-9a-fA-F]{2}/.test(current)) {
+        const decoded = decodeURIComponent(current);
+        if (decoded === current) break;
+        current = decoded;
+        continue;
+      }
+    } catch (err) {
+      console.warn("decodeMaybeURI failed", err);
+      break;
+    }
+    break;
+  }
+  return current;
+};
+
 const settleWithValue = (promise, options = {}) => {
   const defaultValue =
     options && Object.prototype.hasOwnProperty.call(options, "defaultValue")
@@ -276,6 +329,9 @@ const parseSceneParams = (scene) => {
   return params;
 };
 
+const hasValidCoordinate = (lat, lng) =>
+  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+
 const normalizeLaunchMarkerOptions = (options = {}) => {
   const normalized = {
     markerId: "",
@@ -327,8 +383,9 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
 const extractInviteCodeFromOptions = (options = {}) => {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
-    if (source.inviteCode === undefined || source.inviteCode === null) return "";
-    return decodeParamValue(source.inviteCode);
+    const candidate = source.inviteCode ?? source.invitationCode;
+    if (candidate === undefined || candidate === null) return "";
+    return decodeParamValue(candidate);
   };
   if (!options || typeof options !== "object") {
     return "";
@@ -351,6 +408,36 @@ const extractInviteCodeFromOptions = (options = {}) => {
     if (fromQ) return fromQ;
   }
   return "";
+};
+
+const extractWorkGroupInvite = (options = {}) => {
+  const readFromObject = (obj) => {
+    if (!obj || typeof obj !== "object") return null;
+    const invitationCode = decodeParamValue(obj.invitationCode || obj.inviteCode);
+    const groupId = decodeParamValue(obj.groupId || obj.workGroupId);
+    const groupName = decodeParamValue(obj.groupName);
+    if (!invitationCode || !groupId) return null;
+    return { invitationCode, groupId, groupName };
+  };
+
+  const direct = readFromObject(options);
+  if (direct) return direct;
+  if (options.query) {
+    const fromQuery = readFromObject(options.query);
+    if (fromQuery) return fromQuery;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  const fromScene = readFromObject(sceneParams);
+  if (fromScene) return fromScene;
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    const fromQ = readFromObject(qParams);
+    if (fromQ) return fromQ;
+  }
+  return null;
 };
 
 Page({
@@ -381,6 +468,8 @@ Page({
     temporaryNoFlyZoneInfo: null,
     temporaryNoFlyText: "评估中",
     temporaryNoFlyTone: "neutral",
+    uomTileWarningVisible: false,
+    uomTileWarningDismissed: false,
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -404,7 +493,33 @@ Page({
     callSheetMarkerName: "",
     scaleBarVisible: false,
     scaleBarWidthRpx: DEFAULT_SCALE_BAR_BASE_RPX,
-    scaleBarLabel: ""
+    scaleBarLabel: "",
+    enableSatellite: false,
+    mapLayerType: "standard",
+    layerPanelVisible: false,
+    layerPanelClosing: false,
+    airBoardEnabled: true,
+    temporaryNoFlyZoneEnabled: true,
+    uomDivisionEnabled: true,
+    djiNoFlyZoneEnabled: true,
+    merchantMarkersEnabled: true,
+    privateMarkersEnabled: false,
+    groupSharingEnabled: false,
+    platformCoConstructionEnabled: false,
+    mapElementOptions: [
+      { id: "uom", label: "uom划分", enabled: true },
+      { id: "dji", label: "大疆划分", enabled: true },
+      { id: "tempNoFly", label: "临时禁飞区", enabled: true },
+      { id: "service", label: "商户服务", enabled: true },
+      { id: "private", label: "私有标记", enabled: false },
+      { id: "group", label: "小组共享", enabled: false },
+      { id: "platform", label: "平台共建", enabled: false }
+    ],
+    mapLayerSettingsLoading: false,
+    joinInvitePrompt: null,
+    joinInviting: false,
+    joinInviteLoginPending: false,
+    shareWorkGroup: null
   },
 
   onLoad(options = {}) {
@@ -412,6 +527,7 @@ Page({
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
     this._fetchTimer = null;
+    this._mapLayerSettingsLoaded = false;
     this._markersFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
@@ -419,14 +535,52 @@ Page({
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
     this._wmsOverlayMap = new Map();
+    this._wmsOverlayHealth = new Map();
     this._wmsOverlaySeed = 0;
+    this._uomEnvReported = false;
+    this._uomModalShown = false;
+    this._uomFallbackTimer = null;
+    this._layerPanelCloseTimer = null;
     this._djiPolygons = [];
     this._djiCircles = [];
+    this._djiZonesReady = false;
+    this._mapLayerSettingsInitPromise = null;
     this._nfzPolygons = [];
     this._nfzCircles = [];
     this._uomTileMasks = new Map();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
+    this._uomOverlayFailed = false;
+    this._uomOverlayUnsupported = false;
+    this._uomOverlayTimeouts = new Map();
+    this._uomOverlayPending = 0;
+    this._uomOverlayBatchId = 0;
+    this._uomOverlayTimeout = null;
     this._suggestTimer = null;
+    const storedUomDismissed = this.readStoredUomWarningDismissed();
+    if (storedUomDismissed) {
+      this.setData({ uomTileWarningDismissed: true });
+      this.data.uomTileWarningDismissed = true;
+    }
+    this.detectUomOverlaySupport();
+    this.updateUomTileWarning();
+    this.setData({
+      mapElementOptions: this.composeMapElementOptions({
+        uomDivisionEnabled: this.data.uomDivisionEnabled,
+        djiNoFlyZoneEnabled: this.data.djiNoFlyZoneEnabled,
+        temporaryNoFlyZoneEnabled: this.data.temporaryNoFlyZoneEnabled,
+        merchantMarkersEnabled: this.data.merchantMarkersEnabled,
+        privateMarkersEnabled: this.data.privateMarkersEnabled,
+        groupSharingEnabled: this.data.groupSharingEnabled,
+        platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
+      })
+    });
+    if (!this.data.uomTileWarningDismissed) {
+      if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+      this._uomFallbackTimer = setTimeout(() => {
+        this.forceShowUomWarningFallback();
+      }, 1500);
+    }
+    this.bootstrapMapLayerSettings(true);
     this._markerExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
@@ -449,8 +603,12 @@ Page({
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
     this._manualMarkers = [];
+    this._previewPolygons = [];
+    this._previewCircles = [];
+    this._previewMarker = null;
     this._lastKnownLocation = null;
     this.captureInviteCode(options);
+    this.handleWorkGroupInviteOptions(options);
     this.initializeShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
     this.refreshWmsOverlay();
@@ -505,6 +663,182 @@ Page({
       return;
     }
     this.focusOnlineMarker(request);
+  },
+
+  consumePendingPinPreview() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData) return;
+    const preview = app.globalData.pendingPinPreview;
+    if (!preview) return;
+    app.globalData.pendingPinPreview = null;
+    this.applyPinPreview(preview);
+  },
+
+  applyPinPreview(payload = {}) {
+    if (!payload || !payload.shape) return;
+    this.clearPinPreview();
+    const shape = payload.shape;
+    if (shape.type === "POINT") {
+      this._previewMarker = this.buildPinPreviewMarker(payload);
+    } else {
+      const zone = this.buildPinPreviewZone(shape);
+      if (zone) {
+        const graphics = buildNoFlyZoneGraphics([zone]);
+        this._previewPolygons = graphics.polygons || [];
+        this._previewCircles = graphics.circles || [];
+      }
+    }
+    this.updateOverlayGraphics();
+    if (this._previewMarker) {
+      this.syncAllMarkers();
+    }
+    const center = this.computePinPreviewCenter(shape, payload);
+    if (center) {
+      this.centerOnPoint(center, clampMapScale(payload.zoom || 16));
+    }
+  },
+
+  clearPinPreview() {
+    this._previewPolygons = [];
+    this._previewCircles = [];
+    this._previewMarker = null;
+    this.updateOverlayGraphics();
+    this.syncAllMarkers();
+  },
+
+  buildPinPreviewZone(shape = {}) {
+    const type = `${shape.type || ""}`.toUpperCase();
+    const coordinates = Array.isArray(shape.coordinates)
+      ? shape.coordinates
+          .map((coord) => this.normalizePreviewCoordinate(coord))
+          .filter(Boolean)
+      : [];
+    if (!coordinates.length) return null;
+    if (type === "CIRCLE") {
+      const center = coordinates[0];
+      const radiusKm = Number(shape.radius);
+      if (!center || !Number.isFinite(radiusKm) || radiusKm <= 0) {
+        return null;
+      }
+      return {
+        type: "CIRCLE",
+        circle: {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusMeters: radiusKm * 1000
+        }
+      };
+    }
+    if (type === "LINE" || type === "PATH") {
+      return {
+        type: "PATH",
+        coordinates,
+        pathDistanceMeters: Number(shape.width) || 0
+      };
+    }
+    return {
+      type: "POLYGON",
+      coordinates
+    };
+  },
+
+  buildPinPreviewMarker(payload = {}) {
+    const location = payload.location || {};
+    const lat = Number(location.latitude);
+    const lng = Number(location.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+    const converted = wgs84ToGcj02(lng, lat);
+    const latitude = Number.isFinite(converted?.lat) ? converted.lat : lat;
+    const longitude = Number.isFinite(converted?.lng) ? converted.lng : lng;
+    const category = `${payload.shape?.pointCategory || ""}`.toUpperCase();
+    const ICON_MAP = {
+      GENERAL: "/assets/default.png",
+      WARNING: "/assets/drone-warning.png",
+      AERIAL_SHOT: "/assets/aerial.png",
+      TAKEOFF_LANDING: "/assets/dock.png",
+      TALL_BUILDING: "/assets/elevation.png"
+    };
+    const iconPath = ICON_MAP[category] || "/assets/default.png";
+    const contentParts = [];
+    const hasName = !!payload.name;
+    const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
+    if (hasName) {
+      contentParts.push(payload.name);
+    }
+    if (hasHeight) {
+      const hText = `${Math.round(payload.height)}米`;
+      if (hasName) {
+        contentParts.push(hText);
+      } else {
+        contentParts.push(`高程${hText}`);
+      }
+    }
+    const content = contentParts.join(" ") || "标记位置";
+    return {
+      id: payload.id || `pin-preview-${Date.now()}`,
+      latitude,
+      longitude,
+      iconPath,
+      width: 32,
+      height: 32,
+      callout: {
+        content,
+        color: "#111827",
+        fontSize: 12,
+        padding: 6,
+        display: "ALWAYS",
+        borderRadius: 4,
+        borderColor: "#111827",
+        borderWidth: 1
+      }
+    };
+  },
+
+  computePinPreviewCenter(shape = {}, payload = {}) {
+    const location = payload.location;
+    const coords = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+    const target = (location && hasValidCoordinate(location.latitude, location.longitude))
+      ? location
+      : coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude));
+    if (target && hasValidCoordinate(target.latitude, target.longitude)) {
+      const converted = wgs84ToGcj02(Number(target.longitude), Number(target.latitude));
+      const latitude = Number.isFinite(converted?.lat) ? converted.lat : Number(target.latitude);
+      const longitude = Number.isFinite(converted?.lng) ? converted.lng : Number(target.longitude);
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+    if (coords.length) {
+      const normalized = coords
+        .map((coord) => this.normalizePreviewCoordinate(coord))
+        .filter(Boolean);
+      if (!normalized.length) return null;
+      const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
+      const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
+      const conv = wgs84ToGcj02(avgLng, avgLat);
+      const latitude = Number.isFinite(conv?.lat) ? conv.lat : avgLat;
+      const longitude = Number.isFinite(conv?.lng) ? conv.lng : avgLng;
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        return { latitude, longitude };
+      }
+    }
+    return null;
+  },
+
+  normalizePreviewCoordinate(entry) {
+    if (!entry) return null;
+    if (Array.isArray(entry) && entry.length >= 2) {
+      const lng = Number(entry[0]);
+      const lat = Number(entry[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { latitude: lat, longitude: lng };
+    }
+    const lat = Number(entry.latitude ?? entry.lat);
+    const lng = Number(entry.longitude ?? entry.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { latitude: lat, longitude: lng };
   },
 
   autoLoginOnLaunch() {
@@ -1598,11 +1932,13 @@ Page({
   },
 
   onShareAppMessage() {
+
     const detail = this._lastMarkerDetail;
     const inviteCode = this.getShareInviteCodeValue();
     const fallback = {
-      title: "uom、大疆100%同步且可视化，还有低空智能体~",
-      path: appendInviteCodeToPath("/pages/map/map", { inviteCode })
+      title: "与uom、大疆100%同步的低空地图，来一起探索~",
+      path: appendInviteCodeToPath("/pages/map/map", { inviteCode }),
+      imageUrl: posterUrl
     };
     if (!detail) {
       return fallback;
@@ -1672,20 +2008,117 @@ Page({
       this.setData({ activeTab: "home", showDashboardPanel: true });
       this.showDashboardPanel = true;
     }
+    if (this.data.joinInvitePrompt && !this.data.joinInviting) {
+      this.promptJoinWorkGroup(this.data.joinInvitePrompt);
+    }
     this.consumePendingMarkerFocus({ source: "show" });
+    this.consumePendingPinPreview();
+  },
+
+  onHide() {
+    this.clearPinPreview();
   },
 
   onUnload() {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
+    if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
+    if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
+  },
+
+  handleWorkGroupInviteOptions(options = {}) {
+
+    const invitationCode = options.invitationCode || options.inviteCode || "";
+    const groupId = options.groupId || options.workGroupId || "";
+    const groupName = decodeMaybeURI(options.groupName || "");
+    console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
+    if (!invitationCode || !groupId) return;
+    const payload = { invitationCode, groupId, groupName };
+    this.setData({
+      joinInvitePrompt: payload,
+      joinInviting: false,
+      joinInviteLoginPending: false
+    });
+    this.promptJoinWorkGroup(payload);
+  },
+
+  promptJoinWorkGroup(promptPayload) {
+    const prompt = promptPayload || this.data.joinInvitePrompt;
+    if (!prompt?.invitationCode || !prompt?.groupId) return;
+    const name = decodeMaybeURI(prompt.groupName || prompt.groupId || "");
+    this.setData({
+      joinInvitePrompt: { invitationCode: prompt.invitationCode, groupId: prompt.groupId, groupName: name },
+      joinInviting: false,
+      joinInviteLoginPending: false
+    });
+  },
+
+  confirmJoinWorkGroup(promptPayload) {
+    const evt = promptPayload && promptPayload.currentTarget ? promptPayload : null;
+    const ds = (evt && evt.currentTarget && evt.currentTarget.dataset) || {};
+    const prompt =
+      (ds.invitationCode && ds.groupId && {
+        invitationCode: ds.invitationCode,
+        groupId: ds.groupId,
+        groupName: ds.groupName
+      }) ||
+      this.data.joinInvitePrompt ||
+      {};
+    console.log("confirmJoinWorkGroup", prompt);
+    if (!prompt.invitationCode || !prompt.groupId || this.data.joinInviting) return;
+    const run = () => {
+      this.setData({ joinInviting: true });
+      joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
+        .then(() => {
+          wx.showToast({ title: "已加入工作组", icon: "success" });
+          this.setData({ joinInvitePrompt: null });
+          this.navigateToWorkGroupCenter();
+        })
+        .catch((err) => {
+          console.error("加入工作组失败", err);
+          wx.showToast({ title: err?.message || "加入失败", icon: "none" });
+        })
+        .finally(() => this.setData({ joinInviting: false }));
+    };
+    run();
+  },
+
+  navigateToWorkGroupCenter() {
+    const url = "/pages/markers/index";
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.targetMarkersCenterTab = "WORKGROUP";
+      }
+    } catch (err) {
+      console.warn("set targetMarkersCenterTab failed", err);
+    }
+    if (typeof wx?.switchTab === "function") {
+      wx.switchTab({
+        url,
+        success: () => {
+          console.log("switchTab to markers succeeded");
+        },
+        fail: (err) => {
+          console.warn("switchTab to markers failed, fallback to navigateTo", err);
+          if (typeof wx?.navigateTo === "function") {
+            wx.navigateTo({ url });
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx?.navigateTo === "function") {
+      wx.navigateTo({ url });
+    }
   },
 
   scheduleRestoreMarkerDetail(delay = 0) {
@@ -1794,6 +2227,311 @@ Page({
       });
   },
 
+  onLayerButtonTap() {
+    if (this._layerPanelCloseTimer) {
+      clearTimeout(this._layerPanelCloseTimer);
+      this._layerPanelCloseTimer = null;
+    }
+    this.setData({ layerPanelVisible: true, layerPanelClosing: false });
+    this.loadMapLayerSettings(false);
+  },
+
+  onLayerPanelMaskTap() {
+    this.closeLayerPanel();
+  },
+
+  onLayerPanelClose() {
+    this.closeLayerPanel();
+  },
+
+  closeLayerPanel() {
+    if (!this.data.layerPanelVisible) {
+      return;
+    }
+    if (this._layerPanelCloseTimer) {
+      clearTimeout(this._layerPanelCloseTimer);
+      this._layerPanelCloseTimer = null;
+    }
+    this.setData({ layerPanelClosing: true });
+    this._layerPanelCloseTimer = setTimeout(() => {
+      this.setData({ layerPanelVisible: false, layerPanelClosing: false });
+      this._layerPanelCloseTimer = null;
+    }, 220);
+  },
+
+  onMapLayerSelect(event = {}) {
+    const type = event?.currentTarget?.dataset?.type || "";
+    const nextType = type === "satellite" ? "satellite" : "standard";
+    const enableSatellite = nextType === "satellite";
+    this.setData({
+      mapLayerType: nextType,
+      enableSatellite
+    }, () => {
+      this.persistMapLayerSettings();
+    });
+  },
+
+  onAirBoardSwitchChange(event = {}) {
+    const enabled = !!event?.detail?.value;
+    this.setData(
+      { airBoardEnabled: enabled, showDashboardPanel: enabled },
+      () => {
+        this.applyAirBoardToggle(enabled);
+        this.persistMapLayerSettings();
+      }
+    );
+  },
+
+  onMapElementToggle(event = {}) {
+    const id = event?.currentTarget?.dataset?.id;
+    if (!id) return;
+    const flagMap = {
+      uom: "uomDivisionEnabled",
+      dji: "djiNoFlyZoneEnabled",
+      tempNoFly: "temporaryNoFlyZoneEnabled",
+      service: "merchantMarkersEnabled",
+      private: "privateMarkersEnabled",
+      group: "groupSharingEnabled",
+      platform: "platformCoConstructionEnabled"
+    };
+    const flagKey = flagMap[id];
+    if (!flagKey) return;
+    const nextValue = !this.data[flagKey];
+    const updates = { [flagKey]: nextValue };
+    updates.mapElementOptions = this.composeMapElementOptions({
+      uomDivisionEnabled: flagKey === "uomDivisionEnabled" ? nextValue : this.data.uomDivisionEnabled,
+      djiNoFlyZoneEnabled: flagKey === "djiNoFlyZoneEnabled" ? nextValue : this.data.djiNoFlyZoneEnabled,
+      temporaryNoFlyZoneEnabled:
+        flagKey === "temporaryNoFlyZoneEnabled" ? nextValue : this.data.temporaryNoFlyZoneEnabled,
+      merchantMarkersEnabled:
+        flagKey === "merchantMarkersEnabled" ? nextValue : this.data.merchantMarkersEnabled,
+      privateMarkersEnabled: flagKey === "privateMarkersEnabled" ? nextValue : this.data.privateMarkersEnabled,
+      groupSharingEnabled: flagKey === "groupSharingEnabled" ? nextValue : this.data.groupSharingEnabled,
+      platformCoConstructionEnabled:
+        flagKey === "platformCoConstructionEnabled" ? nextValue : this.data.platformCoConstructionEnabled
+    });
+    this.setData(updates, () => {
+      if (flagKey === "uomDivisionEnabled") {
+        this.applyUomOverlayToggle(nextValue);
+      }
+      if (flagKey === "djiNoFlyZoneEnabled") {
+        this.applyNoFlyOverlayToggle({
+          djiEnabled: nextValue,
+          temporaryEnabled: this.data.temporaryNoFlyZoneEnabled
+        });
+      }
+      if (flagKey === "temporaryNoFlyZoneEnabled") {
+        this.applyNoFlyOverlayToggle({
+          djiEnabled: this.data.djiNoFlyZoneEnabled,
+          temporaryEnabled: nextValue
+        });
+      }
+      if (flagKey === "merchantMarkersEnabled") {
+        this.applyMerchantMarkersToggle(nextValue);
+      }
+      this.persistMapLayerSettings();
+    });
+  },
+
+  composeMapElementOptions(flags = {}) {
+    const state = Object.assign(
+      {
+        uomDivisionEnabled: true,
+        djiNoFlyZoneEnabled: true,
+        temporaryNoFlyZoneEnabled: true,
+        merchantMarkersEnabled: true,
+        privateMarkersEnabled: false,
+        groupSharingEnabled: false,
+        platformCoConstructionEnabled: false
+      },
+      flags
+    );
+    const djiEnabled = !!state.djiNoFlyZoneEnabled;
+    const tempEnabled = !!state.temporaryNoFlyZoneEnabled;
+    return [
+      { id: "uom", label: "uom划分", enabled: !!state.uomDivisionEnabled },
+      { id: "dji", label: "大疆划分", enabled: djiEnabled },
+      { id: "tempNoFly", label: "临时禁飞区", enabled: tempEnabled },
+      { id: "service", label: "商户服务", enabled: !!state.merchantMarkersEnabled },
+      { id: "private", label: "私有标记", enabled: !!state.privateMarkersEnabled },
+      { id: "group", label: "小组共享", enabled: !!state.groupSharingEnabled },
+      { id: "platform", label: "平台共建", enabled: !!state.platformCoConstructionEnabled }
+    ];
+  },
+
+  applyAirBoardToggle(enabled) {
+    this.setData({ showDashboardPanel: !!enabled });
+  },
+
+  applyUomOverlayToggle(enabled) {
+    if (!enabled) {
+      this.clearMapOverlays();
+      this.updateStatusPanel(this._lastAreas);
+      return;
+    }
+    this.refreshWmsOverlay();
+    this.updateStatusPanel(this._lastAreas);
+  },
+
+  applyNoFlyOverlayToggle(options = {}) {
+    const djiEnabled = options.djiEnabled !== false;
+    const temporaryEnabled = options.temporaryEnabled !== false;
+    if (!djiEnabled) {
+      this._djiPolygons = [];
+      this._djiCircles = [];
+      this._djiZonesReady = false;
+    }
+    if (!temporaryEnabled) {
+      this._noFlyZones = [];
+      this._nfzPolygons = [];
+      this._nfzCircles = [];
+      this._noFlyZoneShapes = [];
+      this._noFlyZonesReady = false;
+      this._lastNoFlyFetch = null;
+    }
+    this.updateOverlayGraphics();
+    if (djiEnabled && !this._djiZonesReady) {
+      this.scheduleFetchDji(0, true);
+    }
+    if (temporaryEnabled && !this._noFlyZonesReady) {
+      this.scheduleFetchNoFlyZones(0, { force: true });
+    }
+    this.updateStatusPanel(this._lastAreas);
+  },
+
+  applyMerchantMarkersToggle(enabled) {
+    if (enabled === false) {
+      this._nearbyMarkers = [];
+      this._lastNearbyFetch = null;
+      this.syncAllMarkers();
+      return;
+    }
+    this.syncAllMarkers();
+    this.scheduleFetchMarkers(0, { force: true });
+  },
+
+  buildMapLayerSettingsPayload() {
+    return {
+      mapType: this.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
+      airspaceBoardEnabled: !!this.data.airBoardEnabled,
+      uomDivisionEnabled: !!this.data.uomDivisionEnabled,
+      djiNoFlyZoneEnabled: !!this.data.djiNoFlyZoneEnabled,
+      temporaryNoFlyZoneEnabled: !!this.data.temporaryNoFlyZoneEnabled,
+      merchantMarkersEnabled: !!this.data.merchantMarkersEnabled,
+      privateMarkersEnabled: !!this.data.privateMarkersEnabled,
+      groupSharingEnabled: !!this.data.groupSharingEnabled,
+      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled
+    };
+  },
+
+  applyLayerSettings(settings = {}) {
+    const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
+    const airspace = settings.airspaceBoardEnabled !== false;
+    const uom = settings.uomDivisionEnabled !== false;
+    const dji = settings.djiNoFlyZoneEnabled !== false;
+    const temporary = settings.temporaryNoFlyZoneEnabled !== undefined
+      ? settings.temporaryNoFlyZoneEnabled !== false
+      : dji;
+    const merchant = settings.merchantMarkersEnabled !== false;
+    const privateMarkers = settings.privateMarkersEnabled !== false;
+    const groupSharing = settings.groupSharingEnabled !== false;
+    const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
+    const mapElementOptions = this.composeMapElementOptions({
+      uomDivisionEnabled: uom,
+      djiNoFlyZoneEnabled: dji,
+      temporaryNoFlyZoneEnabled: temporary,
+      merchantMarkersEnabled: merchant,
+      privateMarkersEnabled: privateMarkers,
+      groupSharingEnabled: groupSharing,
+      platformCoConstructionEnabled: platformCoConstruction
+    });
+    this.setData(
+      {
+        mapLayerType: mapType,
+        enableSatellite: mapType === "satellite",
+        airBoardEnabled: airspace,
+        showDashboardPanel: airspace,
+        uomDivisionEnabled: uom,
+        djiNoFlyZoneEnabled: dji,
+        temporaryNoFlyZoneEnabled: temporary,
+        merchantMarkersEnabled: merchant,
+        privateMarkersEnabled: privateMarkers,
+        groupSharingEnabled: groupSharing,
+        platformCoConstructionEnabled: platformCoConstruction,
+        mapElementOptions
+      },
+      () => {
+        this.applyAirBoardToggle(airspace);
+        this.applyUomOverlayToggle(uom);
+        this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
+        this.applyMerchantMarkersToggle(merchant);
+      }
+    );
+  },
+
+  loadMapLayerSettings(force = false) {
+    if (this.data.mapLayerSettingsLoading) return;
+    if (this._mapLayerSettingsLoaded && !force) return;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    this.setData({ mapLayerSettingsLoading: true });
+    fetchMapLayerSettings({
+      apiBase,
+      token
+    })
+      .then((settings) => {
+        if (settings) {
+          this.applyLayerSettings(settings);
+          this._mapLayerSettingsLoaded = true;
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load map layer settings", err);
+      })
+      .finally(() => {
+        this.setData({ mapLayerSettingsLoading: false });
+      });
+  },
+
+  bootstrapMapLayerSettings(force = false) {
+    if (this._mapLayerSettingsInitPromise) return this._mapLayerSettingsInitPromise;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (apiBase && token) {
+      this.loadMapLayerSettings(force);
+      return Promise.resolve();
+    }
+    const promise = this.ensureProfileAuthenticated();
+    if (!promise || typeof promise.then !== "function") {
+      return Promise.resolve();
+    }
+    this._mapLayerSettingsInitPromise = promise
+      .then(() => {
+        this.loadMapLayerSettings(force);
+      })
+      .catch((err) => {
+        console.warn("bootstrap map layer settings failed", err);
+      })
+      .finally(() => {
+        this._mapLayerSettingsInitPromise = null;
+      });
+    return this._mapLayerSettingsInitPromise;
+  },
+
+  persistMapLayerSettings() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    const payload = this.buildMapLayerSettingsPayload();
+    updateMapLayerSettings(payload, {
+      apiBase,
+      token
+    }).catch((err) => {
+      console.warn("Failed to update map layer settings", err);
+    });
+  },
+
   onMarkerButtonTap() {
     if (this.hasAccessToken()) {
       this.openMarkersPage();
@@ -1877,10 +2615,14 @@ Page({
   },
 
   syncAllMarkers() {
-    const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const nearby =
+      this.data.merchantMarkersEnabled !== false && Array.isArray(this._nearbyMarkers)
+        ? this._nearbyMarkers
+        : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const combined = manual.concat(nearby, search);
+    const preview = this._previewMarker ? [this._previewMarker] : [];
+    const combined = manual.concat(nearby, search, preview);
     this.setData({ markers: combined });
   },
 
@@ -2908,6 +3650,7 @@ Page({
   },
 
   scheduleFetchMarkers(delay = 0, options = {}) {
+    if (this.data.merchantMarkersEnabled === false) return;
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     const ms = Math.max(0, Number(delay) || 0);
     this._markersFetchTimer = setTimeout(() => {
@@ -2917,6 +3660,7 @@ Page({
   },
 
   scheduleFetchNoFlyZones(delay = 0, options = {}) {
+    if (this.data.temporaryNoFlyZoneEnabled === false) return;
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     const ms = Math.max(0, Number(delay) || 0);
     this._nfzFetchTimer = setTimeout(() => {
@@ -2926,6 +3670,7 @@ Page({
   },
 
   scheduleFetchDji(delay = 300, force = false) {
+    if (this.data.djiNoFlyZoneEnabled === false) return;
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     this._fetchTimer = setTimeout(() => {
       this._fetchTimer = null;
@@ -2934,10 +3679,16 @@ Page({
   },
 
   requestNearbyMarkers(options = {}) {
+    if (this.data.merchantMarkersEnabled === false) {
+      this._nearbyMarkers = [];
+      this.syncAllMarkers();
+      return;
+    }
     const center = options?.center || this._centerOverride || this.data.center;
     if (!center) return;
     const scale = options?.scale || this.data.scale;
     const region = options?.region || this._lastRegion;
+    const force = options.force === true;
     if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
       if (Array.isArray(this._nearbyMarkers) && this._nearbyMarkers.length) {
         this._nearbyMarkers = [];
@@ -2965,7 +3716,7 @@ Page({
     const now = Date.now();
     const prevTimestamp = Number(prev.timestamp) || 0;
     const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
       return;
     }
 
@@ -3072,6 +3823,17 @@ Page({
   },
 
   requestNearbyNoFlyZones(options = {}) {
+    if (this.data.temporaryNoFlyZoneEnabled === false) {
+      this._noFlyZones = [];
+      this._nfzPolygons = [];
+      this._nfzCircles = [];
+      this._noFlyZoneShapes = [];
+      this._noFlyZonesReady = false;
+      this._lastNoFlyFetch = null;
+      this.updateOverlayGraphics();
+      return;
+    }
+    const force = options.force === true;
     const center = options?.center || this._centerOverride || this.data.center;
     if (!center) return;
     const scale = options?.scale || this.data.scale;
@@ -3095,7 +3857,7 @@ Page({
     const now = Date.now();
     const prevTimestamp = Number(prev.timestamp) || 0;
     const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!options.force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
       return;
     }
 
@@ -3156,22 +3918,37 @@ Page({
   updateOverlayGraphics() {
     const polygons = [];
     const circles = [];
-    if (Array.isArray(this._djiPolygons)) {
+    if (this.data.djiNoFlyZoneEnabled !== false && Array.isArray(this._djiPolygons)) {
       polygons.push(...this._djiPolygons);
     }
-    if (Array.isArray(this._nfzPolygons)) {
+    if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzPolygons)) {
       polygons.push(...this._nfzPolygons);
     }
-    if (Array.isArray(this._djiCircles)) {
+    if (this.data.djiNoFlyZoneEnabled !== false && Array.isArray(this._djiCircles)) {
       circles.push(...this._djiCircles);
     }
-    if (Array.isArray(this._nfzCircles)) {
+    if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
       circles.push(...this._nfzCircles);
+    }
+    if (Array.isArray(this._previewPolygons)) {
+      polygons.push(...this._previewPolygons);
+    }
+    if (Array.isArray(this._previewCircles)) {
+      circles.push(...this._previewCircles);
     }
     this.setData({ polygons, circles });
   },
 
   requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
+    if (this.data.djiNoFlyZoneEnabled === false) {
+      this._djiPolygons = [];
+      this._djiCircles = [];
+      this._djiZonesReady = false;
+      this._lastFetch = null;
+      this._lastAreas = null;
+      this.updateOverlayGraphics();
+      return;
+    }
     const center = centerOverride || this.data.center;
     const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
     const prev = this._lastFetch || {};
@@ -3224,6 +4001,7 @@ Page({
         this.updateStatusPanel(areas);
         this._djiPolygons = graphics.polygons || [];
         this._djiCircles = graphics.circles || [];
+        this._djiZonesReady = true;
         this.updateOverlayGraphics();
         this.setData({
           djiMsg: `已获取 ${areas.length} 个空域`
@@ -3242,6 +4020,7 @@ Page({
         this.setData({
           djiMsg: "DJI 数据暂不可用"
         });
+        this._djiZonesReady = false;
       })
       .finally(() => {
         this.setData({ loadingDji: false });
@@ -3253,6 +4032,9 @@ Page({
     const dji = this.describeDjiStatus(resolved);
     const uom = this.describeUomStatus();
     const temporary = this.describeTemporaryNoFlyStatus();
+    const shouldShowWarning = this.shouldShowUomTileWarning();
+    const dismissed = !!this.data.uomTileWarningDismissed;
+    const uomWarningVisible = shouldShowWarning && !dismissed;
     this.setData({
       djiStatus: dji.status,
       djiStatusExtra: dji.extra,
@@ -3262,11 +4044,144 @@ Page({
       uomTone: uom.tone,
       temporaryNoFlyZoneInfo: temporary.zoneInfo,
       temporaryNoFlyText: temporary.text,
-      temporaryNoFlyTone: temporary.tone
+      temporaryNoFlyTone: temporary.tone,
+      uomTileWarningVisible: uomWarningVisible,
+      uomTileWarningDismissed: dismissed
     });
   },
 
+  shouldShowUomTileWarning() {
+    const dismissed = !!this.data.uomTileWarningDismissed;
+    if (this._uomOverlayUnsupported || this._uomOverlayFailed) {
+      return true;
+    }
+    const tiles = Array.isArray(this._currentWmsTiles) ? this._currentWmsTiles : [];
+    const scale = clampMapScale(this.data?.scale);
+    if (!tiles.length || scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
+      return false;
+    }
+    const center = this._centerOverride || this.data.center;
+    if (!center) return false;
+    const tile = this.findUomTileForPoint(center);
+    if (!tile) return false;
+    const maskEntry = this._uomTileMasks?.get(tile.id);
+    if (maskEntry && maskEntry.status === "error") return true;
+    return false;
+  },
+
+  updateUomTileWarning() {
+    const shouldShow = this.shouldShowUomTileWarning();
+    const dismissed = !!this.data.uomTileWarningDismissed;
+    const visible = shouldShow && !dismissed;
+    if (
+      this.data &&
+      this.data.uomTileWarningVisible === visible &&
+      this.data.uomTileWarningDismissed === dismissed
+    ) {
+      return;
+    }
+    this.setData({
+      uomTileWarningVisible: visible,
+      uomTileWarningDismissed: dismissed
+    });
+  },
+
+  detectUomOverlaySupport() {
+    try {
+      const info = typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function"
+        ? wx.getSystemInfoSync()
+        : {};
+      this._sdkVersion = info.SDKVersion || "";
+      const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
+      const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
+      const platform = (info.platform || "").toLowerCase();
+      this.reportUomEnv({
+        appName,
+        appPlatform,
+        platform,
+        host: info.host || "",
+        hostName: info.hostName || "",
+        sdk: this._sdkVersion,
+        isQQ: false,
+        hasGlobalQQ: typeof qq !== "undefined"
+      });
+      const hasApi = !!(this.mapCtx && typeof this.mapCtx.addGroundOverlay === "function");
+      const sdkOk = this._sdkVersion ? compareVersion(this._sdkVersion, MIN_GROUND_OVERLAY_SDK) >= 0 : true;
+      const isDesktopEnv = platform && platform !== "ios" && platform !== "android";
+      if (!hasApi || !sdkOk || isDesktopEnv) {
+        this._uomOverlayUnsupported = true;
+        this._uomOverlayFailed = true;
+      }
+    } catch (err) {
+      console.warn("detectUomOverlaySupport failed", err);
+    }
+  },
+
+  showUomWarningModal() {
+    const modalApi =
+      (typeof wx !== "undefined" && wx && typeof wx.showModal === "function" && wx.showModal) ||
+      (typeof qq !== "undefined" && qq && typeof qq.showModal === "function" && qq.showModal);
+    if (!modalApi) return;
+    modalApi({
+      title: "提示",
+      content: "受地图组件能力限制，本页部分地图功能暂不可用。完整功能已在微信小程序「低空星球」上线，欢迎前往使用。",
+      confirmText: "知道了",
+      cancelText: "不再提示",
+      success: (res) => {
+        if (res && res.cancel) {
+          this.onUomTileWarningNever();
+        }
+      }
+    });
+  },
+
+  reportUomEnv(info = {}) {
+    // no-op: was used for debugging environment detection
+    this._uomEnvReported = true;
+  },
+
+  forceShowUomWarningFallback() {
+    if (isWeChatRuntime()) return;
+    if (this.data.uomTileWarningDismissed) return;
+    if (!this.data.uomTileWarningVisible) {
+      this.setData({ uomTileWarningVisible: true });
+      if (!this._uomModalShown) {
+        this._uomModalShown = true;
+        this.showUomWarningModal();
+      }
+    }
+  },
+
+  onUomTileWarningNever() {
+    this.persistUomWarningDismissed();
+    this.setData({
+      uomTileWarningVisible: false,
+      uomTileWarningDismissed: true
+    });
+  },
+
+  readStoredUomWarningDismissed() {
+    try {
+      const val = wx.getStorageSync(UOM_WARNING_DISMISS_STORAGE_KEY);
+      return !!val;
+    } catch (err) {
+      console.warn("failed to read UOM warning dismissal flag", err);
+      return false;
+    }
+  },
+
+  persistUomWarningDismissed() {
+    try {
+      wx.setStorageSync(UOM_WARNING_DISMISS_STORAGE_KEY, 1);
+    } catch (err) {
+      console.warn("failed to persist UOM warning dismissal flag", err);
+    }
+  },
+
   describeDjiStatus(areas) {
+    if (this.data.djiNoFlyZoneEnabled === false) {
+      return { status: "已禁用", extra: "", tone: "warn", color: "#f59e0b" };
+    }
     const fallback = { status: "暂无空域数据", extra: "", tone: "neutral", color: "" };
     if (typeof areas === "undefined") {
       return { status: "评估中", extra: "", tone: "neutral", color: "" };
@@ -3288,7 +4203,9 @@ Page({
         area.sub_areas.forEach((sub) => visitArea(sub, area, true));
         return;
       }
+
       if (this.areaContainsWgsPoint(area, wgs.lng, wgs.lat, { polygonOnly })) {
+
         hits.push({ area, parent });
       }
     };
@@ -3319,6 +4236,9 @@ Page({
   },
 
   describeTemporaryNoFlyStatus() {
+    if (this.data.temporaryNoFlyZoneEnabled === false) {
+      return { zoneInfo: null, text: "已禁用", tone: "warn" };
+    }
     if (!this._noFlyZonesReady) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
     }
@@ -3354,6 +4274,9 @@ Page({
   },
 
   describeUomStatus() {
+    if (this.data.uomDivisionEnabled === false) {
+      return { status: "已禁用", tone: "warn" };
+    }
     const currentScale = Number(this.data?.scale);
     // if (Number.isFinite(currentScale) && currentScale > 16) {
     //   return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
@@ -3422,8 +4345,13 @@ Page({
   },
 
   refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
+    if (this.data.uomDivisionEnabled === false) {
+      this.clearMapOverlays();
+      return;
+    }
     const center = centerOverride || this.data.center;
     const scale = clampMapScale(scaleOverride || this.data.scale);
+    this._uomOverlayFailed = false;
     if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
       this.clearMapOverlays();
       this._currentWmsTiles = [];
@@ -3468,6 +4396,7 @@ Page({
       if (existing && existing.signature === signature) {
         return;
       }
+
       if (existing) {
         ctx.removeGroundOverlay({
           id: existing.overlayId,
@@ -3477,6 +4406,7 @@ Page({
       }
       this._wmsOverlaySeed += 1;
       const overlayId = this._wmsOverlaySeed;
+
       const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
       ctx.addGroundOverlay({
         id: overlayId,
@@ -3485,6 +4415,9 @@ Page({
         alpha,
         fail: (err) => {
           console.error("addGroundOverlay failed", tile.id, err);
+          this._uomOverlayFailed = true;
+          this.updateUomTileWarning();
+
           this._wmsOverlayMap.delete(tile.id);
         }
       });
@@ -3811,11 +4744,15 @@ Page({
         console.error("加载 UOM 瓦片失败", err);
         const entry = this._uomTileMasks.get(tile.id);
         if (entry) entry.status = "error";
+        this._uomOverlayFailed = true;
+        this.updateUomTileWarning();
       };
       img.src = tile.src;
     } catch (err) {
       console.error("创建 UOM 蒙版失败", err);
       this._uomTileMasks.set(tile.id, { status: "error" });
+      this._uomOverlayFailed = true;
+      this.updateUomTileWarning();
     }
   },
 

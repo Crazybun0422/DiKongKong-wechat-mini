@@ -74,6 +74,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/orders/reference/{referenceId}:
+    get:
+      summary: 根据关联 ID 查询订单
+      description: 管理员可查看任何订单，普通用户只能查看自己 feature code 的订单。如果存在多个相同 referenceId 的订单，接口会优先返回状态为 PAID 且更新时间最新的订单。
+      parameters:
+        - in: path
+          name: referenceId
+          required: true
+          schema:
+            type: string
+          description: 订单关联的业务 ID，例如标靶或其他资源的主键。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOrderResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 更新订单
       description: 管理员和订单所属用户都可以更新订单状态、支付信息和微信单号。

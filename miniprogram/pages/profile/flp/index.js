@@ -92,6 +92,7 @@ Page({
 
   onShareAppMessage() {
     const inviteCode = getShareInviteCode();
+    console.log("onShareAppMessage inviteCode", inviteCode);
     return {
       title: "晒晒余额~",
       path: appendInviteCodeToPath(MAP_PAGE_PATH, { inviteCode })
@@ -100,6 +101,7 @@ Page({
 
   onShareTimeline() {
     const inviteCode = getShareInviteCode();
+    console.log("onShareTimeline inviteCode", inviteCode);
     return {
       title: "晒晒余额~",
       query: appendInviteCodeToQuery("", { inviteCode })

@@ -148,15 +148,14 @@ function uploadAvatarFile(filePath, options = {}) {
 function authorizedRequest(options) {
   return new Promise((resolve, reject) => {
     const base = resolveApiBase(options.apiBase);
-    console.log("xxxxxxx1")
+
     if (!base) {
       reject(new Error("missing-api-base"));
       return;
     }
-    console.log("xxxxxxx2")
-    console.log("options:",options)
+
     const token = options.token || getAuthToken();
-    console.log("token->",token)
+
     if (!token) {
       reject(new Error("missing-token"));
       return;
@@ -369,11 +368,11 @@ function persistProfileLocally(profile = {}) {
   const avatarUrl = profile.avatarUrl || existing.avatarUrl || "";
   const featureCode = ensureFeatureCode(
     profile.featureCode ||
-      profile.loginSeq ||
-      profile.userId ||
-      existing.featureCode ||
-      existing.userFeatureCode ||
-      ""
+    profile.loginSeq ||
+    profile.userId ||
+    existing.featureCode ||
+    existing.userFeatureCode ||
+    ""
   );
   let flpValue = profile.flpValue;
   if (flpValue === undefined) flpValue = existing.flpValue;

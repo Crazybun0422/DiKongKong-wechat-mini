@@ -390,5 +390,6 @@ module.exports = {
   fetchOpenPlatformContent,
   incrementMarkerExposure,
   incrementMarkerPhoneCall,
-  searchMarkers
+  searchMarkers,
+  extractUploadedFileName
 };

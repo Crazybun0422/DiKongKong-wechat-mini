@@ -75,6 +75,12 @@ paths:
             type: string
             enum: [ASC, DESC]
           description: 注册时间排序方向，默认 DESC。
+        - in: query
+          name: flp
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 按 FLP 余额排序方向，传入时会覆盖注册时间排序，默认不排序。
       responses:
         '200':
           description: OK
@@ -123,6 +129,12 @@ paths:
             type: string
             enum: [ASC, DESC]
           description: 注册时间排序方向，默认 DESC。
+        - in: query
+          name: flp
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 按 FLP 余额排序方向，传入时会覆盖注册时间排序，默认不排序。
       responses:
         '200':
           description: OK
