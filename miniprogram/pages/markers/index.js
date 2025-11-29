@@ -1882,7 +1882,18 @@ Page({
 
   buildPinCoordinates(form, shapeType) {
     const preferWgs = Array.isArray(form.wgs84Coordinates) ? form.wgs84Coordinates : [];
-    const sourceList = preferWgs.length ? preferWgs : form.coordinateList || [];
+    const coordList = Array.isArray(form.coordinateList) ? form.coordinateList : [];
+    const sourceList = preferWgs.length
+      ? preferWgs.map((item, index) =>
+        Object.assign({}, item, {
+          altitude:
+            item.altitude ??
+            item.height ??
+            item.alt ??
+            (coordList[index]?.altitude ?? coordList[index]?.height ?? coordList[index]?.alt)
+        })
+      )
+      : coordList;
     const coords = sourceList
       .map((item) => this.normalizePinCoordinateForPayload(item))
       .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
@@ -2703,9 +2714,17 @@ Page({
     const radiusRaw = detail.radius ?? null;
     const wgsList = Array.isArray(detail.wgs84Coordinates)
       ? detail.wgs84Coordinates
-        .map((item) => ({
+        .map((item, index) => ({
           latitude: normalizePinCoordValue(item.latitude),
-          longitude: normalizePinCoordValue(item.longitude)
+          longitude: normalizePinCoordValue(item.longitude),
+          altitude: normalizePinAltitude(
+            item.altitude ??
+            item.height ??
+            item.alt ??
+            coordinateList[index]?.altitude ??
+            coordinateList[index]?.height ??
+            coordinateList[index]?.alt
+          )
         }))
         .filter((item) => hasValidCoordinate(item.latitude, item.longitude))
       : [];
@@ -2716,9 +2735,15 @@ Page({
         normalizePinCoordValue(wgsFromPoint.longitude)
       )
     ) {
+      const activeAltitude =
+        coordinateList[activeCoordIndex]?.altitude ??
+        coordinateList[activeCoordIndex]?.height ??
+        coordinateList[activeCoordIndex]?.alt ??
+        null;
       wgsList.push({
         latitude: normalizePinCoordValue(wgsFromPoint.latitude),
-        longitude: normalizePinCoordValue(wgsFromPoint.longitude)
+        longitude: normalizePinCoordValue(wgsFromPoint.longitude),
+        altitude: normalizePinAltitude(activeAltitude)
       });
     }
     this.setData({
