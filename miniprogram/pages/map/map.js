@@ -690,22 +690,7 @@ Page({
   applyPinPreview(payload = {}) {
     if (!payload || !payload.shape) return;
     this.clearPinPreview();
-    const shape = payload.shape;
-    if (shape.type === "POINT") {
-      this._previewMarker = this.buildPinPreviewMarker(payload);
-    } else {
-      const zone = this.buildPinPreviewZone(shape);
-      if (zone) {
-        const graphics = buildNoFlyZoneGraphics([zone]);
-        this._previewPolygons = graphics.polygons || [];
-        this._previewCircles = graphics.circles || [];
-      }
-    }
-    this.updateOverlayGraphics();
-    if (this._previewMarker) {
-      this.syncAllMarkers();
-    }
-    const center = this.computePinPreviewCenter(shape, payload);
+    const center = this.computePinPreviewCenter(payload.shape, payload);
     if (center) {
       this.centerOnPoint(center, clampMapScale(payload.zoom || 16));
     }
@@ -762,9 +747,8 @@ Page({
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return null;
     }
-    const converted = wgs84ToGcj02(lng, lat);
-    const latitude = Number.isFinite(converted?.lat) ? converted.lat : lat;
-    const longitude = Number.isFinite(converted?.lng) ? converted.lng : lng;
+    const latitude = lat;
+    const longitude = lng;
     const category = `${payload.shape?.pointCategory || ""}`.toUpperCase();
     const ICON_MAP = {
       GENERAL: "/assets/default.png",
@@ -2664,7 +2648,8 @@ Page({
           name: pin.name,
           location: pin.location,
           shape: pin.shape,
-          height: pin.height
+          height: pin.height,
+          coordsAreGcj: true
         });
         if (marker) {
           marker.extData = Object.assign({}, marker.extData, {
@@ -3895,9 +3880,8 @@ Page({
     const radiusKm = this.computeMarkerRadiusKm({ region, scale });
     if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
 
-    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
-    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
+    const latitude = Number(center.latitude);
+    const longitude = Number(center.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
 
     const prev = this._lastNearbyPinFetch || {};
