@@ -32,7 +32,7 @@ const TYPE_SECTIONS = [
   {
     id: "LINE",
     label: "绘制线",
-    options: [{ id: "LINE_PATH_BUFFER", label: "临时禁飞区路径缓冲区", icon: "/assets/path.png" }]
+    options: [{ id: "LINE_PATH_BUFFER", label: "线状缓冲带", icon: "/assets/path.png" }]
   },
   {
     id: "AREA",
@@ -487,13 +487,13 @@ Page({
       bufferWidth && workingPoints.length >= 2 ? buildLineBufferPolygon(workingPoints, bufferWidth) : [];
     const polygons = polygonPoints.length
       ? [
-          {
-            points: polygonPoints,
-            fillColor: "#DE43294D",
-            strokeColor: "#DE4329F2",
-            strokeWidth: 1
-          }
-        ]
+        {
+          points: polygonPoints,
+          fillColor: "#DE43294D",
+          strokeColor: "#DE4329F2",
+          strokeWidth: 1
+        }
+      ]
       : [];
     this.setData({ polyline: lines, bufferPolygons: polygons, circles: [], markers: [] });
   },
@@ -758,8 +758,8 @@ Page({
       data.bufferWidth !== undefined && data.bufferWidth !== null
         ? `${data.bufferWidth}`
         : data.pathBufferWidth !== undefined && data.pathBufferWidth !== null
-        ? `${data.pathBufferWidth}`
-        : this.data.lineBufferInput;
+          ? `${data.pathBufferWidth}`
+          : this.data.lineBufferInput;
     const circleHasCenter =
       typeId === "AREA_CIRCLE" &&
       coordinateList.some((item) => hasValidCoordinate(normalizeCoord(item.latitude), normalizeCoord(item.longitude)));
@@ -772,10 +772,10 @@ Page({
           ? typeId === "AREA_RECTANGLE"
             ? coordinateList.length >= 2
             : typeId === "AREA_POLYGON"
-            ? coordinateList.length >= 3
-            : typeId === "AREA_CIRCLE"
-            ? coordinateList.length >= 1
-            : false
+              ? coordinateList.length >= 3
+              : typeId === "AREA_CIRCLE"
+                ? coordinateList.length >= 1
+                : false
           : false,
       circleAnchorLocked: circleHasCenter,
       rectangleClosed: typeId === "AREA_RECTANGLE" && coordinateList.length >= 2,
@@ -1598,10 +1598,10 @@ Page({
         }
       );
       return;
-    }    const rewriteIndex =
+    } const rewriteIndex =
       Number.isInteger(this.data.lineRewriteIndex) &&
-      this.data.lineRewriteIndex >= 0 &&
-      this.data.lineRewriteIndex < list.length
+        this.data.lineRewriteIndex >= 0 &&
+        this.data.lineRewriteIndex < list.length
         ? this.data.lineRewriteIndex
         : null;
     const nextIndex = rewriteIndex !== null ? rewriteIndex : list.length;
@@ -1645,20 +1645,20 @@ Page({
         }
       } else if (typeId === "AREA_RECTANGLE") {
         if (points.length < 2) {
-      this.showLineHint("请先确认左上角与右下角");
-      return;
-    }
-  } else if (typeId === "AREA_CIRCLE") {
-    if (!points.length) {
-      this.showLineHint("请确认圆心");
-      return;
-    }
-    const radius = this.parseCircleRadius();
-    if (!radius) {
-      this.showLineHint("请填写半径");
-      return;
-    }
-  }
+          this.showLineHint("请先确认左上角与右下角");
+          return;
+        }
+      } else if (typeId === "AREA_CIRCLE") {
+        if (!points.length) {
+          this.showLineHint("请确认圆心");
+          return;
+        }
+        const radius = this.parseCircleRadius();
+        if (!radius) {
+          this.showLineHint("请填写半径");
+          return;
+        }
+      }
       let polygonPoints = points;
       if (typeId === "AREA_RECTANGLE" && points.length >= 2) {
         polygonPoints = this.buildRectanglePoints(points);
@@ -1680,18 +1680,18 @@ Page({
       }
       wx.navigateBack({ delta: 1 });
       return;
-  }
-  if (!this.isLineCategory()) return;
-  const points = this.getConfirmedLinePoints();
-  if (points.length < 2) {
-    this.showLineHint("请绘制两个以上的点");
-    return;
-  }
-  const bufferWidth = this.parseBufferWidth();
-  if (!bufferWidth) {
-    this.showLineHint("沿边宽度请填写完整");
-    return;
-  }
+    }
+    if (!this.isLineCategory()) return;
+    const points = this.getConfirmedLinePoints();
+    if (points.length < 2) {
+      this.showLineHint("请绘制两个以上的点");
+      return;
+    }
+    const bufferWidth = this.parseBufferWidth();
+    if (!bufferWidth) {
+      this.showLineHint("沿边宽度请填写完整");
+      return;
+    }
     const wgs84Coordinates = points
       .map((pt) => {
         const wgs = gcj02ToWgs84(pt.longitude, pt.latitude);

@@ -8,6 +8,7 @@ const {
   incrementMarkerPhoneCall,
   searchMarkers,
 } = require("../../utils/markers");
+const { fetchNearbyPins } = require("../../utils/pins");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
@@ -505,7 +506,7 @@ Page({
     merchantMarkersEnabled: true,
     privateMarkersEnabled: false,
     groupSharingEnabled: false,
-    platformCoConstructionEnabled: false,
+    platformCoConstructionEnabled: true,
     mapElementOptions: [
       { id: "uom", label: "uom划分", enabled: true },
       { id: "dji", label: "大疆划分", enabled: true },
@@ -513,7 +514,7 @@ Page({
       { id: "service", label: "商户服务", enabled: true },
       { id: "private", label: "私有标记", enabled: false },
       { id: "group", label: "小组共享", enabled: false },
-      { id: "platform", label: "平台共建", enabled: false }
+      { id: "platform", label: "平台共建", enabled: true }
     ],
     mapLayerSettingsLoading: false,
     joinInvitePrompt: null,
@@ -529,6 +530,7 @@ Page({
     this._fetchTimer = null;
     this._mapLayerSettingsLoaded = false;
     this._markersFetchTimer = null;
+    this._pinsFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
     this._pendingRegionUpdates = 0;
@@ -584,6 +586,8 @@ Page({
     this._markerExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
+    this._activePinsRequest = null;
+    this._lastNearbyPinFetch = null;
     this._activeNoFlyRequest = null;
     this._lastNoFlyFetch = null;
     this._noFlyZonesReady = false;
@@ -592,6 +596,10 @@ Page({
     this._noFlyZoneShapes = [];
     this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
+    this._nearbyPinsRaw = [];
+    this._nearbyPinMarkers = [];
+    this._nearbyPinPolygons = [];
+    this._nearbyPinCircles = [];
     this._searchMarkers = [];
     this._lastMarkerDetail = null;
     this._markerDetailCloseTimer = null;
@@ -614,6 +622,11 @@ Page({
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
+      center: this.data.center,
+      scale: this.data.scale,
+      force: true
+    });
+    this.scheduleFetchPins(0, {
       center: this.data.center,
       scale: this.data.scale,
       force: true
@@ -710,8 +723,8 @@ Page({
     const type = `${shape.type || ""}`.toUpperCase();
     const coordinates = Array.isArray(shape.coordinates)
       ? shape.coordinates
-          .map((coord) => this.normalizePreviewCoordinate(coord))
-          .filter(Boolean)
+        .map((coord) => this.normalizePreviewCoordinate(coord))
+        .filter(Boolean)
       : [];
     if (!coordinates.length) return null;
     if (type === "CIRCLE") {
@@ -2297,6 +2310,10 @@ Page({
     const flagKey = flagMap[id];
     if (!flagKey) return;
     const nextValue = !this.data[flagKey];
+    const pinToggle =
+      flagKey === "privateMarkersEnabled" ||
+      flagKey === "groupSharingEnabled" ||
+      flagKey === "platformCoConstructionEnabled";
     const updates = { [flagKey]: nextValue };
     updates.mapElementOptions = this.composeMapElementOptions({
       uomDivisionEnabled: flagKey === "uomDivisionEnabled" ? nextValue : this.data.uomDivisionEnabled,
@@ -2329,6 +2346,9 @@ Page({
       if (flagKey === "merchantMarkersEnabled") {
         this.applyMerchantMarkersToggle(nextValue);
       }
+      if (pinToggle) {
+        this.applyPinLayerToggle(nextValue);
+      }
       this.persistMapLayerSettings();
     });
   },
@@ -2342,7 +2362,7 @@ Page({
         merchantMarkersEnabled: true,
         privateMarkersEnabled: false,
         groupSharingEnabled: false,
-        platformCoConstructionEnabled: false
+        platformCoConstructionEnabled: true
       },
       flags
     );
@@ -2410,6 +2430,21 @@ Page({
     this.scheduleFetchMarkers(0, { force: true });
   },
 
+  applyPinLayerToggle(forceFetch = false) {
+    this.rebuildNearbyPinGraphics();
+    if (!this.isPinLayerEnabled()) {
+      if (this._pinsFetchTimer) {
+        clearTimeout(this._pinsFetchTimer);
+        this._pinsFetchTimer = null;
+      }
+      this._lastNearbyPinFetch = null;
+      return;
+    }
+    if (forceFetch && this.isPinLayerEnabled()) {
+      this.scheduleFetchPins(0, { force: true });
+    }
+  },
+
   buildMapLayerSettingsPayload() {
     return {
       mapType: this.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
@@ -2465,6 +2500,7 @@ Page({
         this.applyUomOverlayToggle(uom);
         this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
         this.applyMerchantMarkersToggle(merchant);
+        this.applyPinLayerToggle(true);
       }
     );
   },
@@ -2600,6 +2636,62 @@ Page({
     this.syncAllMarkers();
   },
 
+  applyNearbyPins(list) {
+    this._nearbyPinsRaw = Array.isArray(list) ? list : [];
+    this.rebuildNearbyPinGraphics();
+  },
+
+  rebuildNearbyPinGraphics() {
+    if (!this.isPinLayerEnabled()) {
+      this._nearbyPinMarkers = [];
+      this._nearbyPinPolygons = [];
+      this._nearbyPinCircles = [];
+      this._lastNearbyPinFetch = null;
+      this.updateOverlayGraphics();
+      this.syncAllMarkers();
+      return;
+    }
+    const markers = [];
+    const polygons = [];
+    const circles = [];
+    const rawList = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
+    rawList.forEach((item, index) => {
+      const pin = this.normalizeNearbyPin(item);
+      if (!pin || !this.isPinVisibilityEnabled(pin.visibility)) return;
+      if (pin.shape.type === "POINT") {
+        const marker = this.buildPinPreviewMarker({
+          id: pin.id || `pin-${index}`,
+          name: pin.name,
+          location: pin.location,
+          shape: pin.shape,
+          height: pin.height
+        });
+        if (marker) {
+          marker.extData = Object.assign({}, marker.extData, {
+            source: "pin-nearby",
+            raw: item
+          });
+          markers.push(marker);
+        }
+        return;
+      }
+      const zone = this.buildPinPreviewZone(pin.shape);
+      if (!zone) return;
+      const graphics = buildNoFlyZoneGraphics([zone]);
+      if (Array.isArray(graphics.polygons)) {
+        polygons.push(...graphics.polygons);
+      }
+      if (Array.isArray(graphics.circles)) {
+        circles.push(...graphics.circles);
+      }
+    });
+    this._nearbyPinMarkers = markers;
+    this._nearbyPinPolygons = polygons;
+    this._nearbyPinCircles = circles;
+    this.updateOverlayGraphics();
+    this.syncAllMarkers();
+  },
+
   applySearchMarkers(markers) {
     this._searchMarkers = Array.isArray(markers)
       ? markers.map((marker) => {
@@ -2619,11 +2711,77 @@ Page({
       this.data.merchantMarkersEnabled !== false && Array.isArray(this._nearbyMarkers)
         ? this._nearbyMarkers
         : [];
+    const pinMarkers = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
-    const combined = manual.concat(nearby, search, preview);
+    const combined = manual.concat(pinMarkers, nearby, search, preview);
     this.setData({ markers: combined });
+  },
+
+  isPinLayerEnabled() {
+    return (
+      this.data.privateMarkersEnabled !== false ||
+      this.data.groupSharingEnabled !== false ||
+      this.data.platformCoConstructionEnabled !== false
+    );
+  },
+
+  isPinVisibilityEnabled(visibility) {
+    const vis = `${visibility || ""}`.toUpperCase();
+    if (vis === "PRIVATE") {
+      return this.data.privateMarkersEnabled !== false;
+    }
+    if (vis === "WORKGROUP" || vis === "GROUP" || vis === "TEAM") {
+      return this.data.groupSharingEnabled !== false;
+    }
+    return this.data.platformCoConstructionEnabled !== false;
+  },
+
+  normalizeNearbyPin(raw = {}) {
+    const shape = raw.shape || {};
+    const type = `${shape.type || ""}`.toUpperCase() || "POINT";
+    const coordinates = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+    const normalizedCoords = coordinates
+      .map((coord) => this.normalizePreviewCoordinate(coord))
+      .filter(Boolean);
+    if (!normalizedCoords.length) return null;
+    const name =
+      (typeof raw.name === "string" && raw.name) ||
+      (typeof raw.title === "string" && raw.title) ||
+      "";
+    const visibility = `${raw.visibility || raw.scope || ""}`.toUpperCase();
+    const heightCandidates = [
+      raw.height,
+      raw.altitude,
+      raw.shape?.height,
+      raw.shape?.altitude,
+      normalizedCoords[0]?.altitude
+    ];
+    let height = null;
+    for (const candidate of heightCandidates) {
+      const num = Number(candidate);
+      if (Number.isFinite(num)) {
+        height = num;
+        break;
+      }
+    }
+    const normalizedShape = {
+      type,
+      coordinates: normalizedCoords,
+      radius: Number(shape.radius ?? shape.radiusKm ?? shape.radiusInKilometers),
+      width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
+      pointCategory: shape.pointCategory || shape.pointcategory
+    };
+    return {
+      id: raw.id,
+      name,
+      visibility,
+      shape: normalizedShape,
+      location: normalizedCoords[0],
+      height,
+      raw
+    };
   },
 
   performSearch() {
@@ -3533,6 +3691,12 @@ Page({
             scale,
             force: !!forceRefresh
           });
+          this.scheduleFetchPins(forceRefresh ? 0 : 200, {
+            center: newCenter,
+            region,
+            scale,
+            force: !!forceRefresh
+          });
           this.scheduleFetchNoFlyZones(forceRefresh ? 0 : 200, {
             center: newCenter,
             region,
@@ -3585,6 +3749,12 @@ Page({
           );
           this.refreshWmsOverlay(newCenter, scale, detail?.region);
           this.scheduleFetchMarkers(0, {
+            center: newCenter,
+            region: detail?.region,
+            scale,
+            force: true
+          });
+          this.scheduleFetchPins(0, {
             center: newCenter,
             region: detail?.region,
             scale,
@@ -3649,6 +3819,18 @@ Page({
     return Math.max(0.1, Math.min(200, zoomFactor * 0.8));
   },
 
+  scheduleFetchPins(delay = 0, options = {}) {
+    if (!this.isPinLayerEnabled()) {
+      return;
+    }
+    if (this._pinsFetchTimer) clearTimeout(this._pinsFetchTimer);
+    const ms = Math.max(0, Number(delay) || 0);
+    this._pinsFetchTimer = setTimeout(() => {
+      this._pinsFetchTimer = null;
+      this.requestNearbyPins(options);
+    }, ms);
+  },
+
   scheduleFetchMarkers(delay = 0, options = {}) {
     if (this.data.merchantMarkersEnabled === false) return;
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
@@ -3676,6 +3858,96 @@ Page({
       this._fetchTimer = null;
       this.requestDjiZones(force);
     }, delay);
+  },
+
+  requestNearbyPins(options = {}) {
+    if (!this.isPinLayerEnabled()) {
+      if (this._pinsFetchTimer) {
+        clearTimeout(this._pinsFetchTimer);
+        this._pinsFetchTimer = null;
+      }
+      this._nearbyPinsRaw = [];
+      this._nearbyPinMarkers = [];
+      this._nearbyPinPolygons = [];
+      this._nearbyPinCircles = [];
+      this._lastNearbyPinFetch = null;
+      this.updateOverlayGraphics();
+      this.syncAllMarkers();
+      return;
+    }
+    const center = options?.center || this._centerOverride || this.data.center;
+    if (!center) return;
+    const scale = options?.scale || this.data.scale;
+    const region = options?.region || this._lastRegion;
+    const force = options.force === true;
+    if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
+      if (Array.isArray(this._nearbyPinsRaw) && this._nearbyPinsRaw.length) {
+        this._nearbyPinsRaw = [];
+        this._nearbyPinMarkers = [];
+        this._nearbyPinPolygons = [];
+        this._nearbyPinCircles = [];
+        this.updateOverlayGraphics();
+        this.syncAllMarkers();
+      }
+      this._lastNearbyPinFetch = null;
+      return;
+    }
+    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
+
+    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
+    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const prev = this._lastNearbyPinFetch || {};
+    const moveMeters = haversineMeters(
+      center.latitude,
+      center.longitude,
+      prev.latitude || 0,
+      prev.longitude || 0
+    );
+    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
+    const now = Date.now();
+    const prevTimestamp = Number(prev.timestamp) || 0;
+    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
+    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+      return;
+    }
+
+    const requestId = now;
+    this._activePinsRequest = requestId;
+
+    fetchNearbyPins(
+      {
+        latitude,
+        longitude,
+        radiusInKilometers: radiusKm
+      },
+      {
+        apiBase: this.getApiBase(),
+        token: this.getAuthToken()
+      }
+    )
+      .then((items = []) => {
+        if (this._activePinsRequest !== requestId) return;
+        this.applyNearbyPins(Array.isArray(items) ? items : []);
+        this._lastNearbyPinFetch = {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusKm,
+          scale: clampMapScale(scale),
+          timestamp: now
+        };
+      })
+      .catch((err) => {
+        console.warn("Fetch nearby pins failed", err);
+      })
+      .finally(() => {
+        if (this._activePinsRequest === requestId) {
+          this._activePinsRequest = null;
+        }
+      });
   },
 
   requestNearbyMarkers(options = {}) {
@@ -3929,6 +4201,12 @@ Page({
     }
     if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
       circles.push(...this._nfzCircles);
+    }
+    if (Array.isArray(this._nearbyPinPolygons)) {
+      polygons.push(...this._nearbyPinPolygons);
+    }
+    if (Array.isArray(this._nearbyPinCircles)) {
+      circles.push(...this._nearbyPinCircles);
     }
     if (Array.isArray(this._previewPolygons)) {
       polygons.push(...this._previewPolygons);

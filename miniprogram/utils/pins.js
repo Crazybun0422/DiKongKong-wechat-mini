@@ -1,4 +1,4 @@
-const { authorizedRequest } = require("./profile");
+const { authorizedRequest, resolveApiBase, getAuthToken } = require("./profile");
 
 function appendQueryParams(path, query = {}) {
   if (!query || typeof query !== "object") {
@@ -133,6 +133,59 @@ function revokePin(pinId, options = {}) {
   return performPinAction(pinId, "/revoke", options);
 }
 
+function requestPinResource(options = {}) {
+  return new Promise((resolve, reject) => {
+    const base = resolveApiBase(options.apiBase);
+    if (!base) {
+      reject(new Error("missing-api-base"));
+      return;
+    }
+    const header = Object.assign({ "content-type": "application/json" }, options.header || {});
+    const token = options.token || getAuthToken();
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
+    wx.request({
+      url: `${base}${options.path}`,
+      method: options.method || "GET",
+      data: options.data || null,
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data);
+        } else {
+          const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
+          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+        }
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
+function fetchNearbyPins(params = {}, options = {}) {
+  const query = [];
+  const latitude = Number(params.latitude);
+  const longitude = Number(params.longitude);
+  const radius = Number(params.radiusInKilometers);
+  if (Number.isFinite(latitude)) {
+    query.push(`latitude=${encodeURIComponent(latitude.toFixed(6))}`);
+  }
+  if (Number.isFinite(longitude)) {
+    query.push(`longitude=${encodeURIComponent(longitude.toFixed(6))}`);
+  }
+  if (Number.isFinite(radius) && radius >= 0) {
+    query.push(`radiusInKilometers=${encodeURIComponent(radius.toFixed(3))}`);
+  }
+  const qs = query.length ? `?${query.join("&")}` : "";
+  return requestPinResource({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/nearby${qs}`,
+    method: "GET"
+  }).then((body = {}) => body.data || []);
+}
+
 module.exports = {
   listMyPins,
   createPin,
@@ -140,5 +193,6 @@ module.exports = {
   deletePin,
   updatePinGroups,
   publishPin,
-  revokePin
+  revokePin,
+  fetchNearbyPins
 };
