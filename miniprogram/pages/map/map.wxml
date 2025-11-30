@@ -132,8 +132,8 @@
                     data-index="{{index}}"
                     bindtap="onSuggestionTap"
                   >
-                    <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : ''}}">
-                      {{item.source === 'marker' ? (item.title || '') + '（低空星球）' : item.title}}
+                    <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : (item.source === 'pin' ? 'suggest-title-pin' : '')}}">
+                      {{item.source === 'marker' || item.source === 'pin' ? (item.title || '') + '（低空星球）' : item.title}}
                     </text>
                     <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
                   </view>
@@ -288,6 +288,9 @@
         </view>
         <view class="marker-detail-gesture-hint" wx:if="{{markerDetailAllowExpand}}">
           <text class="marker-detail-gesture-text">上滑查看详情</text>
+        </view>
+        <view class="marker-detail-creator" wx:if="{{detailCard.creatorName}}">
+          @{{detailCard.creatorName}}
         </view>
       </view>
     </block>
@@ -482,6 +485,9 @@
           </button>
         </block>
         <view class="marker-page-close-hint">下滑关闭详情</view>
+        <view class="marker-detail-creator marker-detail-creator--page" wx:if="{{markerPageDetail.creatorName}}">
+          @{{markerPageDetail.creatorName}}
+        </view>
       </view>
     </block>
 

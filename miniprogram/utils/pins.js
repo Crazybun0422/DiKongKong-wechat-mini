@@ -186,6 +186,26 @@ function fetchNearbyPins(params = {}, options = {}) {
   }).then((body = {}) => body.data || []);
 }
 
+function searchPins(keyword, options = {}) {
+  const text = typeof keyword === "string" ? keyword.trim() : "";
+  if (!text) {
+    return Promise.resolve([]);
+  }
+  const query = [`keyword=${encodeURIComponent(text)}`];
+  const limit = Number(options.limit);
+  if (Number.isFinite(limit) && limit > 0) {
+    const safeLimit = Math.max(1, Math.min(Math.floor(limit), 50));
+    query.push(`limit=${safeLimit}`);
+  }
+  const qs = query.length ? `?${query.join("&")}` : "";
+  return requestPinResource({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/search${qs}`,
+    method: "GET"
+  }).then((body = {}) => body.data || []);
+}
+
 module.exports = {
   listMyPins,
   createPin,
@@ -194,5 +214,6 @@ module.exports = {
   updatePinGroups,
   publishPin,
   revokePin,
+  searchPins,
   fetchNearbyPins
 };

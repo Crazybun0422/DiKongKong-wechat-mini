@@ -7,9 +7,9 @@ const {
   incrementMarkerExposure,
   incrementMarkerPhoneCall,
   searchMarkers,
+  buildFileDownloadUrl
 } = require("../../utils/markers");
-const { buildFileDownloadUrl } = require("../../utils/markers");
-const { fetchNearbyPins } = require("../../utils/pins");
+const { fetchNearbyPins, searchPins } = require("../../utils/pins");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
@@ -684,9 +684,11 @@ Page({
     if (markerId === undefined || markerId === null) return null;
     const markerIdStr = `${markerId}`;
     const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const nearbyPins = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const preview = this._previewMarker ? [this._previewMarker] : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const combined = manual.concat(nearby, search);
+    const combined = manual.concat(nearbyPins, nearby, search, preview);
     for (const marker of combined) {
       if ((marker?.id || marker?.id === 0) && `${marker.id}` === markerIdStr) {
         return marker;
@@ -740,6 +742,7 @@ Page({
     const primary = coords[0] || rawPin.location || {};
     const apiBase = this.getApiBase();
 
+    console.log("buildPinDetailFromPin coords", coords, primary);
     const normalized = this.normalizeMarkerDetail(rawPin);
     const rawImages = Array.isArray(rawPin.images)
       ? rawPin.images
@@ -751,18 +754,33 @@ Page({
       }))
       .filter((img) => !!img.url);
     console.log("buildPinDetailFromPin", rawPin, primary, images);
-    return {
+    const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
+    const heightDisplay =
+      Number.isFinite(normalized.height) && normalized.height > 0 ? `${Math.round(normalized.height)}m` : "";
+    const nameBase = normalized.name || rawPin.name || rawPin.title || "自定义标记";
+    const name =
+      pointCategory === "TALL_BUILDING" && heightDisplay ? `${nameBase}（${heightDisplay}）` : nameBase;
+    const detail = {
       id: rawPin.id || "",
       markerId: rawPin.id || "",
-      name: normalized.name || rawPin.name || rawPin.title || "自定义标记",
+      name,
       locationText: normalized.locationText || rawPin.location?.text || rawPin.address || "",
       latitude: primary.latitude,
       longitude: primary.longitude,
       description: normalized.description || rawPin.description || "",
       images: images.length ? images : normalized.images || [],
+      creatorName: normalized.creatorName || rawPin.creatorName || "",
       raw: rawPin,
       source: "pin"
     };
+    if (
+      !detail.locationText &&
+      Number.isFinite(Number(detail.latitude)) &&
+      Number.isFinite(Number(detail.longitude))
+    ) {
+      this.lookupPinAddress(detail);
+    }
+    return detail;
   },
 
   ensurePinAddress(detail) {
@@ -771,20 +789,10 @@ Page({
     const lat = Number(detail.latitude);
     const lng = Number(detail.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    reverseGeocode(lat, lng)
-      .then((res = {}) => {
-        if (!this.data.markerDetailVisible) return;
-        const address =
-          res.recommend ||
-          res.formatted_addresses?.recommend ||
-          res.address ||
-          res.formatted_address ||
-          res.title ||
-          "";
+    this.requestPinAddress(lat, lng)
+      .then((address) => {
         if (address) {
-          this.setData({
-            "detailCard.locationText": address
-          });
+          this.applyPinAddress(detail.markerId || detail.id, address);
         }
       })
       .catch((err) => {
@@ -924,13 +932,88 @@ Page({
     if (Array.isArray(entry) && entry.length >= 2) {
       const lng = Number(entry[0]);
       const lat = Number(entry[1]);
+      const alt = Number(entry[2]);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      return { latitude: lat, longitude: lng };
+      const coord = { latitude: lat, longitude: lng };
+      if (Number.isFinite(alt)) coord.altitude = alt;
+      return coord;
     }
     const lat = Number(entry.latitude ?? entry.lat);
     const lng = Number(entry.longitude ?? entry.lng);
+    const alt = Number(entry.altitude ?? entry.height ?? entry.alt);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    return { latitude: lat, longitude: lng };
+    const coord = { latitude: lat, longitude: lng };
+    if (Number.isFinite(alt)) coord.altitude = alt;
+    return coord;
+  },
+
+  lookupPinAddress(detail) {
+    const lat = Number(detail?.latitude);
+    const lng = Number(detail?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    this.requestPinAddress(lat, lng)
+      .then((address) => {
+        if (address) {
+          this.applyPinAddress(detail.markerId || detail.id, address);
+        }
+      })
+      .catch((err) => console.warn("lookupPinAddress failed", err));
+  },
+
+  extractAddressFromGeocode(res = {}) {
+    return (
+      res.recommend ||
+      res.formatted_addresses?.recommend ||
+      res.address ||
+      res.formatted_address ||
+      res.title ||
+      ""
+    );
+  },
+
+  requestPinAddress(lat, lng) {
+    const attemptReverse = (latitude, longitude) =>
+      reverseGeocode(latitude, longitude).then((res = {}) => this.extractAddressFromGeocode(res) || "");
+
+    const wgs = gcj02ToWgs84(lng, lat);
+    const hasWgs = Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng);
+
+    if (hasWgs) {
+      return attemptReverse(wgs.lat, wgs.lng).then((addr) => {
+        if (addr) return addr;
+        return attemptReverse(lat, lng);
+      });
+    }
+    return attemptReverse(lat, lng);
+  },
+
+  applyPinAddress(markerId, address) {
+    if (!address) return;
+    if (markerId && this.data.detailCard && (this.data.detailCard.markerId === markerId || this.data.detailCard.id === markerId)) {
+      this.setData({
+        "detailCard.locationText": address
+      });
+    }
+  },
+
+  fillPinSuggestionAddresses(suggestions = [], keywordSnapshot = "") {
+    const list = Array.isArray(suggestions) ? suggestions : [];
+    list.forEach((item, idx) => {
+      if (item.source !== "pin") return;
+      if (item.address) return;
+      const lat = Number(item.latitude);
+      const lng = Number(item.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      this.requestPinAddress(lat, lng)
+        .then((addr) => {
+          if (!addr) return;
+          if (keywordSnapshot !== this.data.keyword.trim()) return;
+          const patch = {};
+          patch[`searchSuggestions[${idx}].address`] = addr;
+          this.setData(patch);
+        })
+        .catch((err) => console.warn("pin suggest reverse geocode failed", err));
+    });
   },
 
   autoLoginOnLaunch() {
@@ -1385,17 +1468,25 @@ Page({
   onMarkerTap(event) {
     const markerId = event?.detail?.markerId;
     const marker = this.findMarkerById(markerId);
-    if (marker) {
-      this.openMarkerDetail(marker);
+    if (!marker) return;
+    const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
+    if (src.includes("pin")) {
+      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+      if (shapeType && shapeType !== "POINT") return;
     }
+    this.openMarkerDetail(marker);
   },
 
   onMarkerCalloutTap(event) {
     const markerId = event?.detail?.markerId;
     const marker = this.findMarkerById(markerId);
-    if (marker) {
-      this.openMarkerDetail(marker);
+    if (!marker) return;
+    const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
+    if (src.includes("pin")) {
+      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+      if (shapeType && shapeType !== "POINT") return;
     }
+    this.openMarkerDetail(marker);
   },
 
   closeMarkerDetail(immediate = false) {
@@ -3219,6 +3310,16 @@ Page({
         onError: (err) => console.warn("Marker search failed", err)
       }
     );
+    const pinPromise = settleWithValue(
+      searchPins(keyword, {
+        apiBase: this.getApiBase(),
+        limit: MAX_SEARCH_RESULTS
+      }),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Pin search failed", err)
+      }
+    );
     const placePromise = settleWithValue(
       locationArgs
         ? searchPlaces(keyword, locationArgs)
@@ -3228,8 +3329,8 @@ Page({
         onError: (err) => console.warn("Search failed", err)
       }
     );
-    Promise.all([markerPromise, placePromise])
-      .then(([markerResult, placeResult]) => {
+    Promise.all([markerPromise, pinPromise, placePromise])
+      .then(([markerResult, pinResult, placeResult]) => {
         const markerPayloads = (markerResult.value || [])
           .map((item, index) =>
             this.createMarkerSearchPayload(item, {
@@ -3244,15 +3345,34 @@ Page({
             })
           )
           .filter(Boolean);
+        const pinPayloads = (pinResult.value || [])
+          .map((item, index) =>
+            this.createPinSearchPayload(item, {
+              fallbackId: `pin-search-${index}`
+            })
+          )
+          .filter(Boolean);
+        const pinMarkers = pinPayloads
+          .map((payload) =>
+            this.buildPinSearchMarker(payload, {
+              source: "pin-search"
+            })
+          )
+          .filter(Boolean);
+        const pinLimited = pinMarkers.slice(
+          0,
+          Math.max(0, MAX_SEARCH_RESULTS - markerMarkers.length)
+        );
+        const combined = markerMarkers.concat(pinLimited);
         const remainingSlots = Math.max(
           0,
-          MAX_SEARCH_RESULTS - markerMarkers.length
+          MAX_SEARCH_RESULTS - combined.length
         );
         const qqMarkers = (placeResult.value || [])
           .map((poi, index) => this.buildQqSearchMarker(poi, index))
           .filter(Boolean)
           .slice(0, remainingSlots);
-        const markers = markerMarkers.concat(qqMarkers);
+        const markers = combined.concat(qqMarkers);
         if (markers.length) {
           this.applySearchMarkers(markers);
           const points = markers.map((m) => ({
@@ -3326,6 +3446,16 @@ Page({
         onError: (err) => console.warn("Marker suggest search failed", err)
       }
     );
+    const pinPromise = settleWithValue(
+      searchPins(keyword, {
+        apiBase: this.getApiBase(),
+        limit: MAX_SEARCH_SUGGESTIONS
+      }),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Pin suggest search failed", err)
+      }
+    );
     const placePromise = settleWithValue(
       locationArgs
         ? searchPlaces(keyword, locationArgs)
@@ -3335,8 +3465,8 @@ Page({
         onError: (err) => console.warn("Suggest failed", err)
       }
     );
-    Promise.all([markerPromise, placePromise]).then(
-      ([markerResult, placeResult]) => {
+    Promise.all([markerPromise, pinPromise, placePromise]).then(
+      ([markerResult, pinResult, placeResult]) => {
         if (snapshot !== this.data.keyword.trim()) return;
         const markerPayloads = (markerResult.value || [])
           .map((item, index) =>
@@ -3349,15 +3479,26 @@ Page({
           .map((payload) => this.buildMarkerSuggestionFromPayload(payload))
           .filter(Boolean)
           .slice(0, MAX_SEARCH_SUGGESTIONS);
+        const pinPayloads = (pinResult.value || [])
+          .map((item, index) =>
+            this.createPinSearchPayload(item, {
+              fallbackId: `pin-suggest-${index}`
+            })
+          )
+          .filter(Boolean);
+        const pinSuggestions = pinPayloads
+          .map((payload) => this.buildPinSuggestionFromPayload(payload))
+          .filter(Boolean)
+          .slice(0, Math.max(0, MAX_SEARCH_SUGGESTIONS - markerSuggestions.length));
         const remainingSlots = Math.max(
           0,
-          MAX_SEARCH_SUGGESTIONS - markerSuggestions.length
+          MAX_SEARCH_SUGGESTIONS - markerSuggestions.length - pinSuggestions.length
         );
         const qqSuggestions = (placeResult.value || [])
           .map((poi, index) => this.buildQqSuggestion(poi, index))
           .filter(Boolean)
           .slice(0, remainingSlots);
-        const suggestions = markerSuggestions.concat(qqSuggestions);
+        const suggestions = markerSuggestions.concat(pinSuggestions, qqSuggestions);
         const noResults = !suggestions.length;
         const nextError = noResults
           ? markerResult.ok && placeResult.ok
@@ -3369,6 +3510,7 @@ Page({
           searchSuggestLoading: false,
           searchSuggestError: nextError
         });
+        this.fillPinSuggestionAddresses(suggestions, snapshot);
       }
     );
   },
@@ -3378,11 +3520,25 @@ Page({
     const suggestion = this.data.searchSuggestions?.[idx];
     if (!suggestion) return;
     let marker = null;
-    if (suggestion.source === "marker" && suggestion.markerPayload) {
-      marker = this.buildMarkerFromSearchPayload(suggestion.markerPayload, {
-        source: "marker-search"
-      });
-    } else if (suggestion.source === "qqmap" && suggestion.rawPoi) {
+    if (suggestion.source === "marker" || suggestion.source === "pin") {
+      if (
+        Number.isFinite(suggestion.latitude) &&
+        Number.isFinite(suggestion.longitude)
+      ) {
+        this.setData({
+          keyword: suggestion.title,
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: ""
+        });
+        this.centerOnPoint(
+          { latitude: suggestion.latitude, longitude: suggestion.longitude },
+          15
+        );
+      }
+      return;
+    }
+    if (suggestion.source === "qqmap" && suggestion.rawPoi) {
       marker = this.buildQqSearchMarker(suggestion.rawPoi, idx);
     }
     if (!marker) {
@@ -3603,6 +3759,14 @@ Page({
     if (!detail.markerId) {
       detail.markerId = detail.id || "";
     }
+    if (!detail.creatorName) {
+      detail.creatorName =
+        overrides.creatorName ||
+        raw?.creatorName ||
+        marker?.creatorName ||
+        normalized.creatorName ||
+        "";
+    }
     if (source) {
       detail.source = source;
     }
@@ -3669,6 +3833,26 @@ Page({
       source: "marker",
       markerId: payload.markerId,
       markerPayload: payload
+    };
+  },
+
+  buildPinSuggestionFromPayload(payload) {
+    if (!payload) return null;
+    if (
+      !Number.isFinite(payload.latitude) ||
+      !Number.isFinite(payload.longitude)
+    ) {
+      return null;
+    }
+    const title = payload.name || payload.locationText || "低空星球标记";
+    return {
+      id: payload.id || `pin-result-${Date.now()}`,
+      title,
+      address: payload.locationText || "",
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      source: "pin",
+      pinPayload: payload
     };
   },
 
@@ -3791,6 +3975,74 @@ Page({
     return this.composeMarkerDetail(raw, marker, {
       source: marker?.extData?.source
     });
+  },
+
+  createPinSearchPayload(raw = {}, options = {}) {
+    if (!raw || typeof raw !== "object") {
+      return null;
+    }
+    const detail = this.composeMarkerDetail(raw, {}, {
+      source: options.source || "pin-search",
+      id: raw.id,
+      name: raw.name || raw.title,
+      locationText: raw.location?.text || raw.address
+    });
+    const coords = Array.isArray(raw?.shape?.coordinates) ? raw.shape.coordinates : [];
+    const primary =
+      coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
+      detail ||
+      {};
+    const latitude = Number(primary.latitude);
+    const longitude = Number(primary.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const markerId =
+      detail.markerId ||
+      detail.id ||
+      options.fallbackId ||
+      `pin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      id: markerId,
+      latitude,
+      longitude,
+      name: detail.name || "",
+      locationText: detail.locationText || "",
+      detail: detail,
+      raw
+    };
+  },
+
+  buildPinSearchMarker(payload = {}, options = {}) {
+    if (!payload) return null;
+    console.log("buildPinSearchMarker", payload);
+    const marker = {
+      id: payload.id || `pin-${Date.now()}`,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      title: payload.name,
+      iconPath: "/assets/default.png",
+      width: 32,
+      height: 32
+    };
+    const calloutContent = formatNearbyMarkerLabel(payload.name || "");
+    if (calloutContent) {
+      marker.callout = {
+        content: `${calloutContent}（低空星球）`,
+        color: "#14532d",
+        fontSize: 14,
+        fontWeight: "bold",
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    marker.extData = {
+      source: options.source || "pin-search",
+      raw: payload.raw || {},
+      detail: cloneMarkerDetail(payload.detail || {})
+    };
+    return marker;
   },
 
   getAuthToken() {
@@ -4224,9 +4476,10 @@ Page({
     }
     if (this._pinsFetchTimer) clearTimeout(this._pinsFetchTimer);
     const ms = Math.max(0, Number(delay) || 0);
+    const merged = Object.assign({}, options, { force: options.force === true });
     this._pinsFetchTimer = setTimeout(() => {
       this._pinsFetchTimer = null;
-      this.requestNearbyPins(options);
+      this.requestNearbyPins(merged);
     }, ms);
   },
 
@@ -4280,7 +4533,7 @@ Page({
     const scale = options?.scale || this.data.scale;
     const region = options?.region || this._lastRegion;
     const force = options.force === true;
-    if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
+    if (!force && !this.shouldFetchNearbyMarkers(scale, center.latitude)) {
       if (Array.isArray(this._nearbyPinsRaw) && this._nearbyPinsRaw.length) {
         this._nearbyPinsRaw = [];
         this._nearbyPinMarkers = [];

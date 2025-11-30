@@ -596,6 +596,10 @@ button.search-btn::after {
   color: #22c55e;
 }
 
+.suggest-title-pin {
+  color: #16a34a;
+}
+
 .suggest-address {
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.7);
@@ -1260,6 +1264,14 @@ button.layer-button::after,
   letter-spacing: 2rpx;
 }
 
+.marker-detail-creator {
+  margin-top: 10rpx;
+  padding-bottom: 14rpx;
+  text-align: center;
+  font-size: 22rpx;
+  color: rgba(0, 0, 0, 0.35);
+}
+
 @keyframes marker-detail-slide-up {
   0% {
     transform: translateY(120rpx);
@@ -1644,7 +1656,7 @@ button.layer-button::after,
 .marker-page-close-hint {
   position: fixed;
   left: 50%;
-  bottom: calc(32rpx + env(safe-area-inset-bottom));
+  bottom: calc(64rpx + env(safe-area-inset-bottom));
   z-index: 3;
   padding: 0;
   background: transparent;
@@ -1655,6 +1667,18 @@ button.layer-button::after,
   transform: translateX(-50%);
   box-shadow: none;
   border-radius: 0;
+  pointer-events: none;
+}
+
+.marker-detail-creator--page {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24rpx + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 22rpx;
+  color: #dfe4ea;
+  z-index: 3;
   pointer-events: none;
 }
 
