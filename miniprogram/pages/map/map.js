@@ -417,9 +417,11 @@ const extractInviteCodeFromOptions = (options = {}) => {
 const formatLikeCountDisplay = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) return "0";
-  const text = `${Math.floor(num)}`;
-  if (text.length > 5) return `${text.slice(0, 5)}...`;
-  return text;
+  if (num >= 1000) {
+    const k = num / 1000;
+    return `${Math.round(k * 10) / 10}k`;
+  }
+  return `${Math.floor(num)}`;
 };
 
 const extractWorkGroupInvite = (options = {}) => {
@@ -497,6 +499,8 @@ Page({
     markerDetailAllowExpand: true,
     markerDetailCurrentImage: 0,
     markerLikeAnimating: false,
+    markerLikeHoldLabel: "",
+    markerLikeLabelType: "",
     markerLikeCount: 0,
     markerLiked: false,
     markerLikeTargetType: "",
@@ -512,6 +516,8 @@ Page({
     markerPageLikeTargetId: "",
     markerPageLikeCountDisplay: "",
     markerPageLikeAnimating: false,
+    markerPageLikeHoldLabel: "",
+    markerPageLikeLabelType: "",
     markerPageLikeCount: 0,
     markerPageLiked: false,
     markerPageLikeTargetType: "",
@@ -645,6 +651,8 @@ Page({
     this._previewCircles = [];
     this._previewMarker = null;
     this._lastKnownLocation = null;
+    this._likeHoldTimers = { marker: null, markerPage: null };
+    this._likeHoldFired = { marker: false, markerPage: false };
     this.captureInviteCode(options);
     this.handleWorkGroupInviteOptions(options);
     this.initializeShareLaunch(options);
@@ -727,31 +735,32 @@ Page({
   },
 
   buildPinDetailFromPin(pin = {}) {
-    const coords = Array.isArray(pin.shape?.coordinates) ? pin.shape.coordinates : [];
-    const primary = coords[0] || pin.location || {};
+    const rawPin = pin.raw || pin;
+    const coords = Array.isArray(rawPin.shape?.coordinates) ? rawPin.shape.coordinates : [];
+    const primary = coords[0] || rawPin.location || {};
     const apiBase = this.getApiBase();
 
-    const rawImages = Array.isArray(pin.raw?.images)
-      ? pin.raw.images
-      : Array.isArray(pin.images)
-        ? pin.images
-        : [];
+    const normalized = this.normalizeMarkerDetail(rawPin);
+    const rawImages = Array.isArray(rawPin.images)
+      ? rawPin.images
+      : [];
     const images = rawImages
       .map((img, idx) => ({
         url: buildFileDownloadUrl(img, { apiBase }),
-        id: `${pin.id || "pin"}-image-${idx}`
+        id: `${rawPin.id || "pin"}-image-${idx}`
       }))
       .filter((img) => !!img.url);
-    console.log("buildPinDetailFromPin", pin, primary, images);
+    console.log("buildPinDetailFromPin", rawPin, primary, images);
     return {
-      id: pin.id || "",
-      markerId: pin.id || "",
-      name: pin.name || pin.title || "自定义标记",
-      locationText: pin.location?.text || pin.address || "",
+      id: rawPin.id || "",
+      markerId: rawPin.id || "",
+      name: normalized.name || rawPin.name || rawPin.title || "自定义标记",
+      locationText: normalized.locationText || rawPin.location?.text || rawPin.address || "",
       latitude: primary.latitude,
       longitude: primary.longitude,
-      images,
-      raw: pin,
+      description: normalized.description || rawPin.description || "",
+      images: images.length ? images : normalized.images || [],
+      raw: rawPin,
       source: "pin"
     };
   },
@@ -1364,7 +1373,7 @@ Page({
       markerDetailClosing: false,
       markerDetailExpanding: false,
       detailCard: viewDetail,
-      markerDetailAllowExpand: !isPin,
+      markerDetailAllowExpand: true,
       markerDetailCurrentImage: 0
     });
     this.loadMarkerLikeInfo({ detail: viewDetail, target: marker });
@@ -1430,7 +1439,6 @@ Page({
   },
 
   onMarkerDetailMoreTap() {
-    if (this.data.detailCard?.source === "pin") return;
     this.triggerMarkerDetailExpand();
   },
 
@@ -2942,6 +2950,7 @@ Page({
       detail.id ||
       marker?.id ||
       detail.raw?.id ||
+      marker?.extData?.raw?.id ||
       marker?.extData?.detail?.markerId ||
       marker?.extData?.detail?.id ||
       ""
@@ -3010,8 +3019,26 @@ Page({
       });
   },
 
-  onMarkerLikeTap(e) {
-    const forPage = !!e?.currentTarget?.dataset?.page;
+  cancelLikeHold(prefix, resetAnim = true) {
+    if (this._likeHoldTimers && this._likeHoldTimers[prefix]) {
+      clearTimeout(this._likeHoldTimers[prefix]);
+      this._likeHoldTimers[prefix] = null;
+    }
+    if (this._likeHoldFired) {
+      this._likeHoldFired[prefix] = false;
+    }
+    if (resetAnim) {
+      const updates = {};
+      updates[`${prefix}LikeAnimating`] = false;
+      updates[`${prefix}LikeHoldLabel`] = "";
+      updates[`${prefix}LikeLabelType`] = "";
+      this.setData(updates);
+    }
+  },
+
+  onMarkerLikeTouchStart(e) {
+    const pageFlag = e?.currentTarget?.dataset?.page;
+    const forPage = pageFlag === true || pageFlag === "true";
     const prefix = forPage ? "markerPage" : "marker";
     const type = this.data[`${prefix}LikeTargetType`];
     const id = this.data[`${prefix}LikeTargetId`];
@@ -3019,44 +3046,73 @@ Page({
       wx.showToast({ title: "无法点赞", icon: "none" });
       return;
     }
+    this.cancelLikeHold(prefix, false);
+    const updates = {};
+    updates[`${prefix}LikeAnimating`] = true;
+    updates[`${prefix}LikeHoldLabel`] = "长按点赞/取消赞";
+    updates[`${prefix}LikeLabelType`] = "hint";
+    this.setData(updates);
+    this._likeHoldFired[prefix] = false;
     const liked = this.data[`${prefix}Liked`];
     const currentCount = Number(this.data[`${prefix}LikeCount`]) || 0;
     const apiBase = this.getApiBase();
-    this.setData({ [`${prefix}LikeAnimating`]: true });
-    setTimeout(() => {
-      this.setData({ [`${prefix}LikeAnimating`]: false });
-    }, 240);
     const doToggle = () =>
       liked
         ? unlike(type, id, { apiBase, token: this.getAuthToken() })
         : like(type, id, { apiBase, token: this.getAuthToken() });
-    doToggle()
-      .catch((err) => {
-        if (err?.message === "missing-token") {
-          return this.ensureAccessToken().then(() => doToggle());
-        }
-        throw err;
-      })
-      .then(() => {
-        const delta = liked ? -1 : 1;
-        const nextCount = Math.max(0, currentCount + delta);
-        this.applyLikeState(prefix, {
-          count: nextCount,
-          liked: !liked,
-          type,
-          id
+    this._likeHoldTimers[prefix] = setTimeout(() => {
+      this._likeHoldFired[prefix] = true;
+      doToggle()
+        .catch((err) => {
+          if (err?.message === "missing-token") {
+            return this.ensureAccessToken().then(() => doToggle());
+          }
+          throw err;
+        })
+        .then(() => {
+          const delta = liked ? -1 : 1;
+          const nextCount = Math.max(0, currentCount + delta);
+          this.applyLikeState(prefix, {
+            count: nextCount,
+            liked: !liked,
+            type,
+            id
+          });
+          const label = liked ? "取消赞" : "点赞+1";
+          const labelKey = `${prefix}LikeHoldLabel`;
+          const typeKey = `${prefix}LikeLabelType`;
+          this.setData({ [labelKey]: label, [typeKey]: "result" });
+          setTimeout(() => {
+            const hide = {};
+            hide[labelKey] = "";
+            hide[typeKey] = "";
+            this.setData(hide);
+          }, 900);
+        })
+        .catch((err) => {
+          console.warn("like toggle failed", err);
+        })
+        .finally(() => {
+          const done = {};
+          done[`${prefix}LikeAnimating`] = false;
+          this.setData(done);
+          this._likeHoldTimers[prefix] = null;
         });
-      })
-      .catch((err) => {
-        console.warn("like toggle failed", err);
-        wx.showToast({ title: err?.message || "操作失败", icon: "none" });
-      });
+    }, 1000);
+  },
+
+  onMarkerLikeTouchEnd(e) {
+    const pageFlag = e?.currentTarget?.dataset?.page;
+    const forPage = pageFlag === true || pageFlag === "true";
+    const prefix = forPage ? "markerPage" : "marker";
+    if (!this._likeHoldFired[prefix]) {
+      this.cancelLikeHold(prefix, true);
+    }
   },
 
   onLikeCountTap(e) {
     const count = Number(e?.currentTarget?.dataset?.count);
     if (!Number.isFinite(count)) return;
-    wx.showToast({ title: `${Math.max(0, Math.floor(count))}`, icon: "none" });
   },
 
 

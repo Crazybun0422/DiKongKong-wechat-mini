@@ -222,15 +222,27 @@
       <view class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}" bindtap="onMarkerDetailMaskTap"></view>
       <view
         class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
-        catchtouchstart="onMarkerDetailTouchStart"
-        catchtouchmove="onMarkerDetailTouchMove"
-        catchtouchend="onMarkerDetailTouchEnd"
-        catchtouchcancel="onMarkerDetailTouchCancel"
+        bindtouchstart="onMarkerDetailTouchStart"
+        bindtouchmove="onMarkerDetailTouchMove"
+        bindtouchend="onMarkerDetailTouchEnd"
+        bindtouchcancel="onMarkerDetailTouchCancel"
       >
-        <view class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}" bindtap="onMarkerLikeTap" data-page="{{false}}">
+        <view
+          class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}"
+          bindtouchstart="onMarkerLikeTouchStart"
+          bindtouchend="onMarkerLikeTouchEnd"
+          bindtouchcancel="onMarkerLikeTouchEnd"
+          data-page="{{false}}"
+        >
+          <view
+            class="like-badge-label {{markerLikeLabelType === 'hint' ? 'like-badge-label--hint' : (markerLikeLabelType === 'result' ? 'like-badge-label--result' : '')}}"
+            wx:if="{{markerLikeHoldLabel}}"
+          >
+            {{markerLikeHoldLabel}}
+          </view>
           <image
             class="like-badge-icon"
-            src="{{markerLiked ? '/assets/unlike.png' : '/assets/like.png'}}"
+            src="{{markerLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
             mode="widthFix"
           />
           <text
@@ -287,7 +299,19 @@
     <block wx:if="{{markerPageVisible}}">
       <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
         <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
-        <view class="like-badge like-badge--page {{markerPageLikeAnimating ? 'is-anim' : ''}}" bindtap="onMarkerLikeTap" data-page="{{true}}">
+        <view
+          class="like-badge like-badge--page {{markerPageLikeAnimating ? 'is-anim' : ''}}"
+          bindtouchstart="onMarkerLikeTouchStart"
+          bindtouchend="onMarkerLikeTouchEnd"
+          bindtouchcancel="onMarkerLikeTouchEnd"
+          data-page="{{true}}"
+        >
+          <view
+            class="like-badge-label {{markerPageLikeLabelType === 'hint' ? 'like-badge-label--hint' : (markerPageLikeLabelType === 'result' ? 'like-badge-label--result' : '')}}"
+            wx:if="{{markerPageLikeHoldLabel}}"
+          >
+            {{markerPageLikeHoldLabel}}
+          </view>
           <image
             class="like-badge-icon"
             src="{{markerPageLiked ? '/assets/unlike.png' : '/assets/like.png'}}"
