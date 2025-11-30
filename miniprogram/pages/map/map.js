@@ -800,9 +800,8 @@ Page({
       ? location
       : coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude));
     if (target && hasValidCoordinate(target.latitude, target.longitude)) {
-      const converted = wgs84ToGcj02(Number(target.longitude), Number(target.latitude));
-      const latitude = Number.isFinite(converted?.lat) ? converted.lat : Number(target.latitude);
-      const longitude = Number.isFinite(converted?.lng) ? converted.lng : Number(target.longitude);
+      const latitude = Number(target.latitude);
+      const longitude = Number(target.longitude);
       if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
         return { latitude, longitude };
       }
@@ -814,9 +813,8 @@ Page({
       if (!normalized.length) return null;
       const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
       const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
-      const conv = wgs84ToGcj02(avgLng, avgLat);
-      const latitude = Number.isFinite(conv?.lat) ? conv.lat : avgLat;
-      const longitude = Number.isFinite(conv?.lng) ? conv.lng : avgLng;
+      const latitude = avgLat;
+      const longitude = avgLng;
       if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
         return { latitude, longitude };
       }
