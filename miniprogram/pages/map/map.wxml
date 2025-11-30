@@ -91,7 +91,13 @@
           <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
         </view>
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
-        <text class="center-pin-indicator" wx:if="{{centerPinTitle}}">{{centerPinTitle}}</text>
+        <text
+          class="center-pin-indicator"
+          wx:if="{{centerPinTitle}}"
+          bindtap="onCenterPinIndicatorTap"
+        >
+          {{centerPinTitle}}
+        </text>
 
         <view class="control-row">
           <view class="search-stack">
@@ -221,27 +227,58 @@
         catchtouchend="onMarkerDetailTouchEnd"
         catchtouchcancel="onMarkerDetailTouchCancel"
       >
+        <view class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}" bindtap="onMarkerLikeTap" data-page="{{false}}">
+          <image
+            class="like-badge-icon"
+            src="{{markerLiked ? '/assets/unlike.png' : '/assets/like.png'}}"
+            mode="widthFix"
+          />
+          <text
+            class="like-badge-count"
+            data-count="{{markerLikeCount}}"
+            bindtap="onLikeCountTap"
+          >
+            {{markerLikeCountDisplay}}
+          </text>
+        </view>
         <view class="marker-detail-handle"></view>
         <view class="marker-detail-header">
           <view class="marker-detail-info">
-            <text class="marker-detail-name">{{markerDetail.name || '未命名商户'}}</text>
+            <text class="marker-detail-name">{{detailCard.name || '未命名商户'}}</text>
             <text
               class="marker-detail-location"
-              wx:if="{{markerDetail.locationText}}"
+              wx:if="{{detailCard.locationText}}"
             >
-              {{markerDetail.locationText}}
+              {{detailCard.locationText}}
             </text>
           </view>
         </view>
         <view class="marker-detail-body">
-          <view class="marker-detail-cover" wx:if="{{markerDetail.images && markerDetail.images.length}}">
-            <image class="marker-detail-cover-image" src="{{markerDetail.images[0].url}}" mode="aspectFill" />
-          </view>
+          <block wx:if="{{detailCard.images && detailCard.images.length}}">
+            <swiper
+              class="marker-detail-swiper"
+              autoplay="{{false}}"
+              circular="{{true}}"
+              bindchange="onMarkerDetailSwiperChange"
+              current="{{markerDetailCurrentImage}}"
+            >
+              <block wx:for="{{detailCard.images}}" wx:key="id">
+                <swiper-item>
+                  <image class="marker-detail-swiper-image" src="{{item.url}}" mode="aspectFill" />
+                </swiper-item>
+              </block>
+            </swiper>
+            <view class="marker-detail-swiper-dots" wx:if="{{detailCard.images.length > 1}}">
+              <block wx:for="{{detailCard.images}}" wx:key="id">
+                <view class="marker-detail-swiper-dot {{index === markerDetailCurrentImage ? 'is-active' : ''}}"></view>
+              </block>
+            </view>
+          </block>
           <view class="marker-detail-cover marker-detail-cover--placeholder" wx:else>
-            <text class="marker-detail-cover-text">暂无商户图片</text>
+            <text class="marker-detail-cover-text">暂无图片</text>
           </view>
         </view>
-        <view class="marker-detail-gesture-hint">
+        <view class="marker-detail-gesture-hint" wx:if="{{markerDetailAllowExpand}}">
           <text class="marker-detail-gesture-text">上滑查看详情</text>
         </view>
       </view>
@@ -250,6 +287,20 @@
     <block wx:if="{{markerPageVisible}}">
       <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
         <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
+        <view class="like-badge like-badge--page {{markerPageLikeAnimating ? 'is-anim' : ''}}" bindtap="onMarkerLikeTap" data-page="{{true}}">
+          <image
+            class="like-badge-icon"
+            src="{{markerPageLiked ? '/assets/unlike.png' : '/assets/like.png'}}"
+            mode="widthFix"
+          />
+          <text
+            class="like-badge-count"
+            data-count="{{markerPageLikeCount}}"
+            bindtap="onLikeCountTap"
+          >
+            {{markerPageLikeCountDisplay}}
+          </text>
+        </view>
         <scroll-view
           scroll-y
           class="marker-page-scroll"

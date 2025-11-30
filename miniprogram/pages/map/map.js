@@ -8,10 +8,12 @@ const {
   incrementMarkerPhoneCall,
   searchMarkers,
 } = require("../../utils/markers");
+const { buildFileDownloadUrl } = require("../../utils/markers");
 const { fetchNearbyPins } = require("../../utils/pins");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
+const { reverseGeocode } = require("../../utils/geocoder");
 const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
@@ -33,6 +35,7 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode: getShareInviteCodeUtil
 } = require("../../utils/share");
+const { like, unlike, fetchLikeCount, fetchLikeStatus } = require("../../utils/likes");
 const { joinWorkGroup } = require("../../utils/workGroups");
 const {
   fetchMapLayerSettings,
@@ -411,6 +414,14 @@ const extractInviteCodeFromOptions = (options = {}) => {
   return "";
 };
 
+const formatLikeCountDisplay = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return "0";
+  const text = `${Math.floor(num)}`;
+  if (text.length > 5) return `${text.slice(0, 5)}...`;
+  return text;
+};
+
 const extractWorkGroupInvite = (options = {}) => {
   const readFromObject = (obj) => {
     if (!obj || typeof obj !== "object") return null;
@@ -480,13 +491,31 @@ Page({
     showDashboardPanel: true,
     activeTab: "home",
     markerDetailVisible: false,
-    markerDetail: null,
+    detailCard: null,
     markerDetailClosing: false,
     markerDetailExpanding: false,
+    markerDetailAllowExpand: true,
+    markerDetailCurrentImage: 0,
+    markerLikeAnimating: false,
+    markerLikeCount: 0,
+    markerLiked: false,
+    markerLikeTargetType: "",
+    markerLikeTargetId: "",
+    markerLikeCountDisplay: "",
     markerPageVisible: false,
     markerPageClosing: false,
     markerPageDetail: null,
     markerPageCurrentImage: 0,
+    markerPageLikeCount: 0,
+    markerPageLiked: false,
+    markerPageLikeTargetType: "",
+    markerPageLikeTargetId: "",
+    markerPageLikeCountDisplay: "",
+    markerPageLikeAnimating: false,
+    markerPageLikeCount: 0,
+    markerPageLiked: false,
+    markerPageLikeTargetType: "",
+    markerPageLikeTargetId: "",
     markerPageShareEnabled: true,
     markerPageDistanceText: "",
     callSheetVisible: false,
@@ -697,12 +726,70 @@ Page({
     }
   },
 
+  buildPinDetailFromPin(pin = {}) {
+    const coords = Array.isArray(pin.shape?.coordinates) ? pin.shape.coordinates : [];
+    const primary = coords[0] || pin.location || {};
+    const apiBase = this.getApiBase();
+
+    const rawImages = Array.isArray(pin.raw?.images)
+      ? pin.raw.images
+      : Array.isArray(pin.images)
+        ? pin.images
+        : [];
+    const images = rawImages
+      .map((img, idx) => ({
+        url: buildFileDownloadUrl(img, { apiBase }),
+        id: `${pin.id || "pin"}-image-${idx}`
+      }))
+      .filter((img) => !!img.url);
+    console.log("buildPinDetailFromPin", pin, primary, images);
+    return {
+      id: pin.id || "",
+      markerId: pin.id || "",
+      name: pin.name || pin.title || "自定义标记",
+      locationText: pin.location?.text || pin.address || "",
+      latitude: primary.latitude,
+      longitude: primary.longitude,
+      images,
+      raw: pin,
+      source: "pin"
+    };
+  },
+
+  ensurePinAddress(detail) {
+    if (!detail || detail.source !== "pin") return;
+    if (detail.locationText) return;
+    const lat = Number(detail.latitude);
+    const lng = Number(detail.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    reverseGeocode(lat, lng)
+      .then((res = {}) => {
+        if (!this.data.markerDetailVisible) return;
+        const address =
+          res.recommend ||
+          res.formatted_addresses?.recommend ||
+          res.address ||
+          res.formatted_address ||
+          res.title ||
+          "";
+        if (address) {
+          this.setData({
+            "detailCard.locationText": address
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("reverse geocode pin failed", err);
+      });
+  },
+
   clearPinPreview() {
     this._previewPolygons = [];
     this._previewCircles = [];
     this._previewMarker = null;
     this.updateOverlayGraphics();
     this.syncAllMarkers();
+    this.updateCenterPinIndicator();
   },
 
   buildPinPreviewZone(shape = {}) {
@@ -1250,7 +1337,11 @@ Page({
 
   openMarkerDetail(marker) {
     if (!marker) return;
-    const detail = this.resolveMarkerDetail(marker);
+    const isPin = (marker?.extData?.source || marker?.source || "").toLowerCase().includes("pin");
+    const pinRaw = marker?.extData?.raw || marker?.raw || null;
+    const pinDetail = isPin ? this.buildPinDetailFromPin(pinRaw || marker) : null;
+    const detail = pinDetail || this.resolveMarkerDetail(marker);
+    console.log("openMarkerDetail", marker, detail);
     if (!detail) {
       wx.showToast({ title: "未找到商户信息", icon: "none" });
       return;
@@ -1267,12 +1358,19 @@ Page({
       this._markerDetailExpandTimer = null;
     }
     this._markerDetailExpandLock = false;
+    console.log("Displaying marker detail", viewDetail);
     this.setData({
       markerDetailVisible: true,
       markerDetailClosing: false,
       markerDetailExpanding: false,
-      markerDetail: viewDetail
+      detailCard: viewDetail,
+      markerDetailAllowExpand: !isPin,
+      markerDetailCurrentImage: 0
     });
+    this.loadMarkerLikeInfo({ detail: viewDetail, target: marker });
+    if (isPin) {
+      this.ensurePinAddress(viewDetail);
+    }
   },
 
   onMarkerTap(event) {
@@ -1307,7 +1405,7 @@ Page({
         markerDetailVisible: false,
         markerDetailClosing: false,
         markerDetailExpanding: false,
-        markerDetail: null
+        detailCard: null
       });
       return;
     }
@@ -1318,7 +1416,7 @@ Page({
         markerDetailVisible: false,
         markerDetailClosing: false,
         markerDetailExpanding: false,
-        markerDetail: null
+        detailCard: null
       });
     }, 200);
   },
@@ -1332,11 +1430,12 @@ Page({
   },
 
   onMarkerDetailMoreTap() {
+    if (this.data.detailCard?.source === "pin") return;
     this.triggerMarkerDetailExpand();
   },
 
   triggerMarkerDetailExpand() {
-    const detail = this.data.markerDetail;
+    const detail = this.data.detailCard;
     if (!detail) return;
     if (this.data.markerDetailExpanding) return;
     if (this._markerDetailExpandLock) return;
@@ -1349,7 +1448,7 @@ Page({
     this._markerDetailExpandTimer = setTimeout(() => {
       this._markerDetailExpandTimer = null;
       this._markerDetailExpandLock = false;
-      const currentDetail = this.data.markerDetail || detail;
+      const currentDetail = this.data.detailCard || detail;
       if (!currentDetail) {
         this.setData({ markerDetailExpanding: false });
         return;
@@ -1362,6 +1461,7 @@ Page({
   },
 
   onMarkerDetailTouchStart(event) {
+    if (!this.data.markerDetailAllowExpand) return;
     const touch = event?.touches?.[0];
     if (!touch) return;
     this._markerDetailTouch = {
@@ -1373,6 +1473,7 @@ Page({
   },
 
   onMarkerDetailTouchMove(event) {
+    if (!this.data.markerDetailAllowExpand) return;
     if (!this._markerDetailTouch) return;
     const touch = event?.touches?.[0];
     if (!touch) return;
@@ -1382,6 +1483,7 @@ Page({
   },
 
   onMarkerDetailTouchEnd() {
+    if (!this.data.markerDetailAllowExpand) return;
     const info = this._markerDetailTouch;
     this._markerDetailTouch = null;
     if (!info) return;
@@ -1393,7 +1495,15 @@ Page({
   },
 
   onMarkerDetailTouchCancel() {
+    if (!this.data.markerDetailAllowExpand) return;
     this._markerDetailTouch = null;
+  },
+
+  onMarkerDetailSwiperChange(e) {
+    const idx = Number(e?.detail?.current);
+    if (Number.isFinite(idx)) {
+      this.setData({ markerDetailCurrentImage: idx });
+    }
   },
 
   makePhoneCall(phone, options = {}) {
@@ -1570,18 +1680,18 @@ Page({
 
   onMarkerDetailCallTap(event) {
     const dataset = event?.currentTarget?.dataset || {};
-    const phone = dataset.phone || this.data.markerDetail?.phone || "";
+    const phone = dataset.phone || this.data.detailCard?.phone || "";
     const markerId =
       dataset.markerId ||
-      this.data.markerDetail?.markerId ||
-      this.data.markerDetail?.id ||
+      this.data.detailCard?.markerId ||
+      this.data.detailCard?.id ||
       "";
-    const name = this.data.markerDetail?.name || "";
+    const name = this.data.detailCard?.name || "";
     this.openCallSheet({ phone, markerId, name });
   },
 
   onMarkerDetailNavigateTap(event) {
-    const detail = this.data.markerDetail;
+    const detail = this.data.detailCard;
     if (!detail) return;
     const dataset = event?.currentTarget?.dataset || {};
     this.openMarkerLocation(detail, dataset);
@@ -1609,6 +1719,7 @@ Page({
       markerPageShareEnabled: this.isDetailSharable(pageDetail),
       markerPageDistanceText: distanceText
     });
+    this.loadMarkerLikeInfo({ detail: pageDetail, target: detail, forPage: true });
     this._markerPageScrollTop = 0;
     this._markerPageTouch = null;
     this.closeMarkerDetail(true);
@@ -2622,6 +2733,7 @@ Page({
   applyNearbyPins(list) {
     this._nearbyPinsRaw = Array.isArray(list) ? list : [];
     this.rebuildNearbyPinGraphics();
+    this.updateCenterPinIndicator();
   },
 
   rebuildNearbyPinGraphics() {
@@ -2726,6 +2838,26 @@ Page({
     return null;
   },
 
+  onCenterPinIndicatorTap() {
+    const pin = this.findPinContainingPoint(this.data.center);
+    if (!pin) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    const detail = this.buildPinDetailFromPin(pin);
+    const marker = {
+      id: detail.id || `pin-${Date.now()}`,
+      latitude: detail.latitude,
+      longitude: detail.longitude,
+      extData: {
+        source: "pin",
+        raw: pin,
+        detail: cloneMarkerDetail(detail)
+      }
+    };
+    this.openMarkerDetail(marker);
+  },
+
   pinContainsPoint(pin = {}, point = {}) {
     if (!pin || !pin.shape || !Array.isArray(pin.shape.coordinates)) return false;
     const type = `${pin.shape.type || ""}`.toUpperCase();
@@ -2793,6 +2925,138 @@ Page({
     const px = ax + t * dx;
     const py = ay + t * dy;
     return Math.sqrt(px * px + py * py);
+  },
+
+  resolveLikeTargetType(target = {}) {
+    const source = (target?.extData?.source || target?.source || "").toLowerCase();
+    const raw = target?.extData?.raw || target.raw || {};
+    if (source.includes("pin") || raw.shape || (target?.shape && target.shape.coordinates)) {
+      return "PIN";
+    }
+    return "MARKER";
+  },
+
+  resolveLikeTargetId(detail = {}, marker = {}) {
+    return (
+      detail.markerId ||
+      detail.id ||
+      marker?.id ||
+      detail.raw?.id ||
+      marker?.extData?.detail?.markerId ||
+      marker?.extData?.detail?.id ||
+      ""
+    );
+  },
+
+  applyLikeState(prefix, payload = {}) {
+    const count = Number(payload.count);
+    const liked = !!payload.liked;
+    const type = payload.type || "";
+    const id = payload.id || "";
+    const updates = {};
+    updates[`${prefix}LikeCount`] = Number.isFinite(count) && count >= 0 ? count : 0;
+    updates[`${prefix}Liked`] = liked;
+    updates[`${prefix}LikeTargetType`] = type;
+    updates[`${prefix}LikeTargetId`] = id;
+    updates[`${prefix}LikeCountDisplay`] = formatLikeCountDisplay(updates[`${prefix}LikeCount`]);
+    this.setData(updates);
+  },
+
+  loadMarkerLikeInfo(options = {}) {
+    const detail = options.detail || {};
+    const marker = options.target || {};
+    const forPage = !!options.forPage;
+    const prefix = forPage ? "markerPage" : "marker";
+    const type = this.resolveLikeTargetType(marker || detail);
+    const id = this.resolveLikeTargetId(detail, marker);
+    if (!type || !id) {
+      this.applyLikeState(prefix, { count: 0, liked: false, type: "", id: "" });
+      return;
+    }
+    this.applyLikeState(prefix, { count: 0, liked: false, type, id });
+    const apiBase = this.getApiBase();
+    fetchLikeCount(type, id, { apiBase })
+      .then((data) => {
+        this.applyLikeState(prefix, {
+          count: data.likeCount || 0,
+          liked: this.data[`${prefix}Liked`],
+          type,
+          id
+        });
+      })
+      .catch((err) => {
+        console.warn("fetchLikeCount failed", err);
+      });
+    fetchLikeStatus(type, id, { apiBase, token: this.getAuthToken() })
+      .then((data) => {
+        this.applyLikeState(prefix, {
+          count: this.data[`${prefix}LikeCount`],
+          liked: !!data.liked,
+          type,
+          id
+        });
+      })
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          this.applyLikeState(prefix, {
+            count: this.data[`${prefix}LikeCount`],
+            liked: false,
+            type,
+            id
+          });
+          return;
+        }
+        console.warn("fetchLikeStatus failed", err);
+      });
+  },
+
+  onMarkerLikeTap(e) {
+    const forPage = !!e?.currentTarget?.dataset?.page;
+    const prefix = forPage ? "markerPage" : "marker";
+    const type = this.data[`${prefix}LikeTargetType`];
+    const id = this.data[`${prefix}LikeTargetId`];
+    if (!type || !id) {
+      wx.showToast({ title: "无法点赞", icon: "none" });
+      return;
+    }
+    const liked = this.data[`${prefix}Liked`];
+    const currentCount = Number(this.data[`${prefix}LikeCount`]) || 0;
+    const apiBase = this.getApiBase();
+    this.setData({ [`${prefix}LikeAnimating`]: true });
+    setTimeout(() => {
+      this.setData({ [`${prefix}LikeAnimating`]: false });
+    }, 240);
+    const doToggle = () =>
+      liked
+        ? unlike(type, id, { apiBase, token: this.getAuthToken() })
+        : like(type, id, { apiBase, token: this.getAuthToken() });
+    doToggle()
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          return this.ensureAccessToken().then(() => doToggle());
+        }
+        throw err;
+      })
+      .then(() => {
+        const delta = liked ? -1 : 1;
+        const nextCount = Math.max(0, currentCount + delta);
+        this.applyLikeState(prefix, {
+          count: nextCount,
+          liked: !liked,
+          type,
+          id
+        });
+      })
+      .catch((err) => {
+        console.warn("like toggle failed", err);
+        wx.showToast({ title: err?.message || "操作失败", icon: "none" });
+      });
+  },
+
+  onLikeCountTap(e) {
+    const count = Number(e?.currentTarget?.dataset?.count);
+    if (!Number.isFinite(count)) return;
+    wx.showToast({ title: `${Math.max(0, Math.floor(count))}`, icon: "none" });
   },
 
 
@@ -3952,6 +4216,7 @@ Page({
       this._lastNearbyPinFetch = null;
       this.updateOverlayGraphics();
       this.syncAllMarkers();
+      this.updateCenterPinIndicator();
       return;
     }
     const center = options?.center || this._centerOverride || this.data.center;
