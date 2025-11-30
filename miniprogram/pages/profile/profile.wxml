@@ -27,11 +27,11 @@
             </view>
           </button>
           <view class="profile-header-body" catchtap="onEditing">
-            <view class="profile-name-row">
-              <block wx:if="{{nicknameEditing}}">
-                <input
-                  class="profile-name-input"
-                  type="nickname"
+          <view class="profile-name-row">
+            <block wx:if="{{nicknameEditing}}">
+              <input
+                class="profile-name-input"
+                type="nickname"
                   value="{{nicknameInput}}"
                   bindinput="onNicknameInputChange"
                   bindconfirm="onNicknameInputConfirm"
@@ -46,6 +46,10 @@
                 <text class="profile-name" bindtap="startNicknameEdit">{{profile.nickname}}</text>
                 <text class="profile-name-edit" bindtap="startNicknameEdit">点击修改</text>
               </block>
+            </view>
+            <view class="profile-like-row">
+              <text class="profile-like-label">获赞数</text>
+              <text class="profile-like-value">{{likeSummary.total}}</text>
             </view>
             <view class="profile-code-row">
               <text class="profile-code-label">低空号</text>

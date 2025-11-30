@@ -9,6 +9,7 @@
   uploadAvatarFile,
   updateUserProfile
 } = require("../../utils/profile");
+const { fetchMyLikes } = require("../../utils/likes");
 
 Page({
   data: {
@@ -20,7 +21,25 @@ Page({
     customerServiceSessionFrom: "profile-customer-service",
     nicknameEditing: false,
     nicknameInput: "",
-    nicknameSaving: false
+    nicknameSaving: false,
+    likeSummary: { total: "--" }
+  },
+
+  loadLikeSummary() {
+    const apiBase = resolveApiBase();
+    fetchMyLikes({ apiBase })
+      .then((summary = {}) => {
+        const total = Number(summary.totalLikes);
+        const display =
+          Number.isFinite(total) && total >= 0
+            ? (total >= 1000 ? `${Math.round((total / 1000) * 10) / 10}k` : `${total}`)
+            : "--";
+        this.setData({ likeSummary: { total: display } });
+      })
+      .catch((err) => {
+        console.warn("loadLikeSummary failed", err);
+        this.setData({ likeSummary: { total: "--" } });
+      });
   },
 
   onLoad() {
@@ -37,6 +56,7 @@ Page({
       nicknameInput: normalized.nickname
     });
     this.reloadProfile();
+    this.loadLikeSummary();
   },
 
   onShow() {
@@ -90,11 +110,13 @@ Page({
         if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
           wx.stopPullDownRefresh();
         }
+        this.loadLikeSummary();
       });
   },
 
   onRetryTap() {
     this.reloadProfile();
+    this.loadLikeSummary();
   },
 
   onCopyFeatureCode() {

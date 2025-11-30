@@ -131,6 +131,24 @@ button.profile-avatar-button::after {
   margin-left: 8rpx;
 }
 
+.profile-like-row {
+  margin-top: 8rpx;
+  display: flex;
+  align-items: baseline;
+  gap: 8rpx;
+}
+
+.profile-like-label {
+  font-size: 22rpx;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.profile-like-value {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .profile-name-input {
   flex: 1;
   min-width: 40%;

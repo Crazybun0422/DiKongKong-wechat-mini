@@ -66,9 +66,23 @@ function fetchLikeStatus(targetType, targetId, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function fetchMyLikes(options = {}) {
+  const base = ensureBase(options);
+  if (!base) return Promise.reject(new Error("missing-api-base"));
+  const token = options.token || getAuthToken();
+  if (!token) return Promise.reject(new Error("missing-token"));
+  return authorizedRequest({
+    apiBase: base,
+    token,
+    path: "/api/likes/me",
+    method: "GET"
+  }).then((body = {}) => body.data || {});
+}
+
 module.exports = {
   like,
   unlike,
   fetchLikeCount,
-  fetchLikeStatus
+  fetchLikeStatus,
+  fetchMyLikes
 };
