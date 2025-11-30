@@ -9,7 +9,7 @@ const {
   searchMarkers,
   buildFileDownloadUrl
 } = require("../../utils/markers");
-const { fetchNearbyPins, searchPins } = require("../../utils/pins");
+const { fetchNearbyPins, searchPins, incrementPinExposure } = require("../../utils/pins");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
@@ -620,6 +620,7 @@ Page({
     }
     this.bootstrapMapLayerSettings(true);
     this._markerExposureCache = new Map();
+    this._pinExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
     this._activePinsRequest = null;
@@ -1709,6 +1710,18 @@ Page({
     });
   },
 
+  incrementPinExposureCount(pinId) {
+    if (!pinId) {
+      return;
+    }
+    incrementPinExposure(pinId, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    }).catch((err) => {
+      console.warn("Increment pin exposure failed", err);
+    });
+  },
+
   pruneMarkerExposureCache(now = Date.now()) {
     if (!this._markerExposureCache || typeof this._markerExposureCache.forEach !== "function") {
       return;
@@ -1721,6 +1734,20 @@ Page({
       }
     });
     staleKeys.forEach((key) => this._markerExposureCache.delete(key));
+  },
+
+  prunePinExposureCache(now = Date.now()) {
+    if (!this._pinExposureCache || typeof this._pinExposureCache.forEach !== "function") {
+      return;
+    }
+    const threshold = now - MARKER_EXPOSURE_CACHE_TTL;
+    const staleKeys = [];
+    this._pinExposureCache.forEach((timestamp, key) => {
+      if (!Number.isFinite(timestamp) || timestamp < threshold) {
+        staleKeys.push(key);
+      }
+    });
+    staleKeys.forEach((key) => this._pinExposureCache.delete(key));
   },
 
   trackMarkerExposure(markers) {
@@ -2833,6 +2860,7 @@ Page({
     this._nearbyPinsRaw = Array.isArray(list) ? list : [];
     this.rebuildNearbyPinGraphics();
     this.updateCenterPinIndicator();
+    this.trackPinExposure(this._nearbyPinMarkers);
   },
 
   rebuildNearbyPinGraphics() {
@@ -3974,6 +4002,38 @@ Page({
     const raw = (marker?.extData && marker.extData.raw) || marker;
     return this.composeMarkerDetail(raw, marker, {
       source: marker?.extData?.source
+    });
+  },
+
+  trackPinExposure(markers) {
+    if (!Array.isArray(markers) || !markers.length) {
+      return;
+    }
+    if (!this._pinExposureCache) {
+      this._pinExposureCache = new Map();
+    }
+    const now = Date.now();
+    this.prunePinExposureCache(now);
+    markers.forEach((marker) => {
+      const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
+      if (!src.includes("pin")) return;
+      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+      if (shapeType && shapeType !== "POINT") return;
+      const candidateId =
+        marker?.extData?.raw?.id ||
+        marker?.id ||
+        marker?.markerId ||
+        marker?.markerID ||
+        "";
+      const pinId = typeof candidateId === "string" ? candidateId.trim() : `${candidateId || ""}`.trim();
+      if (!pinId) return;
+      if (pinId.startsWith("nearby-")) return;
+      const last = this._pinExposureCache.get(pinId);
+      if (Number.isFinite(last) && now - last < MARKER_EXPOSURE_CACHE_TTL) {
+        return;
+      }
+      this._pinExposureCache.set(pinId, now);
+      this.incrementPinExposureCount(pinId);
     });
   },
 

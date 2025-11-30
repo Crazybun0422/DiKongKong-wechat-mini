@@ -206,6 +206,19 @@ function searchPins(keyword, options = {}) {
   }).then((body = {}) => body.data || []);
 }
 
+function incrementPinExposure(pinId, options = {}) {
+  const id = `${pinId || ""}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("missing-pin-id"));
+  }
+  return requestPinResource({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/${encodeURIComponent(id)}/exposure`,
+    method: "POST"
+  }).then((body = {}) => body.data || {});
+}
+
 module.exports = {
   listMyPins,
   createPin,
@@ -215,5 +228,6 @@ module.exports = {
   publishPin,
   revokePin,
   searchPins,
-  fetchNearbyPins
+  fetchNearbyPins,
+  incrementPinExposure
 };
