@@ -234,12 +234,8 @@
           bindtouchcancel="onMarkerLikeTouchEnd"
           data-page="{{false}}"
         >
-          <view
-            class="like-badge-label {{markerLikeLabelType === 'hint' ? 'like-badge-label--hint' : (markerLikeLabelType === 'result' ? 'like-badge-label--result' : '')}}"
-            wx:if="{{markerLikeHoldLabel}}"
-          >
-            {{markerLikeHoldLabel}}
-          </view>
+          <view class="like-badge-label like-badge-label--hint" wx:if="{{markerLikeHintLabel}}">{{markerLikeHintLabel}}</view>
+          <view class="like-badge-label like-badge-label--result" wx:if="{{markerLikeResultLabel}}">{{markerLikeResultLabel}}</view>
           <image
             class="like-badge-icon"
             src="{{markerLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
@@ -306,15 +302,11 @@
           bindtouchcancel="onMarkerLikeTouchEnd"
           data-page="{{true}}"
         >
-          <view
-            class="like-badge-label {{markerPageLikeLabelType === 'hint' ? 'like-badge-label--hint' : (markerPageLikeLabelType === 'result' ? 'like-badge-label--result' : '')}}"
-            wx:if="{{markerPageLikeHoldLabel}}"
-          >
-            {{markerPageLikeHoldLabel}}
-          </view>
+          <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
+          <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
           <image
             class="like-badge-icon"
-            src="{{markerPageLiked ? '/assets/unlike.png' : '/assets/like.png'}}"
+            src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
             mode="widthFix"
           />
           <text

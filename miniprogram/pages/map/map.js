@@ -3047,11 +3047,11 @@ Page({
       return;
     }
     this.cancelLikeHold(prefix, false);
-    const updates = {};
-    updates[`${prefix}LikeAnimating`] = true;
-    updates[`${prefix}LikeHoldLabel`] = "长按点赞/取消赞";
-    updates[`${prefix}LikeLabelType`] = "hint";
-    this.setData(updates);
+    this.setData({
+      [`${prefix}LikeAnimating`]: true,
+      [`${prefix}LikeHintLabel`]: "长按点赞/取消赞",
+      [`${prefix}LikeResultLabel`]: ""
+    });
     this._likeHoldFired[prefix] = false;
     const liked = this.data[`${prefix}Liked`];
     const currentCount = Number(this.data[`${prefix}LikeCount`]) || 0;
@@ -3079,15 +3079,15 @@ Page({
             id
           });
           const label = liked ? "取消赞" : "点赞+1";
-          const labelKey = `${prefix}LikeHoldLabel`;
-          const typeKey = `${prefix}LikeLabelType`;
-          this.setData({ [labelKey]: label, [typeKey]: "result" });
+          this.setData({
+            [`${prefix}LikeResultLabel`]: label,
+            [`${prefix}LikeHintLabel`]: ""
+          });
           setTimeout(() => {
-            const hide = {};
-            hide[labelKey] = "";
-            hide[typeKey] = "";
-            this.setData(hide);
-          }, 900);
+            this.setData({
+              [`${prefix}LikeResultLabel`]: ""
+            });
+          }, 1500);
         })
         .catch((err) => {
           console.warn("like toggle failed", err);
@@ -3098,7 +3098,7 @@ Page({
           this.setData(done);
           this._likeHoldTimers[prefix] = null;
         });
-    }, 1000);
+    }, 800);
   },
 
   onMarkerLikeTouchEnd(e) {

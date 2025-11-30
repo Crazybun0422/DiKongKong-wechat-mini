@@ -281,8 +281,9 @@
   font-size: 24rpx;
   font-weight: 700;
   color: #facc15;
-  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.15);
   pointer-events: auto;
+  text-decoration: underline;
+  text-decoration-thickness: 2rpx;
 }
 
 .like-badge {
@@ -295,16 +296,18 @@
   padding: 8rpx 12rpx;
   border-radius: 999rpx;
   border: 2rpx solid transparent;
-  background: linear-gradient(135deg, rgba(0,0,0,0.35), rgba(0,0,0,0.35)) padding-box,
-    linear-gradient(135deg, #fdf6d9, #f5e3a3, #fdf6d9) border-box;
-  z-index: 10;
+  background: linear-gradient(135deg, rgba(0,0,0,0.18), rgba(0,0,0,0.18)) padding-box,
+    linear-gradient(135deg, #fef9e7, #f8edc2, #fef9e7) border-box;
+  z-index: 120;
   pointer-events: auto;
+  position: absolute;
+  overflow: visible;
 }
 
 .like-badge--page {
-  z-index: 100;
-  background: linear-gradient(135deg, rgba(0,0,0,0.35), rgba(0,0,0,0.35)) padding-box,
-    linear-gradient(135deg, #f3e7c1, #d8c79d, #f3e7c1) border-box;
+  z-index: 130;
+  background: linear-gradient(135deg, rgba(0,0,0,0.18), rgba(0,0,0,0.18)) padding-box,
+    linear-gradient(135deg, #f5f0d8, #e6d8aa, #f5f0d8) border-box;
 }
 
 .like-badge.is-anim {
@@ -329,25 +332,27 @@
 
 .like-badge-label {
   position: absolute;
-  top: -40rpx;
+  top: -52rpx;
   left: 50%;
   transform: translateX(-50%);
   padding: 4rpx 10rpx;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 999rpx;
-  font-size: 18rpx;
+  font-size: 16rpx;
   pointer-events: none;
   opacity: 0.95;
   white-space: nowrap;
 }
 
 .like-badge-label--hint {
-  animation: like-label-float 1000ms ease-out both;
+  animation: like-label-float 800ms ease-out both;
 }
 
 .like-badge-label--result {
-  animation: like-label-float 500ms ease-out both;
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  animation: like-label-float 900ms ease-out both;
 }
 
 @keyframes like-bounce {
