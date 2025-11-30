@@ -91,6 +91,7 @@
           <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
         </view>
         <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
+        <text class="center-pin-indicator" wx:if="{{centerPinTitle}}">{{centerPinTitle}}</text>
 
         <view class="control-row">
           <view class="search-stack">

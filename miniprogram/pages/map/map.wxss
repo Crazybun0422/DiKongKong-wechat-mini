@@ -275,6 +275,15 @@
   line-height: 1.4;
 }
 
+.center-pin-indicator {
+  display: block;
+  margin: 0 0 18rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #ff5e57;
+  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
 .picker-underline {
   text-decoration: underline;
   text-underline-offset: 4rpx;

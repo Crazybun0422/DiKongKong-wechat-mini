@@ -471,6 +471,7 @@ Page({
     temporaryNoFlyTone: "neutral",
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
+    centerPinTitle: "",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -2631,6 +2632,7 @@ Page({
       this._lastNearbyPinFetch = null;
       this.updateOverlayGraphics();
       this.syncAllMarkers();
+      this.updateCenterPinIndicator();
       return;
     }
     const markers = [];
@@ -2673,6 +2675,7 @@ Page({
     this._nearbyPinCircles = circles;
     this.updateOverlayGraphics();
     this.syncAllMarkers();
+    this.updateCenterPinIndicator();
   },
 
   applySearchMarkers(markers) {
@@ -2701,6 +2704,97 @@ Page({
     const combined = manual.concat(pinMarkers, nearby, search, preview);
     this.setData({ markers: combined });
   },
+
+  updateCenterPinIndicator() {
+    const center = this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      this.setData({ centerPinTitle: "" });
+      return;
+    }
+    const pin = this.findPinContainingPoint(center);
+    this.setData({ centerPinTitle: pin ? pin.name || "" : "" });
+  },
+
+  findPinContainingPoint(point = {}) {
+    if (!point || !hasValidCoordinate(point.latitude, point.longitude)) return null;
+    const pins = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
+    for (const raw of pins) {
+      const pin = this.normalizeNearbyPin(raw);
+      if (!pin) continue;
+      if (this.pinContainsPoint(pin, point)) return pin;
+    }
+    return null;
+  },
+
+  pinContainsPoint(pin = {}, point = {}) {
+    if (!pin || !pin.shape || !Array.isArray(pin.shape.coordinates)) return false;
+    const type = `${pin.shape.type || ""}`.toUpperCase();
+    const coords = pin.shape.coordinates;
+    if (!coords.length) return false;
+    const targetLat = Number(point.latitude);
+    const targetLng = Number(point.longitude);
+    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return false;
+    if (type === "POINT") {
+      const dist = haversineMeters(targetLat, targetLng, coords[0].latitude, coords[0].longitude);
+      return Number.isFinite(dist) && dist <= 30;
+    }
+    if (type === "CIRCLE") {
+      const center = coords[0];
+      const radiusKm = Number(pin.shape.radius);
+      const radiusMeters = Number.isFinite(radiusKm) ? radiusKm * 1000 : 0;
+      const dist = haversineMeters(targetLat, targetLng, center.latitude, center.longitude);
+      const threshold = radiusMeters > 0 ? radiusMeters : 30;
+      return Number.isFinite(dist) && dist <= threshold;
+    }
+    if (type === "LINE" || type === "PATH") {
+      const widthMeters = Number(pin.shape.width);
+      const allowed = Number.isFinite(widthMeters) && widthMeters > 0 ? widthMeters : 30;
+      const distance = this.distanceToPolylineMeters({ latitude: targetLat, longitude: targetLng }, coords);
+      return Number.isFinite(distance) && distance <= allowed;
+    }
+    const ring = coords.map((c) => [c.longitude, c.latitude]);
+    return this.ringContains(ring, targetLng, targetLat);
+  },
+
+  distanceToPolylineMeters(point, coords = []) {
+    if (!Array.isArray(coords) || coords.length === 0) return Infinity;
+    const lat0 = Number(point.latitude);
+    const lng0 = Number(point.longitude);
+    if (!Number.isFinite(lat0) || !Number.isFinite(lng0)) return Infinity;
+    const factors = this._distanceFactors(lat0);
+    let min = Infinity;
+    for (let i = 0; i < coords.length - 1; i += 1) {
+      const a = coords[i];
+      const b = coords[i + 1];
+      const d = this.distancePointToSegmentMeters(lat0, lng0, a, b, factors);
+      if (d < min) min = d;
+    }
+    return min;
+  },
+
+  _distanceFactors(lat) {
+    const kLat = 111320;
+    const kLng = kLat * Math.max(Math.cos((Number(lat) * Math.PI) / 180), 0.0001);
+    return { kLat, kLng };
+  },
+
+  distancePointToSegmentMeters(lat, lng, a = {}, b = {}, factors = null) {
+    const { kLat, kLng } = factors || this._distanceFactors(lat);
+    const ax = (Number(a.longitude) - lng) * kLng;
+    const ay = (Number(a.latitude) - lat) * kLat;
+    const bx = (Number(b.longitude) - lng) * kLng;
+    const by = (Number(b.latitude) - lat) * kLat;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.sqrt(ax * ax + ay * ay);
+    let t = -(ax * dx + ay * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    return Math.sqrt(px * px + py * py);
+  },
+
 
   isPinLayerEnabled() {
     return (
@@ -3691,6 +3785,7 @@ Page({
         const afterSync = () => {
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
           run(scaleChanged);
+          this.updateCenterPinIndicator();
         };
         if (shouldSync) {
           this.queueRegionUpdateSkip(1);
@@ -3755,6 +3850,7 @@ Page({
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
           run();
           this.updateStatusPanel(this._lastAreas);
+          this.updateCenterPinIndicator();
         };
         if (needSync) {
           this.queueRegionUpdateSkip(1);
