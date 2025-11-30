@@ -152,7 +152,6 @@ function createEmptyPinForm() {
     activeCoordIndex: 0,
     bufferWidth: null,
     radius: null,
-    wgs84Coordinates: [],
     images: [],
     name: "",
     description: "",
@@ -192,11 +191,6 @@ function isPinLocationConfigured(form = {}) {
   if (hasValidCoordinate(form.latitude, form.longitude)) return true;
   if (Array.isArray(form.coordinateList)) {
     return form.coordinateList.some((item = {}) => hasValidCoordinate(item.latitude, item.longitude));
-  }
-  if (Array.isArray(form.wgs84Coordinates)) {
-    return form.wgs84Coordinates.some((item = {}) =>
-      hasValidCoordinate(normalizePinCoordValue(item.latitude), normalizePinCoordValue(item.longitude))
-    );
   }
   return false;
 }
@@ -1961,20 +1955,8 @@ Page({
   },
 
   buildPinCoordinates(form, shapeType) {
-    const preferWgs = Array.isArray(form.wgs84Coordinates) ? form.wgs84Coordinates : [];
     const coordList = Array.isArray(form.coordinateList) ? form.coordinateList : [];
-    const sourceList = preferWgs.length
-      ? preferWgs.map((item, index) =>
-        Object.assign({}, item, {
-          altitude:
-            item.altitude ??
-            item.height ??
-            item.alt ??
-            (coordList[index]?.altitude ?? coordList[index]?.height ?? coordList[index]?.alt)
-        })
-      )
-      : coordList;
-    const coords = sourceList
+    const coords = coordList
       .map((item) => this.normalizePinCoordinateForPayload(item))
       .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
     if (!coords.length && hasValidCoordinate(form.latitude, form.longitude)) {
@@ -2794,40 +2776,6 @@ Page({
     const bufferWidthRaw =
       detail.bufferWidth ?? detail.pathBufferWidth ?? detail.bufferWidthMeters ?? null;
     const radiusRaw = detail.radius ?? null;
-    const wgsList = Array.isArray(detail.wgs84Coordinates)
-      ? detail.wgs84Coordinates
-        .map((item, index) => ({
-          latitude: normalizePinCoordValue(item.latitude),
-          longitude: normalizePinCoordValue(item.longitude),
-          altitude: normalizePinAltitude(
-            item.altitude ??
-            item.height ??
-            item.alt ??
-            coordinateList[index]?.altitude ??
-            coordinateList[index]?.height ??
-            coordinateList[index]?.alt
-          )
-        }))
-        .filter((item) => hasValidCoordinate(item.latitude, item.longitude))
-      : [];
-    const wgsFromPoint = detail.wgs84 || {};
-    if (
-      hasValidCoordinate(
-        normalizePinCoordValue(wgsFromPoint.latitude),
-        normalizePinCoordValue(wgsFromPoint.longitude)
-      )
-    ) {
-      const activeAltitude =
-        coordinateList[activeCoordIndex]?.altitude ??
-        coordinateList[activeCoordIndex]?.height ??
-        coordinateList[activeCoordIndex]?.alt ??
-        null;
-      wgsList.push({
-        latitude: normalizePinCoordValue(wgsFromPoint.latitude),
-        longitude: normalizePinCoordValue(wgsFromPoint.longitude),
-        altitude: normalizePinAltitude(activeAltitude)
-      });
-    }
     this.setData({
       "myPinForm.latitude": lat,
       "myPinForm.longitude": lng,
@@ -2841,13 +2789,11 @@ Page({
       "myPinForm.activeCoordIndex": activeCoordIndex,
       "myPinForm.bufferWidth": Number.isFinite(Number(bufferWidthRaw)) ? Number(bufferWidthRaw) : null,
       "myPinForm.radius": Number.isFinite(Number(radiusRaw)) ? Number(radiusRaw) : null,
-      "myPinForm.wgs84Coordinates": wgsList,
       myPinFormConfigured: isPinLocationConfigured(
         Object.assign({}, this.data.myPinForm, {
           latitude: lat,
           longitude: lng,
-          coordinateList,
-          wgs84Coordinates: wgsList
+          coordinateList
         })
       ),
       pinLocationDisplay: ""

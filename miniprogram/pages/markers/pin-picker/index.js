@@ -1,5 +1,5 @@
 const { reverseGeocode } = require("../../../utils/geocoder");
-const { gcj02ToWgs84, wgs84ToGcj02 } = require("../../../utils/coords");
+const { gcj02ToWgs84 } = require("../../../utils/coords");
 const { searchPlaces } = require("../../../utils/search");
 
 const DEFAULT_CENTER = {
@@ -1238,13 +1238,9 @@ Page({
         return;
       }
     }
-    const wgs = gcj02ToWgs84(this.data.selectedLongitude, this.data.selectedLatitude);
-    const wgsLat = normalizeCoord(wgs?.lat);
-    const wgsLng = normalizeCoord(wgs?.lng);
     const result = {
       latitude: this.data.selectedLatitude,
       longitude: this.data.selectedLongitude,
-      wgs84: hasValidCoordinate(wgsLat, wgsLng) ? { latitude: wgsLat, longitude: wgsLng } : null,
       addressMain: this.data.addressMain,
       addressDetail: this.data.addressDetail,
       coordinateText: this.data.coordinateText,
@@ -1692,19 +1688,9 @@ Page({
       this.showLineHint("沿边宽度请填写完整");
       return;
     }
-    const wgs84Coordinates = points
-      .map((pt) => {
-        const wgs = gcj02ToWgs84(pt.longitude, pt.latitude);
-        const lat = normalizeCoord(wgs?.lat);
-        const lng = normalizeCoord(wgs?.lng);
-        if (!hasValidCoordinate(lat, lng)) return null;
-        return { latitude: lat, longitude: lng };
-      })
-      .filter(Boolean);
     const result = {
       coordinates: points,
       coordinateList: points,
-      wgs84Coordinates,
       bufferWidth,
       pathBufferWidth: bufferWidth,
       bufferWidthMeters: bufferWidth,
