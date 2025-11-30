@@ -310,6 +310,13 @@
     linear-gradient(135deg, #f5f0d8, #e6d8aa, #f5f0d8) border-box;
 }
 
+.like-badge--inline {
+  position: static;
+  top: auto;
+  right: auto;
+  margin-left: auto;
+}
+
 .like-badge.is-anim {
   animation: like-bounce 500ms ease-out both;
 }
@@ -1411,6 +1418,12 @@ button.layer-button::after,
   display: flex;
   flex-direction: column;
   gap: 12rpx;
+}
+
+.marker-page-header-top {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
 }
 
 .marker-page-title {

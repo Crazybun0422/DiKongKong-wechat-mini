@@ -298,36 +298,14 @@
     <block wx:if="{{markerPageVisible}}">
       <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
         <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
-        <view
-          class="like-badge like-badge--page {{markerPageLikeAnimating ? 'is-anim' : ''}}"
-          bindtouchstart="onMarkerLikeTouchStart"
-          bindtouchend="onMarkerLikeTouchEnd"
-          bindtouchcancel="onMarkerLikeTouchEnd"
-          data-page="{{true}}"
-        >
-          <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
-          <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
-          <image
-            class="like-badge-icon"
-            src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
-            mode="widthFix"
-          />
-          <text
-            class="like-badge-count"
-            data-count="{{markerPageLikeCount}}"
-            bindtap="onLikeCountTap"
-          >
-            {{markerPageLikeCountDisplay}}
-          </text>
-        </view>
         <scroll-view
           scroll-y
           class="marker-page-scroll"
           bindscroll="onMarkerPageScroll"
-          bindtouchstart="onMarkerPageTouchStart"
-          bindtouchmove="onMarkerPageTouchMove"
-          bindtouchend="onMarkerPageTouchEnd"
-          bindtouchcancel="onMarkerPageTouchCancel"
+          catchtouchstart="onMarkerPageTouchStart"
+          catchtouchmove="onMarkerPageTouchMove"
+          catchtouchend="onMarkerPageTouchEnd"
+          catchtouchcancel="onMarkerPageTouchCancel"
         >
           <view class="marker-page-hero">
             <block wx:if="{{markerPageDetail.images && markerPageDetail.images.length}}">
@@ -357,7 +335,31 @@
 
           <view class="marker-page-body">
             <view class="marker-page-header">
-              <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
+              <view class="marker-page-header-top">
+                <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
+                <view
+                  class="like-badge like-badge--page like-badge--inline {{markerPageLikeAnimating ? 'is-anim' : ''}}"
+                  bindtouchstart="onMarkerLikeTouchStart"
+                  bindtouchend="onMarkerLikeTouchEnd"
+                  bindtouchcancel="onMarkerLikeTouchEnd"
+                  data-page="{{true}}"
+                >
+                  <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
+                  <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
+                  <image
+                    class="like-badge-icon"
+                    src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
+                    mode="widthFix"
+                  />
+                  <text
+                    class="like-badge-count"
+                    data-count="{{markerPageLikeCount}}"
+                    bindtap="onLikeCountTap"
+                  >
+                    {{markerPageLikeCountDisplay}}
+                  </text>
+                </view>
+              </view>
             </view>
 
             <view
