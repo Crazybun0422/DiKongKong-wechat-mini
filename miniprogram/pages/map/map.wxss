@@ -311,7 +311,7 @@
 }
 
 .like-badge--inline {
-  position: static;
+  position: relative;
   top: auto;
   right: auto;
   margin-left: auto;
@@ -360,6 +360,13 @@
   background: rgba(255, 255, 255, 0.9);
   color: #111;
   animation: like-label-float 900ms ease-out both;
+}
+
+.like-badge--inline .like-badge-label {
+  top: -56rpx;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
 }
 
 @keyframes like-bounce {
