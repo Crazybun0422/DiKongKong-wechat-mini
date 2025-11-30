@@ -1532,7 +1532,9 @@ Page({
 
     const proceed = () => {
       this.setData({ workGroupPickerSaving: true });
-      const payload = selectedIds.length ? { groupIds: selectedIds } : { groupIds: [] };
+      const payload = selectedIds.length
+        ? { groupIds: selectedIds, groups: selectedIds.map((id) => ({ id })) }
+        : { groupIds: [], groups: [] };
       const fetch = () =>
         updatePinGroups(pinId, payload, { apiBase: this.apiBase }).catch((err) => {
           if (err?.message === "missing-token") {
@@ -2040,11 +2042,21 @@ Page({
       throw new Error("请先选择标记类型");
     }
     const shape = this.buildPinShapePayload(form);
+    const groupIds = Array.isArray(form.groupIds)
+      ? form.groupIds.map((id) => `${id}`.trim()).filter(Boolean)
+      : [];
+    const hasGroups = groupIds.length > 0;
+    const visibility = hasGroups
+      ? "GROUP"
+      : form.publishToPlatform
+        ? "PUBLIC"
+        : "PRIVATE";
     const payload = {
       name,
       description: (form.description || "").trim(),
-      visibility: form.publishToPlatform ? "PUBLIC" : "PRIVATE",
-      groupIds: Array.isArray(form.groupIds) ? form.groupIds.filter(Boolean) : [],
+      visibility,
+      groupIds,
+      groups: groupIds.map((id) => ({ id })),
       images: this.extractPinImagesForPayload(form.images),
       shape
     };
