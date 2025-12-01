@@ -1469,15 +1469,15 @@ Page({
   handleSharePinError(err) {
     const message =
       err && err.message === "missing-token"
-        ? "���ȵ�¼���ٲ鿴��֯��Ϣ"
-        : "������Ϣʧ�ܣ����Ժ�����";
+        ? "请先登录后查看标记信息"
+        : "加载标记信息失败，请稍后再试";
     wx.showToast({ title: message, icon: "none" });
   },
 
   activateSharePinDetail(rawDetail) {
     const marker = this.buildSharePinFromDetail(rawDetail);
     if (!marker) {
-      wx.showToast({ title: "��Ϣ������", icon: "none" });
+      wx.showToast({ title: "标记信息异常", icon: "none" });
       return false;
     }
     const detail = marker?.extData?.detail || {};
