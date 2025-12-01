@@ -2124,6 +2124,7 @@ Page({
   },
 
   onMarkerPageNavigateTap(event) {
+    console.log("111111111111111111111111111111")
     const detail = this.data.markerPageDetail;
     if (!detail) return;
     const dataset = event?.currentTarget?.dataset || {};

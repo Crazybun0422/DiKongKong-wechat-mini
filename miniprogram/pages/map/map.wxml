@@ -302,10 +302,10 @@
           scroll-y
           class="marker-page-scroll"
           bindscroll="onMarkerPageScroll"
-          catchtouchstart="onMarkerPageTouchStart"
-          catchtouchmove="onMarkerPageTouchMove"
-          catchtouchend="onMarkerPageTouchEnd"
-          catchtouchcancel="onMarkerPageTouchCancel"
+          bindtouchstart="onMarkerPageTouchStart"
+          bindtouchmove="onMarkerPageTouchMove"
+          bindtouchend="onMarkerPageTouchEnd"
+          bindtouchcancel="onMarkerPageTouchCancel"
         >
           <view class="marker-page-hero">
             <block wx:if="{{markerPageDetail.images && markerPageDetail.images.length}}">
