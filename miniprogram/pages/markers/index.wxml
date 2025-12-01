@@ -368,8 +368,9 @@
           </view>
           <view class="image-uploader">
             <block wx:if="{{workGroupForm.images && workGroupForm.images.length}}">
-              <view class="image-thumb">
+              <view class="image-thumb" bindtap="onWorkGroupChooseImage">
                 <image class="image-thumb-img" src="{{workGroupForm.images[0].url}}" mode="aspectFill" />
+                <text class="image-thumb-action">更换</text>
               </view>
             </block>
             <view class="image-add" wx:if="{{!workGroupForm.images || !workGroupForm.images.length}}" bindtap="onWorkGroupChooseImage">
@@ -478,8 +479,9 @@
             <text class="wg-field-label">图片</text>
             <view class="image-uploader">
               <block wx:if="{{workGroupDetailForm.images && workGroupDetailForm.images.length}}">
-                <view class="image-thumb">
+                <view class="image-thumb" bindtap="onWorkGroupDetailChooseImage">
                   <image class="image-thumb-img" src="{{workGroupDetailForm.images[0].url}}" mode="aspectFill" />
+                  <text wx:if="{{activeWorkGroup.isOwner}}" class="image-thumb-action">更换</text>
                 </view>
               </block>
               <view class="image-add" wx:if="{{activeWorkGroup.isOwner && (!workGroupDetailForm.images || !workGroupDetailForm.images.length)}}" bindtap="onWorkGroupDetailChooseImage">

@@ -873,11 +873,16 @@ Page({
       wx.showToast({ title: "请填写名称", icon: "none" });
       return;
     }
+    const images = Array.isArray(this.data.workGroupForm.images) ? this.data.workGroupForm.images : [];
+    if (!images.length) {
+      wx.showToast({ title: "请上传工作组头像", icon: "none" });
+      return;
+    }
     const selfCode = ensureFeatureCode(this.data.currentFeatureCode || "");
     const payload = {
       name,
       description: (this.data.workGroupForm.description || "").trim(),
-      images: (this.data.workGroupForm.images || []).map((i) => i.fileName),
+      images: images.map((i) => i.fileName),
       memberFeatureCodes: selfCode ? [selfCode] : []
     };
     this.setData({ workGroupSubmitting: true });
@@ -959,10 +964,17 @@ Page({
       wx.showToast({ title: "请填写名称", icon: "none" });
       return;
     }
+    const images = Array.isArray(this.data.workGroupDetailForm.images)
+      ? this.data.workGroupDetailForm.images
+      : [];
+    if (!images.length) {
+      wx.showToast({ title: "请先上传封面", icon: "none" });
+      return;
+    }
     const payload = {
       name,
       description: (this.data.workGroupDetailForm.description || "").trim(),
-      images: (this.data.workGroupDetailForm.images || []).map((i) => i.fileName)
+      images: images.map((i) => i.fileName)
     };
     this.setData({ workGroupDetailSaving: true });
     updateWorkGroup(group.id, payload, { apiBase: this.apiBase })
@@ -2051,13 +2063,17 @@ Page({
       : form.publishToPlatform
         ? "PUBLIC"
         : "PRIVATE";
+    const images = this.extractPinImagesForPayload(form.images);
+    if (!images.length) {
+      throw new Error("请至少上传一张图片");
+    }
     const payload = {
       name,
       description: (form.description || "").trim(),
       visibility,
       groupIds,
       groups: groupIds.map((id) => ({ id })),
-      images: this.extractPinImagesForPayload(form.images),
+      images,
       shape
     };
     return payload;
@@ -2757,6 +2773,16 @@ Page({
         Math.max(Number(this.data.myPinForm.activeCoordIndex || 0), 0),
         payload.coordinateList.length - 1
       );
+    }
+    const width = Number(this.data.myPinForm.bufferWidth);
+    if (Number.isFinite(width) && width > 0) {
+      payload.bufferWidth = width;
+      payload.pathBufferWidth = width;
+      payload.bufferWidthMeters = width;
+    }
+    const radius = Number(this.data.myPinForm.radius);
+    if (Number.isFinite(radius) && radius > 0) {
+      payload.radius = radius;
     }
     wx.navigateTo({
       url: "/pages/markers/pin-picker/index",

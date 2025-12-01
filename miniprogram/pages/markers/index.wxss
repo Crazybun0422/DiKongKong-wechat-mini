@@ -1713,6 +1713,17 @@
   object-fit: cover;
 }
 
+.image-thumb-action {
+  position: absolute;
+  right: 12rpx;
+  bottom: 12rpx;
+  padding: 8rpx 14rpx;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 22rpx;
+  border-radius: 999rpx;
+}
+
 .image-remove {
   position: absolute;
   top: 12rpx;
