@@ -2168,6 +2168,7 @@ Page({
 
     const detail = this._lastMarkerDetail;
     const inviteCode = this.getShareInviteCodeValue();
+    const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: this.getApiBase() });
     const fallback = {
       title: "与uom、大疆100%同步的低空地图，来一起探索~",
       path: appendInviteCodeToPath("/pages/map/map", { inviteCode }),
