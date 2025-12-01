@@ -147,6 +147,7 @@ button.profile-avatar-button::after {
   font-size: 30rpx;
   font-weight: 700;
   color: #0f172a;
+  transform:translateY(5rpx);
 }
 
 .profile-name-input {

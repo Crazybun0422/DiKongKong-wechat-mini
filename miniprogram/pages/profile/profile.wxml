@@ -47,13 +47,14 @@
                 <text class="profile-name-edit" bindtap="startNicknameEdit">点击修改</text>
               </block>
             </view>
-            <view class="profile-like-row">
-              <text class="profile-like-label">获赞数</text>
-              <text class="profile-like-value">{{likeSummary.total}}</text>
-            </view>
+
             <view class="profile-code-row">
               <text class="profile-code-label">低空号</text>
               <text class="profile-code-value">{{profile.featureCode}}</text>
+            </view>
+            <view class="profile-like-row">
+              <text class="profile-like-label">获赞数</text>
+              <text class="profile-like-value">{{likeSummary.total}}</text>
             </view>
           </view>
         </view>
