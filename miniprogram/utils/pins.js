@@ -133,6 +133,19 @@ function revokePin(pinId, options = {}) {
   return performPinAction(pinId, "/revoke", options);
 }
 
+function fetchPinDetail(pinId, options = {}) {
+  const id = `${pinId || ""}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("missing-pin-id"));
+  }
+  return requestPinResource({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/pins/${encodeURIComponent(id)}`,
+    method: "GET"
+  }).then((body = {}) => body.data || {});
+}
+
 function requestPinResource(options = {}) {
   return new Promise((resolve, reject) => {
     const base = resolveApiBase(options.apiBase);
@@ -229,5 +242,6 @@ module.exports = {
   revokePin,
   searchPins,
   fetchNearbyPins,
-  incrementPinExposure
+  incrementPinExposure,
+  fetchPinDetail
 };

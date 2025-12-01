@@ -702,6 +702,7 @@ Page({
     this._lastKnownLocation = null;
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
+    this.requestInitialLocation();
     this.captureInviteCode(options);
     this.handleWorkGroupInviteOptions(options);
     this.initializeShareLaunch(options);
@@ -727,7 +728,7 @@ Page({
     this.updateScaleBar();
     this.updateStatusPanel();
     this.autoLoginOnLaunch();
-    this.requestInitialLocation();
+
   },
 
   findMarkerById(markerId) {
@@ -4005,11 +4006,11 @@ Page({
             : this.data.scale;
           targetScale = clampMapScale(fallbackScale);
         }
-        // this.centerOnPoint(
-        //   { latitude: res.latitude, longitude: res.longitude },
-        //   targetScale,
-        //   !!options.silent
-        // );
+        this.centerOnPoint(
+          { latitude: res.latitude, longitude: res.longitude },
+          targetScale,
+          !!options.silent
+        );
       },
       fail: (err) => {
         console.warn("getLocation fail", err);
