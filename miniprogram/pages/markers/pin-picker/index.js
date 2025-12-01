@@ -32,7 +32,7 @@ const TYPE_SECTIONS = [
   {
     id: "LINE",
     label: "绘制线",
-    options: [{ id: "LINE_PATH_BUFFER", label: "线状缓冲带", icon: "/assets/path.png" }]
+    options: [{ id: "LINE_PATH_BUFFER", label: "航线", icon: "/assets/path.png" }]
   },
   {
     id: "AREA",
@@ -250,6 +250,7 @@ Page({
     this._ready = false;
     this._eventChannel = null;
     this._initialPayload = null;
+    this._initialPayloadApplied = false;
     this._reverseTimer = null;
     this._reverseToken = 0;
     this._currentGcj = null;
@@ -278,6 +279,8 @@ Page({
       }
     }
 
+    // 页面加载尽早跳转到当前位置，后续回填的标记不会被影响
+    this.requestCurrentLocation({ silent: true, initial: true });
     this.refreshDisplayCoordinateList();
   },
 
@@ -646,7 +649,8 @@ Page({
 
   requestInitialLocation() {
     const moved = this.applyInitialPayload(this._initialPayload);
-    if (moved || hasSavedLocationPayload(this._initialPayload)) {
+    this._initialPayloadApplied = moved || hasSavedLocationPayload(this._initialPayload);
+    if (this._initialPayloadApplied) {
       return;
     }
     // 若无保存数据，则保持默认中心，不再自动跳转当前位置
@@ -708,7 +712,7 @@ Page({
   },
 
   requestCurrentLocation(options = {}) {
-    const { silent = false } = options;
+    const { silent = false, initial = false } = options;
     if (!silent) {
       this.setData({ addressLoading: true, addressError: "" });
     }
@@ -724,6 +728,10 @@ Page({
           const longitude = normalizeCoord(res.longitude);
           if (!hasValidCoordinate(latitude, longitude)) {
             reject(new Error("invalid-location"));
+            return;
+          }
+          if (initial && this._initialPayloadApplied && hasSavedLocationPayload(this._initialPayload)) {
+            resolve({ latitude, longitude, skipped: true });
             return;
           }
           this.queueMapMove(latitude, longitude);
@@ -759,7 +767,11 @@ Page({
         ? `${data.bufferWidth}`
         : data.pathBufferWidth !== undefined && data.pathBufferWidth !== null
           ? `${data.pathBufferWidth}`
-          : this.data.lineBufferInput;
+          : data.bufferWidthMeters !== undefined && data.bufferWidthMeters !== null
+            ? `${data.bufferWidthMeters}`
+            : this.data.lineBufferInput;
+    const circleRadiusInput =
+      data.radius !== undefined && data.radius !== null ? `${data.radius}` : this.data.circleRadiusInput;
     const circleHasCenter =
       typeId === "AREA_CIRCLE" &&
       coordinateList.some((item) => hasValidCoordinate(normalizeCoord(item.latitude), normalizeCoord(item.longitude)));
@@ -767,6 +779,7 @@ Page({
       coordinateList,
       activeCoordIndex,
       lineBufferInput: bufferWidthInput,
+      circleRadiusInput,
       lineDrawingStarted:
         sectionFromType === "AREA"
           ? typeId === "AREA_RECTANGLE"
@@ -845,6 +858,7 @@ Page({
         }
       }
     }
+    this._initialPayloadApplied = moved || hasSavedLocationPayload(payload);
     return moved;
   },
 

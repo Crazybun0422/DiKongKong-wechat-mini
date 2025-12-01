@@ -217,7 +217,7 @@
             </block>
           </scroll-view>
           <view wx:if="{{selectedType.category === 'LINE'}}" class="buffer-box">
-            <text class="buffer-label">缓冲区宽度（米）</text>
+            <text class="buffer-label">航线宽度（米）</text>
             <input
               class="buffer-input"
               type="number"
