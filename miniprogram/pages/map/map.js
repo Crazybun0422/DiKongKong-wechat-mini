@@ -4005,11 +4005,11 @@ Page({
             : this.data.scale;
           targetScale = clampMapScale(fallbackScale);
         }
-        this.centerOnPoint(
-          { latitude: res.latitude, longitude: res.longitude },
-          targetScale,
-          !!options.silent
-        );
+        // this.centerOnPoint(
+        //   { latitude: res.latitude, longitude: res.longitude },
+        //   targetScale,
+        //   !!options.silent
+        // );
       },
       fail: (err) => {
         console.warn("getLocation fail", err);
