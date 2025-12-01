@@ -219,13 +219,17 @@
     </block>
 
     <block wx:if="{{markerDetailVisible}}">
-      <view class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}" bindtap="onMarkerDetailMaskTap"></view>
+      <view
+        class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}"
+        bindtap="onMarkerDetailMaskTap"
+        catchtouchmove="onMarkerDetailMaskTouchMove"
+      ></view>
       <view
         class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
-        bindtouchstart="onMarkerDetailTouchStart"
-        bindtouchmove="onMarkerDetailTouchMove"
-        bindtouchend="onMarkerDetailTouchEnd"
-        bindtouchcancel="onMarkerDetailTouchCancel"
+        catchtouchstart="onMarkerDetailTouchStart"
+        catchtouchmove="onMarkerDetailTouchMove"
+        catchtouchend="onMarkerDetailTouchEnd"
+        catchtouchcancel="onMarkerDetailTouchCancel"
       >
         <view
           class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}"
@@ -585,8 +589,12 @@
         </block>
       </view>
       <view class="invite-footer">
+        <button class="invite-btn secondary" bindtap="cancelJoinWorkGroup" disabled="{{joinInviting}}">
+          取消
+        </button>
         <button
           class="invite-btn primary"
+          disabled="{{joinInviting || joinInviteLoginPending}}"
           loading="{{joinInviting || joinInviteLoginPending}}"
           data-invitation-code="{{joinInvitePrompt.invitationCode}}"
           data-group-id="{{joinInvitePrompt.groupId}}"

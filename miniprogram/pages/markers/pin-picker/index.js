@@ -231,7 +231,7 @@ Page({
     polyline: [],
     bufferPolygons: [],
     circles: [],
-    lineBufferInput: "50",
+    lineBufferInput: "1",
     circleRadiusInput: "50",
     lineActionHint: "",
     lineRewriteIndex: null,

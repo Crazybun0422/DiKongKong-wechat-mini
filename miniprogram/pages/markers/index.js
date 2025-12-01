@@ -40,7 +40,8 @@ const {
   exitWorkGroup,
   addWorkGroupMembers,
   uploadWorkGroupImage,
-  fetchWorkGroupById
+  fetchWorkGroupById,
+  joinWorkGroup
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
 
@@ -117,6 +118,21 @@ const PIN_REVIEW_STATUS_META = {
   APPROVED_A: { label: "通过", tone: "online" },
   APPROVED_B: { label: "通过", tone: "online" },
   REJECTED: { label: "被驳回", tone: "danger" }
+};
+
+const decodeMaybeURI = (text = "") => {
+  const raw = `${text || ""}`;
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch (err) {
+    return raw;
+  }
+};
+
+const normalizeInviteCode = (value) => {
+  if (value === undefined || value === null) return "";
+  return `${value}`.trim();
 };
 
 function createEmptyForm() {
@@ -301,7 +317,9 @@ Page({
     deleteDialogInput: "",
     deleteDialogMarkerId: "",
     deleteDialogMarkerName: "",
-    deleteDialogError: ""
+    deleteDialogError: "",
+    joinInvitePrompt: null,
+    joinInviting: false
   },
 
   onLoad(options = {}) {
@@ -322,6 +340,10 @@ Page({
 
   onShow() {
     this.consumePendingCenterTab();
+    const pendingInvite = this.consumePendingWorkGroupInvite();
+    if (pendingInvite) {
+      this.promptJoinWorkGroup(pendingInvite);
+    }
     const needMarkers = !this.data.hasLoaded && !this.data.loading;
     const needPins = this.data.activeCenterTab === "MY_MARKERS" && !this.data.pinsLoaded && !this.data.pinsLoading;
     const needWorkGroups =
@@ -357,6 +379,54 @@ Page({
     } catch (err) {
       console.warn("consumePendingCenterTab failed", err);
     }
+  },
+
+  consumePendingWorkGroupInvite() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const invite = app?.globalData?.pendingWorkGroupInvite;
+      if (invite && invite.invitationCode && invite.groupId) {
+        app.globalData.pendingWorkGroupInvite = null;
+        const normalized = {
+          invitationCode: normalizeInviteCode(invite.invitationCode),
+          groupId: invite.groupId,
+          groupName: decodeMaybeURI(invite.groupName || invite.groupId || "")
+        };
+        if (this.isSelfWorkGroupInvite(normalized.invitationCode)) {
+          return null;
+        }
+        return normalized;
+      }
+    } catch (err) {
+      console.warn("consumePendingWorkGroupInvite failed", err);
+    }
+    return null;
+  },
+
+  isSelfWorkGroupInvite(invitationCode = "") {
+    const code = normalizeInviteCode(invitationCode);
+    if (!code) return false;
+    try {
+      const fromShare = normalizeInviteCode(getShareInviteCode());
+      if (fromShare && fromShare === code) return true;
+    } catch (err) {
+      console.warn("compare invite code with share invite failed", err);
+    }
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const fromGlobal = normalizeInviteCode(app?.globalData?.userInviteCode);
+      if (fromGlobal && fromGlobal === code) return true;
+    } catch (err) {
+      console.warn("compare invite code with global profile failed", err);
+    }
+    try {
+      const stored = loadStoredProfile();
+      const storedCode = normalizeInviteCode(stored?.inviteCode);
+      if (storedCode && storedCode === code) return true;
+    } catch (err) {
+      console.warn("compare invite code with stored profile failed", err);
+    }
+    return false;
   },
 
   fetchSettlementConfig() {
@@ -1115,6 +1185,57 @@ Page({
 
   onCloseDissolveDialog() {
     this.setData({ showDissolveDialog: false, workGroupDissolveInput: "", workGroupDissolving: false });
+  },
+
+  promptJoinWorkGroup(promptPayload) {
+    const prompt = promptPayload || this.data.joinInvitePrompt;
+    if (!prompt?.invitationCode || !prompt?.groupId) return;
+    if (this.isSelfWorkGroupInvite(prompt.invitationCode)) {
+      this.setData({ joinInvitePrompt: null, joinInviting: false });
+      return;
+    }
+    const name = decodeMaybeURI(prompt.groupName || prompt.groupId || "");
+    this.setData({
+      activeCenterTab: "WORKGROUP",
+      joinInvitePrompt: { invitationCode: prompt.invitationCode, groupId: prompt.groupId, groupName: name },
+      joinInviting: false
+    });
+  },
+
+  confirmJoinWorkGroup(evt) {
+    const ds = (evt && evt.currentTarget && evt.currentTarget.dataset) || {};
+    const prompt =
+      (ds.invitationCode && ds.groupId && {
+        invitationCode: ds.invitationCode,
+        groupId: ds.groupId,
+        groupName: ds.groupName
+      }) ||
+      this.data.joinInvitePrompt ||
+      null;
+    if (!prompt?.invitationCode || !prompt?.groupId || this.data.joinInviting) return;
+    this.setData({ joinInviting: true, activeCenterTab: "WORKGROUP" });
+    joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已加入工作组", icon: "success" });
+        this.setData({ joinInvitePrompt: null });
+        this.refreshWorkGroups({ silent: true });
+      })
+      .catch((err) => {
+        console.error("加入工作组失败", err);
+        const message = err?.message || "";
+        if (/已加入/.test(message) || /already/i.test(message)) {
+          wx.showToast({ title: "已在工作组中", icon: "success" });
+          this.setData({ joinInvitePrompt: null });
+          this.refreshWorkGroups({ silent: true });
+          return;
+        }
+        wx.showToast({ title: message || "加入失败", icon: "none" });
+      })
+      .finally(() => this.setData({ joinInviting: false }));
+  },
+
+  cancelJoinWorkGroup() {
+    this.setData({ joinInvitePrompt: null, joinInviting: false });
   },
 
   onShareAppMessage() {

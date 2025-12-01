@@ -1815,6 +1815,10 @@ Page({
     this.closeMarkerDetail();
   },
 
+  onMarkerDetailMaskTouchMove() {
+    // Stop marker detail gestures from reaching the map beneath
+  },
+
   onMarkerDetailCloseTap() {
     this.closeMarkerDetail();
   },
@@ -2583,19 +2587,72 @@ Page({
   },
 
   handleWorkGroupInviteOptions(options = {}) {
+    const payload = extractWorkGroupInvite(options);
+    if (!payload) return;
+    const normalized = {
+      invitationCode: payload.invitationCode,
+      groupId: payload.groupId,
+      groupName: decodeMaybeURI(payload.groupName || payload.groupId || "")
+    };
+    if (this.isSelfWorkGroupInvite(normalized.invitationCode)) {
+      this.setData({ joinInvitePrompt: null, joinInviting: false, joinInviteLoginPending: false });
+      this.clearWorkGroupInviteParams();
+      this.navigateToWorkGroupCenter();
+      return;
+    }
+    this.setPendingWorkGroupInvite(normalized);
+    this.clearWorkGroupInviteParams();
+    this.navigateToWorkGroupCenter();
+  },
 
-    const invitationCode = options.invitationCode || options.inviteCode || "";
-    const groupId = options.groupId || options.workGroupId || "";
-    const groupName = decodeMaybeURI(options.groupName || "");
-    console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
-    if (!invitationCode || !groupId) return;
-    const payload = { invitationCode, groupId, groupName };
-    this.setData({
-      joinInvitePrompt: payload,
-      joinInviting: false,
-      joinInviteLoginPending: false
-    });
-    this.promptJoinWorkGroup(payload);
+  clearWorkGroupInviteParams() {
+    try {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      const currentPage = Array.isArray(pages) && pages.length ? pages[pages.length - 1] : null;
+      if (currentPage && currentPage.options) {
+        ["invitationCode", "inviteCode", "groupId", "workGroupId", "groupName"].forEach((key) => {
+          if (key in currentPage.options) {
+            delete currentPage.options[key];
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("clearWorkGroupInviteParams failed", err);
+    }
+  },
+
+  setPendingWorkGroupInvite(payload = null) {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.pendingWorkGroupInvite = payload;
+      }
+    } catch (err) {
+      console.warn("setPendingWorkGroupInvite failed", err);
+    }
+  },
+
+  isSelfWorkGroupInvite(invitationCode = "") {
+    const code = `${invitationCode || ""}`.trim();
+    if (!code) return false;
+    try {
+      const shareCode = this.getShareInviteCodeValue ? this.getShareInviteCodeValue() : "";
+      if (shareCode && `${shareCode}`.trim() === code) {
+        return true;
+      }
+    } catch (err) {
+      console.warn("compare invite code with share code failed", err);
+    }
+    try {
+      const stored = typeof loadStoredProfileUtil === "function" ? loadStoredProfileUtil() : null;
+      const storedCode = `${stored?.inviteCode || ""}`.trim();
+      if (storedCode && storedCode === code) {
+        return true;
+      }
+    } catch (err) {
+      console.warn("compare invite code with stored profile failed", err);
+    }
+    return false;
   },
 
   promptJoinWorkGroup(promptPayload) {
@@ -2627,16 +2684,30 @@ Page({
       joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
         .then(() => {
           wx.showToast({ title: "已加入工作组", icon: "success" });
+          this.clearWorkGroupInviteParams();
           this.setData({ joinInvitePrompt: null });
           this.navigateToWorkGroupCenter();
         })
         .catch((err) => {
           console.error("加入工作组失败", err);
-          wx.showToast({ title: err?.message || "加入失败", icon: "none" });
+          const message = err?.message || "";
+          if (/已加入/.test(message) || /already/i.test(message)) {
+            wx.showToast({ title: "已在工作组中", icon: "success" });
+            this.clearWorkGroupInviteParams();
+            this.setData({ joinInvitePrompt: null });
+            this.navigateToWorkGroupCenter();
+            return;
+          }
+          wx.showToast({ title: message || "加入失败", icon: "none" });
         })
         .finally(() => this.setData({ joinInviting: false }));
     };
     run();
+  },
+
+  cancelJoinWorkGroup() {
+    this.clearWorkGroupInviteParams();
+    this.setData({ joinInvitePrompt: null, joinInviting: false, joinInviteLoginPending: false });
   },
 
   navigateToWorkGroupCenter() {

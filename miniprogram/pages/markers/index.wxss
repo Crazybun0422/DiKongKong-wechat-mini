@@ -2162,3 +2162,90 @@
   font-weight: 700;
   color: #1d6cff;
 }
+
+/* 工作组邀请弹窗 */
+.invite-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.invite-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.invite-card {
+  position: relative;
+  width: 82vw;
+  max-width: 700rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx 28rpx 22rpx;
+  box-shadow: 0 18rpx 40rpx rgba(0, 0, 0, 0.22);
+  z-index: 1;
+}
+
+.invite-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  margin-bottom: 16rpx;
+}
+
+.invite-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  padding: 12rpx 6rpx 6rpx;
+  color: #111827;
+  font-size: 28rpx;
+  text-align: center;
+}
+
+.invite-text {
+  word-break: break-all;
+}
+
+.invite-tip {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
+.invite-footer {
+  margin-top: 18rpx;
+  display: flex;
+  justify-content: center;
+  gap: 16rpx;
+}
+
+.invite-btn {
+  min-width: 240rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  border: none;
+  font-size: 28rpx;
+}
+
+.invite-btn::after {
+  border: none;
+}
+
+.invite-btn.primary {
+  background: #0f172a;
+  color: #fff;
+}
+
+.invite-btn.secondary {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.invite-btn.primary:disabled {
+  opacity: 0.6;
+}

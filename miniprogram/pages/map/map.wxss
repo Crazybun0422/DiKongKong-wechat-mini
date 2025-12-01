@@ -2118,6 +2118,7 @@ button.layer-button::after,
   margin-top: 18rpx;
   display: flex;
   justify-content: center;
+  gap: 16rpx;
 }
 
 .invite-btn {
@@ -2125,9 +2126,21 @@ button.layer-button::after,
   height: 72rpx;
   border-radius: 20rpx;
   border: none;
+  font-size: 28rpx;
+}
+
+.invite-btn::after {
+  border: none;
+}
+
+.invite-btn.primary {
   background: #0f172a;
   color: #fff;
-  font-size: 28rpx;
+}
+
+.invite-btn.secondary {
+  background: #f3f4f6;
+  color: #111827;
 }
 
 .invite-btn.primary:disabled {
