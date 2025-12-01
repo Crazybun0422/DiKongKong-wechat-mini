@@ -373,7 +373,7 @@
 
             <view
               class="marker-page-address"
-              wx:if="{{markerPageDetail.locationText || markerPageDetail.phone}}"
+              wx:if="{{(markerPageDetail.locationText || markerPageDetail.phone) || (markerPageDetail.latitude && markerPageDetail.longitude)}}"
             >
               <view class="marker-page-address-info" wx:if="{{markerPageDetail.locationText}}">
                 <text class="marker-page-address-text">{{markerPageDetail.locationText}}</text>

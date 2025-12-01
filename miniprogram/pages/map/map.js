@@ -9,7 +9,7 @@ const {
   searchMarkers,
   buildFileDownloadUrl
 } = require("../../utils/markers");
-const { fetchNearbyPins, searchPins, incrementPinExposure } = require("../../utils/pins");
+const { fetchNearbyPins, searchPins, incrementPinExposure, fetchPinDetail } = require("../../utils/pins");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
@@ -384,6 +384,54 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
   return normalized;
 };
 
+const normalizeLaunchPinOptions = (options = {}) => {
+  const normalized = {
+    pinId: "",
+    delayUntilPermission: false
+  };
+  if (!options || typeof options !== "object") {
+    return normalized;
+  }
+  const candidateKeys = ["pinId", "pinID", "id"];
+  for (const key of candidateKeys) {
+    if (options[key] !== undefined && options[key] !== null) {
+      const decoded = decodeParamValue(options[key]);
+      if (decoded) {
+        normalized.pinId = decoded;
+        break;
+      }
+    }
+  }
+  const shareFlag = options.fromShare ?? options.share ?? options.source;
+  if (isTruthyFlag(shareFlag)) {
+    normalized.delayUntilPermission = true;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  if (!normalized.pinId && sceneParams.pinId) {
+    normalized.pinId = decodeParamValue(sceneParams.pinId);
+  }
+  if (!normalized.delayUntilPermission && sceneParams.fromShare) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
+  } else if (!normalized.delayUntilPermission && sceneParams.share) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
+  }
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    if (!normalized.pinId && qParams.pinId) {
+      normalized.pinId = decodeParamValue(qParams.pinId);
+    }
+    if (!normalized.delayUntilPermission && qParams.fromShare) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
+    } else if (!normalized.delayUntilPermission && qParams.share) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.share);
+    }
+  }
+  return normalized;
+};
+
 const extractInviteCodeFromOptions = (options = {}) => {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
@@ -657,6 +705,7 @@ Page({
     this.captureInviteCode(options);
     this.handleWorkGroupInviteOptions(options);
     this.initializeShareLaunch(options);
+    this.initializePinShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
     this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
@@ -740,10 +789,15 @@ Page({
   buildPinDetailFromPin(pin = {}) {
     const rawPin = pin.raw || pin;
     const coords = Array.isArray(rawPin.shape?.coordinates) ? rawPin.shape.coordinates : [];
-    const primary = coords[0] || rawPin.location || {};
+    const normalizedCoords = coords
+      .map((coord) => this.normalizePreviewCoordinate(coord))
+      .filter(Boolean);
+    const primary =
+      normalizedCoords[0] ||
+      this.normalizePreviewCoordinate(rawPin.location) ||
+      this.normalizePreviewCoordinate({ latitude: rawPin.latitude, longitude: rawPin.longitude }) ||
+      {};
     const apiBase = this.getApiBase();
-
-    console.log("buildPinDetailFromPin coords", coords, primary);
     const normalized = this.normalizeMarkerDetail(rawPin);
     const rawImages = Array.isArray(rawPin.images)
       ? rawPin.images
@@ -754,26 +808,30 @@ Page({
         id: `${rawPin.id || "pin"}-image-${idx}`
       }))
       .filter((img) => !!img.url);
-    console.log("buildPinDetailFromPin", rawPin, primary, images);
     const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
     const heightDisplay =
       Number.isFinite(normalized.height) && normalized.height > 0 ? `${Math.round(normalized.height)}m` : "";
     const nameBase = normalized.name || rawPin.name || rawPin.title || "自定义标记";
     const name =
-      pointCategory === "TALL_BUILDING" && heightDisplay ? `${nameBase}（${heightDisplay}）` : nameBase;
+      pointCategory === "TALL_BUILDING" && heightDisplay ? `${nameBase}·${heightDisplay}` : nameBase;
+    const latCandidates = [primary.latitude, rawPin.location?.latitude, rawPin.latitude, normalized.latitude];
+    const lngCandidates = [primary.longitude, rawPin.location?.longitude, rawPin.longitude, normalized.longitude];
+    const latitude = latCandidates.find((v) => Number.isFinite(Number(v)));
+    const longitude = lngCandidates.find((v) => Number.isFinite(Number(v)));
     const detail = {
       id: rawPin.id || "",
       markerId: rawPin.id || "",
       name,
       locationText: normalized.locationText || rawPin.location?.text || rawPin.address || "",
-      latitude: primary.latitude,
-      longitude: primary.longitude,
+      latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : undefined,
+      longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : undefined,
       description: normalized.description || rawPin.description || "",
       images: images.length ? images : normalized.images || [],
       creatorName: normalized.creatorName || rawPin.creatorName || "",
       raw: rawPin,
       source: "pin"
     };
+
     if (
       !detail.locationText &&
       Number.isFinite(Number(detail.latitude)) &&
@@ -781,6 +839,7 @@ Page({
     ) {
       this.lookupPinAddress(detail);
     }
+    console.log("Built pin detail ->>", detail.latitude, detail.longitude);
     return detail;
   },
 
@@ -990,9 +1049,22 @@ Page({
 
   applyPinAddress(markerId, address) {
     if (!address) return;
-    if (markerId && this.data.detailCard && (this.data.detailCard.markerId === markerId || this.data.detailCard.id === markerId)) {
+    if (
+      markerId &&
+      this.data.detailCard &&
+      (this.data.detailCard.markerId === markerId || this.data.detailCard.id === markerId)
+    ) {
       this.setData({
         "detailCard.locationText": address
+      });
+    }
+    if (
+      markerId &&
+      this.data.markerPageDetail &&
+      (this.data.markerPageDetail.markerId === markerId || this.data.markerPageDetail.id === markerId)
+    ) {
+      this.setData({
+        "markerPageDetail.locationText": address
       });
     }
   },
@@ -1108,15 +1180,22 @@ Page({
   },
 
   markSharePermissionAttempted() {
-    if (!this._shareLaunchMarkerId) return;
-    if (!this._shareLaunchWaitForPermission) return;
-    if (this._shareLaunchPermissionSettled) return;
-    this._shareLaunchPermissionSettled = true;
-    if (this._shareLaunchNeedAuthRetry) {
-      this.retryShareMarkerDetailAfterAuth();
-      return;
+    if (this._shareLaunchMarkerId && this._shareLaunchWaitForPermission && !this._shareLaunchPermissionSettled) {
+      this._shareLaunchPermissionSettled = true;
+      if (this._shareLaunchNeedAuthRetry) {
+        this.retryShareMarkerDetailAfterAuth();
+      } else {
+        this.tryActivateShareMarker();
+      }
     }
-    this.tryActivateShareMarker();
+    if (this._sharePinLaunchId && this._sharePinWaitForPermission && !this._sharePinPermissionSettled) {
+      this._sharePinPermissionSettled = true;
+      if (this._sharePinNeedAuthRetry) {
+        this.retrySharePinDetailAfterAuth();
+      } else {
+        this.tryActivateSharePin();
+      }
+    }
   },
 
   retryShareMarkerDetailAfterAuth() {
@@ -1192,7 +1271,7 @@ Page({
       return false;
     }
     const detail = marker?.extData?.detail || {};
-    const isApproved = this.getDetailReviewStatus(detail) === "APPROVED";
+    const isApproved = this.isDetailApproved(detail);
     if (!isApproved) {
       this._manualMarkers = [marker];
       this.syncAllMarkers();
@@ -1261,6 +1340,215 @@ Page({
         padding: 4
       };
     }
+    return marker;
+  },
+
+  initializePinShareLaunch(options = {}) {
+    this._sharePinLaunchId = "";
+    this._sharePinWaitForPermission = false;
+    this._sharePinPermissionSettled = true;
+    this._sharePinHandled = false;
+    this._sharePinDetail = null;
+    this._sharePinError = null;
+    this._sharePinFetchPromise = null;
+    this._sharePinFetchSeq = 0;
+    this._sharePinNeedAuthRetry = false;
+    this._sharePinAuthPromise = null;
+    const normalized = normalizeLaunchPinOptions(options);
+    if (!normalized.pinId) {
+      return;
+    }
+    this._sharePinLaunchId = normalized.pinId;
+    this._sharePinWaitForPermission = !!normalized.delayUntilPermission;
+    this._sharePinPermissionSettled = !this._sharePinWaitForPermission;
+    this.fetchSharePinDetailById(normalized.pinId);
+  },
+
+  fetchSharePinDetailById(pinId, options = {}) {
+    const id = `${pinId || ""}`.trim();
+    if (!id) {
+      return;
+    }
+    const allowRetry = options.allowRetry !== false;
+    this._sharePinFetchSeq = (this._sharePinFetchSeq || 0) + 1;
+    const seq = this._sharePinFetchSeq;
+    const request = fetchPinDetail(id, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    });
+    this._sharePinFetchPromise = request;
+    request
+      .then((detail) => {
+        if (this._sharePinFetchPromise !== request || this._sharePinFetchSeq !== seq) {
+          return;
+        }
+        this._sharePinFetchPromise = null;
+        this._sharePinDetail = detail;
+        this._sharePinError = null;
+        this._sharePinNeedAuthRetry = false;
+        this.tryActivateSharePin();
+      })
+      .catch((err) => {
+        if (this._sharePinFetchPromise !== request || this._sharePinFetchSeq !== seq) {
+          return;
+        }
+        this._sharePinFetchPromise = null;
+        if (allowRetry && err && err.message === "missing-token") {
+          this._sharePinNeedAuthRetry = true;
+          this._sharePinDetail = null;
+          this._sharePinError = null;
+          if (this._sharePinPermissionSettled) {
+            this.retrySharePinDetailAfterAuth();
+          }
+          return;
+        }
+        this._sharePinDetail = null;
+        this._sharePinError = err || new Error("pin-detail-failed");
+        this.tryActivateSharePin();
+      });
+  },
+
+  retrySharePinDetailAfterAuth() {
+    if (!this._sharePinLaunchId) {
+      this.tryActivateSharePin();
+      return;
+    }
+    const fetchAfterAuth = () => {
+      if (!this._sharePinLaunchId || this._sharePinHandled) {
+        this.tryActivateSharePin();
+        return;
+      }
+      this._sharePinNeedAuthRetry = false;
+      this.fetchSharePinDetailById(this._sharePinLaunchId, { allowRetry: false });
+    };
+    if (this.hasAccessToken()) {
+      fetchAfterAuth();
+      return;
+    }
+    if (this._sharePinAuthPromise) {
+      return;
+    }
+    this._sharePinAuthPromise = this.ensureProfileAuthenticated()
+      .then(() => {
+        fetchAfterAuth();
+      })
+      .catch((err) => {
+        this._sharePinError = err || new Error("login-failed");
+        this.tryActivateSharePin();
+      })
+      .finally(() => {
+        this._sharePinAuthPromise = null;
+      });
+  },
+
+  tryActivateSharePin() {
+    if (!this._sharePinLaunchId || this._sharePinHandled) {
+      return;
+    }
+    if (!this._sharePinPermissionSettled) {
+      return;
+    }
+    if (this._sharePinDetail) {
+      const success = this.activateSharePinDetail(this._sharePinDetail);
+      this._sharePinHandled = true;
+      this._sharePinDetail = null;
+      this._sharePinLaunchId = "";
+      if (!success) {
+        return;
+      }
+      return;
+    }
+    if (this._sharePinError) {
+      this.handleSharePinError(this._sharePinError);
+      this._sharePinHandled = true;
+      this._sharePinLaunchId = "";
+      this._sharePinError = null;
+    }
+  },
+
+  handleSharePinError(err) {
+    const message =
+      err && err.message === "missing-token"
+        ? "���ȵ�¼���ٲ鿴��֯��Ϣ"
+        : "������Ϣʧ�ܣ����Ժ�����";
+    wx.showToast({ title: message, icon: "none" });
+  },
+
+  activateSharePinDetail(rawDetail) {
+    const marker = this.buildSharePinFromDetail(rawDetail);
+    if (!marker) {
+      wx.showToast({ title: "��Ϣ������", icon: "none" });
+      return false;
+    }
+    const detail = marker?.extData?.detail || {};
+    const isApproved = this.isDetailSharable(detail);
+    // 分享只需要定位并打开详情，不强行重绘标记或覆盖列表
+    this._previewPolygons = [];
+    this._previewCircles = [];
+    this.updateOverlayGraphics();
+    this.centerOnPoint(
+      { latitude: marker.latitude, longitude: marker.longitude },
+      clampMapScale(16)
+    );
+    this.openMarkerPage(detail);
+    return true;
+  },
+
+  buildSharePinFromDetail(rawDetail = {}) {
+    if (!rawDetail) {
+      return null;
+    }
+    const detail = this.buildPinDetailFromPin(rawDetail);
+    if (!detail) {
+      return null;
+    }
+    const latitude = Number(detail.latitude);
+    const longitude = Number(detail.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const markerName = detail.name || "空标记";
+    const markerId = detail.markerId || detail.id || rawDetail.id || `pin-share-${Date.now()}`;
+    const previewMarker =
+      this.buildPinPreviewMarker({
+        id: markerId,
+        name: markerName,
+        location: { latitude, longitude },
+        shape: rawDetail.shape || detail.raw?.shape,
+        height: rawDetail.height || rawDetail.altitude || detail.height
+      }) || {};
+    const marker = Object.assign(
+      {
+        id: markerId,
+        latitude,
+        longitude,
+        iconPath: "/assets/default.png",
+        width: 32,
+        height: 32
+      },
+      previewMarker
+    );
+    marker.latitude = Number.isFinite(marker.latitude) ? marker.latitude : latitude;
+    marker.longitude = Number.isFinite(marker.longitude) ? marker.longitude : longitude;
+    if (!marker.callout || !marker.callout.content) {
+      const calloutContent = formatNearbyMarkerLabel(markerName);
+      if (calloutContent) {
+        marker.callout = {
+          content: calloutContent,
+          color: "#111827",
+          fontSize: 14,
+          fontWeight: "bold",
+          display: "ALWAYS",
+          borderRadius: 4,
+          padding: 4
+        };
+      }
+    }
+    marker.extData = Object.assign({}, marker.extData, {
+      source: "pin-share",
+      raw: rawDetail,
+      detail: cloneMarkerDetail(detail)
+    });
     return marker;
   },
 
@@ -1834,6 +2122,7 @@ Page({
       this._restoreMarkerDetailTimer = null;
     }
     const pageDetail = cloneMarkerDetail(detail);
+    console.log("pageDetail->>", pageDetail)
     this.normalizeMarkerPageDetail(pageDetail);
     this._lastMarkerDetail = pageDetail;
     const distanceText = this.buildMarkerDistanceText(pageDetail);
@@ -2124,7 +2413,6 @@ Page({
   },
 
   onMarkerPageNavigateTap(event) {
-    console.log("111111111111111111111111111111")
     const detail = this.data.markerPageDetail;
     if (!detail) return;
     const dataset = event?.currentTarget?.dataset || {};
@@ -2133,14 +2421,28 @@ Page({
 
   getDetailReviewStatus(detail) {
     if (!detail) return "";
-    return `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`.trim().toUpperCase();
+    return `${detail.reviewStatus || detail.raw?.reviewStatus || detail.raw?.status || ""}`.trim().toUpperCase();
+  },
+
+  isDetailApproved(detail) {
+    const status = this.getDetailReviewStatus(detail);
+    if (!status) return false;
+    if (status === "APPROVED") return true;
+    return status.startsWith("APPROVED");
+  },
+
+  isPinDetail(detail) {
+    const source = `${detail?.source || detail?.raw?.source || ""}`.toLowerCase();
+    if (source.includes("pin")) return true;
+    if (detail?.raw && typeof detail.raw === "object" && detail.raw.shape) return true;
+    return false;
   },
 
   isDetailSharable(detail) {
     if (!detail || detail.shareDisabled) {
       return false;
     }
-    return this.getDetailReviewStatus(detail) === "APPROVED";
+    return this.isDetailApproved(detail);
   },
 
   showShareBlockedToast() {
@@ -2182,15 +2484,25 @@ Page({
       this.showShareBlockedToast();
       return fallback;
     }
-    const markerId = detail.markerId || detail.id || "";
-    if (!markerId) {
+    const targetId = detail.markerId || detail.id || "";
+    if (!targetId) {
       return fallback;
+    }
+    if (this.isPinDetail(detail)) {
+      const shareTitle = detail.name;
+      return {
+        title: shareTitle,
+        path: appendInviteCodeToPath(
+          `/pages/map/map?fromShare=1&pinId=${encodeURIComponent(targetId)}`,
+          { inviteCode }
+        )
+      };
     }
     const shareTitle = detail.name;
     return {
       title: shareTitle,
       path: appendInviteCodeToPath(
-        `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`,
+        `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(targetId)}`,
         { inviteCode }
       )
     };
@@ -2210,14 +2522,14 @@ Page({
       this.showShareBlockedToast();
       return fallback;
     }
-    const markerId = detail.markerId || detail.id || "";
-    if (!markerId) {
+    const targetId = detail.markerId || detail.id || "";
+    if (!targetId) {
       return fallback;
     }
-    const query = appendInviteCodeToQuery(
-      `markerId=${encodeURIComponent(markerId)}&fromShare=1`,
-      { inviteCode }
-    );
+    const queryBase = this.isPinDetail(detail)
+      ? `pinId=${encodeURIComponent(targetId)}&fromShare=1`
+      : `markerId=${encodeURIComponent(targetId)}&fromShare=1`;
+    const query = appendInviteCodeToQuery(queryBase, { inviteCode });
     return {
       title: fallback.title,
       query
@@ -5767,3 +6079,4 @@ Page({
     return alpha > 16;
   }
 });
+
