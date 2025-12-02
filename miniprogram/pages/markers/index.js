@@ -2597,9 +2597,13 @@ Page({
     }
   },
 
-  handlePinPublish(marker = {}) {
+  handlePinPublish(marker = {}, options = {}) {
+    const skipConfirm = options?.skipConfirm === true;
     if (!marker?.id) return;
-    if (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "publish") {
+    if (
+      !skipConfirm &&
+      (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "publish")
+    ) {
       this.showPinConfirm("publish", marker);
       return;
     }
@@ -2737,14 +2741,7 @@ Page({
       return;
     }
     if (source === "pin-action" && marker) {
-      this.setData({
-        pinConfirmVisible: true,
-        pinConfirmAction: "publish",
-        pinConfirmTargetId: marker.id || "",
-        pinConfirmMessage: "确认发布到平台？",
-        pinConfirmBusy: false
-      });
-      this.handlePinPublish(marker);
+      this.handlePinPublish(marker, { skipConfirm: true });
     }
   },
 
