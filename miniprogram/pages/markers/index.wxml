@@ -474,7 +474,6 @@
         </view>
 
         <view class="wg-block">
-          <text class="wg-block-title">工作组信息</text>
           <view class="wg-field">
             <text class="wg-field-label">图片</text>
             <view class="image-uploader">

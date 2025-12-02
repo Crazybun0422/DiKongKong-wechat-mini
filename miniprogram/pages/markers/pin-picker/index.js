@@ -236,7 +236,7 @@ Page({
     circles: [],
     lineBufferInput: "1",
     circleRadiusInput: "50",
-    lineActionHint: "",
+    lineActionHint: "点击开始绘制进行图形绘制",
     lineRewriteIndex: null,
     coordPanelCollapsed: true,
     lineDrawingStarted: false,
@@ -306,8 +306,13 @@ Page({
     return false;
   },
 
-  buildPointHint(label) {
-    const name = label || this.data.selectedType?.label || "通用";
+  buildPointHint(label, typeId) {
+    const resolvedLabel =
+      label ||
+      (typeId ? this.findTypeById(typeId)?.label : "") ||
+      this.data.selectedType?.label ||
+      "通用";
+    const name = resolvedLabel || "通用";
     return `选好位置，点击下方“确认${name}”完成标记`;
   },
 
@@ -751,10 +756,11 @@ Page({
   },
 
   applyInitialPayload(payload) {
+    console.log("Applying initial payload:", payload);
     const data = payload || {};
     const lat = normalizeCoord(data.latitude);
     const lng = normalizeCoord(data.longitude);
-    const typeId = data.typeId || data.type;
+    const typeId = data?.typeId;
     const sectionFromType = typeId ? this.findSectionByType(typeId) : "";
     const isLineType = sectionFromType === "LINE" || data.category === "LINE";
     const coordinateList = isLineType
@@ -778,6 +784,7 @@ Page({
     const circleHasCenter =
       typeId === "AREA_CIRCLE" &&
       coordinateList.some((item) => hasValidCoordinate(normalizeCoord(item.latitude), normalizeCoord(item.longitude)));
+
     this.setData({
       coordinateList,
       activeCoordIndex,
@@ -796,7 +803,7 @@ Page({
       circleAnchorLocked: circleHasCenter,
       rectangleClosed: typeId === "AREA_RECTANGLE" && coordinateList.length >= 2,
       polygonClosed: typeId === "AREA_POLYGON" && coordinateList.length >= 3,
-      pointActionHint: isLineType ? "" : this.buildPointHint(this.data.selectedType?.label)
+      pointActionHint: !payload?.latitude && !payload?.longitude ? "👆请先选择标记类型" : (isLineType ? "" : this.buildPointHint(data?.typeLabel, typeId))
     });
     this.refreshDisplayCoordinateList();
     let effectiveLat = lat;
@@ -895,7 +902,7 @@ Page({
         coordinateText: formatCoordinateText(latitude, longitude),
         addressLoading: true,
         addressError: "",
-        pointActionHint: this.isLineCategory() ? "" : this.buildPointHint(this.data.selectedType?.label)
+        pointActionHint: this.isLineCategory() ? "" : this.buildPointHint(this.data.selectedType?.label, this.data.selectedType?.id)
       },
       () => {
         if (this.isLineCategory()) {
@@ -1150,7 +1157,7 @@ Page({
       typeMenuVisible: false,
       coordPanelCollapsed: false,
       lineDrawingStarted: next.category === "LINE" ? false : this.data.lineDrawingStarted,
-      pointActionHint: next.category === "POINT" ? this.buildPointHint(next.label) : "",
+      pointActionHint: next.category === "POINT" ? this.buildPointHint(next.label, next.id) : "",
       polygonClosed: next.category === "AREA" ? false : this.data.polygonClosed,
       circleAnchorLocked: next.id === "AREA_CIRCLE" ? false : this.data.circleAnchorLocked
     };
@@ -1159,6 +1166,7 @@ Page({
       patch.activeCoordIndex = 0;
       patch.rectangleClosed = false;
       patch.polygonClosed = false;
+      patch.lineActionHint = "点击开始绘制进行图形绘制";
       if (preview) {
         patch.selectedLatitude = preview.latitude;
         patch.selectedLongitude = preview.longitude;
@@ -1172,6 +1180,7 @@ Page({
       patch.polyline = [];
       patch.bufferPolygons = [];
       patch.circles = [];
+      patch.lineActionHint = "点击开始绘制进行图形绘制";
       if (next.category === "AREA") {
         patch.coordinateList = [];
         patch.activeCoordIndex = 0;
