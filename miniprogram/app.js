@@ -152,6 +152,8 @@ App({
         console.warn("Failed to validate stored token, attempting re-login", err);
       });
     }
+
+    this.initUpdateManager();
   },
 
   validateStoredToken(token) {
@@ -220,6 +222,41 @@ App({
             .catch(reject);
         },
         fail: (err) => reject(err)
+      });
+    });
+  },
+
+  initUpdateManager() {
+    if (this._updateManagerInitialized) return;
+    this._updateManagerInitialized = true;
+    if (typeof wx.getUpdateManager !== "function") {
+      console.warn("UpdateManager is not available in this environment.");
+      return;
+    }
+    const updateManager = wx.getUpdateManager();
+    updateManager.onCheckForUpdate((res) => {
+      console.log("Check for update", res.hasUpdate);
+    });
+    updateManager.onUpdateReady(() => {
+      wx.showModal({
+        title: "发现新版本",
+        content: "已为你准备好新版，重启后即可使用最新功能。",
+        confirmText: "立即更新",
+        cancelText: "稍后",
+        success: (modalRes) => {
+          if (modalRes.confirm) {
+            updateManager.applyUpdate();
+          }
+        }
+      });
+    });
+    updateManager.onUpdateFailed((err) => {
+      console.warn("Update failed", err);
+      wx.showModal({
+        title: "更新未完成",
+        content: "下载新版本时遇到问题，请检查网络后重试。",
+        confirmText: "我知道了",
+        showCancel: false
       });
     });
   },
