@@ -923,26 +923,25 @@
   <block wx:if="{{publishPlatformDialogVisible}}">
     <view class="modal-overlay" catchtouchmove="noop">
       <view class="modal-mask" bindtap="onPublishPlatformCancel"></view>
-      <view class="modal-card publish-platform-card">
+      <view class="modal-card.share publish-platform-card">
         <view class="modal-header">
-          <text class="modal-title">共享到平台</text>
-          <view class="modal-close" bindtap="onPublishPlatformCancel">×</view>
+          <text class="modal-title-share">共享到平台</text>
+          <view class="modal-close.share" bindtap="onPublishPlatformCancel">×</view>
         </view>
-        <view class="modal-body publish-platform-body">
-          <text class="publish-platform-desc">
-            
-          </text>
+        <view class="modal-body publish-platform-body share">
           <text class="publish-platform-desc">
             经审核收录，奖励FLP并同步展示在地图供所有人查看。
+          </text>
+          <text class="publish-platform-desc">
             获赞数累计到作者账号，底部展示作者昵称（后续可跳转主页私信）
           </text>
-          <view class="publish-platform-note">
+          <view class="publish-platform-note top">
           <text class="publish-platform-note.star">*</text>
           <text class="publish-platform-note.text">违法违规/涉密等不收录；</text>
           </view>
           <view class="publish-platform-note">
             <text class="publish-platform-note.star">*</text>
-          <text class="publish-platform-note.text">商业性内容请通过商户入驻；</text>
+            <text class="publish-platform-note.text">商业性内容请通过商户入驻；</text>
           </view>
         </view>
         <view class="publish-platform-actions">
