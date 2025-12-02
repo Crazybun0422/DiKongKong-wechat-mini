@@ -138,13 +138,21 @@ function toGcjPoint(lng, lat) {
   return { latitude, longitude };
 }
 
-function buildNoFlyZoneGraphics(zones = []) {
+function buildNoFlyZoneGraphics(zones = [], options = {}) {
   const polygons = [];
   const circles = [];
   const shapes = [];
   if (!Array.isArray(zones)) {
     return { polygons, circles, shapes };
   }
+  const baseColor = normalizeHex(options.color || DEFAULT_COLOR);
+  const fillOpacity = Object.prototype.hasOwnProperty.call(options, "fillOpacity")
+    ? clampColorOpacity(options.fillOpacity)
+    : FILL_OPACITY;
+  const strokeOpacity = Object.prototype.hasOwnProperty.call(options, "strokeOpacity")
+    ? clampColorOpacity(options.strokeOpacity)
+    : STROKE_OPACITY;
+  const strokeWidth = Number.isFinite(options.strokeWidth) ? options.strokeWidth : STROKE_WIDTH;
 
   zones.forEach((zone) => {
     const type = String(zone?.type || "").toUpperCase();
@@ -158,9 +166,9 @@ function buildNoFlyZoneGraphics(zones = []) {
             longitude: gcj.longitude,
             latitude: gcj.latitude,
             radius,
-            color: colorWithAlpha(DEFAULT_COLOR, STROKE_OPACITY),
-            fillColor: colorWithAlpha(DEFAULT_COLOR, FILL_OPACITY),
-            strokeWidth: STROKE_WIDTH
+            color: colorWithAlpha(baseColor, strokeOpacity),
+            fillColor: colorWithAlpha(baseColor, fillOpacity),
+            strokeWidth
           });
           shapes.push({
             type: "circle",
@@ -182,9 +190,9 @@ function buildNoFlyZoneGraphics(zones = []) {
         if (gcjPoints.length >= 3) {
           polygons.push({
             points: gcjPoints,
-            strokeColor: colorWithAlpha(DEFAULT_COLOR, STROKE_OPACITY),
-            fillColor: colorWithAlpha(DEFAULT_COLOR, FILL_OPACITY),
-            strokeWidth: STROKE_WIDTH
+            strokeColor: colorWithAlpha(baseColor, strokeOpacity),
+            fillColor: colorWithAlpha(baseColor, fillOpacity),
+            strokeWidth
           });
           shapes.push({
             type: "polygon",
@@ -205,9 +213,9 @@ function buildNoFlyZoneGraphics(zones = []) {
         if (gcjPoints.length >= 3) {
           polygons.push({
             points: gcjPoints,
-            strokeColor: colorWithAlpha(DEFAULT_COLOR, STROKE_OPACITY),
-            fillColor: colorWithAlpha(DEFAULT_COLOR, FILL_OPACITY),
-            strokeWidth: STROKE_WIDTH
+            strokeColor: colorWithAlpha(baseColor, strokeOpacity),
+            fillColor: colorWithAlpha(baseColor, fillOpacity),
+            strokeWidth
           });
         }
       });

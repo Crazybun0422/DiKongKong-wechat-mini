@@ -46,6 +46,9 @@ const TYPE_SECTIONS = [
 ];
 
 const DEFAULT_TYPE = TYPE_SECTIONS[0].options[0];
+const PIN_SHAPE_COLOR = "#D3A05B";
+const PIN_SHAPE_STROKE = "#D3A05BF2";
+const PIN_SHAPE_FILL = "#D3A05B4D";
 
 function normalizeCoord(value) {
   const num = Number(value);
@@ -471,7 +474,7 @@ Page({
     if (confirmedPoints.length >= 2) {
       lines.push({
         points: confirmedPoints,
-        color: "#0f172a",
+        color: PIN_SHAPE_COLOR,
         width: 6,
         arrowLine: false,
         dottedLine: false
@@ -480,7 +483,7 @@ Page({
     if (confirmedPoints.length >= 1 && preview) {
       lines.push({
         points: [confirmedPoints[confirmedPoints.length - 1], preview],
-        color: "#111827",
+        color: PIN_SHAPE_COLOR,
         width: 4,
         dottedLine: true
       });
@@ -492,8 +495,8 @@ Page({
       ? [
         {
           points: polygonPoints,
-          fillColor: "#DE43294D",
-          strokeColor: "#DE4329F2",
+          fillColor: PIN_SHAPE_FILL,
+          strokeColor: PIN_SHAPE_STROKE,
           strokeWidth: 1
         }
       ]
@@ -523,8 +526,8 @@ Page({
     let circles = [];
     let markers = [];
 
-    const fillColor = "#DE43294D";
-    const strokeColor = "#DE4329F2";
+    const fillColor = PIN_SHAPE_FILL;
+    const strokeColor = PIN_SHAPE_STROKE;
     const strokeWidth = 1;
 
     if (typeId === "AREA_POLYGON") {

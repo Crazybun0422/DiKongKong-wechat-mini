@@ -3273,7 +3273,7 @@ Page({
       }
       const zone = this.buildPinPreviewZone(pin.shape);
       if (!zone) return;
-      const graphics = buildNoFlyZoneGraphics([zone]);
+      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
       if (Array.isArray(graphics.polygons)) {
         polygons.push(...graphics.polygons);
       }
