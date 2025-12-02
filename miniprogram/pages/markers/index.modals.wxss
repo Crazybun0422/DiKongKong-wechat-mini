@@ -36,6 +36,7 @@
   font-size: 34rpx;
   font-weight: 700;
   color: #0f172a;
+  margin-left: 220rpx;
 }
 
 .modal-close {
@@ -58,7 +59,7 @@
 .modal-body {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
+  gap: 2rpx;
   max-height: 60vh;
   overflow: auto;
 }
@@ -126,7 +127,7 @@
 }
 
 .publish-platform-body {
-  gap: 12rpx;
+  gap: 9rpx;
 }
 
 .publish-platform-desc {
@@ -137,10 +138,14 @@
 
 .publish-platform-note {
   font-size: 26rpx;
-  color: #4b5563;
   line-height: 1.5;
 }
-
+.publish-platform-note.star{
+  color: red;
+}
+.publish-platform-note.text{
+  color: #4b5563;
+}
 .publish-platform-actions {
   margin-top: 18rpx;
   display: flex;
