@@ -120,3 +120,48 @@
   justify-content: flex-end;
   gap: 16rpx;
 }
+
+.publish-platform-card {
+  padding-bottom: 18rpx;
+}
+
+.publish-platform-body {
+  gap: 12rpx;
+}
+
+.publish-platform-desc {
+  font-size: 28rpx;
+  color: #0f172a;
+  line-height: 1.5;
+}
+
+.publish-platform-note {
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.publish-platform-actions {
+  margin-top: 18rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.publish-platform-btn {
+  width: 100%;
+  height: 84rpx;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.publish-platform-btn.primary {
+  background: #111;
+  color: #fff;
+}
+
+.publish-platform-btn.secondary {
+  background: #f4f4f5;
+  color: #111827;
+}

@@ -273,6 +273,9 @@ Page({
     pinConfirmTargetId: "",
     pinConfirmMessage: "",
     pinConfirmBusy: false,
+    publishPlatformDialogVisible: false,
+    publishPlatformDialogSource: "",
+    publishPlatformPendingMarker: null,
     deletingId: "",
     hasLoaded: false,
     editingMarkerId: "",
@@ -2572,7 +2575,7 @@ Page({
       return;
     }
     if (action === "publish") {
-      this.showPinConfirm("publish", marker);
+      this.openPublishPlatformDialog("pin-action", marker);
       return;
     }
     if (action === "revoke") {
@@ -2699,6 +2702,50 @@ Page({
       pinConfirmMessage: message,
       pinConfirmBusy: false
     });
+  },
+
+  openPublishPlatformDialog(source = "", marker = null) {
+    this.setData({
+      publishPlatformDialogVisible: true,
+      publishPlatformDialogSource: source,
+      publishPlatformPendingMarker: marker || null
+    });
+  },
+
+  onPublishPlatformCancel() {
+    const source = this.data.publishPlatformDialogSource;
+    this.setData({
+      publishPlatformDialogVisible: false,
+      publishPlatformDialogSource: "",
+      publishPlatformPendingMarker: null
+    });
+    if (source === "pin-toggle") {
+      this.setData({ "myPinForm.publishToPlatform": false });
+    }
+  },
+
+  onPublishPlatformConfirm() {
+    const source = this.data.publishPlatformDialogSource;
+    const marker = this.data.publishPlatformPendingMarker;
+    this.setData({
+      publishPlatformDialogVisible: false,
+      publishPlatformDialogSource: "",
+      publishPlatformPendingMarker: null
+    });
+    if (source === "pin-toggle") {
+      this.setData({ "myPinForm.publishToPlatform": true });
+      return;
+    }
+    if (source === "pin-action" && marker) {
+      this.setData({
+        pinConfirmVisible: true,
+        pinConfirmAction: "publish",
+        pinConfirmTargetId: marker.id || "",
+        pinConfirmMessage: "确认发布到平台？",
+        pinConfirmBusy: false
+      });
+      this.handlePinPublish(marker);
+    }
   },
 
   onPinConfirmCancel() {
@@ -2977,7 +3024,15 @@ Page({
 
   onPinPublishToggle(e) {
     const publish = !!e?.detail?.value;
-    this.setData({ "myPinForm.publishToPlatform": publish });
+    if (publish) {
+      // require confirmation before enabling publish to platform in creation flow
+      this.setData({
+        "myPinForm.publishToPlatform": false
+      });
+      this.openPublishPlatformDialog("pin-toggle");
+      return;
+    }
+    this.setData({ "myPinForm.publishToPlatform": false });
   },
 
   onAddPinMediaTap() {

@@ -920,6 +920,32 @@
     </view>
   </view>
 
+  <block wx:if="{{publishPlatformDialogVisible}}">
+    <view class="modal-overlay" catchtouchmove="noop">
+      <view class="modal-mask" bindtap="onPublishPlatformCancel"></view>
+      <view class="modal-card publish-platform-card">
+        <view class="modal-header">
+          <text class="modal-title">共享到平台</text>
+          <view class="modal-close" bindtap="onPublishPlatformCancel">×</view>
+        </view>
+        <view class="modal-body publish-platform-body">
+          <text class="publish-platform-desc">
+            经审核收录，奖励FLP并同步展示在地图供所有人查看。
+          </text>
+          <text class="publish-platform-desc">
+            获赞数累计到作者账号，底部展示作者昵称（后续可跳转主页私信）
+          </text>
+          <view class="publish-platform-note">*违法违规/涉密等不收录；</view>
+          <view class="publish-platform-note">*商业性内容请通过商户入驻；</view>
+        </view>
+        <view class="publish-platform-actions">
+          <button class="publish-platform-btn primary" bindtap="onPublishPlatformConfirm">确定</button>
+          <button class="publish-platform-btn secondary" bindtap="onPublishPlatformCancel">取消</button>
+        </view>
+      </view>
+    </view>
+  </block>
+
   <block wx:if="{{deleteDialogVisible}}">
     <view class="delete-dialog-overlay" catchtouchmove="noop">
       <view class="delete-dialog-mask" bindtap="onDeleteDialogCancel"></view>
