@@ -149,6 +149,20 @@
   padding: 18rpx 20rpx;
 }
 
+.pin-selector-main {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.pin-selector-icon {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 14rpx;
+  background: #f1f5f9;
+  flex-shrink: 0;
+}
+
 .pin-selector-text {
   font-size: 28rpx;
   color: #0f172a;

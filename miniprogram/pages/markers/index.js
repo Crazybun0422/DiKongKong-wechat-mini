@@ -113,6 +113,17 @@ const PIN_CATEGORY_LABELS = {
   LINE: "线",
   AREA: "面"
 };
+const PIN_TYPE_ICONS = {
+  POINT_DEFAULT: "/assets/default.png",
+  POINT_WARNING: "/assets/drone-warning.png",
+  POINT_AERIAL: "/assets/aerial.png",
+  POINT_DOCK: "/assets/dock.png",
+  POINT_ELEVATION: "/assets/elevation.png",
+  LINE_PATH_BUFFER: "/assets/path.png",
+  AREA_CIRCLE: "/assets/circle.png",
+  AREA_RECTANGLE: "/assets/rectangle.png",
+  AREA_POLYGON: "/assets/polygon.png"
+};
 const PIN_REVIEW_STATUS_META = {
   PENDING: { label: "审核中", tone: "pending" },
   APPROVED_A: { label: "通过", tone: "online" },
@@ -158,6 +169,8 @@ function createEmptyPinForm() {
   return {
     geometryType: "POINT_DEFAULT",
     geometryLabel: "点-通用",
+    geometryName: "通用",
+    geometryIcon: PIN_TYPE_ICONS.POINT_DEFAULT,
     geometryCategory: "POINT",
     latitude: null,
     longitude: null,
@@ -1812,6 +1825,8 @@ Page({
     form.geometryCategory = geometry.category;
     form.geometryType = typeId;
     form.geometryLabel = pin.geometryLabel || this.computePinGeometryLabel(form.geometryCategory, form.geometryType);
+    form.geometryName = this.getPinTypeLabel(form.geometryType) || "通用";
+    form.geometryIcon = this.getPinTypeIcon(form.geometryType);
     form.latitude = first.latitude ?? null;
     form.longitude = first.longitude ?? null;
     form.coordinateList = coordinateList;
@@ -2081,6 +2096,10 @@ Page({
     };
     return map[typeId] || "";
   },
+  getPinTypeIcon(typeId) {
+    return PIN_TYPE_ICONS[typeId] || PIN_TYPE_ICONS.POINT_DEFAULT;
+  },
+
 
   computePinGeometryLabel(category, typeId) {
     const cat = `${category || ""}`.toUpperCase();
@@ -2962,6 +2981,7 @@ Page({
     const label = detail.typeLabel || detail.typeId || "通用";
     const prefix = PIN_CATEGORY_LABELS[cat] || "";
     const combinedLabel = prefix ? `${prefix}-${label}` : label;
+    const geometryIcon = this.getPinTypeIcon(detail.typeId || detail.type);
     const coordinateList = normalizePinCoordinateList(detail.coordinates || detail.coordinateList || []);
     const activeCoordIndex = Math.min(
       Math.max(Number(detail.activeCoordIndex || 0), 0),
@@ -2982,6 +3002,8 @@ Page({
       "myPinForm.geometryType": detail.typeId || detail.type || "POINT_DEFAULT",
       "myPinForm.geometryCategory": cat || "POINT",
       "myPinForm.geometryLabel": combinedLabel,
+      "myPinForm.geometryName": label || "通用",
+      "myPinForm.geometryIcon": geometryIcon,
       "myPinForm.coordinateList": coordinateList,
       "myPinForm.activeCoordIndex": activeCoordIndex,
       "myPinForm.bufferWidth": Number.isFinite(Number(bufferWidthRaw)) ? Number(bufferWidthRaw) : null,
