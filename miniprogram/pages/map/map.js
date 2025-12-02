@@ -139,19 +139,31 @@ const formatNearbyMarkerLabel = (value) => {
   if (!trimmed) {
     return "";
   }
-  if (trimmed.length <= 5) {
-    return trimmed;
+  const chars = Array.from(trimmed);
+  if (chars.length <= 7) {
+    return chars.join("");
   }
-  const firstLine = trimmed.slice(0, 5);
-  const remaining = trimmed.slice(5);
-  if (!remaining) {
-    return firstLine;
+  return `${chars.slice(0, 6).join("")}…`;
+};
+
+const buildMarkerNameCallout = (content, overrides = {}) => {
+  if (!content) {
+    return null;
   }
-  let secondLine = remaining.slice(0, 5);
-  if (remaining.length > 5) {
-    secondLine = `${secondLine}...`;
-  }
-  return `${firstLine}\n${secondLine}`;
+  return Object.assign(
+    {
+      content,
+      color: "#111827",
+      fontSize: 12,
+      fontWeight: "bold",
+      display: "ALWAYS",
+      borderRadius: 5,
+      padding: 6,
+      borderColor: "#111827",
+      borderWidth: 0.4
+    },
+    overrides
+  );
 };
 
 const formatTemporaryZoneLabel = (value, maxLength = 9) => {
@@ -928,7 +940,10 @@ Page({
     const hasName = !!payload.name;
     const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
     if (hasName) {
-      contentParts.push(payload.name);
+      const formattedName = formatNearbyMarkerLabel(payload.name);
+      if (formattedName) {
+        contentParts.push(formattedName);
+      }
     }
     if (hasHeight) {
       const hText = `${Math.round(payload.height)}米`;
@@ -939,6 +954,10 @@ Page({
       }
     }
     const content = contentParts.join(" ") || "标记位置";
+    const callout = buildMarkerNameCallout(content, {
+      fontSize: 10,
+      fontWeight: "normal"
+    });
     return {
       id: payload.id || `pin-preview-${Date.now()}`,
       latitude,
@@ -946,16 +965,7 @@ Page({
       iconPath,
       width: 32,
       height: 32,
-      callout: {
-        content,
-        color: "#111827",
-        fontSize: 12,
-        padding: 6,
-        display: "ALWAYS",
-        borderRadius: 4,
-        borderColor: "#111827",
-        borderWidth: 1
-      }
+      callout
     };
   },
 
@@ -1331,15 +1341,7 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(markerName);
     if (calloutContent) {
-      marker.callout = {
-        content: calloutContent,
-        color: "rgba(0, 0, 0, 0.95)",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+      marker.callout = buildMarkerNameCallout(calloutContent);
     }
     return marker;
   },
@@ -1534,15 +1536,7 @@ Page({
     if (!marker.callout || !marker.callout.content) {
       const calloutContent = formatNearbyMarkerLabel(markerName);
       if (calloutContent) {
-        marker.callout = {
-          content: calloutContent,
-          color: "#111827",
-          fontSize: 14,
-          fontWeight: "bold",
-          display: "ALWAYS",
-          borderRadius: 4,
-          padding: 4
-        };
+        marker.callout = buildMarkerNameCallout(calloutContent);
       }
     }
     marker.extData = Object.assign({}, marker.extData, {
@@ -1613,15 +1607,7 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(markerName);
     if (calloutContent) {
-      marker.callout = {
-        content: calloutContent,
-        color: "rgba(0, 0, 0, 0.95)",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+      marker.callout = buildMarkerNameCallout(calloutContent);
     }
     this._manualMarkers = [marker];
     this.syncAllMarkers();
@@ -4299,15 +4285,7 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(markerTitle);
     if (calloutContent) {
-      marker.callout = {
-        content: calloutContent,
-        color: "rgba(0, 0, 0, 0.95)",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+      marker.callout = buildMarkerNameCallout(calloutContent);
     }
     return marker;
   },
@@ -4473,15 +4451,10 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(payload.name || "");
     if (calloutContent) {
-      marker.callout = {
-        content: `${calloutContent}（低空星球）`,
+      marker.callout = buildMarkerNameCallout(`${calloutContent}（低空星球）`, {
         color: "#14532d",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+        borderColor: "#14532d"
+      });
     }
     marker.extData = {
       source: options.source || "pin-search",
@@ -5142,21 +5115,12 @@ Page({
               title: name,
               iconPath: "/assets/drone.png",
               width: 40,
-              height: 40
-            };
-            const calloutContent = formatNearbyMarkerLabel(name);
-            if (calloutContent) {
-              marker.callout = {
-                content: calloutContent,
-                color: "rgba(0, 0, 0, 0.95)",
-                fontSize: 14,
-                fontWeight: "bold",
-                display: "ALWAYS",
-                borderRadius: 4,
-                padding: 4,
-                // bgColor: "rgba(255, 255, 255, 0)"
-              };
-            }
+            height: 40
+          };
+          const calloutContent = formatNearbyMarkerLabel(name);
+          if (calloutContent) {
+            marker.callout = buildMarkerNameCallout(calloutContent);
+          }
             const detail = this.composeMarkerDetail(item, marker, {
               source: "nearby",
               name,
