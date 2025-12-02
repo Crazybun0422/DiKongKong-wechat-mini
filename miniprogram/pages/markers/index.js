@@ -1591,7 +1591,7 @@ Page({
         const list = this.extractWorkGroupList(payload).map((item) => this.normalizeWorkGroup(item));
         const merged = reset ? list : (this.data.workGroupPickerList || []).concat(list);
         const hasMore = Array.isArray(list) && list.length === size;
-        console.log("this.data.workGroupPickerList->",this.data.workGroupPickerList);
+        console.log("this.data.workGroupPickerList->", this.data.workGroupPickerList);
         this.setData({
           workGroupPickerList: merged,
           workGroupPickerPage: page,
@@ -2044,7 +2044,7 @@ Page({
       item.nickname ||
       item.title ||
       "";
-    
+
     const memberCount =
       item.memberCount ??
       (Array.isArray(item.memberFeatureCodes) ? item.memberFeatureCodes.length : null);
@@ -2058,7 +2058,7 @@ Page({
         apiBase: this.apiBase,
         fallback: this.data.assetPaths.workGroup
       }) || this.data.assetPaths.workGroup;
-    console.log("memberCount",memberCount);
+    console.log("memberCount", memberCount);
     return {
       id: item.id || item.groupId || "",
       name: name || "工作组",
@@ -2464,13 +2464,7 @@ Page({
     const firstActionEnabled = isPublic
       ? !disableModify && !isPending
       : isPrivate && !disableModify;
-    const firstActionNote = !firstActionEnabled
-      ? disableModify
-        ? `审核中暂不可${firstActionLabel}`
-        : isPending
-          ? "（审核中不可撤回）"
-          : "（当前状态无法发布）"
-      : "";
+    const firstActionNote = "";
     const options = [
       {
         action: firstActionType,
@@ -2490,14 +2484,14 @@ Page({
         label: "编辑",
         icon: "",
         enabled: !disableModify && !isPending,
-        note: disableModify || isPending ? "（审核中暂不可编辑）" : ""
+        note: ""
       },
       {
         action: "delete",
         label: "删除",
         icon: assetPaths.delete,
         enabled: !disableModify && !isPending,
-        note: disableModify || isPending ? "（审核中暂不可删除）" : ""
+        note: ""
       }
     ];
     return options;
@@ -3102,9 +3096,9 @@ Page({
       .catch((err) => {
         console.error(editingId ? "更新 Pin 失败" : "创建 Pin 失败", err);
         const message = err?.message || "保存失败";
-      this.setData({ pinSubmitting: false, pinError: message });
-      wx.showToast({ title: message, icon: "none" });
-    });
+        this.setData({ pinSubmitting: false, pinError: message });
+        wx.showToast({ title: message, icon: "none" });
+      });
   },
 
   updatePinLocationDisplay() {
@@ -3438,7 +3432,6 @@ Page({
       return;
     }
     if (this.isModifyActionLocked(marker)) {
-      wx.showToast({ title: "审核中暂不可编辑", icon: "none" });
       return;
     }
     const form = this.buildFormFromMarker(marker);
@@ -4400,7 +4393,6 @@ Page({
       return;
     }
     if (this.isModifyActionLocked(marker)) {
-      wx.showToast({ title: "审核中暂不可删除", icon: "none" });
       return;
     }
     const confirmName = markerName || (marker.name || "").trim();

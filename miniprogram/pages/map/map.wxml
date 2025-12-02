@@ -63,8 +63,7 @@
           </view>
         </view>
         <view class="preflight-row temporary-no-fly-row">
-          <text class="preflight-label">临时禁飞区：</text>
-          <block wx:if="{{temporaryNoFlyZoneInfo}}">
+          <view wx:if="{{temporaryNoFlyZoneInfo}}">
             <view class="temporary-no-fly-content">
               <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
               <view
@@ -79,7 +78,7 @@
               </view>
               <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
             </view>
-          </block>
+          </view>
           <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
         </view>
         <view class="preflight-row">

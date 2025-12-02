@@ -276,11 +276,14 @@
 }
 
 .center-pin-indicator {
-  display: block;
-  margin: 0 0 18rpx;
   font-size: 24rpx;
   font-weight: 700;
-  color: #facc15;
+
+  display: block;
+  margin: -30rpx 0 24rpx;
+  font-size: 22rpx;
+  color: rgba(211, 160, 52, 1);
+  line-height: 1.4;
   pointer-events: auto;
   text-decoration: underline;
   text-decoration-thickness: 2rpx;

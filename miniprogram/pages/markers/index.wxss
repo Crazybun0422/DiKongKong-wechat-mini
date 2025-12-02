@@ -1055,6 +1055,7 @@
   border-radius: 16rpx;
   font-size: 30rpx;
   padding: 20rpx 0;
+  margin-bottom: 20rpx;
 }
 
 .footer-btn.primary {
@@ -1064,7 +1065,7 @@
 
 .footer-btn.secondary {
   background: #e5e7eb;
-  color: #374151;
+  color: #92a8ccff;
 }
 
 .detail-section {
@@ -1264,6 +1265,16 @@
 .action-sheet-item-disabled {
   color: #c4c8d4;
   pointer-events: none;
+}
+
+.action-sheet-item-disabled .action-sheet-label,
+.action-sheet-item-disabled .action-sheet-note {
+  color: #c4c8d4;
+}
+
+.action-sheet-item-disabled .action-sheet-icon {
+  filter: grayscale(1) brightness(0.7);
+  opacity: 0.65;
 }
 
 .action-sheet-item-cancel {

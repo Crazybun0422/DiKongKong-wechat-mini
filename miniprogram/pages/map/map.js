@@ -5115,12 +5115,12 @@ Page({
               title: name,
               iconPath: "/assets/drone.png",
               width: 40,
-            height: 40
-          };
-          const calloutContent = formatNearbyMarkerLabel(name);
-          if (calloutContent) {
-            marker.callout = buildMarkerNameCallout(calloutContent);
-          }
+              height: 40
+            };
+            const calloutContent = formatNearbyMarkerLabel(name);
+            if (calloutContent) {
+              marker.callout = buildMarkerNameCallout(calloutContent);
+            }
             const detail = this.composeMarkerDetail(item, marker, {
               source: "nearby",
               name,
@@ -5579,12 +5579,12 @@ Page({
     if (this.data.temporaryNoFlyZoneEnabled === false) {
       return { zoneInfo: null, text: "已禁用", tone: "warn" };
     }
-    if (!this._noFlyZonesReady) {
-      return { zoneInfo: null, text: "评估中", tone: "neutral" };
-    }
-    if (this._noFlyZonesError) {
-      return { zoneInfo: null, text: "临时禁飞数据不可用", tone: "warn" };
-    }
+    // if (!this._noFlyZonesReady) {
+    //   return { zoneInfo: null, text: "评估中", tone: "neutral" };
+    // }
+    // if (this._noFlyZonesError) {
+    //   return { zoneInfo: null, text: "临时禁飞数据不可用", tone: "warn" };
+    // }
     const center = this._centerOverride || this.data.center;
     if (!center) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
@@ -5594,7 +5594,7 @@ Page({
     }
     const hit = this.findNoFlyZoneAtPoint(center.longitude, center.latitude);
     if (!hit) {
-      return { zoneInfo: null, text: "无", tone: "safe" };
+      return { zoneInfo: null, text: "", tone: "safe" };
     }
     const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
     const name = rawName || "临时禁飞区";

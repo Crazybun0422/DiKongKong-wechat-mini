@@ -1,5 +1,5 @@
 ﻿<view class="markers-page">
-  <view wx:if="{{!showDetail && !showCreate && !showMyPinCreate && !showWorkGroupCreate}}" class="markers-shell">
+  <view wx:if="{{!showDetail && !showCreate && !showMyPinCreate && !showWorkGroupCreate &&!showWorkGroupDetail}}" class="markers-shell">
     <view class="center-tabs">
       <block wx:for="{{centerTabs}}" wx:key="id">
         <view class="center-tab {{activeCenterTab === item.id ? 'is-active' : ''}}" data-tab="{{item.id}}" bindtap="onCenterTabTap">
@@ -459,7 +459,7 @@
 
         <view class="wg-block">
           <view class="wg-block-header">
-            <text class="wg-block-title">地图成员</text>
+            <text class="wg-block-title">工作组成员</text>
             <view class="wg-block-count" bindtap="onWorkGroupMemberListTap">
               <text>{{activeWorkGroup.memberCount || 0}}人</text>
               <image class="workgroup-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
