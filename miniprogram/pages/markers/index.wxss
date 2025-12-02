@@ -1004,7 +1004,7 @@
   border-radius: 16rpx;
 }
 .wg-field-input {
-  width: 100%;
+  width: 94%;
   padding: 16rpx 18rpx;
   border-radius: 16rpx;
   border: 1px solid #e5e7eb;
@@ -1013,7 +1013,7 @@
 }
 
 .wg-field-textarea {
-  width: 100%;
+  width: 94%;
   min-height: 160rpx;
   padding: 16rpx 18rpx;
   border-radius: 16rpx;
