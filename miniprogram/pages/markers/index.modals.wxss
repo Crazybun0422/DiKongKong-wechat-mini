@@ -43,10 +43,11 @@
 }
 
 .modal-title-share {
+  position: relative;
   font-size: 44rpx;
   font-weight: 700;
   color: #0f172a;
-  margin-left: 14vh;
+  margin-left: 27vw;
   margin-top: 10vh;
 }
 
@@ -172,11 +173,15 @@
   color: #4b5563;
 }
 .publish-platform-actions {
-  position: relative;
-  margin-top: 10vh;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 40rpx;
   display: flex;
   flex-direction: column;
   gap: 14rpx;
+  padding: 0 28rpx;
+  box-sizing: border-box;
 }
 
 .publish-platform-btn {
