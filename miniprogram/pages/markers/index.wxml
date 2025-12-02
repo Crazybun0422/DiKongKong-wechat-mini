@@ -1,5 +1,5 @@
 ﻿<view class="markers-page">
-  <view wx:if="{{!showCreate && !showDetail}}" class="markers-shell">
+  <view wx:if="{{!showDetail && !showCreate && !showMyPinCreate && !showWorkGroupCreate}}" class="markers-shell">
     <view class="center-tabs">
       <block wx:for="{{centerTabs}}" wx:key="id">
         <view class="center-tab {{activeCenterTab === item.id ? 'is-active' : ''}}" data-tab="{{item.id}}" bindtap="onCenterTabTap">
