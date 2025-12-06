@@ -1060,7 +1060,7 @@
 .drawer-footer {
   padding: 24rpx 32rpx;
   display: flex;
-  gap: 24rpx;
+  gap: 0;
   border-top: 1px solid #f1f5f9;
   background: #ffffff;
   align-items: center;
@@ -1068,19 +1068,22 @@
 }
 
 .footer-actions {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
-  gap: 24rpx;
-  padding-left: 170rpx;
-  margin-right: 100rpx;
+  gap: 16rpx;
+  padding-left: 150rpx;
+  padding-right: 100rpx;
+  margin: 0;
+  min-width: 0;
 }
 
 .footer-btn {
-  flex: 1;
+  flex: 1 1 0;
   border-radius: 16rpx;
   font-size: 30rpx;
   padding: 20rpx 0;
   margin-bottom: 0;
+  min-width: 0;
 }
 
 .footer-btn.primary {
@@ -1107,7 +1110,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2;
+  flex-shrink: 0;
 }
 
 .support-btn::after {
