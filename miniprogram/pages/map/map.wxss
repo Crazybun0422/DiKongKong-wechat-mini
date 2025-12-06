@@ -770,6 +770,7 @@ button.layer-button::after,
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  position: relative;
   border: none;
   background: transparent;
   padding: 0;
@@ -801,6 +802,40 @@ button.layer-button::after,
 .menu-btn.is-active .menu-icon {
   filter: brightness(0) saturate(100%);
   opacity: 1;
+}
+
+.menu-badge {
+  position: absolute;
+  top: 18rpx;
+  right: 28rpx;
+  width: 22rpx;
+  height: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: red-dot-breathe 1.6s ease-in-out infinite;
+}
+
+.menu-badge-dot {
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+}
+
+@keyframes red-dot-breathe {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.4;
+  }
 }
 
 .chat-fab {

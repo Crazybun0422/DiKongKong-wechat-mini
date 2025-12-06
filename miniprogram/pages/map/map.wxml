@@ -182,6 +182,9 @@
         </button>
         <button class="menu-btn {{activeTab === 'profile' ? 'is-active' : ''}}" bindtap="onMenuProfileTap">
           <image class="menu-icon" src="/assets/profile.png" mode="aspectFit" />
+          <view wx:if="{{showProfileRedDot}}" class="menu-badge">
+            <image class="menu-badge-dot" src="/assets/red-point.png" mode="aspectFit" />
+          </view>
         </button>
       </view>
 

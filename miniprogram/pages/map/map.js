@@ -552,6 +552,7 @@ Page({
     pendingDroneIndex: null,
     showDashboardPanel: true,
     activeTab: "home",
+    showProfileRedDot: true,
     markerDetailVisible: false,
     detailCard: null,
     markerDetailClosing: false,
@@ -711,6 +712,7 @@ Page({
     this._previewPolygons = [];
     this._previewCircles = [];
     this._previewMarker = null;
+    this._previewPinId = null;
     this._lastKnownLocation = null;
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
@@ -793,7 +795,28 @@ Page({
   applyPinPreview(payload = {}) {
     if (!payload || !payload.shape) return;
     this.clearPinPreview();
+    this._previewPinId = payload.id || "";
     const center = this.computePinPreviewCenter(payload.shape, payload);
+    const zone = this.buildPinPreviewZone(payload.shape);
+    if (zone) {
+      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
+      this._previewPolygons = Array.isArray(graphics.polygons) ? graphics.polygons : [];
+      this._previewCircles = Array.isArray(graphics.circles) ? graphics.circles : [];
+    }
+    const marker = this.buildPinPreviewMarker(payload);
+    if (marker) {
+      marker.extData = Object.assign({}, marker.extData, {
+        source: "pin-preview",
+        raw: payload
+      });
+      this._previewMarker = marker;
+      if (!this._previewPinId) {
+        this._previewPinId = marker.id || "";
+      }
+    }
+    this.updateOverlayGraphics();
+    this.syncAllMarkers();
+    this.updateCenterPinIndicator();
     if (center) {
       this.centerOnPoint(center, clampMapScale(payload.zoom || 16));
     }
@@ -877,6 +900,7 @@ Page({
     this._previewPolygons = [];
     this._previewCircles = [];
     this._previewMarker = null;
+    this._previewPinId = null;
     this.updateOverlayGraphics();
     this.syncAllMarkers();
     this.updateCenterPinIndicator();
@@ -3246,6 +3270,7 @@ Page({
       this.updateCenterPinIndicator();
       return;
     }
+    const previewId = this._previewPinId ? `${this._previewPinId}` : "";
     const markers = [];
     const polygons = [];
     const circles = [];
@@ -3253,6 +3278,8 @@ Page({
     rawList.forEach((item, index) => {
       const pin = this.normalizeNearbyPin(item);
       if (!pin || !this.isPinVisibilityEnabled(pin.visibility)) return;
+      // Avoid duplicating the pin currently in preview
+      if (previewId && `${pin.id || ""}` === previewId) return;
       if (pin.shape.type === "POINT") {
         const marker = this.buildPinPreviewMarker({
           id: pin.id || `pin-${index}`,
