@@ -806,8 +806,8 @@ button.layer-button::after,
 
 .menu-badge {
   position: absolute;
-  top: 18rpx;
-  right: 28rpx;
+  top: 0rpx;
+  right: 70rpx;
   width: 22rpx;
   height: 22rpx;
   display: flex;
@@ -825,15 +825,15 @@ button.layer-button::after,
 
 @keyframes red-dot-breathe {
   0% {
-    transform: scale(0.9);
+    transform: scale(0.7);
     opacity: 0.4;
   }
   50% {
-    transform: scale(1.1);
+    transform: scale(0.9);
     opacity: 1;
   }
   100% {
-    transform: scale(0.9);
+    transform: scale(0.7);
     opacity: 0.4;
   }
 }
