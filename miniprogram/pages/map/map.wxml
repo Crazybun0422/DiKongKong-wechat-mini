@@ -40,12 +40,22 @@
       src="/assets/position.png"
       mode="widthFix"
     />
-    <view class="map-scale" wx:if="{{scaleBarVisible}}">
-      <text class="map-scale-label">{{scaleBarLabel}}</text>
-      <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
-        <view class="map-scale-line"></view>
-        <view class="map-scale-tick map-scale-tick-start"></view>
-        <view class="map-scale-tick map-scale-tick-end"></view>
+    <view class="map-scale-container" wx:if="{{scaleBarVisible}}">
+      <view class="map-scale">
+        <text class="map-scale-label">{{scaleBarLabel}}</text>
+        <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
+          <view class="map-scale-line"></view>
+          <view class="map-scale-tick map-scale-tick-start"></view>
+          <view class="map-scale-tick map-scale-tick-end"></view>
+        </view>
+      </view>
+      <view
+        class="map-center-coords"
+        wx:if="{{centerCoordinateLatText && centerCoordinateLngText}}"
+        bindtap="onCenterCoordinateTap"
+      >
+        <text class="map-center-coords-text">{{centerCoordinateLngText}}</text>
+        <text class="map-center-coords-text">{{centerCoordinateLatText}}</text>
       </view>
     </view>
 

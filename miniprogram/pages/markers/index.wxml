@@ -801,15 +801,25 @@
       </scroll-view>
 
       <view class="drawer-footer" wx:if="{{createStep < 3}}">
-        <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
-        <block wx:if="{{createStep === 2}}">
-          <button class="footer-btn primary" bindtap="submitMarker" loading="{{creationSubmitting}}" disabled="{{creationSubmitting}}">
-            {{submitButtonText}}
-          </button>
-        </block>
-        <block wx:else>
-          <button class="footer-btn primary" bindtap="goToNextStep">下一步</button>
-        </block>
+        <button
+          class="support-btn"
+          open-type="contact"
+          bindcontact="onCustomerServiceContact"
+          session-from="{{customerServiceSessionFrom}}"
+        >
+          <image class="support-btn-icon" src="/assets/support.png" mode="aspectFit" />
+        </button>
+        <view class="footer-actions">
+          <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
+          <block wx:if="{{createStep === 2}}">
+            <button class="footer-btn primary" bindtap="submitMarker" loading="{{creationSubmitting}}" disabled="{{creationSubmitting}}">
+              {{submitButtonText}}
+            </button>
+          </block>
+          <block wx:else>
+            <button class="footer-btn primary" bindtap="goToNextStep">下一步</button>
+          </block>
+        </view>
       </view>
     </view>
   </view>

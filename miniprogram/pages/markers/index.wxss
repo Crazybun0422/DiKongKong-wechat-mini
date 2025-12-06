@@ -1063,6 +1063,16 @@
   gap: 24rpx;
   border-top: 1px solid #f1f5f9;
   background: #ffffff;
+  align-items: center;
+  position: relative;
+}
+
+.footer-actions {
+  flex: 1;
+  display: flex;
+  gap: 24rpx;
+  padding-left: 170rpx;
+  margin-right: 100rpx;
 }
 
 .footer-btn {
@@ -1070,7 +1080,7 @@
   border-radius: 16rpx;
   font-size: 30rpx;
   padding: 20rpx 0;
-  margin-bottom: 20rpx;
+  margin-bottom: 0;
 }
 
 .footer-btn.primary {
@@ -1081,6 +1091,33 @@
 .footer-btn.secondary {
   background: #e5e7eb;
   color: #92a8ccff;
+}
+
+.support-btn {
+  position: absolute;
+  left: -40rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 88rpx;
+  height: 88rpx;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.support-btn::after {
+  border: none;
+}
+
+.support-btn-icon {
+  width: 72rpx;
+  height: 72rpx;
+  display: block;
 }
 
 .detail-section {

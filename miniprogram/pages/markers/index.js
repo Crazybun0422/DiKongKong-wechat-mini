@@ -335,7 +335,8 @@ Page({
     deleteDialogMarkerName: "",
     deleteDialogError: "",
     joinInvitePrompt: null,
-    joinInviting: false
+    joinInviting: false,
+    customerServiceSessionFrom: "marker-create-support"
   },
 
   onLoad(options = {}) {
@@ -352,6 +353,10 @@ Page({
     if (options.create === "1") {
       this.onCreateTap();
     }
+  },
+
+  onCustomerServiceContact(event) {
+    console.log("Marker create customer service contact", event);
   },
 
   onShow() {
@@ -531,10 +536,25 @@ Page({
         : null;
     const featureCode = ensureFeatureCode(profile.featureCode || this.data.currentFeatureCode || "");
     this.setData({
-      currentFeatureCode: featureCode
+      currentFeatureCode: featureCode,
+      customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(profile)
     });
     this.refreshWorkGroupOwnerFlags(featureCode);
     this.updateFlpPaymentState(balance);
+  },
+
+  composeCustomerServiceSessionFrom(profile = {}) {
+    const payload = {
+      source: "marker-create-support",
+      featureCode: profile.featureCode || "",
+      nickname: profile.nickname || ""
+    };
+    try {
+      return JSON.stringify(payload);
+    } catch (err) {
+      console.warn("Failed to stringify marker create session-from payload", err);
+      return "marker-create-support";
+    }
   },
 
   refreshWorkGroupOwnerFlags(featureCode) {

@@ -348,6 +348,15 @@ const parseSceneParams = (scene) => {
 const hasValidCoordinate = (lat, lng) =>
   Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 
+const formatCoordinateParts = (lat, lng) => {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+  const latText = latNum.toFixed(6);
+  const lngText = lngNum.toFixed(6);
+  return { lngText, latText };
+};
+
 const normalizeLaunchMarkerOptions = (options = {}) => {
   const normalized = {
     markerId: "",
@@ -545,6 +554,8 @@ Page({
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     centerPinTitle: "",
+    centerCoordinateLatText: "",
+    centerCoordinateLngText: "",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -741,6 +752,7 @@ Page({
     });
     this.updateScaleBar();
     this.updateStatusPanel();
+    this.updateCenterPinIndicator();
     this.autoLoginOnLaunch();
 
   },
@@ -3346,11 +3358,37 @@ Page({
   updateCenterPinIndicator() {
     const center = this.data.center;
     if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-      this.setData({ centerPinTitle: "" });
+      this.setData({
+        centerPinTitle: "",
+        centerCoordinateLatText: "",
+        centerCoordinateLngText: ""
+      });
       return;
     }
     const pin = this.findPinContainingPoint(center);
-    this.setData({ centerPinTitle: pin ? pin.name || "" : "" });
+    const coord = formatCoordinateParts(center.latitude, center.longitude);
+    this.setData({
+      centerPinTitle: pin ? pin.name || "" : "",
+      centerCoordinateLngText: coord ? coord.lngText : "",
+      centerCoordinateLatText: coord ? coord.latText : ""
+    });
+  },
+
+  onCenterCoordinateTap() {
+    const lngText = this.data.centerCoordinateLngText;
+    const latText = this.data.centerCoordinateLatText;
+    if (!latText || !lngText) return;
+    const text = `${lngText},${latText}`;
+    wx.setClipboardData({
+      data: text,
+      success: () => {
+        wx.showToast({ title: "经纬度已复制", icon: "success" });
+      },
+      fail: (err) => {
+        console.error("复制经纬度失败", err);
+        wx.showToast({ title: "复制失败", icon: "none" });
+      }
+    });
   },
 
   findPinContainingPoint(point = {}) {
@@ -4664,6 +4702,7 @@ Page({
         this._currentBounds = null;
         this.refreshWmsOverlay(this.data.center, this.data.scale, this._lastRegion);
         this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
+        this.updateCenterPinIndicator();
         if (this._markersFetchTimer) {
           clearTimeout(this._markersFetchTimer);
           this._markersFetchTimer = null;

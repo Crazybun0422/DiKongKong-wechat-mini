@@ -622,13 +622,21 @@ button.search-btn::after {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.map-scale {
+.map-scale-container {
   position: absolute;
   left: 32rpx;
-  bottom: calc(env(safe-area-inset-bottom) + 190rpx);
+  bottom: calc(env(safe-area-inset-bottom) + 240rpx);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  z-index: 36;
+  pointer-events: none;
+}
+
+.map-scale {
+  position: relative;
   padding: 12rpx 0;
   color: #000;
-  z-index: 36;
   pointer-events: none;
 }
 
@@ -668,6 +676,26 @@ button.search-btn::after {
 
 .map-scale-tick-end {
   right: 0;
+}
+
+.map-center-coords {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  max-width: 380rpx;
+  padding: 10rpx 0;
+  pointer-events: auto;
+  gap: 6rpx;
+}
+
+.map-center-coords-text {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #000;
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
+  line-height: 1.2;
+  word-break: break-all;
 }
 
 .floating-controls {
@@ -808,8 +836,8 @@ button.layer-button::after,
   position: absolute;
   top: 0rpx;
   right: 70rpx;
-  width: 22rpx;
-  height: 22rpx;
+  width: 20rpx;
+  height: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
