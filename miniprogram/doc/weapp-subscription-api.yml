@@ -9,10 +9,31 @@ security:
   - bearerAuth: []
 paths:
   /api/weapp/subscriptions:
-    post:
-      summary: 记录订阅授权
-      description: 用户在小程序中接受订阅消息后，将 openid 和订阅模板 ID 列表上报并保存。
-      security: []
+    get:
+      summary: 查询用户订阅列表
+      description: 根据当前登录用户的 openid 查询保存的订阅模板 ID 列表。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订阅记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新用户订阅模板列表
+      description: 根据当前登录用户的 openid 更新已保存的订阅模板 ID 列表。
       requestBody:
         required: true
         content:
@@ -23,27 +44,36 @@ paths:
         '200':
           description: OK
           content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
         '400':
           description: 参数错误
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
-  /api/weapp/subscriptions/{openId}:
-    get:
-      summary: 查询用户订阅列表
-      description: 根据 openid 查询该用户保存的订阅模板 ID 列表。
-      security: []
-      parameters:
-        - name: openId
-          in: path
-          required: true
-          schema:
-            type: string
-          description: 微信 openid。
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订阅记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除指定的订阅模板
+      description: 根据当前登录用户的 openid 删除请求体中指定的订阅模板 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionConsentRequest'
       responses:
         '200':
           description: OK
@@ -51,6 +81,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
         '404':
           description: 未找到订阅记录
           content:
@@ -409,12 +451,8 @@ components:
     WeappSubscriptionConsentRequest:
       type: object
       required:
-        - openId
         - templateIds
       properties:
-        openId:
-          type: string
-          description: 微信 openid。
         templateIds:
           type: array
           minItems: 1

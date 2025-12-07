@@ -5,6 +5,12 @@ const USER_PROFILE_STORAGE_KEY = "userProfile";
 const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 
 const { fetchUserProfile } = require("./utils/profile");
+const {
+  fetchSubscriptions,
+  updateSubscriptions,
+  extractAcceptedTemplateIdsFromWxSetting,
+  areTemplateIdSetsEqual
+} = require("./utils/subscriptions");
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
@@ -151,6 +157,7 @@ App({
       this.validateStoredToken(this.globalData.token).catch((err) => {
         console.warn("Failed to validate stored token, attempting re-login", err);
       });
+      this.syncSubscriptionsFromWxSetting();
     }
 
     this.initUpdateManager();
@@ -223,6 +230,39 @@ App({
         },
         fail: (err) => reject(err)
       });
+    });
+  },
+
+  syncSubscriptionsFromWxSetting() {
+    const apiBase = this.globalData.apiBase;
+    const token = this.globalData.token;
+    console.log("Syncing subscriptions from WeChat settings with", { apiBase, token });
+    if (!apiBase || !token) return;
+    if (typeof wx === "undefined" || typeof wx.getSetting !== "function") return;
+    wx.getSetting({
+      withSubscriptions: true,
+      success: (res = {}) => {
+        const clientIds = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting);
+        console.log("Extracted accepted template IDs from WeChat settings:", clientIds);
+        if (clientIds === null) return;
+        fetchSubscriptions({ apiBase, token })
+          .then((serverIds) => {
+            if (!areTemplateIdSetsEqual(clientIds, serverIds)) {
+              console.log("Syncing backend subscriptions to match WeChat settings:", { clientIds, serverIds });
+              return updateSubscriptions(clientIds, { apiBase, token }).catch((err) => {
+                console.warn("Failed to update backend subscriptions", err);
+                return null;
+              });
+            }
+            return null;
+          })
+          .catch((err) => {
+            console.warn("Failed to fetch backend subscriptions", err);
+          });
+      },
+      fail: (err) => {
+        console.warn("wx.getSetting subscriptions failed", err);
+      }
     });
   },
 
@@ -381,6 +421,7 @@ App({
               console.warn("Failed to persist access token", err);
             }
             console.log("Received auth token:", payload, token);
+            this.syncSubscriptionsFromWxSetting();
             resolve(token);
           } else {
             const reason = data?.message || data?.errMsg || resp?.errMsg || "Unknown error";

@@ -41,6 +41,11 @@ const {
   fetchMapLayerSettings,
   updateMapLayerSettings
 } = require("../../utils/map-layer-settings");
+const {
+  fetchTemplateSettings,
+  requestSubscribeMessageForTemplateIds,
+  updateSubscriptions
+} = require("../../utils/subscriptions");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -2852,6 +2857,9 @@ Page({
       this.setData({ activeTab: "profile" });
     }
     this.ensureProfileAuthenticated()
+      .then(() => this.requestProfileSubscriptions().catch((err) => {
+        console.warn("订阅模板流程失败", err);
+      }))
       .then(() => {
         if (typeof wx.navigateTo === "function") {
           wx.navigateTo({ url: "/pages/profile/profile" });
@@ -4532,6 +4540,29 @@ Page({
   getAuthToken() {
     const app = getApp ? getApp() : null;
     return (app && app.globalData && app.globalData.token) || "";
+  },
+
+  requestProfileSubscriptions() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return Promise.resolve();
+    return fetchTemplateSettings({ apiBase, token })
+      .then(({ templateIds }) => {
+        if (!templateIds || !templateIds.length) return null;
+        return requestSubscribeMessageForTemplateIds(templateIds).then(({ acceptedIds }) => {
+          if (acceptedIds && acceptedIds.length) {
+            return updateSubscriptions(acceptedIds, { apiBase, token }).catch((err) => {
+              console.warn("updateSubscriptions after consent failed", err);
+              return null;
+            });
+          }
+          return null;
+        });
+      })
+      .catch((err) => {
+        console.warn("requestProfileSubscriptions failed", err);
+        return null;
+      });
   },
 
   ensureProfileAuthenticated() {
