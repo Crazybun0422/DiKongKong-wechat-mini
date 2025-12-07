@@ -2856,16 +2856,33 @@ Page({
     if (this.data.activeTab !== "profile") {
       this.setData({ activeTab: "profile" });
     }
+    const loadingShown = typeof wx !== "undefined" && typeof wx.showLoading === "function";
+    const hideLoading = typeof wx !== "undefined" && typeof wx.hideLoading === "function"
+      ? () => wx.hideLoading()
+      : () => {};
+    if (loadingShown) {
+      wx.showLoading({ title: "加载中...", mask: true });
+    }
     this.ensureProfileAuthenticated()
       .then(() => this.requestProfileSubscriptions().catch((err) => {
         console.warn("订阅模板流程失败", err);
       }))
       .then(() => {
         if (typeof wx.navigateTo === "function") {
-          wx.navigateTo({ url: "/pages/profile/profile" });
+          wx.navigateTo({
+            url: "/pages/profile/profile",
+            success: () => hideLoading(),
+            fail: (err) => {
+              hideLoading();
+              console.warn("navigate to profile failed", err);
+            }
+          });
+        } else {
+          hideLoading();
         }
       })
       .catch((err) => {
+        hideLoading();
         this.setData({ activeTab: "home" });
         if (err && err.message === "user-cancel") {
           return;
