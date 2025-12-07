@@ -1,0 +1,22 @@
+<view class="subscription-feed-page">
+  <scroll-view scroll-y="true" class="subscription-feed-scroll">
+    <block wx:if="{{loading}}">
+      <view class="subscription-feed-loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="subscription-feed-error">
+        <text>{{error}}</text>
+        <button class="subscription-feed-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <rich-text
+        class="subscription-feed-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </scroll-view>
+</view>

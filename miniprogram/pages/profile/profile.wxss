@@ -312,6 +312,36 @@ button.profile-list-item::after {
   display: block; */
 }
 
+.profile-list-right {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.subscription-badge {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background: #f85a54;
+  box-shadow: 0 0 0 2rpx rgba(248, 90, 84, 0.2);
+  animation: badge-breath 1.6s infinite ease-in-out;
+}
+
+@keyframes badge-breath {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.72;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .profile-footnote {
   font-size: 24rpx;
   color: rgba(15, 23, 42, 0.45);

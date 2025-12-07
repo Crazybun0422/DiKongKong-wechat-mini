@@ -1,5 +1,7 @@
 const { resolveApiBase, authorizedRequest, getAuthToken } = require("./profile");
 
+const SUBSCRIPTION_TEMPLATE_ID = "xkKkpiG1HkMXHfvBWzf4DyisFCsSP3LNFQ1bgMv0zeE";
+
 function normalizeTemplateIds(listLike) {
   if (!listLike) return [];
   const output = [];
@@ -102,6 +104,19 @@ function requestSubscribeMessageForTemplateIds(templateIds = []) {
   });
 }
 
+function fetchLatestSubscriptionPush(options = {}) {
+  const templateId = options.templateId || SUBSCRIPTION_TEMPLATE_ID;
+  if (!templateId) {
+    return Promise.reject(new Error("missing-template-id"));
+  }
+  return authorizedRequest({
+    apiBase: resolveApiBase(options.apiBase),
+    token: options.token || getAuthToken(),
+    path: `/api/weapp/subscription-pushes/latest?templateId=${encodeURIComponent(templateId)}`,
+    method: "GET"
+  }).then((body = {}) => body?.data || {});
+}
+
 function extractAcceptedTemplateIdsFromWxSetting(subscriptionsSetting) {
   if (!subscriptionsSetting || typeof subscriptionsSetting !== "object") return null;
   const itemSettings = subscriptionsSetting.itemSettings || subscriptionsSetting.itemsettings;
@@ -124,5 +139,7 @@ module.exports = {
   requestSubscribeMessageForTemplateIds,
   extractAcceptedTemplateIdsFromWxSetting,
   normalizeTemplateIds,
-  areTemplateIdSetsEqual
+  areTemplateIdSetsEqual,
+  fetchLatestSubscriptionPush,
+  SUBSCRIPTION_TEMPLATE_ID
 };

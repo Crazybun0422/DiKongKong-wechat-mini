@@ -228,7 +228,7 @@ paths:
   /api/config/template-settings:
     get:
       summary: 获取模版设置列表
-      description: 管理员与普通用户均可调用，返回模版名称与模版 ID 的映射；当未配置任何模版时返回空对象和空更新时间。
+      description: 管理员与普通用户均可调用，返回模版名称到模版配置（包含模版 ID 与详情数组）的映射；当未配置任何模版时返回空对象和空更新时间。
       security:
         - bearerAuth: []
       responses:
@@ -252,7 +252,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
     post:
       summary: 新增或更新模版设置
-      description: 仅管理员可调用，创建或覆盖单个模版名称对应的模版 ID，并返回最新的模版设置集合。
+      description: 仅管理员可调用，创建或覆盖单个模版名称对应的模版 ID 及详情，并返回最新的模版设置集合。
       security:
         - bearerAuth: []
       requestBody:
@@ -289,7 +289,7 @@ paths:
   /api/config/template-settings/{templateName}:
     put:
       summary: 更新指定模版设置
-      description: 仅管理员可调用，根据路径中的模版名称更新或覆盖其模版 ID，返回最新的模版设置集合。
+      description: 仅管理员可调用，根据路径中的模版名称更新或覆盖其模版 ID 与详情，返回最新的模版设置集合。
       security:
         - bearerAuth: []
       parameters:
@@ -674,19 +674,36 @@ components:
         templateId:
           type: string
           description: 模版 ID，作为值存储。
+        details:
+          type: array
+          nullable: true
+          description: 当前模版的详情字段列表，可为空；每个元素包含展示名称和对应的 value（实际发送给微信接口的字段名）。
+          items:
+            $ref: '#/components/schemas/TemplateDetailEntry'
     TemplateSettingsResponse:
       type: object
       properties:
         templates:
           type: object
           additionalProperties:
-            type: string
-          description: 模版名称到模版 ID 的映射；当未设置时为空对象。
+            $ref: '#/components/schemas/TemplateSettingDetail'
+          description: 模版名称到模版配置的映射；当未设置时为空对象。
         updatedAt:
           type: string
           format: date-time
           nullable: true
           description: 配置最后更新时间，若无数据则为空。
+    TemplateSettingDetail:
+      type: object
+      properties:
+        templateId:
+          type: string
+          description: 模版 ID。
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateDetailEntry'
+          description: 当前模版的详情列表（包含字段与 value 键值对），未配置时为空数组。
     ApiResponseTemplateSettingsResponse:
       type: object
       properties:
@@ -698,6 +715,15 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/TemplateSettingsResponse'
+    TemplateDetailEntry:
+      type: object
+      properties:
+        field:
+          type: string
+          description: 模版字段的展示名称。
+        value:
+          type: string
+          description: 模版字段对应的 value，将作为键发送给微信接口。
     PinReviewRewardConfigRequest:
       type: object
       required:

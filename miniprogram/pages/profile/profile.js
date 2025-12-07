@@ -22,7 +22,8 @@ Page({
     nicknameEditing: false,
     nicknameInput: "",
     nicknameSaving: false,
-    likeSummary: { total: "--" }
+    likeSummary: { total: "--" },
+    showSubscriptionRedDot: false
   },
 
   loadLikeSummary() {
@@ -62,6 +63,12 @@ Page({
   onShow() {
     if (this.data.activeTab !== "profile") {
       this.setData({ activeTab: "profile" });
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      this.setData({
+        showSubscriptionRedDot: !!app.globalData.subscriptionFeedHasUpdate
+      });
     }
   },
 
@@ -399,6 +406,14 @@ Page({
         return;
       }
       wx.navigateTo({ url: "/pages/profile/open-platform/index" });
+      return;
+    }
+    if (action === "subscription-feed") {
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/pages/profile/subscription-feed/index" });
       return;
     }
 

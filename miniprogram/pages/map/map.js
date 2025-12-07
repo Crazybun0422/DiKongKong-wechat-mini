@@ -44,8 +44,11 @@ const {
 const {
   fetchTemplateSettings,
   requestSubscribeMessageForTemplateIds,
-  updateSubscriptions
+  updateSubscriptions,
+  fetchLatestSubscriptionPush,
+  SUBSCRIPTION_TEMPLATE_ID
 } = require("../../utils/subscriptions");
+const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -568,7 +571,7 @@ Page({
     pendingDroneIndex: null,
     showDashboardPanel: true,
     activeTab: "home",
-    showProfileRedDot: true,
+    showProfileRedDot: false,
     markerDetailVisible: false,
     detailCard: null,
     markerDetailClosing: false,
@@ -671,6 +674,7 @@ Page({
     this._uomOverlayBatchId = 0;
     this._uomOverlayTimeout = null;
     this._suggestTimer = null;
+    this.prefetchSubscriptionLatest();
     const storedUomDismissed = this.readStoredUomWarningDismissed();
     if (storedUomDismissed) {
       this.setData({ uomTileWarningDismissed: true });
@@ -2586,6 +2590,10 @@ Page({
     if (this.data.activeTab !== "home") {
       this.setData({ activeTab: "home", showDashboardPanel: true });
       this.showDashboardPanel = true;
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
+      this.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
     }
     if (this.data.joinInvitePrompt && !this.data.joinInviting) {
       this.promptJoinWorkGroup(this.data.joinInvitePrompt);
@@ -4580,6 +4588,48 @@ Page({
         console.warn("requestProfileSubscriptions failed", err);
         return null;
       });
+  },
+
+  prefetchSubscriptionLatest() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    fetchLatestSubscriptionPush({ apiBase, token, templateId: SUBSCRIPTION_TEMPLATE_ID })
+      .then((payload = {}) => {
+        const latestVersion = normalizeVersion(payload.version || "");
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData) {
+          app.globalData.subscriptionLatestVersion = latestVersion;
+        }
+        if (!latestVersion) return null;
+        return fetchLatestItemVersion({
+          apiBase,
+          token,
+          itemId: SUBSCRIPTION_TEMPLATE_ID,
+          version: latestVersion
+        }).then((result) => {
+          const serverVersion = normalizeVersion(result.version || "");
+          const hasUpdate = serverVersion !== latestVersion;
+          this.updateSubscriptionBadge(hasUpdate);
+          if (app && app.globalData) {
+            app.globalData.subscriptionFeedHasUpdate = hasUpdate;
+          }
+          return { latestVersion, serverVersion, hasUpdate };
+        });
+      })
+      .catch((err) => {
+        console.warn("prefetchSubscriptionLatest failed", err);
+      });
+  },
+
+  updateSubscriptionBadge(show) {
+    if (typeof show !== "boolean") return;
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.showProfileRedDot = show;
+      app.globalData.subscriptionFeedHasUpdate = show;
+    }
+    this.setData({ showProfileRedDot: show });
   },
 
   ensureProfileAuthenticated() {
