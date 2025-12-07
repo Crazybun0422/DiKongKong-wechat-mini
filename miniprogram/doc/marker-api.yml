@@ -487,6 +487,9 @@ components:
               type: integer
               format: int64
               description: 标记被拨打电话的次数。
+            creatorName:
+              type: string
+              description: 创建者用户名。
             createdAt:
               type: string
               format: date-time

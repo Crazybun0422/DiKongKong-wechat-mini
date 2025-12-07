@@ -111,6 +111,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/invite-guide:
+    get:
+      summary: 获取邀请攻略文案
+      description: 普通用户可读取，返回邀请攻略的富文本文案内容；数据库中仅维护一条记录。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteGuideResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新邀请攻略文案
+      description: 仅管理员可调用，用于创建或更新唯一的邀请攻略文案记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteGuideRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseInviteGuideResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/flp-reward-help:
     get:
       summary: 获取 FLP 奖励机制帮助文案
@@ -160,6 +207,148 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseFlpRewardHelpResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/template-settings:
+    get:
+      summary: 获取模版设置列表
+      description: 仅管理员可调用，返回模版名称与模版 ID 的映射；当未配置任何模版时返回空对象和空更新时间。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTemplateSettingsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 新增或更新模版设置
+      description: 仅管理员可调用，创建或覆盖单个模版名称对应的模版 ID，并返回最新的模版设置集合。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateSettingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTemplateSettingsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/template-settings/{templateName}:
+    put:
+      summary: 更新指定模版设置
+      description: 仅管理员可调用，根据路径中的模版名称更新或覆盖其模版 ID，返回最新的模版设置集合。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateName
+          required: true
+          schema:
+            type: string
+          description: 模版名称。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateSettingRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTemplateSettingsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除指定模版设置
+      description: 仅管理员可调用，删除对应模版名称的配置；当删除后没有任何模版时返回空对象和空更新时间。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateName
+          required: true
+          schema:
+            type: string
+          description: 模版名称。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTemplateSettingsResponse'
         '400':
           description: Bad Request
           content:
@@ -417,6 +606,34 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/OpenPlatformCopyResponse'
+    InviteGuideRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 邀请攻略富文本文案。
+    InviteGuideResponse:
+      allOf:
+        - $ref: '#/components/schemas/InviteGuideRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseInviteGuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/InviteGuideResponse'
     FlpRewardHelpRequest:
       type: object
       required:
@@ -445,6 +662,42 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/FlpRewardHelpResponse'
+    TemplateSettingRequest:
+      type: object
+      required:
+        - templateName
+        - templateId
+      properties:
+        templateName:
+          type: string
+          description: 模版名称，作为键存储。
+        templateId:
+          type: string
+          description: 模版 ID，作为值存储。
+    TemplateSettingsResponse:
+      type: object
+      properties:
+        templates:
+          type: object
+          additionalProperties:
+            type: string
+          description: 模版名称到模版 ID 的映射；当未设置时为空对象。
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 配置最后更新时间，若无数据则为空。
+    ApiResponseTemplateSettingsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/TemplateSettingsResponse'
     PinReviewRewardConfigRequest:
       type: object
       required:

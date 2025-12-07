@@ -1,0 +1,445 @@
+openapi: 3.0.1
+info:
+  title: Weapp Subscription Consent APIs
+  description: 小程序订阅消息授权接口，记录用户 openid 与模板 ID 列表，存储于 MongoDB。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/weapp/subscriptions:
+    post:
+      summary: 记录订阅授权
+      description: 用户在小程序中接受订阅消息后，将 openid 和订阅模板 ID 列表上报并保存。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionConsentRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/subscriptions/{openId}:
+    get:
+      summary: 查询用户订阅列表
+      description: 根据 openid 查询该用户保存的订阅模板 ID 列表。
+      security: []
+      parameters:
+        - name: openId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 微信 openid。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '404':
+          description: 未找到订阅记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/weapp/subscription-pushes:
+    post:
+      summary: 创建订阅推送任务并立即分发
+      description: 仅管理员可调用，根据筛选条件选出符合条件且已授权对应模板的用户发送订阅消息。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionPushRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionPushResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    get:
+      summary: 分页查询订阅推送任务
+      description: 仅管理员可调用，按照创建时间倒序返回推送任务。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageWeappSubscriptionPushResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/weapp/subscription-pushes/{id}:
+    get:
+      summary: 查询订阅推送任务详情
+      description: 仅管理员可调用。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 推送任务的 MongoDB 主键。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionPushResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新订阅推送任务并重新发送
+      description: 仅管理员可调用，修改筛选条件后再次向符合条件的用户发送订阅消息。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 推送任务的 MongoDB 主键。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionPushRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionPushResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除订阅推送任务
+      description: 仅管理员可调用。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 推送任务的 MongoDB 主键。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseWeappSubscriptionConsentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappSubscriptionConsentResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    ApiResponseWeappSubscriptionPushResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappSubscriptionPushResponse'
+    ApiResponsePageWeappSubscriptionPushResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PageWeappSubscriptionPushResponse'
+    PageWeappSubscriptionPushResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeappSubscriptionPushResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    WeappSubscriptionPushRequest:
+      type: object
+      required:
+        - templateId
+      properties:
+        templateId:
+          type: string
+          description: 要发送的微信订阅模版 ID。
+        templateData:
+          type: object
+          additionalProperties:
+            type: string
+          description: 模板字段的 key-value 对。
+        registrationRange:
+          $ref: '#/components/schemas/RegistrationFilterType'
+        registrationStart:
+          type: string
+          format: date
+          description: 注册开始日期，仅在 registrationRange=BETWEEN 时使用。
+        registrationEnd:
+          type: string
+          format: date
+          description: 注册结束日期，仅在 registrationRange=BETWEEN 时使用。
+        flpMin:
+          type: number
+          format: double
+          description: 用户拥有的 FLP 最小值，包含边界。
+        flpMax:
+          type: number
+          format: double
+          description: 用户拥有的 FLP 最大值，包含边界。
+        likeMin:
+          type: integer
+          format: int64
+          description: 用户获赞数下限，包含边界。
+        likeMax:
+          type: integer
+          format: int64
+          description: 用户获赞数上限，包含边界。
+        pushContent:
+          type: string
+          description: 富文本推送内容（仅运营动态类推送使用）。
+    WeappSubscriptionPushResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB 主键。
+        templateId:
+          type: string
+        templateData:
+          type: object
+          additionalProperties:
+            type: string
+        registrationRange:
+          $ref: '#/components/schemas/RegistrationFilterType'
+        registrationStart:
+          type: string
+          format: date
+        registrationEnd:
+          type: string
+          format: date
+        flpMin:
+          type: number
+          format: double
+        flpMax:
+          type: number
+          format: double
+        likeMin:
+          type: integer
+          format: int64
+        likeMax:
+          type: integer
+          format: int64
+        pushContent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastSentAt:
+          type: string
+          format: date-time
+        lastSendSuccessCount:
+          type: integer
+        lastSendFailureCount:
+          type: integer
+    RegistrationFilterType:
+      type: string
+      description: 注册时间筛选方式。
+      enum:
+        - ALL
+        - TODAY
+        - LAST_7_DAYS
+        - BETWEEN
+    WeappSubscriptionConsentRequest:
+      type: object
+      required:
+        - openId
+        - templateIds
+      properties:
+        openId:
+          type: string
+          description: 微信 openid。
+        templateIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: 订阅消息模板 ID 列表。
+    WeappSubscriptionConsentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB 主键。
+        openId:
+          type: string
+          description: 微信 openid。
+        templateIds:
+          type: array
+          items:
+            type: string
+          description: 去重后的订阅模板 ID 列表。
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间。

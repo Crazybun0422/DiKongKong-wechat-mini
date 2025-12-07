@@ -237,7 +237,7 @@ paths:
   /api/user/profile:
     get:
       summary: 获取用户资料
-      description: 返回用户基础信息以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
+      description: 返回用户基础信息、收到的点赞总数，以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
       responses:
         '200':
           description: OK
@@ -383,6 +383,10 @@ components:
         inviteCode:
           type: string
           description: 绑定的 8 位邀请码。
+        likeCount:
+          type: integer
+          format: int64
+          description: 用户收到的点赞总数（包含标记与图钉）。
     UserSummaryResponse:
       type: object
       properties:
