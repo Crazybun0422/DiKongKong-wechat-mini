@@ -228,7 +228,7 @@ paths:
   /api/config/template-settings:
     get:
       summary: 获取模版设置列表
-      description: 仅管理员可调用，返回模版名称与模版 ID 的映射；当未配置任何模版时返回空对象和空更新时间。
+      description: 管理员与普通用户均可调用，返回模版名称与模版 ID 的映射；当未配置任何模版时返回空对象和空更新时间。
       security:
         - bearerAuth: []
       responses:

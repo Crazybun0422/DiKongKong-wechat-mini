@@ -127,15 +127,18 @@
 
 .invite-guide-button {
   width: 100%;
-  margin-top: 12rpx;
+  max-width: 680rpx;
+  min-width: 460rpx;
+  margin-top: 72rpx;
   background: #ffffff;
   border: 2rpx solid #1d4dff;
   border-radius: 999rpx;
-  padding: 18rpx 26rpx;
+  padding: 22rpx 34rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12rpx;
+  white-space: nowrap;
   color: #1d1d1f;
   font-size: 28rpx;
   box-shadow: 0 12rpx 32rpx rgba(18, 23, 40, 0.04);
@@ -152,17 +155,19 @@
 .invite-guide-emoji {
   font-size: 30rpx;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .invite-guide-text {
-  flex: 1;
   text-align: center;
   color: #1d1d1f;
+  white-space: nowrap;
 }
 
 .invite-guide-arrow {
   width: 22rpx;
   height: 22rpx;
+  flex-shrink: 0;
 }
 
 .invite-status {
