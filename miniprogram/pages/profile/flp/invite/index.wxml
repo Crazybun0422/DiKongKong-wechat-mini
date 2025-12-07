@@ -44,6 +44,16 @@
       </button>
     </view>
 
+    <button
+      class="invite-guide-button"
+      hover-class="invite-guide-button-hover"
+      bindtap="onGuideTap"
+    >
+      <text class="invite-guide-emoji">🔥</text>
+      <text class="invite-guide-text">查看邀请攻略和规则</text>
+      <image class="invite-guide-arrow" src="/assets/arrow-right.png" mode="widthFix" />
+    </button>
+
     <view class="invite-status" wx:if="{{loading}}">
       <text class="invite-status-text">二维码生成中...</text>
     </view>

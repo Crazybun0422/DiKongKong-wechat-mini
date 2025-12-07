@@ -125,6 +125,46 @@
   opacity: 0.8;
 }
 
+.invite-guide-button {
+  width: 100%;
+  margin-top: 12rpx;
+  background: #ffffff;
+  border: 2rpx solid #1d4dff;
+  border-radius: 999rpx;
+  padding: 18rpx 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  color: #1d1d1f;
+  font-size: 28rpx;
+  box-shadow: 0 12rpx 32rpx rgba(18, 23, 40, 0.04);
+}
+
+.invite-guide-button::after {
+  display: none;
+}
+
+.invite-guide-button-hover {
+  opacity: 0.88;
+}
+
+.invite-guide-emoji {
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+.invite-guide-text {
+  flex: 1;
+  text-align: center;
+  color: #1d1d1f;
+}
+
+.invite-guide-arrow {
+  width: 22rpx;
+  height: 22rpx;
+}
+
 .invite-status {
   font-size: 24rpx;
   color: #7a7f99;

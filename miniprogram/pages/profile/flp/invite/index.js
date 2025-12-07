@@ -356,6 +356,12 @@ Page({
     return this.generateQrCode(this.data.shareLink || MAP_PAGE_PATH).then(() => this.data.qrImagePath);
   },
 
+  onGuideTap() {
+    wx.navigateTo({
+      url: "/pages/profile/flp/invite-guide/index"
+    });
+  },
+
   onRetryTap() {
     this.reloadInviteInfo();
   },

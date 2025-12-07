@@ -1,0 +1,22 @@
+<view class="invite-guide-page">
+  <scroll-view scroll-y="true" class="invite-guide-scroll">
+    <block wx:if="{{loading}}">
+      <view class="invite-guide-loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="invite-guide-error">
+        <text>{{error}}</text>
+        <button class="invite-guide-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <rich-text
+        class="invite-guide-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </scroll-view>
+</view>
