@@ -429,8 +429,22 @@ Page({
     if (this.data.activeTab !== "home") {
       this.setData({ activeTab: "home" });
     }
-    if (typeof wx.navigateBack === "function") {
+    const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+    const canGoBack = typeof wx.navigateBack === "function" && pages.length > 1;
+    if (canGoBack) {
       wx.navigateBack({ delta: 1 });
+      return;
+    }
+    if (typeof wx.reLaunch === "function") {
+      wx.reLaunch({ url: "/pages/map/map" });
+      return;
+    }
+    if (typeof wx.redirectTo === "function") {
+      wx.redirectTo({ url: "/pages/map/map" });
+      return;
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: "/pages/map/map" });
     }
   },
 
