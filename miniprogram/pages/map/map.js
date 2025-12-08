@@ -2867,7 +2867,7 @@ Page({
     const loadingShown = typeof wx !== "undefined" && typeof wx.showLoading === "function";
     const hideLoading = typeof wx !== "undefined" && typeof wx.hideLoading === "function"
       ? () => wx.hideLoading()
-      : () => {};
+      : () => { };
     if (loadingShown) {
       wx.showLoading({ title: "加载中...", mask: true });
     }
@@ -4573,6 +4573,7 @@ Page({
     if (!apiBase || !token) return Promise.resolve();
     return fetchTemplateSettings({ apiBase, token })
       .then(({ templateIds }) => {
+        console.log("comming...", templateIds);
         if (!templateIds || !templateIds.length) return null;
         return requestSubscribeMessageForTemplateIds(templateIds).then(({ acceptedIds }) => {
           if (acceptedIds && acceptedIds.length) {

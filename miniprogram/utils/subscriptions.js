@@ -5,20 +5,47 @@ const SUBSCRIPTION_TEMPLATE_ID = "xkKkpiG1HkMXHfvBWzf4DyisFCsSP3LNFQ1bgMv0zeE";
 function normalizeTemplateIds(listLike) {
   if (!listLike) return [];
   const output = [];
-  if (Array.isArray(listLike)) {
-    listLike.forEach((item) => {
-      const text = typeof item === "string" || typeof item === "number" ? `${item}`.trim() : "";
-      if (text) output.push(text);
-    });
-  } else if (typeof listLike === "object") {
-    Object.values(listLike).forEach((val) => {
-      const text = typeof val === "string" || typeof val === "number" ? `${val}`.trim() : "";
-      if (text) output.push(text);
-    });
-  } else if (typeof listLike === "string" || typeof listLike === "number") {
-    const text = `${listLike}`.trim();
+  const pushText = (val) => {
+    const text = typeof val === "string" || typeof val === "number" ? `${val}`.trim() : "";
     if (text) output.push(text);
-  }
+  };
+
+  const collect = (val) => {
+    if (!val) return;
+    if (Array.isArray(val)) {
+      val.forEach(collect);
+      return;
+    }
+    const type = typeof val;
+    if (type === "string" || type === "number") {
+      pushText(val);
+      return;
+    }
+    if (type !== "object") return;
+
+    // TemplateSettingsResponse shape: { templates: { name: { templateId, details } }, ... }
+    if (val.templates && typeof val.templates === "object") {
+      Object.values(val.templates).forEach(collect);
+      return;
+    }
+
+    // TemplateSettingDetail shape: { templateId, details }
+    if ("templateId" in val) {
+      pushText(val.templateId);
+      return;
+    }
+
+    // Plain object map of templateName -> templateId
+    Object.values(val).forEach((item) => {
+      if (item && typeof item === "object" && "templateId" in item) {
+        pushText(item.templateId);
+      } else {
+        pushText(item);
+      }
+    });
+  };
+
+  collect(listLike);
   return Array.from(new Set(output));
 }
 
@@ -38,6 +65,7 @@ function fetchTemplateSettings(options = {}) {
     method: "GET"
   }).then((body = {}) => {
     const templates = body?.data?.templates || {};
+    console.log("Fetched template settings:", templates);
     return {
       templateIds: normalizeTemplateIds(templates),
       raw: body?.data || {}
