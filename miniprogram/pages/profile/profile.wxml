@@ -2,9 +2,11 @@
   <view
     class="subscribe-wait-overlay"
     wx:if="{{showSubscribeWaitOverlay}}"
-    style="top: calc(env(safe-area-inset-top) + 28vh);"
   >
-    <image class="subscribe-wait-image" src="/assets/introduction_bg.png" mode="widthFix" />
+    <view class="subscribe-wait-mask"></view>
+    <view class="subscribe-wait-image-wrap" style="top: calc(env(safe-area-inset-top) + 18vh);">
+      <image class="subscribe-wait-image" src="/assets/introduction_bg.png" mode="widthFix" />
+    </view>
   </view>
   <view scroll-y="false" class="profile-scroll" bindtap="onBlankTap">
     <block wx:if="{{loading}}">

@@ -4775,6 +4775,8 @@ Page({
               wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
             }
             resolve(normalized);
+            // Double-check with backend/state to avoid偶发悬挂
+            this.evaluateSubscriptionBannerVisibility().catch(() => {});
           };
           syncPromise.then(finalize).catch(finalize);
         },

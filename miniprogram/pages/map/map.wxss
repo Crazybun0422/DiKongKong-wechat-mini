@@ -138,16 +138,29 @@
 
 .subscribe-wait-overlay {
   position: absolute;
-  left: 8rpx;
-  right: 8rpx;
-  display: flex;
-  justify-content: center;
+  inset: 0;
+  display: block;
   z-index: 37;
   pointer-events: none;
 }
 
+.subscribe-wait-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.subscribe-wait-image-wrap {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
 .subscribe-wait-image {
-  width: 100wh;
+  width: 520rpx;
   max-width: 92%;
   opacity: 0.95;
   pointer-events: none;
