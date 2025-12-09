@@ -51,6 +51,7 @@ const {
   normalizeTemplateIds,
   extractAcceptedTemplateIdsFromWxSetting
 } = require("../../utils/subscriptions");
+const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
 const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
 
 const DEFAULT_CENTER = {
@@ -577,6 +578,7 @@ Page({
     showProfileRedDot: false,
     showSubscriptionBanner: false,
     subscriptionBannerLoading: false,
+    showSubscribeWaitOverlay: false,
     subscriptionBannerTopRpx: 90,
     subscriptionBannerHeightRpx: 70,
     preflightBaseTopRpx: 120,
@@ -2721,6 +2723,8 @@ Page({
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+    if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+    setSubscribeWaitOverlay(false);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
@@ -4686,19 +4690,33 @@ Page({
       .then(({ templateIds }) => {
         console.log("comming...", templateIds);
         if (!templateIds || !templateIds.length) return null;
-        return requestSubscribeMessageForTemplateIds(templateIds).then(({ acceptedIds }) => {
-          if (acceptedIds && acceptedIds.length) {
-            return updateSubscriptions(acceptedIds, { apiBase, token }).catch((err) => {
-              console.warn("updateSubscriptions after consent failed", err);
-              return null;
-            });
-          }
-          return null;
-        });
+        if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+        this._subscribeWaitTimer = setTimeout(() => {
+          setSubscribeWaitOverlay(true);
+        }, 1000);
+        return requestSubscribeMessageForTemplateIds(templateIds)
+          .then(({ acceptedIds }) => {
+            if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+            setSubscribeWaitOverlay(false);
+            if (acceptedIds && acceptedIds.length) {
+              return updateSubscriptions(acceptedIds, { apiBase, token }).catch((err) => {
+                console.warn("updateSubscriptions after consent failed", err);
+                return null;
+              });
+            }
+            return null;
+          })
+          .catch((err) => {
+            if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+            setSubscribeWaitOverlay(false);
+            throw err;
+          });
       })
       .catch((err) => {
         console.warn("requestProfileSubscriptions failed", err);
         this.setSubscriptionBannerVisibility(true);
+        if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+        setSubscribeWaitOverlay(false);
         return null;
       });
   },

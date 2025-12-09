@@ -8,6 +8,23 @@
   margin-top: -30rpx;
 }
 
+.subscribe-wait-overlay {
+  position: absolute;
+  left: 8rpx;
+  right: 8rpx;
+  display: flex;
+  justify-content: center;
+  z-index: 37;
+  pointer-events: none;
+}
+
+.subscribe-wait-image {
+  width: 100wh;
+  max-width: 110%;
+  opacity: 0.95;
+  pointer-events: none;
+}
+
 .profile-scroll {
   padding: 48rpx 40rpx 220rpx;
   box-sizing: border-box;

@@ -32,7 +32,8 @@ Page({
     nicknameInput: "",
     nicknameSaving: false,
     likeSummary: { total: "--" },
-    showSubscriptionRedDot: false
+    showSubscriptionRedDot: false,
+    showSubscribeWaitOverlay: false
   },
 
   loadLikeSummary() {
@@ -76,7 +77,8 @@ Page({
     const app = typeof getApp === "function" ? getApp() : null;
     if (app && app.globalData) {
       this.setData({
-        showSubscriptionRedDot: !!app.globalData.subscriptionFeedHasUpdate
+        showSubscriptionRedDot: !!app.globalData.subscriptionFeedHasUpdate,
+        showSubscribeWaitOverlay: !!app.globalData.showSubscribeWaitOverlay
       });
     }
     this.refreshSubscriptionRedDot();

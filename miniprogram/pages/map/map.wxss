@@ -136,6 +136,23 @@
   opacity: 0.9;
 }
 
+.subscribe-wait-overlay {
+  position: absolute;
+  left: 8rpx;
+  right: 8rpx;
+  display: flex;
+  justify-content: center;
+  z-index: 37;
+  pointer-events: none;
+}
+
+.subscribe-wait-image {
+  width: 100wh;
+  max-width: 92%;
+  opacity: 0.95;
+  pointer-events: none;
+}
+
 .preflight-overlay {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 120rpx);

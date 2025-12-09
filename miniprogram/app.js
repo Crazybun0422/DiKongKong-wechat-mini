@@ -119,7 +119,8 @@ App({
     pendingInviteCode: "",
     subscriptionAcceptedTemplateIds: [],
     subscriptionSettingsReady: false,
-    subscriptionMainSwitch: true
+    subscriptionMainSwitch: true,
+    showSubscribeWaitOverlay: false
   },
 
   onLaunch(options = {}) {
