@@ -40,6 +40,23 @@
       src="/assets/position.png"
       mode="widthFix"
     />
+    <view
+      class="subscription-banner"
+      wx:if="{{activeTab === 'home' && showSubscriptionBanner}}"
+      style="top: calc(env(safe-area-inset-top) + {{subscriptionBannerTopRpx}}rpx);"
+    >
+      <view class="subscription-banner-text">
+        确保有新功能、空投福利时，您永远是第一批知道的~
+      </view>
+      <button
+        class="subscription-banner-cta"
+        hover-class="subscription-banner-cta--hover"
+        bindtap="onSubscriptionBannerTap"
+        loading="{{subscriptionBannerLoading}}"
+      >
+        立即开启
+      </button>
+    </view>
     <view class="map-scale-container" wx:if="{{scaleBarVisible}}">
       <view class="map-scale">
         <text class="map-scale-label">{{scaleBarLabel}}</text>
@@ -59,7 +76,7 @@
       </view>
     </view>
 
-    <view class="preflight-overlay" wx:if="{{showDashboardPanel}}">
+    <view class="preflight-overlay" wx:if="{{showDashboardPanel}}" style="top: calc(env(safe-area-inset-top) + {{preflightTopRpx}}rpx);">
       <view class="preflight-card">
         <view class="preflight-title">飞前安全准备</view>
         <view class="drone-picker-block">

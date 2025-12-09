@@ -125,8 +125,13 @@ function requestSubscribeMessageForTemplateIds(templateIds = []) {
           const text = `${status}`.toLowerCase();
           return text === "accept" || text === "accepted" || text === "always";
         });
+        const isRejectStatus = (val) => {
+          const text = `${val || ""}`.toLowerCase();
+          return text === "reject" || text === "rejected" || text === "ban" || text === "always_reject" || text === "never";
+        };
+        const anyRejected = ids.some((id) => isRejectStatus(res[id]));
         console.log("Subscribe message request result:", res, "Accepted IDs:", acceptedIds);
-        resolve({ acceptedIds, result: res });
+        resolve({ acceptedIds, result: res, anyRejected });
       },
       fail: (err) => reject(err)
     });

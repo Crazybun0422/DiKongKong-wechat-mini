@@ -43,10 +43,13 @@ const {
 } = require("../../utils/map-layer-settings");
 const {
   fetchTemplateSettings,
+  fetchSubscriptions,
   requestSubscribeMessageForTemplateIds,
   updateSubscriptions,
   fetchLatestSubscriptionPush,
-  SUBSCRIPTION_TEMPLATE_ID
+  SUBSCRIPTION_TEMPLATE_ID,
+  normalizeTemplateIds,
+  extractAcceptedTemplateIdsFromWxSetting
 } = require("../../utils/subscriptions");
 const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
 
@@ -572,6 +575,12 @@ Page({
     showDashboardPanel: true,
     activeTab: "home",
     showProfileRedDot: false,
+    showSubscriptionBanner: false,
+    subscriptionBannerLoading: false,
+    subscriptionBannerTopRpx: 90,
+    subscriptionBannerHeightRpx: 70,
+    preflightBaseTopRpx: 120,
+    preflightTopRpx: 120,
     markerDetailVisible: false,
     detailCard: null,
     markerDetailClosing: false,
@@ -763,6 +772,7 @@ Page({
     this.updateStatusPanel();
     this.updateCenterPinIndicator();
     this.autoLoginOnLaunch();
+    this.initSubscriptionBanner();
 
   },
 
@@ -1149,6 +1159,104 @@ Page({
     this.ensureAccessToken().catch((err) => {
       console.warn("自动登录失败", err);
     });
+  },
+
+  initSubscriptionBanner() {
+    this.evaluateSubscriptionBannerVisibility().catch((err) => {
+      console.warn("initSubscriptionBanner failed", err);
+    });
+  },
+
+  waitForSubscriptionSettingsReady() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && typeof app.syncSubscriptionsFromWxSetting === "function") {
+      try {
+        const promise = app.syncSubscriptionsFromWxSetting();
+        if (promise && typeof promise.then === "function") {
+          return promise.catch((err) => {
+            console.warn("waitForSubscriptionSettingsReady failed", err);
+            return { ids: [], mainSwitch: true };
+          });
+        }
+      } catch (err) {
+        console.warn("syncSubscriptionsFromWxSetting threw", err);
+      }
+    }
+    if (app && app.globalData && Array.isArray(app.globalData.subscriptionAcceptedTemplateIds)) {
+      return Promise.resolve({
+        ids: app.globalData.subscriptionAcceptedTemplateIds,
+        mainSwitch: app.globalData.subscriptionMainSwitch !== false
+      });
+    }
+    return Promise.resolve({ ids: [], mainSwitch: true });
+  },
+
+  setGlobalSubscriptionIds(list = [], mainSwitch = true) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const normalized = normalizeTemplateIds(list);
+    if (app && app.globalData) {
+      app.globalData.subscriptionAcceptedTemplateIds = normalized;
+      app.globalData.subscriptionSettingsReady = true;
+      app.globalData.subscriptionMainSwitch = mainSwitch !== false;
+    }
+    return normalized;
+  },
+
+  setSubscriptionBannerVisibility(show) {
+    const visible = !!show;
+    this.setData({ showSubscriptionBanner: visible });
+    this.updatePreflightOverlayTop(visible);
+  },
+
+  updatePreflightOverlayTop(showBanner = this.data.showSubscriptionBanner) {
+    const bannerTop = Number(this.data.subscriptionBannerTopRpx) || 0;
+    const bannerHeight = Number(this.data.subscriptionBannerHeightRpx) || 0;
+    const baseTop = Number(this.data.preflightBaseTopRpx) || 120;
+    const top = showBanner ? bannerTop + bannerHeight + 15 : baseTop;
+    this.setData({ preflightTopRpx: top });
+  },
+
+  getSubscriptionMainSwitch() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      return app.globalData.subscriptionMainSwitch !== false;
+    }
+    return true;
+  },
+
+  evaluateSubscriptionBannerVisibility() {
+    return this.waitForSubscriptionSettingsReady()
+      .then((payload = {}) => {
+        const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
+        const mainSwitch = payload.mainSwitch !== false;
+        const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
+        if (!mainSwitch) {
+          this.setSubscriptionBannerVisibility(true);
+          return normalizedClient;
+        }
+        const apiBase = this.getApiBase();
+        const token = this.getAuthToken();
+        if (!apiBase || !token) {
+          this.setSubscriptionBannerVisibility(normalizedClient.length < 2);
+          return normalizedClient;
+        }
+        return fetchSubscriptions({ apiBase, token })
+          .then((serverIds) => {
+            const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
+            this.setSubscriptionBannerVisibility(normalized.length < 2);
+            return normalized;
+          })
+          .catch((err) => {
+            console.warn("evaluateSubscriptionBannerVisibility failed", err);
+            this.setSubscriptionBannerVisibility(normalizedClient.length < 2);
+            return normalizedClient;
+          });
+      })
+      .catch((err) => {
+        console.warn("evaluateSubscriptionBannerVisibility outer failed", err);
+        this.setSubscriptionBannerVisibility(false);
+        return [];
+      });
   },
 
   captureInviteCode(options = {}) {
@@ -2595,11 +2703,13 @@ Page({
     if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
       this.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
     }
+    this.evaluateSubscriptionBannerVisibility();
     if (this.data.joinInvitePrompt && !this.data.joinInviting) {
       this.promptJoinWorkGroup(this.data.joinInvitePrompt);
     }
     this.consumePendingMarkerFocus({ source: "show" });
     this.consumePendingPinPreview();
+    this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
   },
 
   onHide() {
@@ -4588,8 +4698,76 @@ Page({
       })
       .catch((err) => {
         console.warn("requestProfileSubscriptions failed", err);
+        this.setSubscriptionBannerVisibility(true);
         return null;
       });
+  },
+
+  onSubscriptionBannerTap() {
+    if (this.data.subscriptionBannerLoading) return;
+    this.setData({ subscriptionBannerLoading: true });
+    this.ensureProfileAuthenticated()
+      .then(() => this.openSubscriptionSettingPicker())
+      .catch((err) => {
+        console.warn("subscription banner auth failed", err);
+        wx.showToast({ title: "请先登录后再试", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ subscriptionBannerLoading: false });
+      });
+  },
+
+  openSubscriptionSettingPicker(options = {}) {
+    const prefAccepted = Array.isArray(options.prefAccepted) ? options.prefAccepted : [];
+    return new Promise((resolve) => {
+      if (typeof wx.openSetting !== "function") {
+        resolve([]);
+        return;
+      }
+      wx.openSetting({
+        withSubscriptions: true,
+        success: (res = {}) => {
+          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
+          const enabled = mainSwitch !== false;
+          if (!enabled) {
+            this.setGlobalSubscriptionIds([], enabled);
+            this.setSubscriptionBannerVisibility(true);
+            wx.showToast({ title: "请先开启订阅消息总开关", icon: "none" });
+            resolve([]);
+            return;
+          }
+          const ids = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || [];
+          const merged = normalizeTemplateIds([...(prefAccepted || []), ...(ids || [])]);
+          const normalized = this.setGlobalSubscriptionIds(merged, enabled);
+          const apiBase = this.getApiBase();
+          const token = this.getAuthToken();
+          const syncPromise =
+            normalized.length && apiBase && token
+              ? updateSubscriptions(normalized, { apiBase, token }).catch((err) => {
+                console.warn("updateSubscriptions after openSetting failed", err);
+              })
+              : Promise.resolve();
+          const finalize = () => {
+            const shouldShow = !enabled || normalized.length < 2;
+            console.log("openSubscriptionSettingPicker accepted ids", normalized.length, "mainSwitch", enabled, "show", shouldShow);
+            this.setSubscriptionBannerVisibility(shouldShow);
+            if (normalized.length) {
+              wx.showToast({ title: "已更新订阅", icon: "success" });
+            } else {
+              wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
+            }
+            resolve(normalized);
+          };
+          syncPromise.then(finalize).catch(finalize);
+        },
+        fail: (err) => {
+          console.warn("openSubscriptionSettingPicker failed", err);
+          wx.showToast({ title: "请在设置里开启订阅消息", icon: "none" });
+          this.setSubscriptionBannerVisibility(true);
+          resolve([]);
+        }
+      });
+    });
   },
 
   prefetchSubscriptionLatest() {
