@@ -1,6 +1,7 @@
 const { resolveApiBase, authorizedRequest, getAuthToken } = require("./profile");
 
-const SUBSCRIPTION_TEMPLATE_ID = "xkKkpiG1HkMXHfvBWzf4DyisFCsSP3LNFQ1bgMv0zeE";
+// Fixed template ID used by latest subscription push content API
+const SUBSCRIPTION_TEMPLATE_ID = "WEAPP_PUSH_CONTENT";
 
 function normalizeTemplateIds(listLike) {
   if (!listLike) return [];
@@ -133,14 +134,10 @@ function requestSubscribeMessageForTemplateIds(templateIds = []) {
 }
 
 function fetchLatestSubscriptionPush(options = {}) {
-  const templateId = options.templateId || SUBSCRIPTION_TEMPLATE_ID;
-  if (!templateId) {
-    return Promise.reject(new Error("missing-template-id"));
-  }
   return authorizedRequest({
     apiBase: resolveApiBase(options.apiBase),
     token: options.token || getAuthToken(),
-    path: `/api/weapp/subscription-pushes/latest?templateId=${encodeURIComponent(templateId)}`,
+    path: "/api/weapp/subscription-pushes/latest",
     method: "GET"
   }).then((body = {}) => body?.data || {});
 }

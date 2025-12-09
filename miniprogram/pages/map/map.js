@@ -4595,7 +4595,7 @@ Page({
     const apiBase = this.getApiBase();
     const token = this.getAuthToken();
     if (!apiBase || !token) return;
-    fetchLatestSubscriptionPush({ apiBase, token, templateId: SUBSCRIPTION_TEMPLATE_ID })
+    fetchLatestSubscriptionPush({ apiBase, token })
       .then((payload = {}) => {
         const latestVersion = normalizeVersion(payload.version || "");
         const app = typeof getApp === "function" ? getApp() : null;

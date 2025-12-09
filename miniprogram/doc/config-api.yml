@@ -674,6 +674,10 @@ components:
         templateId:
           type: string
           description: 模版 ID，作为值存储。
+        page:
+          type: string
+          nullable: true
+          description: 订阅消息跳转的页面路径，传空则不包含跳转。
         details:
           type: array
           nullable: true
@@ -699,6 +703,10 @@ components:
         templateId:
           type: string
           description: 模版 ID。
+        page:
+          type: string
+          nullable: true
+          description: 订阅消息跳转页面。
         details:
           type: array
           items:

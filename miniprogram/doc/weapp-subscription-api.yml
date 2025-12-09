@@ -284,19 +284,12 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
   /api/weapp/subscription-pushes/latest:
     get:
-      summary: 获取模板最新推送内容与版本号
-      description: 用户登录后可查询指定模板的最新 pushContent、唯一模板 ID 以及自增版本号。
+      summary: 获取最新推送内容与版本号
+      description: 用户登录后可查询 pushContent 的最新内容，模板 ID 固定为 WEAPP_PUSH_CONTENT，并返回自增版本号。
       tags:
         - Weapp Subscription Push
       security:
         - bearerAuth: []
-      parameters:
-        - in: query
-          name: templateId
-          required: true
-          schema:
-            type: string
-          description: 订阅消息模板 ID。
       responses:
         '200':
           description: OK
@@ -318,6 +311,44 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
         '404':
           description: 未找到对应的推送内容
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新最新推送内容（管理员）
+      description: 仅管理员可调用，更新 pushContent 并自动递增版本号，模板 ID 固定为 WEAPP_PUSH_CONTENT。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappPushContentUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappPushContentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -396,12 +427,20 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WeappPushContentResponse'
+    WeappPushContentUpdateRequest:
+      type: object
+      required:
+        - pushContent
+      properties:
+        pushContent:
+          type: string
+          description: 最新推送内容，非空字符串。
     WeappPushContentResponse:
       type: object
       properties:
         templateId:
           type: string
-          description: 模板唯一 ID（与订阅模板绑定）。
+          description: 模板唯一 ID，固定为 WEAPP_PUSH_CONTENT。
         version:
           type: integer
           format: int64
@@ -467,6 +506,9 @@ components:
         pushContent:
           type: string
           description: 富文本推送内容（仅运营动态类推送使用）。
+        page:
+          type: string
+          description: 订阅消息跳转的小程序页面路径，可选。
     WeappSubscriptionPushResponse:
       type: object
       properties:
@@ -500,6 +542,8 @@ components:
           type: integer
           format: int64
         pushContent:
+          type: string
+        page:
           type: string
         createdAt:
           type: string

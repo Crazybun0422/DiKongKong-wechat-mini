@@ -104,14 +104,13 @@ Page({
       return;
     }
 
-    fetchLatestSubscriptionPush({ apiBase, templateId: SUBSCRIPTION_TEMPLATE_ID })
+    fetchLatestSubscriptionPush({ apiBase })
       .then((payload = {}) => {
-        const html =
-          typeof payload.content === "string"
+        const html = typeof payload.pushContent === "string"
+          ? payload.pushContent
+          : typeof payload.content === "string"
             ? payload.content
-            : typeof payload.pushContent === "string"
-              ? payload.pushContent
-              : "";
+            : "";
         const transformed = transformHtmlContent(html, { apiBase });
         const images = extractImageUrls(html, { apiBase });
         const latestVersion = normalizeVersion(payload.version || "0");

@@ -10,6 +10,15 @@
   updateUserProfile
 } = require("../../utils/profile");
 const { fetchMyLikes } = require("../../utils/likes");
+const {
+  fetchLatestSubscriptionPush,
+  SUBSCRIPTION_TEMPLATE_ID
+} = require("../../utils/subscriptions");
+const {
+  updateLatestItemVersion,
+  fetchLatestItemVersion,
+  normalizeVersion
+} = require("../../utils/latest-items");
 
 Page({
   data: {
@@ -70,6 +79,7 @@ Page({
         showSubscriptionRedDot: !!app.globalData.subscriptionFeedHasUpdate
       });
     }
+    this.refreshSubscriptionRedDot();
   },
 
   onPullDownRefresh() {
@@ -453,5 +463,43 @@ Page({
       this.setData({ activeTab: "profile" });
     }
     wx.showToast({ title: "当前已在我的页面", icon: "none" });
+  },
+
+  refreshSubscriptionRedDot() {
+    const apiBase = resolveApiBase();
+    if (!apiBase) return;
+    fetchLatestSubscriptionPush({ apiBase })
+      .then((payload = {}) => {
+        const latestVersion = normalizeVersion(payload.version || "0");
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData) {
+          app.globalData.subscriptionLatestVersion = latestVersion;
+        }
+        if (!latestVersion) {
+          this.updateSubscriptionRedDot(false);
+          return null;
+        }
+        return fetchLatestItemVersion({
+          apiBase,
+          itemId: SUBSCRIPTION_TEMPLATE_ID,
+          version: latestVersion
+        }).then((result) => {
+          const serverVersion = normalizeVersion(result.version || "");
+          const hasUpdate = serverVersion !== latestVersion;
+          this.updateSubscriptionRedDot(hasUpdate);
+        });
+      })
+      .catch((err) => {
+        console.warn("refreshSubscriptionRedDot failed", err);
+      });
+  },
+
+  updateSubscriptionRedDot(show) {
+    if (typeof show !== "boolean") return;
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.subscriptionFeedHasUpdate = show;
+    }
+    this.setData({ showSubscriptionRedDot: show });
   }
 });
