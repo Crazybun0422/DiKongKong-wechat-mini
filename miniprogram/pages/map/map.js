@@ -2872,10 +2872,11 @@ Page({
       wx.showLoading({ title: "加载中...", mask: true });
     }
     this.ensureProfileAuthenticated()
-      .then(() => this.requestProfileSubscriptions().catch((err) => {
-        console.warn("订阅模板流程失败", err);
-      }))
       .then(() => {
+        // Fire-and-forget subscription request so navigation is not blocked
+        this.requestProfileSubscriptions().catch((err) => {
+          console.warn("订阅模板流程失败", err);
+        });
         if (typeof wx.navigateTo === "function") {
           wx.navigateTo({
             url: "/pages/profile/profile",
