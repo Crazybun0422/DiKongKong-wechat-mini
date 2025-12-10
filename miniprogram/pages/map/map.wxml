@@ -57,15 +57,6 @@
         立即开启
       </button>
     </view>
-    <view class="subscribe-wait-overlay" wx:if="{{showSubscribeWaitOverlay}}">
-      <view class="subscribe-wait-mask"></view>
-      <view
-        class="subscribe-wait-image-wrap"
-        style="top: calc(env(safe-area-inset-top) + {{subscriptionBannerTopRpx - 120}}rpx);"
-      >
-        <image class="subscribe-wait-image" src="/assets/introduction_bg.png" mode="widthFix" />
-      </view>
-    </view>
     <view class="map-scale-container" wx:if="{{scaleBarVisible}}">
       <view class="map-scale">
         <text class="map-scale-label">{{scaleBarLabel}}</text>

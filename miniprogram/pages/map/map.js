@@ -4769,14 +4769,12 @@ Page({
             const shouldShow = !enabled || normalized.length < 2;
             console.log("openSubscriptionSettingPicker accepted ids", normalized.length, "mainSwitch", enabled, "show", shouldShow);
             this.setSubscriptionBannerVisibility(shouldShow);
-            if (normalized.length) {
-              wx.showToast({ title: "已更新订阅", icon: "success" });
-            } else {
+            if (normalized.length === 0) {
               wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
             }
             resolve(normalized);
             // Double-check with backend/state to avoid偶发悬挂
-            this.evaluateSubscriptionBannerVisibility().catch(() => {});
+            this.evaluateSubscriptionBannerVisibility().catch(() => { });
           };
           syncPromise.then(finalize).catch(finalize);
         },
