@@ -1232,6 +1232,7 @@ Page({
         const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
         const mainSwitch = payload.mainSwitch !== false;
         const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
+        console.log("mainSwitch =", mainSwitch, "clientIds =", normalizedClient);
         if (!mainSwitch) {
           this.setSubscriptionBannerVisibility(true);
           return normalizedClient;
@@ -4686,6 +4687,11 @@ Page({
     const apiBase = this.getApiBase();
     const token = this.getAuthToken();
     if (!apiBase || !token) return Promise.resolve();
+    const clearSubscribeWait = () => {
+      if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+      this._subscribeWaitTimer = null;
+      setSubscribeWaitOverlay(false);
+    };
     return fetchTemplateSettings({ apiBase, token })
       .then(({ templateIds }) => {
         console.log("comming...", templateIds);
@@ -4696,8 +4702,6 @@ Page({
         }, 1000);
         return requestSubscribeMessageForTemplateIds(templateIds)
           .then(({ acceptedIds }) => {
-            if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
-            setSubscribeWaitOverlay(false);
             if (acceptedIds && acceptedIds.length) {
               return updateSubscriptions(acceptedIds, { apiBase, token }).catch((err) => {
                 console.warn("updateSubscriptions after consent failed", err);
@@ -4706,18 +4710,14 @@ Page({
             }
             return null;
           })
-          .catch((err) => {
-            if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
-            setSubscribeWaitOverlay(false);
-            throw err;
-          });
       })
       .catch((err) => {
         console.warn("requestProfileSubscriptions failed", err);
-        this.setSubscriptionBannerVisibility(true);
-        if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
-        setSubscribeWaitOverlay(false);
         return null;
+      })
+      .finally(() => {
+        clearSubscribeWait();
+        this.evaluateSubscriptionBannerVisibility().catch(() => { });
       });
   },
 
@@ -4749,13 +4749,15 @@ Page({
           const enabled = mainSwitch !== false;
           if (!enabled) {
             this.setGlobalSubscriptionIds([], enabled);
-            this.setSubscriptionBannerVisibility(true);
+            this.setSubscriptionBannerVisibility(false);
             wx.showToast({ title: "请先开启订阅消息总开关", icon: "none" });
             resolve([]);
             return;
           }
+          console.log("res.subscriptionsSetting", res.subscriptionsSetting);
           const ids = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || [];
           const merged = normalizeTemplateIds([...(prefAccepted || []), ...(ids || [])]);
+          console.log("openSubscriptionSettingPicker got ids", ids.length, "merged", merged.length);
           const normalized = this.setGlobalSubscriptionIds(merged, enabled);
           const apiBase = this.getApiBase();
           const token = this.getAuthToken();
@@ -4766,7 +4768,7 @@ Page({
               })
               : Promise.resolve();
           const finalize = () => {
-            const shouldShow = !enabled || normalized.length < 2;
+            const shouldShow = enabled && normalized.length < 2;
             console.log("openSubscriptionSettingPicker accepted ids", normalized.length, "mainSwitch", enabled, "show", shouldShow);
             this.setSubscriptionBannerVisibility(shouldShow);
             if (normalized.length === 0) {
@@ -5697,7 +5699,7 @@ Page({
       drone: this.data.selectedDrone
     })
       .then((areas) => {
-        console.log("areas", areas);
+        // console.log("areas", areas);
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);

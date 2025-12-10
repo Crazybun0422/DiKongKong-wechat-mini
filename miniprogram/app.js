@@ -238,18 +238,17 @@ App({
   },
 
   syncSubscriptionsFromWxSetting() {
-    if (this._syncSubscriptionsPromise) return this._syncSubscriptionsPromise;
     const apiBase = this.globalData.apiBase;
     const token = this.globalData.token;
-    console.log("Syncing subscriptions from WeChat settings with", { apiBase, token });
-    if (!apiBase || !token || typeof wx === "undefined" || typeof wx.getSetting !== "function") {
+    const canGetSetting = typeof wx !== "undefined" && typeof wx.getSetting === "function";
+    console.log("Syncing subscriptions from WeChat settings with", { apiBase, token, canGetSetting });
+    if (!canGetSetting) {
       this.globalData.subscriptionSettingsReady = true;
       this.globalData.subscriptionAcceptedTemplateIds = [];
-      this.globalData.subscriptionMainSwitch = true;
-      this._syncSubscriptionsPromise = Promise.resolve({ ids: [], mainSwitch: true });
-      return this._syncSubscriptionsPromise;
+      this.globalData.subscriptionMainSwitch = false;
+      return Promise.resolve({ ids: [], mainSwitch: false });
     }
-    this._syncSubscriptionsPromise = new Promise((resolve) => {
+    return new Promise((resolve) => {
       wx.getSetting({
         withSubscriptions: true,
         success: (res = {}) => {
@@ -263,32 +262,34 @@ App({
           this.globalData.subscriptionMainSwitch = enabled;
           this.globalData.subscriptionSettingsReady = true;
           console.log("Extracted accepted template IDs from WeChat settings:", { clientIds, mainSwitch: enabled });
-          fetchSubscriptions({ apiBase, token })
-            .then((serverIds) => {
-              if (!areTemplateIdSetsEqual(clientIds, serverIds)) {
-                console.log("Syncing backend subscriptions to match WeChat settings:", { clientIds, serverIds });
-                return updateSubscriptions(clientIds, { apiBase, token }).catch((err) => {
-                  console.warn("Failed to update backend subscriptions", err);
+          const syncPromise =
+            apiBase && token && enabled
+              ? fetchSubscriptions({ apiBase, token })
+                .then((serverIds) => {
+                  if (!areTemplateIdSetsEqual(clientIds, serverIds)) {
+                    console.log("Syncing backend subscriptions to match WeChat settings:", { clientIds, serverIds });
+                    return updateSubscriptions(clientIds, { apiBase, token }).catch((err) => {
+                      console.warn("Failed to update backend subscriptions", err);
+                      return null;
+                    });
+                  }
                   return null;
-                });
-              }
-              return null;
-            })
-            .catch((err) => {
-              console.warn("Failed to fetch backend subscriptions", err);
-            })
-            .finally(() => resolve({ ids: clientIds, mainSwitch: enabled }));
+                })
+                .catch((err) => {
+                  console.warn("Failed to fetch backend subscriptions", err);
+                })
+              : Promise.resolve();
+          syncPromise.finally(() => resolve({ ids: clientIds, mainSwitch: enabled }));
         },
         fail: (err) => {
           console.warn("wx.getSetting subscriptions failed", err);
           this.globalData.subscriptionSettingsReady = true;
           this.globalData.subscriptionAcceptedTemplateIds = [];
-          this.globalData.subscriptionMainSwitch = true;
-          resolve({ ids: [], mainSwitch: true });
+          this.globalData.subscriptionMainSwitch = false;
+          resolve({ ids: [], mainSwitch: false });
         }
       });
     });
-    return this._syncSubscriptionsPromise;
   },
 
   initUpdateManager() {
