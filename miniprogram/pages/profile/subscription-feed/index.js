@@ -2,7 +2,11 @@ const { transformHtmlContent, extractImageUrls } = require("../../../utils/open-
 const { resolveApiBase } = require("../../../utils/profile");
 const {
   fetchLatestSubscriptionPush,
-  SUBSCRIPTION_TEMPLATE_ID
+  SUBSCRIPTION_TEMPLATE_ID,
+  fetchSubscriptions,
+  updateSubscriptions,
+  normalizeTemplateIds,
+  extractAcceptedTemplateIdsFromWxSetting
 } = require("../../../utils/subscriptions");
 const {
   updateLatestItemVersion,
@@ -64,7 +68,9 @@ Page({
     error: "",
     contentNodes: "",
     title: DEFAULT_TITLE,
-    imageUrls: []
+    imageUrls: [],
+    showSubscriptionBanner: false,
+    subscriptionBannerLoading: false
   },
 
   onLoad() {
@@ -72,6 +78,11 @@ Page({
       wx.setNavigationBarTitle({ title: DEFAULT_TITLE });
     }
     this.loadContent();
+    this.evaluateSubscriptionBannerVisibility().catch(() => { });
+  },
+
+  onShow() {
+    this.evaluateSubscriptionBannerVisibility().catch(() => { });
   },
 
   onPullDownRefresh() {
@@ -214,5 +225,152 @@ Page({
         wx.setClipboardData({ data: current });
       }
     }
+  },
+
+  getApiBase() {
+    return resolveApiBase();
+  },
+
+  getAuthToken() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    return (app && app.globalData && app.globalData.token) || "";
+  },
+
+  waitForSubscriptionSettingsReady() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && typeof app.syncSubscriptionsFromWxSetting === "function") {
+      try {
+        const promise = app.syncSubscriptionsFromWxSetting();
+        if (promise && typeof promise.then === "function") {
+          return promise.catch((err) => {
+            console.warn("waitForSubscriptionSettingsReady failed", err);
+            return { ids: [], mainSwitch: true };
+          });
+        }
+      } catch (err) {
+        console.warn("syncSubscriptionsFromWxSetting threw", err);
+      }
+    }
+    if (app && app.globalData && Array.isArray(app.globalData.subscriptionAcceptedTemplateIds)) {
+      return Promise.resolve({
+        ids: app.globalData.subscriptionAcceptedTemplateIds,
+        mainSwitch: app.globalData.subscriptionMainSwitch !== false
+      });
+    }
+    return Promise.resolve({ ids: [], mainSwitch: true });
+  },
+
+  setGlobalSubscriptionIds(list = [], mainSwitch = true) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const normalized = normalizeTemplateIds(list);
+    if (app && app.globalData) {
+      app.globalData.subscriptionAcceptedTemplateIds = normalized;
+      app.globalData.subscriptionSettingsReady = true;
+      app.globalData.subscriptionMainSwitch = mainSwitch !== false;
+    }
+    return normalized;
+  },
+
+  setSubscriptionBannerVisibility(show) {
+    const visible = !!show;
+    this.setData({ showSubscriptionBanner: visible });
+  },
+
+  evaluateSubscriptionBannerVisibility() {
+    return this.waitForSubscriptionSettingsReady()
+      .then((payload = {}) => {
+        const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
+        const mainSwitch = payload.mainSwitch !== false;
+        const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
+        if (!mainSwitch) {
+          this.setSubscriptionBannerVisibility(true);
+          return normalizedClient;
+        }
+        const apiBase = this.getApiBase();
+        const token = this.getAuthToken();
+        if (!apiBase || !token) {
+          this.setSubscriptionBannerVisibility(normalizedClient.length < 2);
+          return normalizedClient;
+        }
+        return fetchSubscriptions({ apiBase, token })
+          .then((serverIds) => {
+            const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
+            this.setSubscriptionBannerVisibility(normalized.length < 2);
+            return normalized;
+          })
+          .catch((err) => {
+            console.warn("evaluateSubscriptionBannerVisibility failed", err);
+            this.setSubscriptionBannerVisibility(normalizedClient.length < 2);
+            return normalizedClient;
+          });
+      })
+      .catch((err) => {
+        console.warn("evaluateSubscriptionBannerVisibility outer failed", err);
+        this.setSubscriptionBannerVisibility(false);
+        return [];
+      });
+  },
+
+  onSubscriptionBannerTap() {
+    if (this.data.subscriptionBannerLoading) return;
+    this.setData({ subscriptionBannerLoading: true });
+    this.openSubscriptionSettingPicker()
+      .catch((err) => {
+        console.warn("openSubscriptionSettingPicker in subscription-feed failed", err);
+      })
+      .finally(() => {
+        this.setData({ subscriptionBannerLoading: false });
+      });
+  },
+
+  openSubscriptionSettingPicker(options = {}) {
+    const prefAccepted = Array.isArray(options.prefAccepted) ? options.prefAccepted : [];
+    return new Promise((resolve) => {
+      if (typeof wx.openSetting !== "function") {
+        resolve([]);
+        return;
+      }
+      wx.openSetting({
+        withSubscriptions: true,
+        success: (res = {}) => {
+          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
+          const enabled = mainSwitch !== false;
+          if (!enabled) {
+            this.setGlobalSubscriptionIds([], enabled);
+            this.setSubscriptionBannerVisibility(true);
+            wx.showToast({ title: "请先开启订阅消息总开关", icon: "none" });
+            resolve([]);
+            return;
+          }
+          const ids = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || [];
+          const merged = normalizeTemplateIds([...(prefAccepted || []), ...(ids || [])]);
+          const normalized = this.setGlobalSubscriptionIds(merged, enabled);
+          const apiBase = this.getApiBase();
+          const token = this.getAuthToken();
+          const syncPromise =
+            normalized.length && apiBase && token
+              ? updateSubscriptions(normalized, { apiBase, token }).catch((err) => {
+                console.warn("updateSubscriptions after openSetting failed", err);
+              })
+              : Promise.resolve();
+          const finalize = () => {
+            const shouldShow = enabled && normalized.length < 2;
+            this.setSubscriptionBannerVisibility(shouldShow);
+            if (normalized.length === 0) {
+              wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
+            }
+            resolve(normalized);
+            this.evaluateSubscriptionBannerVisibility().catch(() => { });
+          };
+          syncPromise.then(finalize).catch(finalize);
+        },
+        fail: (err) => {
+          console.warn("openSubscriptionSettingPicker failed", err);
+          wx.showToast({ title: "请在设置里开启订阅消息", icon: "none" });
+          this.setSubscriptionBannerVisibility(true);
+          resolve([]);
+        }
+      });
+    });
   }
 });

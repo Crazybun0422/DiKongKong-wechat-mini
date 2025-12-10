@@ -19,4 +19,21 @@
       />
     </block>
   </scroll-view>
+
+  <view
+    class="subscription-banner subscription-banner--fixed"
+    wx:if="{{showSubscriptionBanner}}"
+  >
+    <view class="subscription-banner-text">
+      确保有新功能、空投福利时，您永远是第一批知道的~
+    </view>
+    <button
+      class="subscription-banner-cta"
+      hover-class="subscription-banner-cta--hover"
+      bindtap="onSubscriptionBannerTap"
+      loading="{{subscriptionBannerLoading}}"
+    >
+      立即开启
+    </button>
+  </view>
 </view>

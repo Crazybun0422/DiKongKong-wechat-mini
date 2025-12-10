@@ -9,6 +9,7 @@
   flex: 1;
   padding: 32rpx 32rpx 40rpx;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .subscription-feed-loading,
@@ -212,4 +213,57 @@
   background: #f0f5ff;
   border-left: 8rpx solid #1677ff;
   color: #3b4a69;
+}
+
+.subscription-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 32rpx);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 10rpx 18rpx;
+  background: rgba(64, 64, 64, 0.75);
+  border-radius: 16rpx;
+  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.25);
+  z-index: 36;
+  pointer-events: auto;
+  min-width:480rpx;
+  max-width: 480rpx;
+}
+
+.subscription-banner-text {
+  color: #f8fafc;
+  font-size: 18rpx;
+  line-height: 1.5;
+  max-width: 360rpx;
+}
+
+.subscription-banner-cta {
+  background: #cf2e2e;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
+  border-radius: 12rpx;
+  padding: 12rpx 20rpx;
+  border: none;
+  line-height: 1;
+  min-width: 130rpx;
+  box-shadow: 0 8rpx 20rpx rgba(207, 46, 46, 0.32);
+}
+
+.subscription-banner-cta::after {
+  display: none;
+}
+
+.subscription-banner-cta--hover {
+  opacity: 0.9;
+}
+
+.subscription-banner--fixed {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 32rpx);
+  transform: translateX(-50%);
 }

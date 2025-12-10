@@ -106,6 +106,7 @@
   z-index: 36;
   pointer-events: auto;
   max-width: 480rpx;
+  min-width:480rpx;
 }
 
 .subscription-banner-text {
