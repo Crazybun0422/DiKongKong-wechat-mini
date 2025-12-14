@@ -1,6 +1,7 @@
 const {
   transformHtmlContent,
-  extractImageUrls
+  extractImageUrls,
+  buildContentSegments
 } = require("../../../../utils/open-platform");
 const {
   resolveApiBase,
@@ -69,6 +70,7 @@ Page({
     loading: true,
     error: "",
     contentNodes: "",
+    contentSegments: [],
     title: DEFAULT_TITLE,
     imageUrls: []
   },
@@ -114,9 +116,11 @@ Page({
       .then((payload = {}) => {
         const html = typeof payload.content === "string" ? payload.content : "";
         const transformed = transformHtmlContent(html, { apiBase });
+        const segments = buildContentSegments(html, { apiBase });
         const images = extractImageUrls(html, { apiBase });
         this.setData({
           contentNodes: transformed,
+          contentSegments: segments,
           loading: false,
           error: "",
           imageUrls: images
@@ -169,13 +173,32 @@ Page({
       if (typeof wx.previewImage === "function") {
         wx.previewImage({
           urls: urls.length ? urls : [current],
-          current
+          current,
+          showmenu: true
         });
         return;
       }
       if (typeof wx.setClipboardData === "function") {
         wx.setClipboardData({ data: current });
       }
+    }
+  },
+
+  onImageTap(event) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    const urls = this.data.imageUrls || [];
+    const current = Number.isInteger(index) && urls[index] ? urls[index] : urls[0] || "";
+    if (!current) return;
+    if (typeof wx.previewImage === "function") {
+      wx.previewImage({
+        urls: urls.length ? urls : [current],
+        current,
+        showmenu: true
+      });
+      return;
+    }
+    if (typeof wx.setClipboardData === "function") {
+      wx.setClipboardData({ data: current });
     }
   }
 });

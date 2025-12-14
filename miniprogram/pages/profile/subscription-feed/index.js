@@ -1,4 +1,9 @@
-const { transformHtmlContent, extractImageUrls } = require("../../../utils/open-platform");
+const {
+  transformHtmlContent,
+  extractImageUrls,
+  buildRichTextNodes,
+  buildContentSegments
+} = require("../../../utils/open-platform");
 const { resolveApiBase } = require("../../../utils/profile");
 const {
   fetchLatestSubscriptionPush,
@@ -67,10 +72,12 @@ Page({
     loading: true,
     error: "",
     contentNodes: "",
+    contentSegments: [],
     title: DEFAULT_TITLE,
     imageUrls: [],
     showSubscriptionBanner: false,
-    subscriptionBannerLoading: false
+    subscriptionBannerLoading: false,
+    refresherTriggered: false
   },
 
   onLoad() {
@@ -89,13 +96,19 @@ Page({
     this.loadContent({ fromPullDown: true });
   },
 
+  onRefresherRefresh() {
+    this.setData({ refresherTriggered: true });
+    this.loadContent({ fromRefresher: true });
+  },
+
   onRetryTap() {
     this.loadContent();
   },
 
   loadContent(options = {}) {
-    const { fromPullDown = false } = options;
-    if (!fromPullDown) {
+    const { fromPullDown = false, fromRefresher = false } = options;
+    const isBackgroundRefresh = fromPullDown || fromRefresher;
+    if (!isBackgroundRefresh) {
       this.setData({ loading: true, error: "" });
     } else {
       this.setData({ error: "" });
@@ -109,9 +122,7 @@ Page({
         contentNodes: "",
         imageUrls: []
       });
-      if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
-        wx.stopPullDownRefresh();
-      }
+      this.finishRefresh({ fromPullDown, fromRefresher });
       return;
     }
 
@@ -123,11 +134,14 @@ Page({
             ? payload.content
             : "";
         const transformed = transformHtmlContent(html, { apiBase });
+        const nodes = buildRichTextNodes(html, { apiBase });
+        const segments = buildContentSegments(html, { apiBase });
         const images = extractImageUrls(html, { apiBase });
         const latestVersion = normalizeVersion(payload.version || "0");
         this.syncLatestVersion(latestVersion, { apiBase });
         this.setData({
-          contentNodes: transformed,
+          contentNodes: nodes.length ? nodes : transformed,
+          contentSegments: segments,
           loading: false,
           error: "",
           imageUrls: images
@@ -143,10 +157,18 @@ Page({
         });
       })
       .finally(() => {
-        if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
-          wx.stopPullDownRefresh();
-        }
+        this.finishRefresh({ fromPullDown, fromRefresher });
       });
+  },
+
+  finishRefresh(options = {}) {
+    const { fromPullDown = false, fromRefresher = false } = options;
+    if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
+      wx.stopPullDownRefresh();
+    }
+    if (fromRefresher) {
+      this.setData({ refresherTriggered: false });
+    }
   },
 
   syncLatestVersion(version, options = {}) {
@@ -210,14 +232,23 @@ Page({
       }
     }
 
-    const tappedImage = getRichTextAttribute(event, ["opImage", "data-op-image", "src"]);
+    const tappedImage =
+      getRichTextAttribute(event, ["opImage", "data-op-image", "src"]) ||
+      event?.detail?.src ||
+      event?.target?.dataset?.src ||
+      event?.target?.src ||
+      event?.detail?.target?.src ||
+      event?.detail?.node?.attrs?.src ||
+      "";
+    console.log("onRichTextTap tappedImage:", tappedImage);
     if (tappedImage) {
       const urls = this.data.imageUrls || [];
       const current = String(tappedImage);
       if (typeof wx.previewImage === "function") {
         wx.previewImage({
           urls: urls.length ? urls : [current],
-          current
+          current,
+          showmenu: true
         });
         return;
       }
@@ -225,6 +256,28 @@ Page({
         wx.setClipboardData({ data: current });
       }
     }
+  },
+
+  onImageTap(event) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    const urls = this.data.imageUrls || [];
+    const current = Number.isInteger(index) && urls[index] ? urls[index] : urls[0] || "";
+    if (!current) return;
+    if (typeof wx.previewImage === "function") {
+      wx.previewImage({
+        urls: urls.length ? urls : [current],
+        current,
+        showmenu: true
+      });
+      return;
+    }
+    if (typeof wx.setClipboardData === "function") {
+      wx.setClipboardData({ data: current });
+    }
+  },
+
+  onImageLongPress(event) {
+    this.onImageTap(event);
   },
 
   getApiBase() {

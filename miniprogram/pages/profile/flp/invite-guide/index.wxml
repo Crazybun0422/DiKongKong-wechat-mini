@@ -10,7 +10,29 @@
       </view>
     </block>
     <block wx:else>
+      <block wx:if="{{contentSegments.length}}">
+        <block wx:for="{{contentSegments}}" wx:key="index">
+          <rich-text
+            wx:if="{{item.type === 'rich'}}"
+            class="invite-guide-content"
+            nodes="{{item.nodes}}"
+            space="nbsp"
+            selectable="true"
+            bindtap="onRichTextTap"
+          />
+          <image
+            wx:elif="{{item.type === 'image'}}"
+            class="invite-guide-image"
+            src="{{item.src}}"
+            mode="widthFix"
+            show-menu-by-longpress="true"
+            data-index="{{item.index}}"
+            bindtap="onImageTap"
+          />
+        </block>
+      </block>
       <rich-text
+        wx:else
         class="invite-guide-content"
         nodes="{{contentNodes}}"
         space="nbsp"

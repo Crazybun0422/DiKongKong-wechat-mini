@@ -186,13 +186,13 @@ function transformHtmlContent(html = "", options = {}) {
 
       // 3) 注入能在 rich-text 生效的“等比缩放 + 居中”样式（注意用 px，不用 rpx）
       const baseStyle = "display:block;margin:24px auto;max-width:100%;height:auto;border-radius:12px;";
-      const finalStyle = (style ? style + ";" : "") + baseStyle;
+    const finalStyle = (style ? style + ";" : "") + baseStyle;
 
-      const safe = resolved.replace(/"/g, "&quot;");
+    const safe = resolved.replace(/"/g, "&quot;");
 
-      console.log("safe",safe)
-      return `<img src="${safe}" style="${finalStyle}" data-op-image="${safe}" ${rest} />`;
-    });
+    console.log("safe",safe)
+    return `<img src="${safe}" style="${finalStyle}" data-op-image="${safe}" show-menu-by-longpress="true" ${rest} />`;
+  });
 
     
     output = output.replace(/<br\s*>/gi, "<br />");
@@ -218,9 +218,106 @@ function extractImageUrls(html = "", options = {}) {
   return Array.from(new Set(urls));
 }
 
+function buildRichTextNodes(html = "", options = {}) {
+  if (!html || typeof html !== "string") return [];
+  const apiBase = resolveApiBase(options.apiBase);
+  const nodes = [];
+  let lastIndex = 0;
+  let imageIndex = 0;
+  const imgRegex = /<img\b[^>]*>/gi;
+
+  const pushTextNode = (text = "") => {
+    const value = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+    if (!value) return;
+    nodes.push({
+      type: "node",
+      name: "div",
+      attrs: {},
+      children: [{ type: "text", text: value }]
+    });
+  };
+
+  html.replace(imgRegex, (match, offset) => {
+    const textSegment = html.slice(lastIndex, offset);
+    pushTextNode(textSegment);
+
+    const srcMatch = match.match(/\s(?:data-src|src)=['"]([^'"]+)['"]/i);
+    const rawSrc = srcMatch && srcMatch[1] ? srcMatch[1].trim() : "";
+    const resolved = resolveAssetUrl(rawSrc, { apiBase });
+    const safe = resolved || rawSrc || "";
+    if (safe) {
+      nodes.push({
+        type: "node",
+        name: "img",
+        attrs: {
+          src: safe,
+          "data-op-image": safe,
+          "data-op-index": String(imageIndex),
+          "show-menu-by-longpress": "true",
+          style: "display:block;margin:24px auto;max-width:100%;height:auto;border-radius:12px;"
+        }
+      });
+      imageIndex += 1;
+    }
+
+    lastIndex = offset + match.length;
+    return match;
+  });
+
+  const tailText = html.slice(lastIndex);
+  pushTextNode(tailText);
+
+  return nodes;
+}
+
+function buildContentSegments(html = "", options = {}) {
+  if (!html || typeof html !== "string") return [];
+  const apiBase = resolveApiBase(options.apiBase);
+  const segments = [];
+  let lastIndex = 0;
+  let imageIndex = 0;
+  const imgRegex = /<img\b[^>]*>/gi;
+
+  const pushTextSegment = (text = "") => {
+    if (!text || !text.trim()) return;
+    const rich = transformHtmlContent(text, { apiBase });
+    if (rich) {
+      segments.push({ type: "rich", nodes: rich });
+    }
+  };
+
+  html.replace(imgRegex, (match, offset) => {
+    const textSegment = html.slice(lastIndex, offset);
+    pushTextSegment(textSegment);
+
+    const srcMatch = match.match(/\s(?:data-src|src)=['"]([^'"]+)['"]/i);
+    const rawSrc = srcMatch && srcMatch[1] ? srcMatch[1].trim() : "";
+    const resolved = resolveAssetUrl(rawSrc, { apiBase });
+    const safe = resolved || rawSrc || "";
+    if (safe) {
+      segments.push({
+        type: "image",
+        src: safe,
+        index: imageIndex
+      });
+      imageIndex += 1;
+    }
+
+    lastIndex = offset + match.length;
+    return match;
+  });
+
+  const tailText = html.slice(lastIndex);
+  pushTextSegment(tailText);
+
+  return segments;
+}
+
 module.exports = {
   fetchOpenPlatformCopy,
   transformHtmlContent,
   resolveAssetUrl,
-  extractImageUrls
+  extractImageUrls,
+  buildRichTextNodes,
+  buildContentSegments
 };

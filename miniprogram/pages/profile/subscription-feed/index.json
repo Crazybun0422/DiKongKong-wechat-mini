@@ -2,5 +2,6 @@
   "navigationBarTitleText": "运营动态",
   "navigationBarBackgroundColor": "#FFFFFF",
   "navigationBarTextStyle": "black",
-  "backgroundColor": "#F7F8FA"
+  "backgroundColor": "#F7F8FA",
+  "enablePullDownRefresh": true
 }
