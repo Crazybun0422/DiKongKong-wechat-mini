@@ -704,12 +704,12 @@ Page({
         platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
       })
     });
-    if (!this.data.uomTileWarningDismissed) {
-      if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
-      this._uomFallbackTimer = setTimeout(() => {
-        this.forceShowUomWarningFallback();
-      }, 1500);
-    }
+    // if (!this.data.uomTileWarningDismissed) {
+    //   if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+    //   this._uomFallbackTimer = setTimeout(() => {
+    //     this.forceShowUomWarningFallback();
+    //   }, 1500);
+    // }
     this.bootstrapMapLayerSettings(true);
     this._markerExposureCache = new Map();
     this._pinExposureCache = new Map();
