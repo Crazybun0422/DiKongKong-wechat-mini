@@ -260,7 +260,7 @@ Page({
     }
     wx.getLocation({
       type: "gcj02",
-      isHighAccuracy: true,
+      isHighAccuracy: false,
       highAccuracyExpireTime: 8000,
       success: (res) => {
         const gcjLat = Number(res.latitude);
@@ -451,12 +451,12 @@ Page({
     });
     const gcjCenter =
       this._currentGcj &&
-      Number.isFinite(this._currentGcj.latitude) &&
-      Number.isFinite(this._currentGcj.longitude)
+        Number.isFinite(this._currentGcj.latitude) &&
+        Number.isFinite(this._currentGcj.longitude)
         ? this._currentGcj
         : (Number.isFinite(this.data.latitude) && Number.isFinite(this.data.longitude)
-            ? { latitude: this.data.latitude, longitude: this.data.longitude }
-            : null);
+          ? { latitude: this.data.latitude, longitude: this.data.longitude }
+          : null);
     let searchPromise;
     if (gcjCenter) {
       try {
@@ -542,12 +542,12 @@ Page({
     }
     const gcjCenter =
       this._currentGcj &&
-      Number.isFinite(this._currentGcj.latitude) &&
-      Number.isFinite(this._currentGcj.longitude)
+        Number.isFinite(this._currentGcj.latitude) &&
+        Number.isFinite(this._currentGcj.longitude)
         ? this._currentGcj
         : (Number.isFinite(this.data.latitude) && Number.isFinite(this.data.longitude)
-            ? { latitude: this.data.latitude, longitude: this.data.longitude }
-            : null);
+          ? { latitude: this.data.latitude, longitude: this.data.longitude }
+          : null);
     let searchPromise;
     if (gcjCenter) {
       try {

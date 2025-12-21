@@ -4256,7 +4256,7 @@ Page({
   pullAndCenterLocation(options = {}) {
     wx.getLocation({
       type: "gcj02",
-      isHighAccuracy: true,
+      isHighAccuracy: false,
       highAccuracyExpireTime: 8000,
       success: (res) => {
         this._lastKnownLocation = {
