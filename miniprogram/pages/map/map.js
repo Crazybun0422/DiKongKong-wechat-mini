@@ -4688,18 +4688,31 @@ Page({
     const token = this.getAuthToken();
     if (!apiBase || !token) return Promise.resolve();
     const clearSubscribeWait = () => {
-      if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
-      this._subscribeWaitTimer = null;
       setSubscribeWaitOverlay(false);
     };
-    return fetchTemplateSettings({ apiBase, token })
+    const checkSubscriptionsNotFound = () =>
+      new Promise((resolve) => {
+        wx.request({
+          url: `${apiBase}/api/weapp/subscriptions`,
+          method: "GET",
+          header: {
+            "content-type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          success: (res) => {
+            if (res && res.statusCode === 404) {
+              setSubscribeWaitOverlay(true);
+            }
+            resolve();
+          },
+          fail: () => resolve()
+        });
+      });
+    return checkSubscriptionsNotFound()
+      .then(() => fetchTemplateSettings({ apiBase, token }))
       .then(({ templateIds }) => {
         console.log("comming...", templateIds);
         if (!templateIds || !templateIds.length) return null;
-        if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
-        this._subscribeWaitTimer = setTimeout(() => {
-          setSubscribeWaitOverlay(true);
-        }, 1000);
         return requestSubscribeMessageForTemplateIds(templateIds)
           .then(({ acceptedIds }) => {
             if (acceptedIds && acceptedIds.length) {
