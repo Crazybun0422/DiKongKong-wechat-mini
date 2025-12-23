@@ -654,6 +654,8 @@ Page({
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
+    this._mapMarkerIdMap = new Map();
+    this._mapMarkerIdSeq = 100000;
     this._fetchTimer = null;
     this._mapLayerSettingsLoaded = false;
     this._markersFetchTimer = null;
@@ -778,9 +780,48 @@ Page({
 
   },
 
+  ensureMapMarkerId(value) {
+    if (Number.isFinite(value)) return Number(value);
+    const text = value === undefined || value === null ? "" : `${value}`.trim();
+    if (!text) {
+      this._mapMarkerIdSeq += 1;
+      return this._mapMarkerIdSeq;
+    }
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) return numeric;
+    if (!this._mapMarkerIdMap) {
+      this._mapMarkerIdMap = new Map();
+      this._mapMarkerIdSeq = 100000;
+    }
+    if (this._mapMarkerIdMap.has(text)) {
+      return this._mapMarkerIdMap.get(text);
+    }
+    this._mapMarkerIdSeq += 1;
+    const mapped = this._mapMarkerIdSeq;
+    this._mapMarkerIdMap.set(text, mapped);
+    return mapped;
+  },
+
+  normalizeMapMarkerId(marker) {
+    if (!marker || typeof marker !== "object") return marker;
+    const rawId =
+      marker.id !== undefined && marker.id !== null
+        ? marker.id
+        : marker.markerId ?? marker.markerID;
+    const mappedId = this.ensureMapMarkerId(rawId);
+    marker.id = mappedId;
+    return marker;
+  },
+
+  normalizeMapMarkerList(list) {
+    if (!Array.isArray(list)) return list;
+    list.forEach((marker) => this.normalizeMapMarkerId(marker));
+    return list;
+  },
+
   findMarkerById(markerId) {
     if (markerId === undefined || markerId === null) return null;
-    const markerIdStr = `${markerId}`;
+    const targetId = this.ensureMapMarkerId(markerId);
     const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
     const nearbyPins = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
@@ -788,7 +829,8 @@ Page({
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const combined = manual.concat(nearbyPins, nearby, search, preview);
     for (const marker of combined) {
-      if ((marker?.id || marker?.id === 0) && `${marker.id}` === markerIdStr) {
+      const currentId = this.ensureMapMarkerId(marker?.id ?? marker?.markerId ?? marker?.markerID);
+      if (currentId === targetId) {
         return marker;
       }
     }
@@ -3500,6 +3542,11 @@ Page({
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
+    this.normalizeMapMarkerList(nearby);
+    this.normalizeMapMarkerList(pinMarkers);
+    this.normalizeMapMarkerList(search);
+    this.normalizeMapMarkerList(manual);
+    this.normalizeMapMarkerList(preview);
     const combined = manual.concat(pinMarkers, nearby, search, preview);
     this.setData({ markers: combined });
   },
