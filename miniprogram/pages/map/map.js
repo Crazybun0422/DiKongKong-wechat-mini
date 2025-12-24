@@ -29,7 +29,10 @@ const {
   computeGreatCircleDistance
 } = require("../../utils/distance");
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
-const { loadStoredProfile: loadStoredProfileUtil } = require("../../utils/profile");
+const {
+  loadStoredProfile: loadStoredProfileUtil,
+  prepareAvatarForUpload
+} = require("../../utils/profile");
 const {
   appendInviteCodeToPath,
   appendInviteCodeToQuery,
@@ -99,6 +102,8 @@ const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
 const MIN_GROUND_OVERLAY_SDK = "2.21.2";
+const PANORAMA_DEMO_FILE = "ex.jpg";
+const PANORAMA_FALLBACK_ASSET = "/assets/ex.jpg";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#000000",
@@ -261,6 +266,60 @@ const decodeMaybeURI = (text = "") => {
     break;
   }
   return current;
+};
+
+const resolvePanoramaSource = (apiBase) => {
+  const candidate = buildFileDownloadUrl(PANORAMA_DEMO_FILE, { apiBase });
+  if (!candidate) return PANORAMA_FALLBACK_ASSET;
+  if (/^https?:\/\//.test(candidate) || candidate.startsWith("wxfile://")) {
+    return candidate;
+  }
+  if (candidate.startsWith("/")) {
+    return candidate;
+  }
+  return PANORAMA_FALLBACK_ASSET;
+};
+
+const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
+
+const downloadPanoramaWithRetry = (url, options = {}) =>
+  new Promise((resolve, reject) => {
+    let attempts = 0;
+    const retryDelay = Number.isFinite(options.retryDelayMs) ? options.retryDelayMs : 1200;
+    const attempt = () => {
+      attempts += 1;
+      wx.downloadFile({
+        url,
+        success: (res) => {
+          const statusCode = Number(res?.statusCode);
+          const filePath = res?.tempFilePath;
+          if (statusCode === 200 && filePath) {
+            resolve(filePath);
+            return;
+          }
+          const err = new Error(`download-panorama-status-${statusCode || "unknown"}`);
+          reject(err);
+        },
+        fail: (err) => {
+          const msg = `${err?.errMsg || ""}`.toLowerCase();
+          if (msg.includes("timeout") || msg.includes("time out")) {
+            console.warn("panorama download timeout, retrying", { attempts, url });
+            setTimeout(attempt, retryDelay);
+            return;
+          }
+          reject(err || new Error("download-panorama-failed"));
+        }
+      });
+    };
+    attempt();
+  });
+
+const resolvePanoramaFilePath = (source) => {
+  if (!source) return Promise.reject(new Error("missing-panorama-source"));
+  if (isHttpUrl(source)) {
+    return downloadPanoramaWithRetry(source);
+  }
+  return prepareAvatarForUpload(source);
 };
 
 const settleWithValue = (promise, options = {}) => {
@@ -3066,6 +3125,107 @@ Page({
     }
     this.setData({ layerPanelVisible: true, layerPanelClosing: false });
     this.loadMapLayerSettings(false);
+  },
+
+  onPanoramaDemoTap() {
+    if (typeof wx.chooseMessageFile !== "function") {
+      wx.showToast({ title: "当前版本不支持从聊天记录选图", icon: "none" });
+      return;
+    }
+    wx.chooseMessageFile({
+      count: 1,
+      type: "image",
+      success: (res) => {
+        const filePath = res?.tempFiles?.[0]?.path;
+        console.log("panorama file chosen", { filePath });
+        if (!filePath) {
+          wx.showToast({ title: "未选择图片", icon: "none" });
+          return;
+        }
+        const saveIfNeeded = typeof wx.saveFile === "function"
+          ? new Promise((resolve) => {
+            wx.saveFile({
+              tempFilePath: filePath,
+              success: (saveRes) => {
+                const saved = saveRes?.savedFilePath;
+                if (saved) {
+                  console.log("panorama file saved", { savedFilePath: saved });
+                  resolve(saved);
+                  return;
+                }
+                resolve(filePath);
+              },
+              fail: (err) => {
+                console.warn("panorama save file failed", err);
+                resolve(filePath);
+              }
+            });
+          })
+          : Promise.resolve(filePath);
+        const getInfo = (path) => (typeof wx.getImageInfo === "function"
+          ? new Promise((resolve, reject) => {
+            wx.getImageInfo({
+              src: path,
+              success: (info) => resolve({ path, info }),
+              fail: (err) => reject(err || new Error("invalid-panorama-image"))
+            });
+          })
+          : Promise.resolve({ path, info: null }));
+        const buildPlanetSrc = (path, info) => {
+          const width = Number(info?.width || 0);
+          const height = Number(info?.height || 0);
+          const maxSide = Math.max(width, height);
+          if (!Number.isFinite(maxSide) || maxSide <= 8192 || typeof wx.compressImage !== "function") {
+            return Promise.resolve(path);
+          }
+          const scale = 8192 / maxSide;
+          const targetW = Math.max(1, Math.round(width * scale));
+          const targetH = Math.max(1, Math.round(height * scale));
+          return new Promise((resolve) => {
+            wx.compressImage({
+              src: path,
+              quality: 85,
+              compressedWidth: targetW,
+              compressedHeight: targetH,
+              success: (compressRes) => {
+                const temp = compressRes?.tempFilePath || path;
+                console.log("panorama compressed for planet", { temp, targetW, targetH });
+                resolve(temp);
+              },
+              fail: (err) => {
+                console.warn("panorama compress failed", err);
+                resolve(path);
+              }
+            });
+          });
+        };
+        saveIfNeeded
+          .then((path) => getInfo(path))
+          .then(({ path, info }) => buildPlanetSrc(path, info).then((planetPath) => ({
+            originalPath: path,
+            planetPath
+          })))
+          .then(({ originalPath, planetPath }) => {
+            const encoded = encodeURIComponent(originalPath);
+            const planetEncoded = encodeURIComponent(planetPath || originalPath);
+            wx.navigateTo({
+              url: `/pages/dji-360/index?src=${encoded}&planetSrc=${planetEncoded}`,
+              fail: (err) => {
+                console.warn("navigate to panorama failed", err);
+                wx.showToast({ title: "打开失败", icon: "none" });
+              }
+            });
+          })
+          .catch((err) => {
+            console.warn("panorama image invalid", err);
+            wx.showToast({ title: "图片不可用", icon: "none" });
+          });
+      },
+      fail: (err) => {
+        console.warn("panorama choose file failed", err);
+        wx.showToast({ title: "取消选择", icon: "none" });
+      }
+    });
   },
 
   onLayerPanelMaskTap() {

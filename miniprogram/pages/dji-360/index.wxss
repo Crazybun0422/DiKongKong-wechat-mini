@@ -1,0 +1,64 @@
+page {
+  height: 100%;
+  background: #000000;
+}
+
+.page {
+  height: 100%;
+  background: #000000;
+}
+
+.panorama-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panorama-canvas {
+  width: 100%;
+  height: 100%;
+  background: #000000;
+}
+
+.panorama-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 50rpx;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 14rpx 26rpx;
+  border-radius: 999rpx;
+}
+
+.panorama-hint-text {
+  color: #ffffff;
+  font-size: 24rpx;
+  letter-spacing: 1rpx;
+}
+
+.panorama-toolbar {
+  position: absolute;
+  top: 36rpx;
+  right: 24rpx;
+  display: flex;
+  gap: 12rpx;
+  z-index: 2;
+}
+
+.panorama-mode-btn {
+  height: 60rpx;
+  padding: 0 20rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  font-size: 24rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panorama-mode-btn::after {
+  border: 0;
+}

@@ -158,6 +158,13 @@
 
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
       <button
+        class="panorama-button"
+        hover-class="dashboard-toggle-hover"
+        bindtap="onPanoramaDemoTap"
+      >
+        <text class="panorama-button-text">360</text>
+      </button>
+      <button
         class="layer-button"
         hover-class="dashboard-toggle-hover"
         bindtap="onLayerButtonTap"

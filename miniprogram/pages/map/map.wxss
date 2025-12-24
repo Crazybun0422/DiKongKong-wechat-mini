@@ -756,7 +756,8 @@ button.search-btn::after {
 
 button.dashboard-toggle,
 button.marker-button,
-button.layer-button {
+button.layer-button,
+button.panorama-button {
   width: 80rpx;
   height: 80rpx;
   border-radius: 50%;
@@ -774,6 +775,7 @@ button.layer-button {
 button.dashboard-toggle::after,
 button.marker-button::after,
 button.layer-button::after,
+button.panorama-button::after,
 .bottom-menu button::after {
   border: 0;
 }
@@ -800,6 +802,13 @@ button.layer-button::after,
 .menu-icon,
 .chat-fab-icon {
   filter: brightness(0) saturate(100%);
+}
+
+.panorama-button-text {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: 2rpx;
 }
 
 .menu-icon,
