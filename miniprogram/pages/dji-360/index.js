@@ -12,6 +12,8 @@ const PLANET_CAMERA_RADIUS = CAMERA_RADIUS * 0.55;
 const PLANET_MIN_LAT = 55;
 const PLANET_MAX_LAT = 89;
 const PLANET_MAX_SIZE = 8192;
+const PLANET_BG_STRIP_RATIO = 0.12;
+const PLANET_BG_MAX_SIZE = 1024;
 
 Page({
   data: {
@@ -79,6 +81,8 @@ Page({
         this._camera = camera;
         this._geometry = geometry;
         this._target = target;
+        this._viewWidth = info.width;
+        this._viewHeight = info.height;
         this._lon = 0;
         this._lat = PLANET_DEFAULT_LAT;
         this._viewMode = "planet";
@@ -106,6 +110,49 @@ Page({
           const ctx = offscreen.getContext("2d");
           ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
           const texture = new THREE.CanvasTexture(offscreen);
+          texture.needsUpdate = true;
+          texture.minFilter = THREE.LinearFilter;
+          return texture;
+        };
+
+        const buildPlanetBackgroundTexture = (srcData, srcW, srcH) => {
+          const outW = Math.max(
+            256,
+            Math.min(PLANET_BG_MAX_SIZE, Math.round(this._viewWidth || PLANET_BG_MAX_SIZE))
+          );
+          const outH = Math.max(
+            256,
+            Math.min(PLANET_BG_MAX_SIZE, Math.round(this._viewHeight || PLANET_BG_MAX_SIZE))
+          );
+          const canvas = wx.createOffscreenCanvas({ type: "2d", width: outW, height: outH });
+          const ctx = canvas.getContext("2d");
+          const imageData = ctx.createImageData(outW, outH);
+          const data = imageData.data;
+          const stripH = Math.max(1, Math.round(srcH * PLANET_BG_STRIP_RATIO));
+          const cx = outW / 2;
+          const cy = outH / 2;
+          const maxR = Math.min(cx, cy);
+          for (let y = 0; y < outH; y += 1) {
+            for (let x = 0; x < outW; x += 1) {
+              const dx = x - cx;
+              const dy = y - cy;
+              const r = Math.sqrt(dx * dx + dy * dy);
+              const rNorm = Math.min(1, r / maxR);
+              const angle = Math.atan2(dy, dx);
+              const u = (angle / (2 * Math.PI)) + 0.5;
+              const v = (1 - rNorm) * (stripH - 1);
+              const sx = Math.min(srcW - 1, Math.max(0, Math.round(u * (srcW - 1))));
+              const sy = Math.min(stripH - 1, Math.max(0, Math.round(v)));
+              const sidx = (sy * srcW + sx) * 4;
+              const idx = (y * outW + x) * 4;
+              data[idx] = srcData[sidx];
+              data[idx + 1] = srcData[sidx + 1];
+              data[idx + 2] = srcData[sidx + 2];
+              data[idx + 3] = 255;
+            }
+          }
+          ctx.putImageData(imageData, 0, 0);
+          const texture = new THREE.CanvasTexture(canvas);
           texture.needsUpdate = true;
           texture.minFilter = THREE.LinearFilter;
           return texture;
@@ -173,6 +220,13 @@ Page({
               if (topColor) {
                 this._planetBgColor = topColor;
               }
+              if (options.captureBackground) {
+                const srcCanvas = wx.createOffscreenCanvas({ type: "2d", width, height });
+                const srcCtx = srcCanvas.getContext("2d");
+                srcCtx.drawImage(img, 0, 0, width, height);
+                const srcData = srcCtx.getImageData(0, 0, width, height).data;
+                this._planetBackgroundTexture = buildPlanetBackgroundTexture(srcData, width, height);
+              }
               resolve(buildCanvasTexture(img, targetW, targetH));
             };
             img.onload = applyImage;
@@ -203,7 +257,11 @@ Page({
 
         const loadPlanetTexture = () => {
           const src = this._panoramaPlanetSrc || this._panoramaSrc;
-          return loadTextureFromSrc(src, { maxSize: PLANET_MAX_SIZE, captureTopColor: true })
+          return loadTextureFromSrc(src, {
+            maxSize: PLANET_MAX_SIZE,
+            captureTopColor: true,
+            captureBackground: true
+          })
             .then((texture) => {
               this._texturePlanet = texture;
               if (!this._sphereMesh) {
@@ -286,6 +344,7 @@ Page({
     if (this._material) this._material.dispose();
     if (this._texturePlanet) this._texturePlanet.dispose();
     if (this._textureInside) this._textureInside.dispose();
+    if (this._planetBackgroundTexture) this._planetBackgroundTexture.dispose();
     if (this._renderer) this._renderer.dispose();
     this._sphereMesh = null;
     this._scene = null;
@@ -295,6 +354,7 @@ Page({
     this._material = null;
     this._texturePlanet = null;
     this._textureInside = null;
+    this._planetBackgroundTexture = null;
     this._planetBgColor = null;
   },
 
@@ -313,7 +373,9 @@ Page({
       this._material.needsUpdate = true;
     }
     if (this._scene) {
-      if (nextMode === "planet" && this._planetBgColor && this._three) {
+      if (nextMode === "planet" && this._planetBackgroundTexture) {
+        this._scene.background = this._planetBackgroundTexture;
+      } else if (nextMode === "planet" && this._planetBgColor && this._three) {
         const { r, g, b } = this._planetBgColor;
         this._scene.background = new this._three.Color(`rgb(${r}, ${g}, ${b})`);
       } else {
