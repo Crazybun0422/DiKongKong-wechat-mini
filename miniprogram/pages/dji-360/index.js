@@ -14,11 +14,23 @@ const PLANET_MAX_LAT = 89;
 const PLANET_MAX_SIZE = 8192;
 const PLANET_BG_STRIP_RATIO = 0.12;
 const PLANET_BG_MAX_SIZE = 1024;
+const LITTLE_PLANET_OUTPUT_SIZE = 1024;
+const LITTLE_PLANET_RADIUS_RATIO = 0.38;
+const LITTLE_PLANET_EDGE_BLEND = 0.08;
+const LITTLE_PLANET_DISTANCE = 900;
+
+const VIEW_MODE_OPTIONS = [
+  { id: "planet", label: "俯瞰" },
+  { id: "inside", label: "360" },
+  { id: "little", label: "小行星" }
+];
 
 Page({
   data: {
     showHint: true,
-    viewMode: "planet"
+    viewMode: "planet",
+    viewModeOptions: VIEW_MODE_OPTIONS.map((item) => item.label),
+    viewModeIndex: 0
   },
 
   onLoad(query = {}) {
@@ -84,7 +96,10 @@ Page({
         this._viewWidth = info.width;
         this._viewHeight = info.height;
         this._lon = 0;
-        this._lat = PLANET_DEFAULT_LAT;
+        this._lat = 0;
+        this._planetLon = 0;
+        this._planetLat = PLANET_DEFAULT_LAT;
+        this._littleLon = 0;
         this._viewMode = "planet";
         this.updateViewMode("planet");
 
@@ -110,6 +125,83 @@ Page({
           const ctx = offscreen.getContext("2d");
           ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
           const texture = new THREE.CanvasTexture(offscreen);
+          texture.needsUpdate = true;
+          texture.minFilter = THREE.LinearFilter;
+          return texture;
+        };
+
+        const buildLittlePlanetTexture = (srcData, srcW, srcH) => {
+          const size = Math.max(256, LITTLE_PLANET_OUTPUT_SIZE);
+          const canvas = wx.createOffscreenCanvas({ type: "2d", width: size, height: size });
+          const ctx = canvas.getContext("2d");
+          const imageData = ctx.createImageData(size, size);
+          const data = imageData.data;
+          const cx = size / 2;
+          const cy = size / 2;
+          const maxR = Math.min(cx, cy);
+          const planetR = maxR * LITTLE_PLANET_RADIUS_RATIO;
+          const blendR = planetR * LITTLE_PLANET_EDGE_BLEND;
+          const stripH = Math.max(1, Math.round(srcH * PLANET_BG_STRIP_RATIO));
+          for (let y = 0; y < size; y += 1) {
+            for (let x = 0; x < size; x += 1) {
+              const dx = x - cx;
+              const dy = y - cy;
+              const r = Math.sqrt(dx * dx + dy * dy);
+              const idx = (y * size + x) * 4;
+              const angle = Math.atan2(dy, dx);
+              const u = (angle / (2 * Math.PI)) + 0.5;
+              const sampleSky = () => {
+                const t = Math.max(0, Math.min(1, (r - planetR) / (maxR - planetR)));
+                const v = (1 - t) * (stripH - 1);
+                const sx = Math.min(srcW - 1, Math.max(0, Math.round(u * (srcW - 1))));
+                const sy = Math.min(stripH - 1, Math.max(0, Math.round(v)));
+                const sidx = (sy * srcW + sx) * 4;
+                return {
+                  r: srcData[sidx],
+                  g: srcData[sidx + 1],
+                  b: srcData[sidx + 2]
+                };
+              };
+              const samplePlanet = () => {
+                const c = 2 * Math.atan(r / planetR);
+                const lat = -Math.PI / 2 + c;
+                const v = 0.5 - (lat / Math.PI);
+                const sx = Math.min(srcW - 1, Math.max(0, Math.round(u * (srcW - 1))));
+                const sy = Math.min(srcH - 1, Math.max(0, Math.round(v * (srcH - 1))));
+                const sidx = (sy * srcW + sx) * 4;
+                return {
+                  r: srcData[sidx],
+                  g: srcData[sidx + 1],
+                  b: srcData[sidx + 2]
+                };
+              };
+              if (r <= planetR - blendR) {
+                const c = samplePlanet();
+                data[idx] = c.r;
+                data[idx + 1] = c.g;
+                data[idx + 2] = c.b;
+                data[idx + 3] = 255;
+                continue;
+              }
+              if (r >= planetR + blendR) {
+                const c = sampleSky();
+                data[idx] = c.r;
+                data[idx + 1] = c.g;
+                data[idx + 2] = c.b;
+                data[idx + 3] = 255;
+                continue;
+              }
+              const t = Math.min(1, Math.max(0, (r - (planetR - blendR)) / (2 * blendR)));
+              const p = samplePlanet();
+              const s = sampleSky();
+              data[idx] = Math.round(p.r * (1 - t) + s.r * t);
+              data[idx + 1] = Math.round(p.g * (1 - t) + s.g * t);
+              data[idx + 2] = Math.round(p.b * (1 - t) + s.b * t);
+              data[idx + 3] = 255;
+            }
+          }
+          ctx.putImageData(imageData, 0, 0);
+          const texture = new THREE.CanvasTexture(canvas);
           texture.needsUpdate = true;
           texture.minFilter = THREE.LinearFilter;
           return texture;
@@ -227,6 +319,14 @@ Page({
                 const srcData = srcCtx.getImageData(0, 0, width, height).data;
                 this._planetBackgroundTexture = buildPlanetBackgroundTexture(srcData, width, height);
               }
+              if (options.littlePlanet) {
+                const srcCanvas = wx.createOffscreenCanvas({ type: "2d", width: targetW, height: targetH });
+                const srcCtx = srcCanvas.getContext("2d");
+                srcCtx.drawImage(img, 0, 0, targetW, targetH);
+                const srcData = srcCtx.getImageData(0, 0, targetW, targetH).data;
+                resolve(buildLittlePlanetTexture(srcData, targetW, targetH));
+                return;
+              }
               resolve(buildCanvasTexture(img, targetW, targetH));
             };
             img.onload = applyImage;
@@ -272,6 +372,26 @@ Page({
             });
         };
 
+        const loadLittleTexture = () => {
+          const src = this._panoramaPlanetSrc || this._panoramaSrc;
+          return loadTextureFromSrc(src, { maxSize: PLANET_MAX_SIZE, littlePlanet: true })
+            .then((texture) => {
+              this._textureLittle = texture;
+              if (!this._littleMesh) {
+                const planeGeo = new THREE.PlaneGeometry(1, 1);
+                const planeMat = new THREE.MeshBasicMaterial({ map: texture, transparent: false });
+                const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+                scene.add(planeMesh);
+                this._littleMesh = planeMesh;
+                this._littleMaterial = planeMat;
+              } else if (this._littleMaterial && this._littleMaterial.map !== texture) {
+                this._littleMaterial.map = texture;
+                this._littleMaterial.needsUpdate = true;
+              }
+              this.updateViewMode(this._viewMode || "planet");
+            });
+        };
+
         const loadInsideTexture = () => {
           const src = this._panoramaSrc;
           return loadTextureFromSrc(src)
@@ -289,6 +409,20 @@ Page({
           .finally(() => {
             loadInsideTexture().catch((err) => {
               console.warn("panorama inside texture load failed", err);
+              loadTextureFromSrc(this._panoramaPlanetSrc || this._panoramaSrc, {
+                maxSize: PLANET_MAX_SIZE
+              })
+                .then((texture) => {
+                  console.warn("panorama inside texture fallback to scaled");
+                  this._textureInside = texture;
+                  this.updateViewMode(this._viewMode || "planet");
+                })
+                .catch((fallbackErr) => {
+                  console.warn("panorama inside texture fallback failed", fallbackErr);
+                });
+            });
+            loadLittleTexture().catch((err) => {
+              console.warn("panorama little texture load failed", err);
             });
           });
 
@@ -302,8 +436,14 @@ Page({
       if (!this._renderer || !this._scene || !this._camera) return;
       const latClampMax = this._viewMode === "planet" ? PLANET_MAX_LAT : 85;
       const latClampMin = this._viewMode === "planet" ? PLANET_MIN_LAT : -85;
-      const lat = Math.max(latClampMin, Math.min(latClampMax, this._lat || 0));
-      const lon = this._lon || 0;
+      const activeLat = this._viewMode === "planet"
+        ? this._planetLat
+        : (this._viewMode === "little" ? 0 : this._lat);
+      const activeLon = this._viewMode === "planet"
+        ? this._planetLon
+        : (this._viewMode === "little" ? this._littleLon : this._lon);
+      const lat = Math.max(latClampMin, Math.min(latClampMax, activeLat || 0));
+      const lon = activeLon || 0;
       const phi = THREE.Math.degToRad(90 - lat);
       const theta = THREE.Math.degToRad(lon);
       if (this._viewMode === "inside") {
@@ -314,12 +454,20 @@ Page({
         this._camera.position.set(0, 0, 0.1);
         this._camera.lookAt(this._target);
       } else {
-        const radius = PLANET_CAMERA_RADIUS;
-        const x = radius * Math.sin(phi) * Math.cos(theta);
-        const y = radius * Math.cos(phi);
-        const z = radius * Math.sin(phi) * Math.sin(theta);
-        this._camera.position.set(x, y, z);
-        this._camera.lookAt(0, 0, 0);
+        if (this._viewMode === "little") {
+          this._camera.position.set(0, 0, LITTLE_PLANET_DISTANCE);
+          this._camera.lookAt(0, 0, 0);
+          if (this._littleMesh) {
+            this._littleMesh.rotation.z = THREE.Math.degToRad(lon);
+          }
+        } else {
+          const radius = PLANET_CAMERA_RADIUS;
+          const x = radius * Math.sin(phi) * Math.cos(theta);
+          const y = radius * Math.cos(phi);
+          const z = radius * Math.sin(phi) * Math.sin(theta);
+          this._camera.position.set(x, y, z);
+          this._camera.lookAt(0, 0, 0);
+        }
       }
       this._renderer.render(this._scene, this._camera);
       const raf = this._canvas?.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
@@ -340,26 +488,35 @@ Page({
     if (this._sphereMesh && this._scene) {
       this._scene.remove(this._sphereMesh);
     }
+    if (this._littleMesh && this._scene) {
+      this._scene.remove(this._littleMesh);
+    }
     if (this._geometry) this._geometry.dispose();
+    if (this._littleMesh?.geometry) this._littleMesh.geometry.dispose();
     if (this._material) this._material.dispose();
+    if (this._littleMaterial) this._littleMaterial.dispose();
     if (this._texturePlanet) this._texturePlanet.dispose();
     if (this._textureInside) this._textureInside.dispose();
+    if (this._textureLittle) this._textureLittle.dispose();
     if (this._planetBackgroundTexture) this._planetBackgroundTexture.dispose();
     if (this._renderer) this._renderer.dispose();
     this._sphereMesh = null;
+    this._littleMesh = null;
     this._scene = null;
     this._camera = null;
     this._renderer = null;
     this._geometry = null;
     this._material = null;
+    this._littleMaterial = null;
     this._texturePlanet = null;
     this._textureInside = null;
+    this._textureLittle = null;
     this._planetBackgroundTexture = null;
     this._planetBgColor = null;
   },
 
   updateViewMode(mode) {
-    const nextMode = mode === "inside" ? "inside" : "planet";
+    const nextMode = mode === "inside" ? "inside" : (mode === "little" ? "little" : "planet");
     this._viewMode = nextMode;
     if (this._material && this._three) {
       const nextTexture = nextMode === "inside"
@@ -383,20 +540,37 @@ Page({
       }
     }
     if (this._sphereMesh) {
-      this._sphereMesh.visible = true;
+      this._sphereMesh.visible = nextMode !== "little";
       const scale = nextMode === "planet" ? PLANET_SPHERE_SCALE : 1;
       this._sphereMesh.scale.set(scale, scale, scale);
     }
+    if (this._littleMesh && this._camera) {
+      this._littleMesh.visible = nextMode === "little";
+      if (nextMode === "little") {
+        const fov = (this._camera.fov || 70) * (Math.PI / 180);
+        const height = 2 * LITTLE_PLANET_DISTANCE * Math.tan(fov / 2);
+        const size = Math.min(height, height * (this._viewWidth / Math.max(1, this._viewHeight)));
+        this._littleMesh.scale.set(size, size, 1);
+      }
+    }
     if (nextMode === "planet") {
-      this._lat = PLANET_DEFAULT_LAT;
-      this._lon = this._lon || 0;
+      this._planetLat = PLANET_DEFAULT_LAT;
+      if (this._planetLon == null) {
+        this._planetLon = this._lon || 0;
+      }
       this.setFov(70);
+    } else if (nextMode === "little") {
+      if (this._littleLon == null) {
+        this._littleLon = this._lon || 0;
+      }
+      this.setFov(60);
     } else {
-      this._lat = 0;
+      this._lat = this._lat ?? 0;
       this._lon = this._lon || 0;
       this.setFov(75);
     }
     this.setData({ viewMode: nextMode });
+    this.syncModeIndex();
   },
 
   setFov(value) {
@@ -411,6 +585,36 @@ Page({
     this.updateViewMode(next);
   },
 
+  onModePickerChange(event = {}) {
+    const index = Number(event?.detail?.value);
+    if (!Number.isFinite(index)) return;
+    const item = VIEW_MODE_OPTIONS[index];
+    if (!item) return;
+    this.updateViewMode(item.id);
+  },
+
+  onModeActionTap() {
+    if (typeof wx.showActionSheet !== "function") return;
+    wx.showActionSheet({
+      itemList: VIEW_MODE_OPTIONS.map((item) => item.label),
+      success: (res) => {
+        const index = Number(res?.tapIndex);
+        if (!Number.isFinite(index)) return;
+        const item = VIEW_MODE_OPTIONS[index];
+        if (!item) return;
+        this.updateViewMode(item.id);
+      }
+    });
+  },
+
+  syncModeIndex() {
+    const index = VIEW_MODE_OPTIONS.findIndex((item) => item.id === this._viewMode);
+    if (index < 0) return;
+    if (this.data.viewModeIndex !== index) {
+      this.setData({ viewModeIndex: index });
+    }
+  },
+
   onZoomInTap() {
     this.setFov((this._camera?.fov || 75) - 6);
   },
@@ -420,6 +624,7 @@ Page({
   },
 
   onTouchStart(event) {
+    if (this._viewMode === "little") return;
     const touches = event?.touches || [];
     if (!touches.length) return;
     if (touches.length >= 2) {
@@ -433,6 +638,9 @@ Page({
       this._startY = touch.clientY;
       this._startLon = this._lon || 0;
       this._startLat = this._lat || 0;
+      this._startPlanetLon = this._planetLon || 0;
+      this._startPlanetLat = this._planetLat || PLANET_DEFAULT_LAT;
+      this._startLittleLon = this._littleLon || 0;
     }
     if (this.data.showHint) {
       this.setData({ showHint: false });
@@ -440,6 +648,7 @@ Page({
   },
 
   onTouchMove(event) {
+    if (this._viewMode === "little") return;
     const touches = event?.touches || [];
     if (this._pinching && touches.length >= 2) {
       const dist = this.touchDistance(touches);
@@ -456,11 +665,19 @@ Page({
     if (!touch) return;
     const deltaX = touch.clientX - (this._startX || 0);
     const deltaY = touch.clientY - (this._startY || 0);
-    this._lon = (this._startLon || 0) - deltaX * ROTATE_SENSITIVITY;
-    this._lat = (this._startLat || 0) + deltaY * ROTATE_SENSITIVITY;
+    if (this._viewMode === "planet") {
+      this._planetLon = (this._startPlanetLon || 0) - deltaX * ROTATE_SENSITIVITY;
+      this._planetLat = (this._startPlanetLat || 0) + deltaY * ROTATE_SENSITIVITY;
+    } else if (this._viewMode === "little") {
+      this._littleLon = (this._startLittleLon || 0) - deltaX * ROTATE_SENSITIVITY;
+    } else {
+      this._lon = (this._startLon || 0) - deltaX * ROTATE_SENSITIVITY;
+      this._lat = (this._startLat || 0) + deltaY * ROTATE_SENSITIVITY;
+    }
   },
 
   onTouchEnd() {
+    if (this._viewMode === "little") return;
     this._dragging = false;
     this._pinching = false;
   },

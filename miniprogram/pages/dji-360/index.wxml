@@ -10,13 +10,13 @@
       bindtouchend="onTouchEnd"
       bindtouchcancel="onTouchEnd"
     ></canvas>
-    <view class="panorama-hint" wx:if="{{showHint}}">
-      <text class="panorama-hint-text">拖动查看</text>
-    </view>
-    <view class="panorama-toolbar">
-      <button class="panorama-mode-btn" bindtap="onModeToggle">
-        {{viewMode === 'planet' ? '360视图' : '俯瞰'}}
+    <cover-view class="panorama-hint" wx:if="{{showHint}}">
+      <cover-view class="panorama-hint-text">拖动查看</cover-view>
+    </cover-view>
+    <cover-view class="panorama-toolbar">
+      <button class="panorama-mode-btn" bindtap="onModeActionTap">
+        {{viewModeOptions[viewModeIndex]}}
       </button>
-    </view>
+    </cover-view>
   </view>
 </view>
