@@ -8,6 +8,9 @@
       <image class="subscribe-wait-image" src="/assets/introduction_bg.png" mode="widthFix" />
     </view>
   </view>
+  <view class="status-breath-button" aria-hidden="true">
+    <image class="status-breath-image" src="/assets/status-uncheck-in.png" mode="aspectFit" />
+  </view>
   <view scroll-y="false" class="profile-scroll" bindtap="onBlankTap">
     <block wx:if="{{loading}}">
       <view class="profile-loading">加载中...</view>
@@ -129,6 +132,17 @@
                 <view class="subscription-badge" wx:if="{{showSubscriptionRedDot}}"></view>
                 <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
               </view>
+            </view>
+            <view
+              class="profile-list-item"
+              hover-class="profile-list-item-hover"
+              data-action="community-interaction"
+              bindtap="onListItemTap"
+            >
+              <view class="profile-list-left">
+                <text class="profile-list-text">社区互动</text>
+              </view>
+              <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
             </view>
           </view>
         </view>

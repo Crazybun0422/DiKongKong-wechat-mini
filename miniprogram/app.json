@@ -1,7 +1,6 @@
 {
   "pages": [
     "pages/map/map",
-    "pages/dji-360/index",
     "pages/topic/topic",
     "pages/profile/profile",
     "pages/profile/flp/index",

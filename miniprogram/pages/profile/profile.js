@@ -428,6 +428,31 @@ Page({
       wx.navigateTo({ url: "/pages/profile/subscription-feed/index" });
       return;
     }
+    if (action === "community-interaction") {
+      const appId = "wxf6b0c0f50d040b4c";
+      const path =
+        "pages/guild/index/index?digestToken=CBUSQDIxXzBfQl8yZWI0NWY2OTIyNjIwOTAwMTQ0MTE1MjE5MDIzNzIxODM5MFg2MF8xNDQxMTUyMTkxNDEzMjQ4MjcY%2FPTP5YeCyzkg6bfnrgIoATABUKC6t4S6M1pAZWJjNTY5YmE1YjQxMGYxZDllNDc4OWY5NTVmMTAwNTNhNjU0ODgzOGRkMmUzN2I3Mjc2NzEwNjJhMDQ0NzZhOQ%3D%3D&guildFromSource=1&feedId=B_2eb45f69226209001441152190237218390X60&miniappJumpTarget=1&guildId=32418071644994172";
+      const options = { appId, path, envVersion: "release" };
+      if (typeof wx.openEmbeddedMiniProgram === "function") {
+        wx.openEmbeddedMiniProgram({
+          ...options,
+          fail: () => {
+            if (typeof wx.navigateToMiniProgram === "function") {
+              wx.navigateToMiniProgram(options);
+              return;
+            }
+            wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+          }
+        });
+        return;
+      }
+      if (typeof wx.navigateToMiniProgram === "function") {
+        wx.navigateToMiniProgram(options);
+        return;
+      }
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
 
     wx.showToast({ title: "敬请期待", icon: "none" });
 
