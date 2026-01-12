@@ -9,6 +9,7 @@ const {
   requestSubscribeMessageForTemplateIds,
   SUBSCRIPTION_TEMPLATE_ID
 } = require("../../../utils/subscriptions");
+const { SUBSCRIPTION_TEMPLATE_IDS } = require("../../../config/subscription-templates");
 const {
   appendInviteCodeToPath,
   appendInviteCodeToQuery,
@@ -89,6 +90,7 @@ function isDoubleReward(weekday) {
 Page({
   data: {
     loading: true,
+    pageLoading: true,
     error: "",
     flpDisplay: "--",
     continuousDays: 0,
@@ -104,11 +106,14 @@ Page({
     this.setData({
       flpDisplay: normalized.flpDisplay || "--"
     });
-    this.refreshFlp();
-    this.loadCheckinDetail();
+    this.loadAllData({ showPageLoading: true }).finally(() => {
+      this._initialLoadDone = true;
+    });
   },
 
   onShow() {
+    if (!this._initialLoadDone) return;
+    this.refreshFlp();
     this.loadCheckinDetail();
   },
 
@@ -124,8 +129,8 @@ Page({
 
   refreshFlp() {
     const apiBase = resolveApiBase();
-    if (!apiBase) return;
-    fetchUserProfile({ apiBase })
+    if (!apiBase) return Promise.resolve();
+    return fetchUserProfile({ apiBase })
       .then((profile) => {
         const normalized = normalizeProfileData(profile, {
           storedProfile: loadStoredProfile() || {},
@@ -143,7 +148,7 @@ Page({
     const apiBase = resolveApiBase();
     const todayDate = formatDate(new Date());
     this.setData({ loading: true, error: "", todayDate });
-    fetchCheckinDetail({ apiBase })
+    return fetchCheckinDetail({ apiBase })
       .then((detail = {}) => {
         const weekDays = this.buildWeekDays(detail, todayDate);
         const canCheckinToday = !detail.todaySigned && weekDays.some((item) => item.isToday);
@@ -163,6 +168,19 @@ Page({
       });
   },
 
+  loadAllData({ showPageLoading = false } = {}) {
+    if (showPageLoading) {
+      this.setData({ pageLoading: true });
+    }
+    const tasks = [this.refreshFlp(), this.loadCheckinDetail()].map((task) =>
+      Promise.resolve(task).catch(() => { })
+    );
+    return Promise.all(tasks).finally(() => {
+      if (showPageLoading) {
+        this.setData({ pageLoading: false });
+      }
+    });
+  },
   buildWeekDays(detail, todayDate) {
     const signedDays = Array.isArray(detail.signedDays) ? detail.signedDays : [];
     const unsignedDays = Array.isArray(detail.unsignedDays) ? detail.unsignedDays : [];
@@ -232,7 +250,7 @@ Page({
     if (!this.data.canCheckinToday) return;
     const apiBase = resolveApiBase();
     const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
     if (showLoading) wx.showLoading({ title: "签到中...", mask: true });
     checkin({ apiBase })
       .then(() => {
@@ -270,7 +288,7 @@ Page({
   onCheckinSubscriptionTap() {
     if (this.data.checkinSubscriptionLoading) return;
     this.setData({ checkinSubscriptionLoading: true });
-    requestSubscribeMessageForTemplateIds([SUBSCRIPTION_TEMPLATE_ID])
+    requestSubscribeMessageForTemplateIds([SUBSCRIPTION_TEMPLATE_IDS.checkinReminder])
       .then((result = {}) => {
         const acceptedIds = Array.isArray(result.acceptedIds) ? result.acceptedIds : [];
         const anyRejected = result.anyRejected;
@@ -326,3 +344,8 @@ Page({
     wx.showToast({ title: "当前版本暂不支持", icon: "none" });
   }
 });
+
+
+
+
+

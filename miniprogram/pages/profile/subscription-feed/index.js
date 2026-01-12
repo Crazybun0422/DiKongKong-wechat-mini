@@ -13,6 +13,7 @@ const {
   normalizeTemplateIds,
   extractAcceptedTemplateIdsFromWxSetting
 } = require("../../../utils/subscriptions");
+const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS } = require("../../../config/subscription-templates");
 const {
   updateLatestItemVersion,
   fetchLatestItemVersion,
@@ -25,6 +26,11 @@ const DEFAULT_ERROR_LOAD = "加载失败";
 const TOAST_LINK_COPIED = "链接已复制";
 const TOAST_COPY_FAIL = "复制失败";
 const TOAST_CANNOT_OPEN = "无法打开链接";
+
+const hasAllRequiredSubscriptions = (ids = []) => {
+  const normalized = normalizeTemplateIds(ids);
+  return REQUIRED_SUBSCRIPTION_TEMPLATE_IDS.every((id) => normalized.includes(id));
+};
 
 function buildKeyVariants(key) {
   if (typeof key !== "string" || !key) {
@@ -342,18 +348,18 @@ Page({
         const apiBase = this.getApiBase();
         const token = this.getAuthToken();
         if (!apiBase || !token) {
-          this.setSubscriptionBannerVisibility(normalizedClient.length < 2);
+          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
           return normalizedClient;
         }
         return fetchSubscriptions({ apiBase, token })
           .then((serverIds) => {
             const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
-            this.setSubscriptionBannerVisibility(normalized.length < 2);
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized));
             return normalized;
           })
           .catch((err) => {
             console.warn("evaluateSubscriptionBannerVisibility failed", err);
-            this.setSubscriptionBannerVisibility(normalizedClient.length < 2);
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
             return normalizedClient;
           });
       })
@@ -407,7 +413,7 @@ Page({
               })
               : Promise.resolve();
           const finalize = () => {
-            const shouldShow = enabled && normalized.length < 2;
+            const shouldShow = !enabled || !hasAllRequiredSubscriptions(normalized);
             this.setSubscriptionBannerVisibility(shouldShow);
             if (normalized.length === 0) {
               wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });

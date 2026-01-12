@@ -1,4 +1,10 @@
 <view class="checkin-page">
+  <view wx:if="{{pageLoading}}" class="checkin-loading-mask">
+    <view class="checkin-loading-card">
+      <image class="checkin-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
+    </view>
+  </view>
+  <view wx:if="{{!pageLoading}}">
   <view class="checkin-header">
     <view class="checkin-topbar">
       <button class="checkin-back" bindtap="onBackTap">
@@ -110,5 +116,6 @@
   </view>
 
   <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
+  </view>
 </view>
 

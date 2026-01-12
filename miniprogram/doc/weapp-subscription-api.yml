@@ -282,6 +282,85 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/weapp/subscription-auto-tasks/{templateId}:
+    get:
+      summary: 查询订阅模板自动任务
+      description: 根据模板 ID 查询自动任务配置。
+      tags:
+        - Weapp Subscription Auto Task Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+          description: 订阅模板 ID。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionAutoTaskResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新订阅模板自动任务
+      description: 根据模板 ID 创建或更新自动任务配置。
+      tags:
+        - Weapp Subscription Auto Task Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+          description: 订阅模板 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionAutoTaskRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionAutoTaskResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/weapp/subscription-pushes/latest:
     get:
       summary: 获取最新推送内容与版本号
@@ -427,6 +506,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WeappPushContentResponse'
+    ApiResponseWeappSubscriptionAutoTaskResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappSubscriptionAutoTaskResponse'
     WeappPushContentUpdateRequest:
       type: object
       required:
@@ -628,6 +718,9 @@ components:
           items:
             type: string
           description: 订阅消息模板 ID 列表。
+        autoTask:
+          type: boolean
+          description: 是否开启订阅模板自动任务，默认 false。
     WeappSubscriptionConsentResponse:
       type: object
       properties:
@@ -642,6 +735,57 @@ components:
           items:
             type: string
           description: 去重后的订阅模板 ID 列表。
+        autoTask:
+          type: boolean
+          description: 是否开启订阅模板自动任务。
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间。
+    WeappSubscriptionAutoTaskRequest:
+      type: object
+      properties:
+        startTime:
+          type: string
+          format: time
+          description: 自动任务开始时间。
+        conditionKey:
+          type: string
+          description: 推送条件字符串，例如 USER_TODAY_NOT_CHECKIN。
+        templateFields:
+          type: array
+          description: 推送字段列表，每个元素为 {模板字段: 实际值}。
+          items:
+            type: object
+            additionalProperties:
+              type: string
+    WeappSubscriptionAutoTaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB 主键。
+        templateId:
+          type: string
+          description: 关联的订阅模板 ID。
+        startTime:
+          type: string
+          format: time
+          description: 自动任务开始时间。
+        conditionKey:
+          type: string
+          description: 推送条件字符串，例如 USER_TODAY_NOT_CHECKIN。
+        templateFields:
+          type: array
+          description: 推送字段列表，每个元素为 {模板字段: 实际值}。
+          items:
+            type: object
+            additionalProperties:
+              type: string
         createdAt:
           type: string
           format: date-time
