@@ -66,16 +66,30 @@
           </view>
         </block>
       </view>
-      <button
-        class="checkin-action-btn {{canCheckinToday ? '' : 'is-disabled'}}"
-        bindtap="onCheckinTap"
-        disabled="{{!canCheckinToday}}"
-      >
-        签到领积分
-      </button>
+      <view class="checkin-action-wrap">
+        <button
+          class="checkin-action-btn {{canCheckinToday ? '' : 'is-disabled'}}"
+          bindtap="onCheckinTap"
+          disabled="{{!canCheckinToday}}"
+        >
+          签到领积分
+        </button>
+        <view class="checkin-subscription-banner">
+          <view class="checkin-subscription-text">每日签到提醒</view>
+          <button
+            class="checkin-subscription-cta"
+            hover-class="checkin-subscription-cta--hover"
+            bindtap="onCheckinSubscriptionTap"
+            loading="{{checkinSubscriptionLoading}}"
+          >
+            立即开启
+          </button>
+        </view>
+      </view>
     </view>
     </view>
   </view>
 
   <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
 </view>
+

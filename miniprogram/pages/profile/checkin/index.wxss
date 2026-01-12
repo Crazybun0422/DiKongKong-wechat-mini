@@ -312,6 +312,54 @@ button.checkin-back::after {
   color: rgba(255, 255, 255, 0.8);
 }
 
+.checkin-action-wrap {
+  position: relative;
+  overflow: visible;
+}
+
+.checkin-subscription-banner {
+  position: absolute;
+  left: 50rpx;
+  right: 50rpx;
+  top: calc(100% + 16rpx);
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 10rpx 18rpx;
+  background: rgba(64, 64, 64, 0.75);
+  border-radius: 16rpx;
+  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+.checkin-subscription-text {
+  color: #f8fafc;
+  font-size: 18rpx;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.checkin-subscription-cta {
+  background: #cf2e2e;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
+  border-radius: 12rpx;
+  padding: 12rpx 20rpx;
+  border: none;
+  line-height: 1;
+  min-width: 130rpx;
+  box-shadow: 0 8rpx 20rpx rgba(207, 46, 46, 0.32);
+}
+
+.checkin-subscription-cta::after {
+  display: none;
+}
+
+.checkin-subscription-cta--hover {
+  opacity: 0.9;
+}
+
 .checkin-loading,
 .checkin-error {
   margin: 32rpx 32rpx 0;

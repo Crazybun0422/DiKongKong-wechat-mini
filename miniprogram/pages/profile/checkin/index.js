@@ -5,6 +5,10 @@ const {
   loadStoredProfile,
   resolveApiBase
 } = require("../../../utils/profile");
+const {
+  requestSubscribeMessageForTemplateIds,
+  SUBSCRIPTION_TEMPLATE_ID
+} = require("../../../utils/subscriptions");
 
 const WEEKDAY_LABELS = {
   monday: "周一",
@@ -80,7 +84,8 @@ Page({
     continuousDays: 0,
     weekDays: [],
     canCheckinToday: false,
-    todayDate: ""
+    todayDate: "",
+    checkinSubscriptionLoading: false
   },
 
   onLoad() {
@@ -233,6 +238,30 @@ Page({
             ? "请先登录后再试"
             : err?.message || "签到失败，请稍后重试";
         wx.showToast({ title: message, icon: "none" });
+      });
+  },
+
+  onCheckinSubscriptionTap() {
+    if (this.data.checkinSubscriptionLoading) return;
+    this.setData({ checkinSubscriptionLoading: true });
+    requestSubscribeMessageForTemplateIds([SUBSCRIPTION_TEMPLATE_ID])
+      .then((result = {}) => {
+        const acceptedIds = Array.isArray(result.acceptedIds) ? result.acceptedIds : [];
+        const anyRejected = result.anyRejected;
+        if (acceptedIds.length) {
+          wx.showToast({ title: "已开启提醒", icon: "success" });
+        } else if (anyRejected) {
+          wx.showToast({ title: "已拒绝提醒", icon: "none" });
+        } else {
+          wx.showToast({ title: "未开启提醒", icon: "none" });
+        }
+      })
+      .catch((err) => {
+        console.warn("checkin subscription request failed", err);
+        wx.showToast({ title: "开启提醒失败", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ checkinSubscriptionLoading: false });
       });
   }
 });
