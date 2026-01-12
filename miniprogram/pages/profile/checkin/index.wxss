@@ -293,6 +293,8 @@ button.checkin-back::after {
   margin-top: 18rpx;
   height: 88rpx;
   border-radius: 44rpx;
+  width: 560rpx !important;
+  max-width: none;
   background: #1b1f26;
   color: #ffffff;
   font-size: 30rpx;
@@ -301,20 +303,27 @@ button.checkin-back::after {
   align-items: center;
   justify-content: center;
   border: none;
+  box-sizing: border-box;
 }
 
 .checkin-action-btn::after {
   border: none;
 }
 
-.checkin-action-btn.is-disabled {
-  background: #c5cbd6;
-  color: rgba(255, 255, 255, 0.8);
+.checkin-action-btn.is-disabled,
+.checkin-action-btn[disabled] {
+  background: rgba(0, 0, 0, 0.35) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 .checkin-action-wrap {
   position: relative;
   overflow: visible;
+}
+
+.checkin-action-btn-wrap {
+  display: flex;
+  justify-content: center;
 }
 
 .checkin-subscription-banner {
@@ -358,6 +367,72 @@ button.checkin-back::after {
 
 .checkin-subscription-cta--hover {
   opacity: 0.9;
+}
+
+.checkin-task-card {
+  margin: 80rpx 32rpx 0;
+  padding: 32rpx;
+  background: #fff;
+  border-radius: 32rpx;
+  box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.08);
+}
+
+.checkin-task-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1a2b4a;
+  margin-bottom: 24rpx;
+}
+
+.checkin-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 18rpx 0;
+}
+
+.checkin-task-item + .checkin-task-item {
+  border-top: 2rpx solid rgba(26, 43, 74, 0.08);
+}
+
+.checkin-task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.checkin-task-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1a2b4a;
+}
+
+.checkin-task-desc {
+  font-size: 24rpx;
+  color: rgba(26, 43, 74, 0.65);
+}
+
+.checkin-task-action {
+  min-width: 150rpx;
+  height: 64rpx;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: #111;
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+.checkin-task-action::after {
+  display: none;
 }
 
 .checkin-loading,

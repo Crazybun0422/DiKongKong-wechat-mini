@@ -67,13 +67,15 @@
         </block>
       </view>
       <view class="checkin-action-wrap">
-        <button
-          class="checkin-action-btn {{canCheckinToday ? '' : 'is-disabled'}}"
-          bindtap="onCheckinTap"
-          disabled="{{!canCheckinToday}}"
-        >
-          签到领积分
-        </button>
+        <view class="checkin-action-btn-wrap">
+          <button
+            class="checkin-action-btn {{canCheckinToday ? '' : 'is-disabled'}}"
+            bindtap="onCheckinTap"
+            disabled="{{!canCheckinToday}}"
+          >
+            签到领积分
+          </button>
+        </view>
         <view class="checkin-subscription-banner">
           <view class="checkin-subscription-text">每日签到提醒</view>
           <button
@@ -87,6 +89,23 @@
         </view>
       </view>
     </view>
+    </view>
+  </view>
+
+  <view class="checkin-task-card">
+    <view class="checkin-task-title">每日任务</view>
+    <view class="checkin-task-item">
+      <view class="checkin-task-info">
+        <text class="checkin-task-name">邀请好友</text>
+        <text class="checkin-task-desc">邀请好友最高+80FLP</text>
+      </view>
+      <button class="checkin-task-action" bindtap="onInviteFriendTap">去邀请</button>
+    </view>
+    <view class="checkin-task-item">
+      <view class="checkin-task-info">
+        <text class="checkin-task-name">饿了么外卖大红包</text>
+      </view>
+      <button class="checkin-task-action" bindtap="onTakeoutTap">天天领</button>
     </view>
   </view>
 

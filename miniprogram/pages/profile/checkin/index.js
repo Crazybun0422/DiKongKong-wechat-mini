@@ -9,6 +9,16 @@ const {
   requestSubscribeMessageForTemplateIds,
   SUBSCRIPTION_TEMPLATE_ID
 } = require("../../../utils/subscriptions");
+const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery,
+  getShareInviteCode
+} = require("../../../utils/share");
+
+const MAP_PAGE_PATH = "/pages/map/map";
+const ELEME_APP_ID = "";
+const ELEME_PATH = "";
+const ELEME_ENV = "release";
 
 const WEEKDAY_LABELS = {
   monday: "周一",
@@ -241,6 +251,22 @@ Page({
       });
   },
 
+  onShareAppMessage() {
+    const inviteCode = getShareInviteCode();
+    return {
+      title: "晒晒余额~",
+      path: appendInviteCodeToPath(MAP_PAGE_PATH, { inviteCode })
+    };
+  },
+
+  onShareTimeline() {
+    const inviteCode = getShareInviteCode();
+    return {
+      title: "晒晒余额~",
+      query: appendInviteCodeToQuery("", { inviteCode })
+    };
+  },
+
   onCheckinSubscriptionTap() {
     if (this.data.checkinSubscriptionLoading) return;
     this.setData({ checkinSubscriptionLoading: true });
@@ -263,5 +289,40 @@ Page({
       .finally(() => {
         this.setData({ checkinSubscriptionLoading: false });
       });
+  },
+
+  onInviteFriendTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/flp/invite/index" });
+  },
+
+  onTakeoutTap() {
+    if (!ELEME_APP_ID) {
+      wx.showToast({ title: "请配置饿了么跳转信息", icon: "none" });
+      return;
+    }
+    const options = { appId: ELEME_APP_ID, envVersion: ELEME_ENV };
+    if (ELEME_PATH) options.path = ELEME_PATH;
+    if (typeof wx.openEmbeddedMiniProgram === "function") {
+      wx.openEmbeddedMiniProgram({
+        ...options,
+        fail: () => {
+          if (typeof wx.navigateToMiniProgram === "function") {
+            wx.navigateToMiniProgram(options);
+            return;
+          }
+          wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        }
+      });
+      return;
+    }
+    if (typeof wx.navigateToMiniProgram === "function") {
+      wx.navigateToMiniProgram(options);
+      return;
+    }
+    wx.showToast({ title: "当前版本暂不支持", icon: "none" });
   }
 });
