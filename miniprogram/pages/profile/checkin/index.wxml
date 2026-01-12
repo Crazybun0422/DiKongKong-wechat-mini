@@ -1,0 +1,81 @@
+<view class="checkin-page">
+  <view class="checkin-header">
+    <view class="checkin-topbar">
+      <button class="checkin-back" bindtap="onBackTap">
+        <text class="checkin-back-icon">←</text>
+      </button>
+      <text class="checkin-title">每日签到</text>
+      <view class="checkin-topbar-spacer"></view>
+    </view>
+    <view class="checkin-hero">
+      <view class="checkin-hero-left">
+        <view class="checkin-flp-row">
+          <text class="checkin-flp-value">{{flpDisplay}}</text>
+          <text class="checkin-flp-unit">FLP</text>
+        </view>
+        <text class="checkin-flp-tip">每周签到满7天可抽大奖。</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="checkin-card">
+    <image class="checkin-card-bg" src="/assets/checkin-card-shape.svg" mode="scaleToFill" />
+    <view class="checkin-card-content">
+    <view class="checkin-card-top">
+      <view class="checkin-card-title">
+        <text class="checkin-card-title-text">已连续签到</text>
+        <view class="checkin-card-ribbon">
+          <image class="checkin-card-ribbon-bg" src="/assets/checkin-days-underline.svg" mode="scaleToFill" />
+          <text class="checkin-card-days">{{continuousDays}}</text>
+        </view>
+        <text class="checkin-card-title-text">天</text>
+      </view>
+      
+    </view>
+    <image class="checkin-card-hero" src="/assets/check-in-main.png" mode="widthFix" />
+    <view class="checkin-card-body">
+      <view class="checkin-week-grid">
+        <block wx:for="{{weekDays}}" wx:key="date">
+          <view
+            class="checkin-day-card {{item.isToday ? 'is-today' : ''}} {{item.isSigned ? 'is-signed' : ''}} {{item.canCheckin ? 'is-actionable' : ''}} {{item.isSunday ? 'is-sunday' : ''}}"
+            data-date="{{item.date}}"
+            bindtap="onCheckinDayTap"
+          >
+            <image wx:if="{{item.isSunday}}" class="checkin-turntable" src="/assets/turntable.png" mode="aspectFit" />
+            <text class="checkin-reward">{{item.reward}}</text>
+            <view class="checkin-icon-wrap">
+              <image
+                wx:if="{{item.iconType === 'signed'}}"
+                class="checkin-day-image"
+                src="/assets/already-check-in.png"
+                mode="aspectFit"
+              />
+              <image
+                wx:elif="{{item.iconType === 'unsigned'}}"
+                class="checkin-day-image"
+                src="/assets/not-check-in.png"
+                mode="aspectFit"
+              />
+              <view wx:elif="{{item.iconType === 'today'}}" class="checkin-today-icon">
+                <image class="checkin-day-image" src="/assets/already-check-in.png" mode="aspectFit" />
+                <image class="checkin-day-check" src="/assets/check.png" mode="aspectFit" />
+              </view>
+            </view>
+            <text class="checkin-weekday">{{item.weekdayLabel}}</text>
+            <view wx:if="{{item.isBonus && !item.isSunday}}" class="checkin-bonus">翻倍</view>
+          </view>
+        </block>
+      </view>
+      <button
+        class="checkin-action-btn {{canCheckinToday ? '' : 'is-disabled'}}"
+        bindtap="onCheckinTap"
+        disabled="{{!canCheckinToday}}"
+      >
+        签到领积分
+      </button>
+    </view>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
+</view>

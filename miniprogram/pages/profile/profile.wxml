@@ -8,8 +8,12 @@
       <image class="subscribe-wait-image" src="/assets/introduction_bg.png" mode="widthFix" />
     </view>
   </view>
-  <view class="status-breath-button" aria-hidden="true">
-    <image class="status-breath-image" src="/assets/status-uncheck-in.png" mode="aspectFit" />
+  <view class="status-breath-button {{checkinTodaySigned ? '' : 'is-breathing'}}" bindtap="onCheckinEntryTap">
+    <image
+      class="status-breath-image"
+      src="{{checkinTodaySigned ? '/assets/status-check-in.png' : '/assets/status-uncheck-in.png'}}"
+      mode="aspectFit"
+    />
   </view>
   <view scroll-y="false" class="profile-scroll" bindtap="onBlankTap">
     <block wx:if="{{loading}}">

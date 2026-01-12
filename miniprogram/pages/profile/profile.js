@@ -19,6 +19,7 @@ const {
   fetchLatestItemVersion,
   normalizeVersion
 } = require("../../utils/latest-items");
+const { fetchCheckinDetail } = require("../../utils/checkin");
 
 Page({
   data: {
@@ -33,7 +34,8 @@ Page({
     nicknameSaving: false,
     likeSummary: { total: "--" },
     showSubscriptionRedDot: false,
-    showSubscribeWaitOverlay: false
+    showSubscribeWaitOverlay: false,
+    checkinTodaySigned: false
   },
 
   loadLikeSummary() {
@@ -53,6 +55,26 @@ Page({
       });
   },
 
+  loadCheckinStatus() {
+    const apiBase = resolveApiBase();
+    if (!apiBase) {
+      this.setData({ checkinTodaySigned: false });
+      return;
+    }
+    fetchCheckinDetail({ apiBase })
+      .then((detail = {}) => {
+        this.setData({ checkinTodaySigned: !!detail.todaySigned });
+      })
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          this.setData({ checkinTodaySigned: false });
+          return;
+        }
+        console.warn("loadCheckinStatus failed", err);
+        this.setData({ checkinTodaySigned: false });
+      });
+  },
+
   onLoad() {
     this._storedProfileCache = loadStoredProfile() || {};
     const normalized = normalizeProfileData(this._storedProfileCache, {
@@ -68,6 +90,7 @@ Page({
     });
     this.reloadProfile();
     this.loadLikeSummary();
+    this.loadCheckinStatus();
   },
 
   onShow() {
@@ -82,6 +105,7 @@ Page({
       });
     }
     this.refreshSubscriptionRedDot();
+    this.loadCheckinStatus();
   },
 
   onPullDownRefresh() {
@@ -528,5 +552,13 @@ Page({
       app.globalData.subscriptionFeedHasUpdate = show;
     }
     this.setData({ showSubscriptionRedDot: show });
+  },
+
+  onCheckinEntryTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/checkin/index" });
   }
 });

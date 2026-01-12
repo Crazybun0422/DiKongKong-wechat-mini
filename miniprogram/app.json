@@ -3,6 +3,7 @@
     "pages/map/map",
     "pages/topic/topic",
     "pages/profile/profile",
+    "pages/profile/checkin/index",
     "pages/profile/flp/index",
     "pages/profile/flp/invite/index",
     "pages/profile/flp/logs/index",
