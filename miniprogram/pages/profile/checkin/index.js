@@ -129,7 +129,8 @@ Page({
   },
 
   onBackTap() {
-    if (typeof wx.navigateBack === "function") {
+    const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+    if (typeof wx.navigateBack === "function" && pages && pages.length > 1) {
       wx.navigateBack();
       return;
     }
