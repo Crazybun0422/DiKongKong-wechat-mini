@@ -467,3 +467,109 @@ button.checkin-back::after {
   color: rgba(26, 43, 74, 0.7);
   text-align: center;
 }
+
+.checkin-lottery-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 20, 44, 0.8);
+}
+
+.checkin-lottery-card {
+  position: relative;
+  width: 520rpx;
+  height: 694rpx;
+  background: transparent;
+}
+
+.checkin-lottery-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.checkin-lottery-spray {
+  position: absolute;
+  bottom: 60rpx;
+  left: -20rpx;
+  width: 200rpx;
+  z-index: 3;
+}
+
+.checkin-lottery-title {
+  position: absolute;
+  top: 10rpx;
+  left: 80%;
+  width: 180rpx;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.checkin-lottery-grid {
+  position: absolute;
+  left: 96rpx;
+  top: 166rpx;
+  width: 328rpx;
+  height: 352rpx;
+  display: grid;
+  grid-template-columns: repeat(3, 100rpx);
+  grid-template-rows: repeat(3, 108rpx);
+  gap: 14rpx;
+  align-items: center;
+  justify-items: center;
+}
+
+.checkin-lottery-cell {
+  width: 100rpx;
+  height: 108rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkin-lottery-prize-card {
+  width: 100rpx;
+  height: 108rpx;
+  border-radius: 18rpx;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+
+.checkin-lottery-button {
+  width: 100rpx;
+  height: 108rpx;
+  border-radius: 18rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #7a4a00;
+  background: transparent;
+  border: none;
+  line-height: 108rpx;
+  padding: 0;
+}
+
+.checkin-lottery-button::after {
+  border: none;
+}
+
+.checkin-lottery-coin {
+  width: 54rpx;
+  height: 54rpx;
+}
+
+.checkin-lottery-text {
+  font-size: 18rpx;
+  font-weight: 700;
+  color: #8fa5cc;
+  margin-top: 6rpx;
+  letter-spacing: 1rpx;
+}

@@ -102,7 +102,9 @@ Page({
     canCheckinToday: false,
     todayDate: "",
     checkinSubscriptionLoading: false,
-    showCheckinSubscriptionBanner: false
+    showCheckinSubscriptionBanner: false,
+    showLotteryModal: false,
+    lotteryPrizes: ["0.1", "0.2", "0.5", "0.8", "", "1", "2", "8", "88"]
   },
 
   onLoad() {
@@ -190,6 +192,10 @@ Page({
     return Promise.all(tasks).finally(() => {
       if (showPageLoading) {
         this.setData({ pageLoading: false });
+      }
+      if (showPageLoading && !this._lotteryShown) {
+        this._lotteryShown = true;
+        this.setData({ showLotteryModal: true });
       }
     });
   },
@@ -481,6 +487,14 @@ Page({
         this.setData({ checkinSubscriptionLoading: false });
       });
   },
+
+  onLotteryMaskTap() {
+    this.setData({ showLotteryModal: false });
+  },
+
+  onLotteryCardTap() {},
+
+  onLotteryButtonTap() {},
 
   onInviteFriendTap() {
     if (typeof wx.navigateTo !== "function") {

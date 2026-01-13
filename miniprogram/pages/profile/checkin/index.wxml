@@ -117,5 +117,26 @@
 
   <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
   </view>
+
+  <view wx:if="{{showLotteryModal}}" class="checkin-lottery-mask" bindtap="onLotteryMaskTap">
+    <view class="checkin-lottery-card" catchtap="onLotteryCardTap">
+      <image class="checkin-lottery-bg" src="/assets/checkin-lottery.svg" mode="aspectFit" />
+      <image class="checkin-lottery-spray" src="/assets/spray.png" mode="widthFix" />
+      <image class="checkin-lottery-title" src="/assets/weekly-lottery.png" mode="widthFix" />
+      <view class="checkin-lottery-grid">
+        <block wx:for="{{lotteryPrizes}}" wx:key="index">
+          <view wx:if="{{index === 4}}" class="checkin-lottery-cell">
+            <button class="checkin-lottery-button" bindtap="onLotteryButtonTap">抽奖</button>
+          </view>
+          <view wx:else class="checkin-lottery-cell">
+            <view class="checkin-lottery-prize-card">
+              <image class="checkin-lottery-coin" src="/assets/flp-coin.png" mode="aspectFit" />
+              <text class="checkin-lottery-text">+{{item}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+    </view>
+  </view>
 </view>
 
