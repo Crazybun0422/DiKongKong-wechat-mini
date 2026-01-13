@@ -492,6 +492,8 @@ Page({
     this.setData({ showLotteryModal: false });
   },
 
+  onLotteryMaskTouchMove() {},
+
   onLotteryCardTap() {},
 
   onLotteryButtonTap() {},

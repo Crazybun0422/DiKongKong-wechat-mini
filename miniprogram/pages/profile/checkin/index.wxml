@@ -1,4 +1,4 @@
-﻿<view class="checkin-page">
+﻿<view class="checkin-page {{showLotteryModal ? 'checkin-page--locked' : ''}}">
   <view wx:if="{{pageLoading}}" class="checkin-loading-mask">
     <view class="checkin-loading-card">
       <image class="checkin-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
@@ -118,7 +118,7 @@
   <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
   </view>
 
-  <view wx:if="{{showLotteryModal}}" class="checkin-lottery-mask" bindtap="onLotteryMaskTap">
+  <view wx:if="{{showLotteryModal}}" class="checkin-lottery-mask" bindtap="onLotteryMaskTap" catchtouchmove="onLotteryMaskTouchMove">
     <view class="checkin-lottery-card" catchtap="onLotteryCardTap">
       <image class="checkin-lottery-bg" src="/pages/profile/assets/checkin-lottery.svg" mode="aspectFit" />
       <image class="checkin-lottery-spray" src="/pages/profile/assets/spray.png" mode="widthFix" />
@@ -139,5 +139,8 @@
     </view>
   </view>
 </view>
+
+
+
 
 
