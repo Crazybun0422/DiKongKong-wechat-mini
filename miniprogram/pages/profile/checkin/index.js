@@ -444,7 +444,8 @@ Page({
       const weekdayLabel = normalizeWeekday(item.weekday, date);
       const signed = signedSet.has(date);
       const isToday = date === todayDate;
-      const isSunday = weekdayLabel === "周日";
+      const parsedDate = parseDate(date);
+      const isSunday = parsedDate ? parsedDate.getDay() === 0 : weekdayLabel === "周日";
       const bonus = isDoubleReward(item.weekday || weekdayLabel);
       const rewardValue = bonus ? 0.02 : 0.01;
       let iconType = "unsigned";
