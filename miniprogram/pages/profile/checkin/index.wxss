@@ -549,10 +549,21 @@ button.checkin-back::after {
   align-items: center;
   justify-content: center;
   gap: 4rpx;
+  transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.checkin-lottery-prize-card.is-active {
+  background: rgba(255, 221, 138, 0.55);
+  box-shadow: 0 10rpx 22rpx rgba(255, 198, 92, 0.4);
+  transform: translateY(5rpx);
+}
+
+.checkin-lottery-prize-card.is-active .checkin-lottery-text {
+  color: #b97900;
 }
 
 .checkin-lottery-button {
-  width: 100rpx;
+  width: 107rpx;
   height: 108rpx;
   border-radius: 18rpx;
   font-size: 30rpx;
@@ -564,13 +575,22 @@ button.checkin-back::after {
   line-height: 108rpx;
   padding: 0;
   text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.5);
+  transform: translate(3rpx, 4rpx);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .checkin-lottery-button::after {
   border: none;
 }
 
-.checkin-lottery-button--active {
+.checkin-lottery-button-text {
+  display: inline-block;
+  transition: transform 120ms ease, letter-spacing 120ms ease, text-shadow 120ms ease;
+}
+
+.checkin-lottery-button-text.is-active {
   transform: scale(0.92);
   letter-spacing: 1rpx;
   text-shadow: 0 1rpx 3rpx rgba(255, 255, 255, 0.35);

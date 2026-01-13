@@ -122,14 +122,23 @@
     <view class="checkin-lottery-card" catchtap="onLotteryCardTap">
       <image class="checkin-lottery-bg" src="/pages/profile/assets/checkin-lottery.svg" mode="aspectFit" />
       <image class="checkin-lottery-spray" src="/pages/profile/assets/spray.png" mode="widthFix" />
-      <image class="checkin-lottery-title" src="/pages/profile/assets/weekly-lottery.png" mode="widthFix" />
+      <image
+        class="checkin-lottery-title"
+        src="{{isLotteryDrawing ? '/pages/profile/assets/af-pray.png' : '/pages/profile/assets/weekly-lottery.png'}}"
+        mode="widthFix"
+      />
       <view class="checkin-lottery-grid">
         <block wx:for="{{lotteryPrizes}}" wx:key="index">
           <view wx:if="{{index === 4}}" class="checkin-lottery-cell">
-            <button class="checkin-lottery-button" hover-class="checkin-lottery-button--active" bindtap="onLotteryButtonTap">抽奖</button>
+            <button
+              class="checkin-lottery-button"
+              bindtap="onLotteryButtonTap"
+            >
+              <text class="checkin-lottery-button-text {{lotteryButtonActive ? 'is-active' : ''}}">抽奖</text>
+            </button>
           </view>
           <view wx:else class="checkin-lottery-cell">
-            <view class="checkin-lottery-prize-card">
+            <view class="checkin-lottery-prize-card {{lotteryActiveIndex === index ? 'is-active' : ''}}">
               <image class="checkin-lottery-coin" src="/pages/profile/assets/flp-coin.png" mode="aspectFit" />
               <text class="checkin-lottery-text">+{{item}}</text>
             </view>

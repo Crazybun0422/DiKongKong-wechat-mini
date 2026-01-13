@@ -36,6 +36,7 @@ const WEEKDAY_LABELS = {
 };
 
 const DOUBLE_REWARD_WEEKDAYS = new Set(["wednesday", "saturday", "sunday", "周三", "周六", "周日"]);
+const LOTTERY_ORDER = [0, 1, 2, 5, 8, 7, 6, 3];
 
 function pad2(value) {
   return value < 10 ? `0${value}` : `${value}`;
@@ -104,7 +105,10 @@ Page({
     checkinSubscriptionLoading: false,
     showCheckinSubscriptionBanner: false,
     showLotteryModal: false,
-    lotteryPrizes: ["0.1", "0.2", "0.5", "0.8", "", "1", "2", "8", "88"]
+    lotteryPrizes: ["0.1", "0.2", "0.5", "0.8", "", "1", "2", "8", "88"],
+    lotteryActiveIndex: -1,
+    isLotteryDrawing: false,
+    lotteryButtonActive: false
   },
 
   onLoad() {
@@ -489,14 +493,100 @@ Page({
   },
 
   onLotteryMaskTap() {
-    this.setData({ showLotteryModal: false });
+    this._clearLotteryTimers();
+    this._clearLotteryButtonTimer();
+    this.setData({ showLotteryModal: false, lotteryActiveIndex: -1, isLotteryDrawing: false });
   },
 
   onLotteryMaskTouchMove() {},
 
   onLotteryCardTap() {},
 
-  onLotteryButtonTap() {},
+  onLotteryButtonTap() {
+    if (this.data.isLotteryDrawing) return;
+    this._triggerLotteryButtonActive();
+    const order = LOTTERY_ORDER;
+    if (!order.length) return;
+    const targetPos = Math.floor(Math.random() * order.length);
+    const baseOffset = (targetPos - (order.length - 1) + order.length) % order.length;
+    let extraSteps = baseOffset === 0 ? order.length : baseOffset;
+    extraSteps += order.length * 2;
+
+    const fastSteps = order.length;
+    const fastDuration = 500;
+    const totalDuration = 3000;
+    const remainingDuration = Math.max(totalDuration - fastDuration, 0);
+
+    this._clearLotteryTimers();
+    this.setData({ isLotteryDrawing: true, lotteryActiveIndex: order[0] });
+
+    const timers = [];
+    for (let i = 1; i < fastSteps; i += 1) {
+      const delay = Math.round((fastDuration / fastSteps) * i);
+      timers.push(
+        setTimeout(() => {
+          this.setData({ lotteryActiveIndex: order[i] });
+        }, delay)
+      );
+    }
+
+    if (extraSteps <= 0 || remainingDuration <= 0) {
+      timers.push(
+        setTimeout(() => {
+          this.setData({ isLotteryDrawing: false });
+        }, fastDuration)
+      );
+      this._lotteryTimers = timers;
+      return;
+    }
+
+    const weights = [];
+    for (let i = 1; i <= extraSteps; i += 1) {
+      const t = i / extraSteps;
+      weights.push(0.6 + 1.8 * t * t);
+    }
+    const weightSum = weights.reduce((sum, value) => sum + value, 0);
+    let elapsed = fastDuration;
+    let orderIndex = fastSteps - 1;
+
+    for (let i = 0; i < extraSteps; i += 1) {
+      const interval = remainingDuration * (weights[i] / weightSum);
+      elapsed += interval;
+      orderIndex = (orderIndex + 1) % order.length;
+      const activeIndex = order[orderIndex];
+      const isFinal = i === extraSteps - 1;
+      timers.push(
+        setTimeout(() => {
+          this.setData({ lotteryActiveIndex: activeIndex, isLotteryDrawing: isFinal ? false : true });
+        }, Math.round(elapsed))
+      );
+    }
+
+    this._lotteryTimers = timers;
+  },
+
+  _triggerLotteryButtonActive() {
+    this._clearLotteryButtonTimer();
+    this.setData({ lotteryButtonActive: true });
+    this._lotteryButtonTimer = setTimeout(() => {
+      this.setData({ lotteryButtonActive: false });
+    }, 160);
+  },
+
+  _clearLotteryButtonTimer() {
+    if (this._lotteryButtonTimer) {
+      clearTimeout(this._lotteryButtonTimer);
+      this._lotteryButtonTimer = null;
+    }
+    this.setData({ lotteryButtonActive: false });
+  },
+
+  _clearLotteryTimers() {
+    if (Array.isArray(this._lotteryTimers)) {
+      this._lotteryTimers.forEach((timer) => clearTimeout(timer));
+    }
+    this._lotteryTimers = [];
+  },
 
   onInviteFriendTap() {
     if (typeof wx.navigateTo !== "function") {
