@@ -1,13 +1,17 @@
-const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+﻿const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
 const {
   fetchUserProfile,
   normalizeProfileData,
   loadStoredProfile,
-  resolveApiBase
+  resolveApiBase,
+  getAuthToken
 } = require("../../../utils/profile");
 const {
   requestSubscribeMessageForTemplateIds,
-  SUBSCRIPTION_TEMPLATE_ID
+  fetchSubscriptions,
+  updateSubscriptions,
+  normalizeTemplateIds,
+  extractAcceptedTemplateIdsFromWxSetting
 } = require("../../../utils/subscriptions");
 const { SUBSCRIPTION_TEMPLATE_IDS } = require("../../../config/subscription-templates");
 const {
@@ -97,7 +101,8 @@ Page({
     weekDays: [],
     canCheckinToday: false,
     todayDate: "",
-    checkinSubscriptionLoading: false
+    checkinSubscriptionLoading: false,
+    showCheckinSubscriptionBanner: false
   },
 
   onLoad() {
@@ -109,12 +114,18 @@ Page({
     this.loadAllData({ showPageLoading: true }).finally(() => {
       this._initialLoadDone = true;
     });
+    this.initCheckinSubscription().catch((err) => {
+      console.warn("initCheckinSubscription failed", err);
+    });
   },
 
   onShow() {
     if (!this._initialLoadDone) return;
     this.refreshFlp();
     this.loadCheckinDetail();
+    this.initCheckinSubscription().catch((err) => {
+      console.warn("initCheckinSubscription onShow failed", err);
+    });
   },
 
   onBackTap() {
@@ -180,6 +191,157 @@ Page({
         this.setData({ pageLoading: false });
       }
     });
+  },
+
+  getCheckinTemplateId() {
+    return SUBSCRIPTION_TEMPLATE_IDS.checkinReminder;
+  },
+
+  setCheckinSubscriptionBannerVisibility(show) {
+    this.setData({ showCheckinSubscriptionBanner: !!show });
+  },
+
+  getSubscriptionSettingsFromWx() {
+    if (typeof wx === "undefined" || typeof wx.getSetting !== "function") {
+      return Promise.resolve({ mainSwitch: true, acceptedIds: [] });
+    }
+    return new Promise((resolve) => {
+      wx.getSetting({
+        withSubscriptions: true,
+        success: (res = {}) => {
+          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
+          const enabled = mainSwitch !== false;
+          const ids = enabled
+            ? extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || []
+            : [];
+          resolve({ mainSwitch: enabled, acceptedIds: normalizeTemplateIds(ids) });
+        },
+        fail: () => resolve({ mainSwitch: true, acceptedIds: [] })
+      });
+    });
+  },
+
+  openCheckinSubscriptionSetting(prefAccepted = []) {
+    if (typeof wx === "undefined" || typeof wx.openSetting !== "function") {
+      return Promise.resolve([]);
+    }
+    const apiBase = resolveApiBase();
+    const token = getAuthToken();
+    return new Promise((resolve) => {
+      wx.openSetting({
+        withSubscriptions: true,
+        success: (res = {}) => {
+          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
+          const enabled = mainSwitch !== false;
+          if (!enabled) {
+            this.setCheckinSubscriptionBannerVisibility(true);
+            wx.showToast({ title: "", icon: "none" });
+            resolve([]);
+            return;
+          }
+          const ids = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || [];
+          const merged = normalizeTemplateIds([...(prefAccepted || []), ...(ids || [])]);
+          const templateId = this.getCheckinTemplateId();
+          const shouldHide = merged.includes(templateId);
+          const syncPromise =
+            merged.length && apiBase && token
+              ? updateSubscriptions(merged, { apiBase, token }).catch((err) => {
+                console.warn("updateSubscriptions after openSetting failed", err);
+              })
+              : Promise.resolve();
+          syncPromise.finally(() => {
+            this.setCheckinSubscriptionBannerVisibility(!shouldHide);
+            resolve(merged);
+          });
+        },
+        fail: () => {
+          this.setCheckinSubscriptionBannerVisibility(true);
+          resolve([]);
+        }
+      });
+    }).finally(() => {
+      this.refreshCheckinSubscriptionStatus().catch(() => { });
+    });
+  },
+
+  requestCheckinSubscription(prefAccepted = []) {
+    const apiBase = resolveApiBase();
+    const token = getAuthToken();
+    const templateId = this.getCheckinTemplateId();
+    return requestSubscribeMessageForTemplateIds([templateId])
+      .then((result = {}) => {
+        const acceptedIds = Array.isArray(result.acceptedIds) ? result.acceptedIds : [];
+        const merged = normalizeTemplateIds([...(prefAccepted || []), ...(acceptedIds || [])]);
+        const accepted = merged.includes(templateId);
+        if (accepted && apiBase && token) {
+          return updateSubscriptions(merged, { apiBase, token })
+            .catch((err) => {
+              console.warn("updateSubscriptions after checkin consent failed", err);
+            })
+            .finally(() => {
+              this.setCheckinSubscriptionBannerVisibility(!accepted);
+            });
+        }
+        this.setCheckinSubscriptionBannerVisibility(!accepted);
+        return null;
+      })
+      .catch((err) => {
+        console.warn("checkin subscription request failed", err);
+        this.setCheckinSubscriptionBannerVisibility(true);
+      })
+      .finally(() => {
+        this.refreshCheckinSubscriptionStatus().catch(() => { });
+      });
+  },
+
+  refreshCheckinSubscriptionStatus() {
+    const apiBase = resolveApiBase();
+    const token = getAuthToken();
+    if (!apiBase || !token) return Promise.resolve();
+    return Promise.all([fetchSubscriptions({ apiBase, token }), this.getSubscriptionSettingsFromWx()])
+      .then(([serverIds = [], settings = {}]) => {
+        const templateId = this.getCheckinTemplateId();
+        this._checkinServerIds = normalizeTemplateIds(serverIds);
+        const accepted = normalizeTemplateIds(settings.acceptedIds || []);
+        const shouldHide =
+          settings.mainSwitch !== false &&
+          this._checkinServerIds.includes(templateId) &&
+          accepted.includes(templateId);
+        this.setCheckinSubscriptionBannerVisibility(!shouldHide);
+      })
+      .catch((err) => {
+        console.warn("refreshCheckinSubscriptionStatus failed", err);
+      });
+  },
+
+  initCheckinSubscription() {
+    const apiBase = resolveApiBase();
+    const token = getAuthToken();
+    const fetchPromise = apiBase && token ? fetchSubscriptions({ apiBase, token }) : Promise.resolve([]);
+    return fetchPromise
+      .then((serverIds = []) => {
+        const templateId = this.getCheckinTemplateId();
+        this._checkinServerIds = normalizeTemplateIds(serverIds);
+        const hasServerId = this._checkinServerIds.includes(templateId);
+        return this.getSubscriptionSettingsFromWx().then((settings = {}) => {
+          const mainSwitch = settings.mainSwitch !== false;
+          const accepted = normalizeTemplateIds(settings.acceptedIds || []);
+          const hasAccepted = accepted.includes(templateId);
+          if (!mainSwitch) {
+            this.setCheckinSubscriptionBannerVisibility(true);
+            return this.openCheckinSubscriptionSetting(this._checkinServerIds);
+          }
+          if (hasServerId && hasAccepted) {
+            this.setCheckinSubscriptionBannerVisibility(false);
+            return null;
+          }
+          return this.requestCheckinSubscription(this._checkinServerIds);
+        });
+      })
+      .catch((err) => {
+        console.warn("initCheckinSubscription failed", err);
+        this.setCheckinSubscriptionBannerVisibility(true);
+      });
   },
   buildWeekDays(detail, todayDate) {
     const signedDays = Array.isArray(detail.signedDays) ? detail.signedDays : [];
@@ -288,21 +450,20 @@ Page({
   onCheckinSubscriptionTap() {
     if (this.data.checkinSubscriptionLoading) return;
     this.setData({ checkinSubscriptionLoading: true });
-    requestSubscribeMessageForTemplateIds([SUBSCRIPTION_TEMPLATE_IDS.checkinReminder])
-      .then((result = {}) => {
-        const acceptedIds = Array.isArray(result.acceptedIds) ? result.acceptedIds : [];
-        const anyRejected = result.anyRejected;
-        if (acceptedIds.length) {
-          wx.showToast({ title: "已开启提醒", icon: "success" });
-        } else if (anyRejected) {
-          wx.showToast({ title: "已拒绝提醒", icon: "none" });
-        } else {
-          wx.showToast({ title: "未开启提醒", icon: "none" });
-        }
+    const templateId = this.getCheckinTemplateId();
+    this.getSubscriptionSettingsFromWx()
+      .then((settings = {}) => {
+        const accepted = normalizeTemplateIds(settings.acceptedIds || []);
+        const needOpenSetting = settings.mainSwitch === false || !accepted.includes(templateId);
+        const openPromise = needOpenSetting
+          ? this.openCheckinSubscriptionSetting(this._checkinServerIds || [])
+          : Promise.resolve(accepted);
+        return openPromise.then((merged) => this.requestCheckinSubscription(merged || accepted));
       })
-      .catch((err) => {
-        console.warn("checkin subscription request failed", err);
-        wx.showToast({ title: "开启提醒失败", icon: "none" });
+      .then(() => {
+        if (!this.data.showCheckinSubscriptionBanner) {
+          wx.showToast({ title: "已开启提醒", icon: "success" });
+        }
       })
       .finally(() => {
         this.setData({ checkinSubscriptionLoading: false });
@@ -344,6 +505,8 @@ Page({
     wx.showToast({ title: "当前版本暂不支持", icon: "none" });
   }
 });
+
+
 
 
 

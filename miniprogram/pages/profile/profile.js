@@ -5,6 +5,7 @@
   loadStoredProfile,
   persistProfileLocally,
   resolveApiBase,
+  getAuthToken,
   prepareAvatarForUpload,
   uploadAvatarFile,
   updateUserProfile
@@ -12,8 +13,12 @@
 const { fetchMyLikes } = require("../../utils/likes");
 const {
   fetchLatestSubscriptionPush,
-  SUBSCRIPTION_TEMPLATE_ID
+  SUBSCRIPTION_TEMPLATE_ID,
+  fetchSubscriptions,
+  requestSubscribeMessageForTemplateIds,
+  normalizeTemplateIds
 } = require("../../utils/subscriptions");
+const { SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
 const {
   updateLatestItemVersion,
   fetchLatestItemVersion,
@@ -559,6 +564,29 @@ Page({
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
     }
-    wx.navigateTo({ url: "/pages/profile/checkin/index" });
+    this.ensureCheckinSubscriptionOnEntry()
+      .catch((err) => {
+        console.warn("ensureCheckinSubscriptionOnEntry failed", err);
+      })
+      .finally(() => {
+        wx.navigateTo({ url: "/pages/profile/checkin/index" });
+      });
+  },
+
+  ensureCheckinSubscriptionOnEntry() {
+    const apiBase = resolveApiBase();
+    const token = getAuthToken();
+    if (!apiBase || !token) return Promise.resolve();
+    const templateId = SUBSCRIPTION_TEMPLATE_IDS.checkinReminder;
+    return fetchSubscriptions({ apiBase, token })
+      .then((serverIds = []) => {
+        const normalized = normalizeTemplateIds(serverIds);
+        if (!normalized.includes(templateId)) return null;
+        console.log("Checkin subscription already exists on server");
+        return requestSubscribeMessageForTemplateIds([templateId]).catch(() => null);
+      })
+      .catch((err) => {
+        console.warn("ensureCheckinSubscriptionOnEntry fetch failed", err);
+      });
   }
 });

@@ -82,7 +82,7 @@
             签到领积分
           </button>
         </view>
-        <view class="checkin-subscription-banner">
+        <view class="checkin-subscription-banner" wx:if="{{showCheckinSubscriptionBanner}}">
           <view class="checkin-subscription-text">每日签到提醒</view>
           <button
             class="checkin-subscription-cta"
