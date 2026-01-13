@@ -47,7 +47,14 @@
             data-date="{{item.date}}"
             bindtap="onCheckinDayTap"
           >
-            <image wx:if="{{item.isSunday}}" class="checkin-turntable" src="/pages/profile/assets/turntable.png" mode="aspectFit" />
+            <view
+              wx:if="{{item.isSunday}}"
+              class="checkin-turntable"
+              catchtap="onTurntableTap"
+              hover-class="checkin-turntable--active"
+            >
+              <image class="checkin-turntable-image" src="/pages/profile/assets/turntable.png" mode="aspectFit" />
+            </view>
             <text class="checkin-reward">{{item.reward}}</text>
             <view class="checkin-icon-wrap">
               <image
@@ -139,8 +146,8 @@
           </view>
           <view wx:else class="checkin-lottery-cell">
             <view class="checkin-lottery-prize-card {{lotteryActiveIndex === index ? 'is-active' : ''}}">
-              <image class="checkin-lottery-coin" src="/pages/profile/assets/flp-coin.png" mode="aspectFit" />
-              <text class="checkin-lottery-text">+{{item}}</text>
+              <image wx:if="{{item && item.displayImageUrl}}" class="checkin-lottery-coin" src="{{item.displayImageUrl}}" mode="aspectFit" />
+              <text class="checkin-lottery-text">{{item ? item.displayText : ''}}</text>
             </view>
           </view>
         </block>

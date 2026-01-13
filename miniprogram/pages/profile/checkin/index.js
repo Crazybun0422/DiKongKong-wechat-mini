@@ -1,10 +1,12 @@
-﻿const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+const { fetchLotteryConfig, drawLottery } = require("../../../utils/lottery");
 const {
   fetchUserProfile,
   normalizeProfileData,
   loadStoredProfile,
   resolveApiBase,
-  getAuthToken
+  getAuthToken,
+  buildAvatarDownloadUrl
 } = require("../../../utils/profile");
 const {
   requestSubscribeMessageForTemplateIds,
@@ -37,6 +39,20 @@ const WEEKDAY_LABELS = {
 
 const DOUBLE_REWARD_WEEKDAYS = new Set(["wednesday", "saturday", "sunday", "周三", "周六", "周日"]);
 const LOTTERY_ORDER = [0, 1, 2, 5, 8, 7, 6, 3];
+const LOTTERY_FAST_DURATION = 500;
+const LOTTERY_TOTAL_DURATION = 3000;
+const LOTTERY_LATE_DURATION = 1100;
+const LOTTERY_AWAIT_INTERVAL = 220;
+const DEFAULT_LOTTERY_CONFIG = [
+  { level: 1, flp: true, flpCount: 0.0},
+  { level: 2, flp: true, flpCount: 0.0 },
+  { level: 3, flp: true, flpCount: 0.0 },
+  { level: 4, flp: true, flpCount: 0.0 },
+  { level: 5, flp: true, flpCount: 0.0 },
+  { level: 6, flp: true, flpCount: 0.0 },
+  { level: 7, flp: true, flpCount: 0.0},
+  { level: 8, flp: true, flpCount: 0.0 }
+];
 
 function pad2(value) {
   return value < 10 ? `0${value}` : `${value}`;
@@ -92,6 +108,44 @@ function isDoubleReward(weekday) {
   return DOUBLE_REWARD_WEEKDAYS.has(lower);
 }
 
+function normalizeLotteryEntry(entry = {}, apiBase) {
+  const flp = !!entry.flp;
+  const flpCount = Number(entry.flpCount);
+  const description = typeof entry.description === "string" ? entry.description.trim() : "";
+  const rawImageUrl = typeof entry.imageUrl === "string" ? entry.imageUrl.trim() : "";
+  const displayImageUrl = flp
+    ? "/pages/profile/assets/flp-coin.png"
+    : (rawImageUrl ? buildAvatarDownloadUrl(rawImageUrl, { apiBase }) : "");
+  const displayText = flp ? `+${formatReward(flpCount)}` : description;
+  return {
+    level: Number(entry.level) || 0,
+    flp,
+    flpCount,
+    description,
+    imageUrl: rawImageUrl,
+    displayImageUrl,
+    displayText
+  };
+}
+
+function buildLotteryDisplay(entries = [], apiBase) {
+  const sorted = Array.isArray(entries)
+    ? [...entries].sort((a, b) => (Number(a.level) || 0) - (Number(b.level) || 0))
+    : [];
+  const prizes = new Array(9).fill(null);
+  const levelToOrderIndex = new Map();
+  LOTTERY_ORDER.forEach((gridIndex, orderIndex) => {
+    const entry = sorted[orderIndex];
+    if (!entry) return;
+    const normalized = normalizeLotteryEntry(entry, apiBase);
+    prizes[gridIndex] = normalized;
+    if (normalized.level) {
+      levelToOrderIndex.set(normalized.level, orderIndex);
+    }
+  });
+  return { prizes, levelToOrderIndex };
+}
+
 Page({
   data: {
     loading: true,
@@ -105,7 +159,7 @@ Page({
     checkinSubscriptionLoading: false,
     showCheckinSubscriptionBanner: false,
     showLotteryModal: false,
-    lotteryPrizes: ["0.1", "0.2", "0.5", "0.8", "", "1", "2", "8", "88"],
+    lotteryPrizes: [],
     lotteryActiveIndex: -1,
     isLotteryDrawing: false,
     lotteryButtonActive: false
@@ -117,6 +171,7 @@ Page({
     this.setData({
       flpDisplay: normalized.flpDisplay || "--"
     });
+    this.loadLotteryConfig({ fallbackOnly: true });
     this.loadAllData({ showPageLoading: true }).finally(() => {
       this._initialLoadDone = true;
     });
@@ -196,10 +251,6 @@ Page({
     return Promise.all(tasks).finally(() => {
       if (showPageLoading) {
         this.setData({ pageLoading: false });
-      }
-      if (showPageLoading && !this._lotteryShown) {
-        this._lotteryShown = true;
-        this.setData({ showLotteryModal: true });
       }
     });
   },
@@ -425,6 +476,11 @@ Page({
     this.onCheckinTap();
   },
 
+  onTurntableTap() {
+    this.setData({ showLotteryModal: true });
+    this.loadLotteryConfig();
+  },
+
   onCheckinTap() {
     if (!this.data.canCheckinToday) return;
     const apiBase = resolveApiBase();
@@ -505,64 +561,159 @@ Page({
   onLotteryButtonTap() {
     if (this.data.isLotteryDrawing) return;
     this._triggerLotteryButtonActive();
+    this._lotteryTargetOrderIndex = null;
+    this._lotteryResult = null;
+    this._startLotterySpin();
+    this._requestLotteryDraw();
+  },
+
+  loadLotteryConfig({ fallbackOnly = false } = {}) {
+    const apiBase = resolveApiBase();
+    const fallback = buildLotteryDisplay(DEFAULT_LOTTERY_CONFIG, apiBase);
+    if (fallbackOnly) {
+      this._lotteryLevelIndexMap = fallback.levelToOrderIndex;
+      this.setData({ lotteryPrizes: fallback.prizes });
+      return Promise.resolve();
+    }
+    return fetchLotteryConfig({ apiBase })
+      .then((config = {}) => {
+        const prizes = Array.isArray(config.prizes) ? config.prizes : [];
+        if (prizes.length === LOTTERY_ORDER.length) {
+          const display = buildLotteryDisplay(prizes, apiBase);
+          this._lotteryLevelIndexMap = display.levelToOrderIndex;
+          this.setData({ lotteryPrizes: display.prizes });
+          return;
+        }
+        this._lotteryLevelIndexMap = fallback.levelToOrderIndex;
+        this.setData({ lotteryPrizes: fallback.prizes });
+      })
+      .catch((err) => {
+        if (err?.message !== "missing-token") {
+          console.warn("loadLotteryConfig failed", err);
+        }
+        this._lotteryLevelIndexMap = fallback.levelToOrderIndex;
+        this.setData({ lotteryPrizes: fallback.prizes });
+      });
+  },
+
+  _requestLotteryDraw() {
+    const apiBase = resolveApiBase();
+    drawLottery({ apiBase })
+      .then((result = {}) => {
+        this._lotteryResult = result;
+        const level = Number(result.prizeLevel);
+        const targetOrderIndex = this._lotteryLevelIndexMap?.get(level);
+        if (typeof targetOrderIndex === "number") {
+          this._lotteryTargetOrderIndex = targetOrderIndex;
+          this._handleLotteryResultReady();
+        }
+      })
+      .catch((err) => {
+        console.warn("drawLottery failed", err);
+        if (this.data.isLotteryDrawing) {
+          this._finishLotterySpin();
+        }
+        wx.showToast({ title: err?.message || "", icon: "none" });
+      });
+  },
+
+  _startLotterySpin() {
     const order = LOTTERY_ORDER;
     if (!order.length) return;
-    const targetPos = Math.floor(Math.random() * order.length);
-    const baseOffset = (targetPos - (order.length - 1) + order.length) % order.length;
-    let extraSteps = baseOffset === 0 ? order.length : baseOffset;
-    extraSteps += order.length * 2;
-
-    const fastSteps = order.length;
-    const fastDuration = 500;
-    const totalDuration = 3000;
-    const remainingDuration = Math.max(totalDuration - fastDuration, 0);
-
     this._clearLotteryTimers();
+    this._lotteryPhase = "fast";
+    this._lotterySpinState = { orderIndex: 0 };
     this.setData({ isLotteryDrawing: true, lotteryActiveIndex: order[0] });
-
+    const fastInterval = LOTTERY_FAST_DURATION / order.length;
     const timers = [];
-    for (let i = 1; i < fastSteps; i += 1) {
-      const delay = Math.round((fastDuration / fastSteps) * i);
+    for (let i = 1; i < order.length; i += 1) {
+      const delay = Math.round(fastInterval * i);
       timers.push(
         setTimeout(() => {
+          this._lotterySpinState.orderIndex = i;
           this.setData({ lotteryActiveIndex: order[i] });
         }, delay)
       );
     }
+    timers.push(setTimeout(() => this._enterLotteryAwaitPhase(), LOTTERY_FAST_DURATION));
+    this._lotteryTimers = timers;
+  },
 
-    if (extraSteps <= 0 || remainingDuration <= 0) {
-      timers.push(
-        setTimeout(() => {
-          this.setData({ isLotteryDrawing: false });
-        }, fastDuration)
-      );
-      this._lotteryTimers = timers;
+  _enterLotteryAwaitPhase() {
+    if (this._lotteryPhase !== "fast") return;
+    const targetOrderIndex = this._lotteryTargetOrderIndex;
+    if (typeof targetOrderIndex === "number") {
+      this._scheduleLotteryStop(targetOrderIndex, LOTTERY_TOTAL_DURATION - LOTTERY_FAST_DURATION, 2);
       return;
     }
+    this._lotteryPhase = "await";
+    const order = LOTTERY_ORDER;
+    const spin = () => {
+      if (this._lotteryPhase !== "await") return;
+      const current = this._lotterySpinState.orderIndex || 0;
+      const nextIndex = (current + 1) % order.length;
+      this._lotterySpinState.orderIndex = nextIndex;
+      this.setData({ lotteryActiveIndex: order[nextIndex] });
+      this._lotteryAwaitTimer = setTimeout(spin, LOTTERY_AWAIT_INTERVAL);
+    };
+    this._lotteryAwaitTimer = setTimeout(spin, LOTTERY_AWAIT_INTERVAL);
+  },
+
+  _handleLotteryResultReady() {
+    if (!this.data.isLotteryDrawing) return;
+    if (this._lotteryPhase === "fast") {
+      return;
+    }
+    if (this._lotteryPhase === "await") {
+      this._scheduleLotteryStop(this._lotteryTargetOrderIndex, LOTTERY_LATE_DURATION, 1);
+    }
+  },
+
+  _scheduleLotteryStop(targetOrderIndex, duration, extraCycles) {
+    const order = LOTTERY_ORDER;
+    if (!order.length) return;
+    if (this._lotteryAwaitTimer) {
+      clearTimeout(this._lotteryAwaitTimer);
+      this._lotteryAwaitTimer = null;
+    }
+    this._lotteryPhase = "decel";
+    let orderIndex = this._lotterySpinState?.orderIndex || 0;
+    const baseOffset = (targetOrderIndex - orderIndex + order.length) % order.length;
+    let steps = baseOffset === 0 ? order.length : baseOffset;
+    steps += order.length * Math.max(extraCycles, 0);
 
     const weights = [];
-    for (let i = 1; i <= extraSteps; i += 1) {
-      const t = i / extraSteps;
+    for (let i = 1; i <= steps; i += 1) {
+      const t = i / steps;
       weights.push(0.6 + 1.8 * t * t);
     }
     const weightSum = weights.reduce((sum, value) => sum + value, 0);
-    let elapsed = fastDuration;
-    let orderIndex = fastSteps - 1;
+    let elapsed = 0;
+    const timers = [];
 
-    for (let i = 0; i < extraSteps; i += 1) {
-      const interval = remainingDuration * (weights[i] / weightSum);
+    for (let i = 0; i < steps; i += 1) {
+      const interval = duration * (weights[i] / weightSum);
       elapsed += interval;
       orderIndex = (orderIndex + 1) % order.length;
       const activeIndex = order[orderIndex];
-      const isFinal = i === extraSteps - 1;
+      const isFinal = i === steps - 1;
       timers.push(
         setTimeout(() => {
-          this.setData({ lotteryActiveIndex: activeIndex, isLotteryDrawing: isFinal ? false : true });
+          this._lotterySpinState.orderIndex = orderIndex;
+          this.setData({ lotteryActiveIndex: activeIndex, isLotteryDrawing: !isFinal });
+          if (isFinal) {
+            this._lotteryPhase = null;
+          }
         }, Math.round(elapsed))
       );
     }
 
-    this._lotteryTimers = timers;
+    this._lotteryTimers = (this._lotteryTimers || []).concat(timers);
+  },
+
+  _finishLotterySpin() {
+    this._clearLotteryTimers();
+    this.setData({ isLotteryDrawing: false });
   },
 
   _triggerLotteryButtonActive() {
@@ -586,6 +737,11 @@ Page({
       this._lotteryTimers.forEach((timer) => clearTimeout(timer));
     }
     this._lotteryTimers = [];
+    if (this._lotteryAwaitTimer) {
+      clearTimeout(this._lotteryAwaitTimer);
+      this._lotteryAwaitTimer = null;
+    }
+    this._lotteryPhase = null;
   },
 
   onInviteFriendTap() {
@@ -623,6 +779,19 @@ Page({
     wx.showToast({ title: "当前版本暂不支持", icon: "none" });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

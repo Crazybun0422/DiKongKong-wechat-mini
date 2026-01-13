@@ -238,8 +238,46 @@ button.checkin-back::after {
   right: 8rpx;
   width: 56rpx;
   height: 56rpx;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
 }
 
+.checkin-turntable--active {
+  transform: none;
+}
+
+.checkin-turntable-image {
+  width: 56rpx;
+  height: 56rpx;
+  animation: checkinTurntableBreath 1.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.checkin-turntable--active .checkin-turntable-image {
+  animation-play-state: paused;
+  transform: scale(0.94);
+  filter: drop-shadow(0 6rpx 14rpx rgba(255, 214, 102, 0.5));
+}
+
+@keyframes checkinTurntableBreath {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 214, 102, 0));
+  }
+  50% {
+    transform: scale(1.24);
+    filter: drop-shadow(0 10rpx 20rpx rgba(255, 214, 102, 0.7));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 214, 102, 0));
+  }
+}
 .checkin-day-card.is-actionable {
   box-shadow: 0 12rpx 20rpx rgba(24, 42, 82, 0.12);
   border: 2rpx solid rgba(38, 111, 255, 0.35);
@@ -505,6 +543,7 @@ button.checkin-back::after {
   left: -20rpx;
   width: 200rpx;
   z-index: 3;
+  animation: checkinFlyInBottom 1s ease-out both;
 }
 
 .checkin-lottery-title {
@@ -514,6 +553,7 @@ button.checkin-back::after {
   width: 180rpx;
   transform: translateX(-50%);
   z-index: 2;
+  animation: checkinFlyInTop 1s ease-out both;
 }
 
 .checkin-lottery-grid {
@@ -607,4 +647,26 @@ button.checkin-back::after {
   color: #8fa5cc;
   margin-top: 6rpx;
   letter-spacing: 1rpx;
+}
+
+@keyframes checkinFlyInTop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60rpx);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes checkinFlyInBottom {
+  0% {
+    opacity: 0;
+    transform: translateY(60rpx);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
