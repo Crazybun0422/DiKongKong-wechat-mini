@@ -455,6 +455,7 @@ Page({
     this.getSubscriptionSettingsFromWx()
       .then((settings = {}) => {
         const accepted = normalizeTemplateIds(settings.acceptedIds || []);
+        console.log("Current subscription settings from wx:", settings, "accepted template IDs:", accepted);
         const needOpenSetting = settings.mainSwitch === false || !accepted.includes(templateId);
         const openPromise = needOpenSetting
           ? this.openCheckinSubscriptionSetting(this._checkinServerIds || [])
