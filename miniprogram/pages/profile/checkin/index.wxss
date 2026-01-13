@@ -555,17 +555,25 @@ button.checkin-back::after {
   width: 100rpx;
   height: 108rpx;
   border-radius: 18rpx;
-  font-size: 22rpx;
-  font-weight: 700;
+  font-size: 30rpx;
+  font-weight: 800;
+  letter-spacing: 2rpx;
   color: #7a4a00;
   background: transparent;
   border: none;
   line-height: 108rpx;
   padding: 0;
+  text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.5);
 }
 
 .checkin-lottery-button::after {
   border: none;
+}
+
+.checkin-lottery-button--active {
+  transform: scale(0.92);
+  letter-spacing: 1rpx;
+  text-shadow: 0 1rpx 3rpx rgba(255, 255, 255, 0.35);
 }
 
 .checkin-lottery-coin {
