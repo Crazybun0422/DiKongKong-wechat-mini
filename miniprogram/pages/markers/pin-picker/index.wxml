@@ -1,4 +1,4 @@
-<view class="pin-picker-page">
+﻿<view class="pin-picker-page">
   <view class="picker-map-wrap">
     <map
       id="pin-picker-map"
@@ -155,7 +155,7 @@
                       data-delta="{{coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
                     >
-                      <image class="icon-btn-img" src="/assets/plus-circle-fill.png" mode="aspectFit" />
+                      <image class="icon-btn-img" src="/pages/markers/assets/plus-circle-fill.png" mode="aspectFit" />
                     </button>
                     <button
                       class="micro-btn icon-btn"
@@ -165,7 +165,7 @@
                       data-delta="{{0 - coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
                     >
-                      <image class="icon-btn-img" src="/assets/minus-circle-fill.png" mode="aspectFit" />
+                      <image class="icon-btn-img" src="/pages/markers/assets/minus-circle-fill.png" mode="aspectFit" />
                     </button>
                   </view>
                 </view>
@@ -188,7 +188,7 @@
                       data-delta="{{coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
                     >
-                      <image class="icon-btn-img" src="/assets/plus-circle-fill.png" mode="aspectFit" />
+                      <image class="icon-btn-img" src="/pages/markers/assets/plus-circle-fill.png" mode="aspectFit" />
                     </button>
                     <button
                       class="micro-btn icon-btn"
@@ -198,7 +198,7 @@
                       data-delta="{{0 - coordAdjustStep}}"
                       bindtap="onCoordinateAdjust"
                     >
-                      <image class="icon-btn-img" src="/assets/minus-circle-fill.png" mode="aspectFit" />
+                      <image class="icon-btn-img" src="/pages/markers/assets/minus-circle-fill.png" mode="aspectFit" />
                     </button>
                   </view>
                 </view>
@@ -302,3 +302,4 @@
     </view>
   </view>
 </view>
+

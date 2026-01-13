@@ -1,4 +1,4 @@
-<view class="flp-page">
+﻿<view class="flp-page">
   <scroll-view class="flp-scroll" scroll-y="true">
     <view class="flp-container">
       <view class="flp-header">
@@ -11,7 +11,7 @@
           bindtap="onDetailTap"
           hover-class="flp-detail-entry-hover"
         >
-          <image class="flp-detail-icon" src="/assets/details.png" mode="widthFix" />
+          <image class="flp-detail-icon" src="/pages/profile/assets/details.png" mode="widthFix" />
           <text class="flp-detail-text">明细</text>
         </view>
       </view>
@@ -55,3 +55,4 @@
     </view>
   </scroll-view>
 </view>
+

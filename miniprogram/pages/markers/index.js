@@ -1,4 +1,4 @@
-const {
+﻿const {
   listMarkers,
   createMarker,
   updateMarker,
@@ -46,20 +46,20 @@ const {
 const { buildImageUrl } = require("../../utils/images");
 
 const STATIC_ASSETS = {
-  add: "/assets/add.png",
-  exposure: "/assets/exposure.png",
-  telephone: "/assets/telephone.png",
-  defaultCover: "/assets/no-image.png",
-  emptyPin: "/assets/empty-pin.png",
-  workGroup: "/assets/work-group.png",
+  add: "/pages/markers/assets/add.png",
+  exposure: "/pages/markers/assets/exposure.png",
+  telephone: "/pages/markers/assets/telephone.png",
+  defaultCover: "/pages/markers/assets/no-image.png",
+  emptyPin: "/pages/markers/assets/empty-pin.png",
+  workGroup: "/pages/markers/assets/work-group.png",
   arrowRight: "/assets/arrow-right.png",
-  plus: "/assets/plus-circle-fill.png",
+  plus: "/pages/markers/assets/plus-circle-fill.png",
   defaultAvatar: "/assets/default-avatar.png",
-  publish: "/assets/publish.png",
-  revoke: "/assets/revoke.png",
+  publish: "/pages/markers/assets/publish.png",
+  revoke: "/pages/markers/assets/revoke.png",
   home: "/assets/home.png",
-  modify: "/assets/modify.png",
-  delete: "/assets/delete.png"
+  modify: "/pages/markers/assets/modify.png",
+  delete: "/pages/markers/assets/delete.png"
 };
 
 const CENTER_TABS = [

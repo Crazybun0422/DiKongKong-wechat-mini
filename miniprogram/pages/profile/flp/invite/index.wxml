@@ -1,4 +1,4 @@
-<view class="invite-page">
+﻿<view class="invite-page">
   <view class="invite-body">
     <view class="invite-card">
       <view class="invite-card-info">
@@ -8,7 +8,7 @@
       <view class="invite-qr-wrapper">
         <image
           class="invite-qr-image"
-          src="{{qrImagePath || '/assets/qrcode.png'}}"
+          src="{{qrImagePath || '/pages/profile/assets/qrcode.png'}}"
           mode="aspectFit"
         />
       </view>
@@ -72,3 +72,4 @@
     height="520"
   />
 </view>
+

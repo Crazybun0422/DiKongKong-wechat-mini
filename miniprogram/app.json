@@ -2,21 +2,33 @@
   "pages": [
     "pages/map/map",
     "pages/topic/topic",
-    "pages/profile/profile",
-    "pages/profile/checkin/index",
-    "pages/profile/flp/index",
-    "pages/profile/flp/invite/index",
-    "pages/profile/flp/logs/index",
-    "pages/profile/flp/reward-help/index",
-    "pages/profile/flp/invite-guide/index",
-    "pages/profile/open-platform/index",
-    "pages/profile/subscription-feed/index",
-    "pages/profile/edit/index",
-    "pages/markers/index",
-    "pages/markers/location-picker/index",
-    "pages/markers/pin-picker/index",
-    "pages/markers/workgroup-members/index",
     "pages/webview/index"
+  ],
+  "subpackages": [
+    {
+      "root": "pages/profile",
+      "pages": [
+        "profile",
+        "checkin/index",
+        "flp/index",
+        "flp/invite/index",
+        "flp/logs/index",
+        "flp/reward-help/index",
+        "flp/invite-guide/index",
+        "open-platform/index",
+        "subscription-feed/index",
+        "edit/index"
+      ]
+    },
+    {
+      "root": "pages/markers",
+      "pages": [
+        "index",
+        "location-picker/index",
+        "pin-picker/index",
+        "workgroup-members/index"
+      ]
+    }
   ],
   "window": {
     "navigationBarTextStyle": "white",

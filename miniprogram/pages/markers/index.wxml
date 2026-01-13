@@ -807,7 +807,7 @@
           bindcontact="onCustomerServiceContact"
           session-from="{{customerServiceSessionFrom}}"
         >
-          <image class="support-btn-icon" src="/assets/support.png" mode="aspectFit" />
+          <image class="support-btn-icon" src="/pages/markers/assets/support.png" mode="aspectFit" />
         </button>
         <view class="footer-actions">
           <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
@@ -1085,6 +1085,7 @@
     </view>
   </view>
 </view>
+
 
 
 

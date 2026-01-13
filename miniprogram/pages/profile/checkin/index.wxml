@@ -1,4 +1,4 @@
-<view class="checkin-page">
+﻿<view class="checkin-page">
   <view wx:if="{{pageLoading}}" class="checkin-loading-mask">
     <view class="checkin-loading-card">
       <image class="checkin-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
@@ -25,20 +25,20 @@
   </view>
 
   <view class="checkin-card">
-    <image class="checkin-card-bg" src="/assets/checkin-card-shape.svg" mode="scaleToFill" />
+    <image class="checkin-card-bg" src="/pages/profile/assets/checkin-card-shape.svg" mode="scaleToFill" />
     <view class="checkin-card-content">
     <view class="checkin-card-top">
       <view class="checkin-card-title">
         <text class="checkin-card-title-text">已连续签到</text>
         <view class="checkin-card-ribbon">
-          <image class="checkin-card-ribbon-bg" src="/assets/checkin-days-underline.svg" mode="scaleToFill" />
+          <image class="checkin-card-ribbon-bg" src="/pages/profile/assets/checkin-days-underline.svg" mode="scaleToFill" />
           <text class="checkin-card-days">{{continuousDays}}</text>
         </view>
         <text class="checkin-card-title-text">天</text>
       </view>
       
     </view>
-    <image class="checkin-card-hero" src="/assets/check-in-main.png" mode="widthFix" />
+    <image class="checkin-card-hero" src="/pages/profile/assets/check-in-main.png" mode="widthFix" />
     <view class="checkin-card-body">
       <view class="checkin-week-grid">
         <block wx:for="{{weekDays}}" wx:key="date">
@@ -47,23 +47,23 @@
             data-date="{{item.date}}"
             bindtap="onCheckinDayTap"
           >
-            <image wx:if="{{item.isSunday}}" class="checkin-turntable" src="/assets/turntable.png" mode="aspectFit" />
+            <image wx:if="{{item.isSunday}}" class="checkin-turntable" src="/pages/profile/assets/turntable.png" mode="aspectFit" />
             <text class="checkin-reward">{{item.reward}}</text>
             <view class="checkin-icon-wrap">
               <image
                 wx:if="{{item.iconType === 'signed'}}"
                 class="checkin-day-image"
-                src="/assets/already-check-in.png"
+                src="/pages/profile/assets/already-check-in.png"
                 mode="aspectFit"
               />
               <image
                 wx:elif="{{item.iconType === 'unsigned'}}"
                 class="checkin-day-image"
-                src="/assets/not-check-in.png"
+                src="/pages/profile/assets/not-check-in.png"
                 mode="aspectFit"
               />
               <view wx:elif="{{item.iconType === 'today'}}" class="checkin-today-icon">
-                <image class="checkin-day-image" src="/assets/already-check-in.png" mode="aspectFit" />
+                <image class="checkin-day-image" src="/pages/profile/assets/already-check-in.png" mode="aspectFit" />
                 <image class="checkin-day-check" src="/assets/check.png" mode="aspectFit" />
               </view>
             </view>
@@ -120,9 +120,9 @@
 
   <view wx:if="{{showLotteryModal}}" class="checkin-lottery-mask" bindtap="onLotteryMaskTap">
     <view class="checkin-lottery-card" catchtap="onLotteryCardTap">
-      <image class="checkin-lottery-bg" src="/assets/checkin-lottery.svg" mode="aspectFit" />
-      <image class="checkin-lottery-spray" src="/assets/spray.png" mode="widthFix" />
-      <image class="checkin-lottery-title" src="/assets/weekly-lottery.png" mode="widthFix" />
+      <image class="checkin-lottery-bg" src="/pages/profile/assets/checkin-lottery.svg" mode="aspectFit" />
+      <image class="checkin-lottery-spray" src="/pages/profile/assets/spray.png" mode="widthFix" />
+      <image class="checkin-lottery-title" src="/pages/profile/assets/weekly-lottery.png" mode="widthFix" />
       <view class="checkin-lottery-grid">
         <block wx:for="{{lotteryPrizes}}" wx:key="index">
           <view wx:if="{{index === 4}}" class="checkin-lottery-cell">
@@ -130,7 +130,7 @@
           </view>
           <view wx:else class="checkin-lottery-cell">
             <view class="checkin-lottery-prize-card">
-              <image class="checkin-lottery-coin" src="/assets/flp-coin.png" mode="aspectFit" />
+              <image class="checkin-lottery-coin" src="/pages/profile/assets/flp-coin.png" mode="aspectFit" />
               <text class="checkin-lottery-text">+{{item}}</text>
             </view>
           </view>
@@ -139,4 +139,5 @@
     </view>
   </view>
 </view>
+
 

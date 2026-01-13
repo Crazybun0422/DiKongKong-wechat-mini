@@ -5,13 +5,13 @@
   >
     <view class="subscribe-wait-mask"></view>
     <view class="subscribe-wait-image-wrap" style="top: calc(env(safe-area-inset-top) + 15vh);">
-      <image class="subscribe-wait-image" src="/assets/introduction_bg.png" mode="widthFix" />
+      <image class="subscribe-wait-image" src="/pages/profile/assets/introduction_bg.png" mode="widthFix" />
     </view>
   </view>
   <view class="status-breath-button {{checkinTodaySigned ? '' : 'is-breathing'}}" bindtap="onCheckinEntryTap">
     <image
       class="status-breath-image"
-      src="{{checkinTodaySigned ? '/assets/status-check-in.png' : '/assets/status-uncheck-in.png'}}"
+      src="{{checkinTodaySigned ? '/pages/profile/assets/status-check-in.png' : '/pages/profile/assets/status-uncheck-in.png'}}"
       mode="aspectFit"
     />
   </view>
@@ -175,4 +175,5 @@
     </button>
   </view>
 </view>
+
 
