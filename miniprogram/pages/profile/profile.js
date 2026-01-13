@@ -564,13 +564,10 @@ Page({
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
     }
-    this.ensureCheckinSubscriptionOnEntry()
-      .catch((err) => {
-        console.warn("ensureCheckinSubscriptionOnEntry failed", err);
-      })
-      .finally(() => {
-        wx.navigateTo({ url: "/pages/profile/checkin/index" });
-      });
+    wx.navigateTo({ url: "/pages/profile/checkin/index" });
+    this.ensureCheckinSubscriptionOnEntry().catch((err) => {
+      console.warn("ensureCheckinSubscriptionOnEntry failed", err);
+    });
   },
 
   ensureCheckinSubscriptionOnEntry() {

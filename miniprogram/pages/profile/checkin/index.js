@@ -204,7 +204,7 @@ Page({
 
   getSubscriptionSettingsFromWx() {
     if (typeof wx === "undefined" || typeof wx.getSetting !== "function") {
-      return Promise.resolve({ mainSwitch: true, acceptedIds: [] });
+      return Promise.resolve({ mainSwitch: true, acceptedIds: [], availableIds: [] });
     }
     return new Promise((resolve) => {
       wx.getSetting({
@@ -212,12 +212,18 @@ Page({
         success: (res = {}) => {
           const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
           const enabled = mainSwitch !== false;
+          const itemSettings = res?.subscriptionsSetting?.itemSettings || res?.subscriptionsSetting?.itemsettings;
+          const availableIds = itemSettings && typeof itemSettings === "object"
+            ? normalizeTemplateIds(Object.keys(itemSettings))
+            : [];
           const ids = enabled
             ? extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || []
             : [];
-          resolve({ mainSwitch: enabled, acceptedIds: normalizeTemplateIds(ids) });
+          const acceptedIds = normalizeTemplateIds(ids);
+          console.log("checkin subscription settings ids", { availableIds, acceptedIds, mainSwitch: enabled });
+          resolve({ mainSwitch: enabled, acceptedIds, availableIds });
         },
-        fail: () => resolve({ mainSwitch: true, acceptedIds: [] })
+        fail: () => resolve({ mainSwitch: true, acceptedIds: [], availableIds: [] })
       });
     });
   },
@@ -455,8 +461,12 @@ Page({
     this.getSubscriptionSettingsFromWx()
       .then((settings = {}) => {
         const accepted = normalizeTemplateIds(settings.acceptedIds || []);
-        console.log("Current subscription settings from wx:", settings, "accepted template IDs:", accepted);
-        const needOpenSetting = settings.mainSwitch === false || !accepted.includes(templateId);
+        const available = normalizeTemplateIds(settings.availableIds || []);
+        const existsInSettings = available.includes(templateId);
+        console.log("Current subscription settings from wx:", settings,
+          "accepted template IDs:", accepted,
+          "available template IDs:", available);
+        const needOpenSetting = settings.mainSwitch === false || (existsInSettings && !accepted.includes(templateId));
         const openPromise = needOpenSetting
           ? this.openCheckinSubscriptionSetting(this._checkinServerIds || [])
           : Promise.resolve(accepted);
