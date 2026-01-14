@@ -1,5 +1,5 @@
-const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
-const { fetchLotteryConfig, drawLottery } = require("../../../utils/lottery");
+﻿const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+const { fetchLotteryConfig, drawLottery, fetchLotteryLogs } = require("../../../utils/lottery");
 const {
   fetchUserProfile,
   normalizeProfileData,
@@ -44,13 +44,13 @@ const LOTTERY_TOTAL_DURATION = 3000;
 const LOTTERY_LATE_DURATION = 1100;
 const LOTTERY_AWAIT_INTERVAL = 220;
 const DEFAULT_LOTTERY_CONFIG = [
-  { level: 1, flp: true, flpCount: 0.0},
+  { level: 1, flp: true, flpCount: 0.0 },
   { level: 2, flp: true, flpCount: 0.0 },
   { level: 3, flp: true, flpCount: 0.0 },
   { level: 4, flp: true, flpCount: 0.0 },
   { level: 5, flp: true, flpCount: 0.0 },
   { level: 6, flp: true, flpCount: 0.0 },
-  { level: 7, flp: true, flpCount: 0.0},
+  { level: 7, flp: true, flpCount: 0.0 },
   { level: 8, flp: true, flpCount: 0.0 }
 ];
 
@@ -79,6 +79,13 @@ function addDays(value, offset) {
   if (!date) return value;
   date.setDate(date.getDate() + offset);
   return formatDate(date);
+}
+
+function isSameDate(value, compare) {
+  if (!value || !compare) return false;
+  const parsed = new Date(compare);
+  if (!Number.isFinite(parsed.getTime())) return false;
+  return formatDate(parsed) === value;
 }
 
 function normalizeWeekday(raw, date) {
@@ -146,6 +153,14 @@ function buildLotteryDisplay(entries = [], apiBase) {
   return { prizes, levelToOrderIndex };
 }
 
+function shouldEnableTurntable({ todayDate, continuousDays, hasDrawToday }) {
+  // if (!todayDate) return false;
+  // const parsed = parseDate(todayDate);
+  // const isSunday = parsed ? parsed.getDay() === 0 : false;
+  // return isSunday && Number(continuousDays) >= 7 && !hasDrawToday;
+  return true
+}
+
 Page({
   data: {
     loading: true,
@@ -162,7 +177,11 @@ Page({
     lotteryPrizes: [],
     lotteryActiveIndex: -1,
     isLotteryDrawing: false,
-    lotteryButtonActive: false
+    lotteryButtonActive: false,
+    isLotteryFinished: false,
+    lotteryResultText: "",
+    lotteryResultImage: "",
+    canLotteryToday: false
   },
 
   onLoad() {
@@ -231,13 +250,17 @@ Page({
           weekDays,
           canCheckinToday
         });
+        this.refreshLotteryEligibility({
+          continuousDays: Number(detail.continuousDays) || 0,
+          todayDate
+        });
       })
       .catch((err) => {
         const message =
           err?.message === "missing-token"
             ? "未登录，暂时无法签到"
             : err?.message || "加载失败，请稍后重试";
-        this.setData({ loading: false, error: message, weekDays: [], canCheckinToday: false });
+        this.setData({ loading: false, error: message, weekDays: [], canCheckinToday: false, canLotteryToday: false });
       });
   },
 
@@ -478,7 +501,13 @@ Page({
   },
 
   onTurntableTap() {
-    this.setData({ showLotteryModal: true });
+    if (!this.data.canLotteryToday) return;
+    this.setData({
+      showLotteryModal: true,
+      isLotteryFinished: false,
+      lotteryResultText: "",
+      lotteryResultImage: ""
+    });
     this.loadLotteryConfig();
   },
 
@@ -552,20 +581,54 @@ Page({
   onLotteryMaskTap() {
     this._clearLotteryTimers();
     this._clearLotteryButtonTimer();
-    this.setData({ showLotteryModal: false, lotteryActiveIndex: -1, isLotteryDrawing: false });
+    this.setData({
+      showLotteryModal: false,
+      lotteryActiveIndex: -1,
+      isLotteryDrawing: false,
+      isLotteryFinished: false,
+      lotteryResultText: "",
+      lotteryResultImage: ""
+    });
   },
 
-  onLotteryMaskTouchMove() {},
+  onLotteryMaskTouchMove() { },
 
-  onLotteryCardTap() {},
+  onLotteryCardTap() { },
 
   onLotteryButtonTap() {
     if (this.data.isLotteryDrawing) return;
     this._triggerLotteryButtonActive();
     this._lotteryTargetOrderIndex = null;
     this._lotteryResult = null;
+    this.setData({ isLotteryFinished: false, lotteryResultText: "", lotteryResultImage: "" });
     this._startLotterySpin();
     this._requestLotteryDraw();
+  },
+
+  refreshLotteryEligibility({ continuousDays, todayDate } = {}) {
+    const apiBase = resolveApiBase();
+    if (!apiBase) {
+      this.setData({ canLotteryToday: false });
+      return Promise.resolve();
+    }
+    return fetchLotteryLogs({ apiBase, page: 0, size: 20 })
+      .then((data = {}) => {
+        const logs = Array.isArray(data.content) ? data.content : [];
+        const hasDrawToday = logs.some((item) => isSameDate(todayDate, item?.createdAt));
+        const canLotteryToday = shouldEnableTurntable({ todayDate, continuousDays, hasDrawToday });
+        this.setData({ canLotteryToday });
+      })
+      .catch((err) => {
+        if (err?.message !== "missing-token") {
+          console.warn("refreshLotteryEligibility failed", err);
+        }
+        const canLotteryToday = shouldEnableTurntable({
+          todayDate,
+          continuousDays,
+          hasDrawToday: false
+        });
+        this.setData({ canLotteryToday });
+      });
   },
 
   loadLotteryConfig({ fallbackOnly = false } = {}) {
@@ -602,6 +665,20 @@ Page({
     drawLottery({ apiBase })
       .then((result = {}) => {
         this._lotteryResult = result;
+        const isFlpPrize = !!result.flp;
+        const flpCount = Number(result.flpCount);
+        const description = typeof result.description === "string" ? result.description.trim() : "";
+        const imageUrl = typeof result.imageUrl === "string" ? result.imageUrl.trim() : "";
+        const displayText = isFlpPrize && Number.isFinite(flpCount)
+          ? `FLP+${formatReward(flpCount)}`
+          : description;
+        const displayImage = isFlpPrize
+          ? "/pages/profile/assets/flp-coin.png"
+          : (imageUrl ? buildAvatarDownloadUrl(imageUrl, { apiBase }) : "");
+        this.setData({
+          lotteryResultText: displayText,
+          lotteryResultImage: displayImage
+        });
         const level = Number(result.prizeLevel);
         const targetOrderIndex = this._lotteryLevelIndexMap?.get(level);
         if (typeof targetOrderIndex === "number") {
@@ -704,6 +781,7 @@ Page({
           this.setData({ lotteryActiveIndex: activeIndex, isLotteryDrawing: !isFinal });
           if (isFinal) {
             this._lotteryPhase = null;
+            this.setData({ isLotteryFinished: true });
           }
         }, Math.round(elapsed))
       );
@@ -714,7 +792,7 @@ Page({
 
   _finishLotterySpin() {
     this._clearLotteryTimers();
-    this.setData({ isLotteryDrawing: false });
+    this.setData({ isLotteryDrawing: false, isLotteryFinished: false });
   },
 
   _triggerLotteryButtonActive() {
@@ -743,6 +821,20 @@ Page({
       this._lotteryAwaitTimer = null;
     }
     this._lotteryPhase = null;
+  },
+
+  onLotteryClaimTap() {
+    this._clearLotteryTimers();
+    this._clearLotteryButtonTimer();
+    this.setData({
+      showLotteryModal: false,
+      lotteryActiveIndex: -1,
+      isLotteryDrawing: false,
+      isLotteryFinished: false,
+      lotteryResultText: "",
+      lotteryResultImage: ""
+    });
+    this.refreshFlp();
   },
 
   onInviteFriendTap() {

@@ -254,8 +254,11 @@ button.checkin-back::after {
 .checkin-turntable-image {
   width: 56rpx;
   height: 56rpx;
-  animation: checkinTurntableBreath 1.6s ease-in-out infinite;
   transform-origin: center;
+}
+
+.checkin-turntable.is-breathing .checkin-turntable-image {
+  animation: checkinTurntableBreath 1.6s ease-in-out infinite;
 }
 
 .checkin-turntable--active .checkin-turntable-image {
@@ -570,6 +573,74 @@ button.checkin-back::after {
   justify-items: center;
 }
 
+.checkin-lottery-result {
+  position: absolute;
+  left: 96rpx;
+  top: 166rpx;
+  width: 328rpx;
+  height: 352rpx;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkin-lottery-frost {
+  position: absolute;
+  inset: 0;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1rpx solid rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16rpx);
+  -webkit-backdrop-filter: blur(16rpx);
+}
+
+.checkin-lottery-result-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.checkin-lottery-result-image {
+  width: 180rpx;
+  height: 180rpx;
+}
+
+.checkin-lottery-result-text {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #1b1f26;
+  text-shadow: 0 4rpx 10rpx rgba(255, 255, 255, 0.8);
+  animation: checkinLotteryPulse 1.8s ease-in-out infinite;
+}
+
+.checkin-lottery-claim {
+  width: 200rpx !important;
+  height: 56rpx;
+  border-radius: 999rpx;
+  background: #0f1216;
+  color: #fff;
+  font-size: 26rpx !important;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  margin-top: 6rpx;
+  padding: 0;
+  min-width: 0;
+  line-height: 56rpx;
+  align-self: center;
+  box-sizing: border-box;
+}
+
+.checkin-lottery-claim::after {
+  border: none;
+}
+
 .checkin-lottery-cell {
   width: 100rpx;
   height: 108rpx;
@@ -670,3 +741,16 @@ button.checkin-back::after {
     transform: translateY(0);
   }
 }
+
+@keyframes checkinLotteryPulse {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6rpx);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+

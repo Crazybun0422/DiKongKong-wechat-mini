@@ -49,9 +49,9 @@
           >
             <view
               wx:if="{{item.isSunday}}"
-              class="checkin-turntable"
+              class="checkin-turntable {{canLotteryToday ? 'is-breathing' : ''}}"
               catchtap="onTurntableTap"
-              hover-class="checkin-turntable--active"
+              hover-class="{{canLotteryToday ? 'checkin-turntable--active' : ''}}"
             >
               <image class="checkin-turntable-image" src="/pages/profile/assets/turntable.png" mode="aspectFit" />
             </view>
@@ -131,7 +131,7 @@
       <image class="checkin-lottery-spray" src="/pages/profile/assets/spray.png" mode="widthFix" />
       <image
         class="checkin-lottery-title"
-        src="{{isLotteryDrawing ? '/pages/profile/assets/af-pray.png' : '/pages/profile/assets/weekly-lottery.png'}}"
+        src="{{isLotteryFinished ? '/pages/profile/assets/congrats.png' : (isLotteryDrawing ? '/pages/profile/assets/af-pray.png' : '/pages/profile/assets/weekly-lottery.png')}}"
         mode="widthFix"
       />
       <view class="checkin-lottery-grid">
@@ -152,9 +152,18 @@
           </view>
         </block>
       </view>
+      <view wx:if="{{isLotteryFinished}}" class="checkin-lottery-result">
+        <view class="checkin-lottery-frost"></view>
+        <view class="checkin-lottery-result-content">
+          <image wx:if="{{lotteryResultImage}}" class="checkin-lottery-result-image" src="{{lotteryResultImage}}" mode="aspectFit" />
+          <text class="checkin-lottery-result-text">{{lotteryResultText}}</text>
+          <button class="checkin-lottery-claim" size="mini" bindtap="onLotteryClaimTap">领取</button>
+        </view>
+      </view>
     </view>
   </view>
 </view>
+
 
 
 
