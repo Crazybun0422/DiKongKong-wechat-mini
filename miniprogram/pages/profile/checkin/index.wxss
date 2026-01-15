@@ -214,6 +214,10 @@ button.checkin-back::after {
   transform: translateY(50rpx);
 }
 
+.checkin-card-body--no-banner {
+  transform: translateY(60rpx);
+}
+
 .checkin-day-card {
   position: relative;
   width: calc(25% - 18rpx);
@@ -238,8 +242,8 @@ button.checkin-back::after {
   position: absolute;
   top: 0rpx;
   right: 0rpx;
-  width: 56rpx;
-  height: 56rpx;
+  width: 72rpx;
+  height: 72rpx;
   padding: 0;
   margin: 0;
   background: transparent;
@@ -254,8 +258,8 @@ button.checkin-back::after {
 }
 
 .checkin-turntable-image {
-  width: 56rpx;
-  height: 56rpx;
+  width: 72rpx;
+  height: 72rpx;
   transform-origin: center;
 }
 
@@ -266,21 +270,21 @@ button.checkin-back::after {
 .checkin-turntable--active .checkin-turntable-image {
   animation-play-state: paused;
   transform: scale(0.94);
-  filter: drop-shadow(0 6rpx 14rpx rgba(255, 214, 102, 0.5));
+  filter: none;
 }
 
 @keyframes checkinTurntableBreath {
   0% {
     transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(255, 214, 102, 0));
+    filter: none;
   }
   50% {
     transform: scale(1.24);
-    filter: drop-shadow(0 10rpx 20rpx rgba(255, 214, 102, 0.7));
+    filter: none;
   }
   100% {
     transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(255, 214, 102, 0));
+    filter: none;
   }
 }
 .checkin-day-card.is-actionable {
@@ -332,7 +336,7 @@ button.checkin-back::after {
   right: -6rpx;
   padding: 4rpx 10rpx;
   background: #38bdf8;
-  color: #fff;
+  color: #111;
   font-size: 18rpx;
   border-radius: 999rpx;
   transform: rotate(10deg);
@@ -347,7 +351,7 @@ button.checkin-back::after {
   max-width: none;
   background: #1b1f26;
   color: #ffffff;
-  font-size: 30rpx;
+  font-size: 40rpx;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -378,24 +382,27 @@ button.checkin-back::after {
 
 .checkin-subscription-banner {
   position: absolute;
-  left: 50rpx;
-  right: 50rpx;
+  left: 130rpx;
+  right: 130rpx;
   top: calc(100% + 16rpx);
   display: flex;
   align-items: center;
   gap: 16rpx;
-  padding: 10rpx 18rpx;
-  background: rgba(64, 64, 64, 0.75);
+  padding: 10rpx 25rpx;
+  background: rgba(255, 255, 255, 0.7);
   border-radius: 16rpx;
-  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.25);
+  box-shadow: none;
   box-sizing: border-box;
 }
 
 .checkin-subscription-text {
-  color: #f8fafc;
+  color: #1a2b4a;
   font-size: 18rpx;
   line-height: 1.5;
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .checkin-subscription-cta {
@@ -404,11 +411,13 @@ button.checkin-back::after {
   font-size: 24rpx;
   font-weight: 600;
   border-radius: 12rpx;
-  padding: 12rpx 20rpx;
+  width: 200rpx !important;
+  min-width: 88rpx;
+  padding: 12rpx 12rpx;
   border: none;
   line-height: 1;
-  min-width: 130rpx;
   box-shadow: 0 8rpx 20rpx rgba(207, 46, 46, 0.32);
+  flex-shrink: 0;
 }
 
 .checkin-subscription-cta::after {
@@ -723,6 +732,38 @@ button.checkin-back::after {
   color: #8fa5cc;
   margin-top: 6rpx;
   letter-spacing: 1rpx;
+}
+
+.checkin-lottery-text--low {
+  font-size: 26rpx;
+  font-weight: 800;
+  color: #1b1f26;
+}
+
+.checkin-lottery-text--lowest {
+  font-size: 32rpx;
+  font-weight: 900;
+  color: transparent;
+  background-image: linear-gradient(120deg, #a87312 0%, #d2a84a 35%, #8b5c0f 70%, #f0d28a 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.5);
+  animation: checkinLotteryBreath 1.6s ease-in-out infinite;
+}
+
+@keyframes checkinLotteryBreath {
+  0% {
+    transform: scale(1);
+    text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.45);
+  }
+  50% {
+    transform: scale(1.06);
+    text-shadow: 0 6rpx 14rpx rgba(255, 255, 255, 0.65);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.45);
+  }
 }
 
 @keyframes checkinFlyInTop {

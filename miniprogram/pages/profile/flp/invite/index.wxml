@@ -21,7 +21,7 @@
 
     <view class="invite-actions">
       <button class="invite-action" open-type="share" hover-class="invite-action-hover">
-        <image class="invite-action-icon" src="/assets/share-wechat.png" mode="aspectFit" />
+        <image class="invite-action-icon" src="/pages/profile/assets/share-wechat.png" mode="aspectFit" />
         <text class="invite-action-text">发给好友</text>
       </button>
       <button
@@ -30,7 +30,7 @@
         bindtap="onSaveImageTap"
         data-action="save"
       >
-        <image class="invite-action-icon" src="/assets/image-copy.png" mode="aspectFit" />
+        <image class="invite-action-icon" src="/pages/profile/assets/image-copy.png" mode="aspectFit" />
         <text class="invite-action-text">保存图片</text>
       </button>
       <button
@@ -39,7 +39,7 @@
         bindtap="onCopyLinkTap"
         data-action="copy"
       >
-        <image class="invite-action-icon" src="/assets/link-copy.png" mode="aspectFit" />
+        <image class="invite-action-icon" src="/pages/profile/assets/link-copy.png" mode="aspectFit" />
         <text class="invite-action-text">复制路径</text>
       </button>
     </view>

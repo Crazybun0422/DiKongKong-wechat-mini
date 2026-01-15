@@ -121,6 +121,7 @@ function normalizeLotteryEntry(entry = {}, apiBase) {
   const flpCount = Number(entry.flpCount);
   const description = typeof entry.description === "string" ? entry.description.trim() : "";
   const rawImageUrl = typeof entry.imageUrl === "string" ? entry.imageUrl.trim() : "";
+  const probability = Number(entry.probability);
   const displayImageUrl = flp
     ? "/pages/profile/assets/flp-coin.png"
     : (rawImageUrl ? buildAvatarDownloadUrl(rawImageUrl, { apiBase }) : "");
@@ -131,9 +132,34 @@ function normalizeLotteryEntry(entry = {}, apiBase) {
     flpCount,
     description,
     imageUrl: rawImageUrl,
+    probability: Number.isFinite(probability) ? probability : null,
     displayImageUrl,
     displayText
   };
+}
+
+function applyLotteryProbabilityStyles(prizes = []) {
+  const candidates = [];
+  prizes.forEach((item, index) => {
+    if (!item || !Number.isFinite(item.probability)) return;
+    candidates.push({ index, probability: item.probability });
+  });
+  if (!candidates.length) return prizes;
+
+  const sorted = [...candidates].sort((a, b) => a.probability - b.probability);
+  const lowSet = new Set(sorted.slice(0, 2).map((item) => item.index));
+  const lowestProbability = sorted[0]?.probability;
+  const lowestSet = new Set(
+    candidates.filter((item) => item.probability === lowestProbability).map((item) => item.index)
+  );
+
+  return prizes.map((item, index) => {
+    if (!item) return item;
+    return Object.assign({}, item, {
+      isLowProbability: lowSet.has(index),
+      isLowestProbability: lowestSet.has(index)
+    });
+  });
 }
 
 function buildLotteryDisplay(entries = [], apiBase) {
@@ -151,7 +177,8 @@ function buildLotteryDisplay(entries = [], apiBase) {
       levelToOrderIndex.set(normalized.level, orderIndex);
     }
   });
-  return { prizes, levelToOrderIndex };
+  const styledPrizes = applyLotteryProbabilityStyles(prizes);
+  return { prizes: styledPrizes, levelToOrderIndex };
 }
 
 function shouldEnableTurntable({ todayDate, continuousDays, hasDrawToday }) {
@@ -363,10 +390,7 @@ Page({
             resolve(merged);
           });
         },
-        fail: () => {
-          this.setCheckinSubscriptionBannerVisibility(true);
-          resolve([]);
-        }
+        fail: () => resolve([])
       });
     }).finally(() => {
       this.refreshCheckinSubscriptionStatus().catch(() => { });
@@ -396,7 +420,7 @@ Page({
       })
       .catch((err) => {
         console.warn("checkin subscription request failed", err);
-        this.setCheckinSubscriptionBannerVisibility(true);
+        this.setCheckinSubscriptionBannerVisibility(false);
       })
       .finally(() => {
         this.refreshCheckinSubscriptionStatus().catch(() => { });
@@ -420,6 +444,7 @@ Page({
       })
       .catch((err) => {
         console.warn("refreshCheckinSubscriptionStatus failed", err);
+        this.setCheckinSubscriptionBannerVisibility(false);
       });
   },
 
@@ -449,7 +474,7 @@ Page({
       })
       .catch((err) => {
         console.warn("initCheckinSubscription failed", err);
-        this.setCheckinSubscriptionBannerVisibility(true);
+        this.setCheckinSubscriptionBannerVisibility(false);
       });
   },
   buildWeekDays(detail, todayDate) {
@@ -488,7 +513,7 @@ Page({
       const parsedDate = parseDate(date);
       const isSunday = parsedDate ? parsedDate.getDay() === 0 : weekdayLabel === "周日";
       const bonus = isDoubleReward(item.weekday || weekdayLabel);
-      const rewardValue = bonus ? 0.02 : 0.01;
+      const rewardValue = bonus ? 0.2 : 0.1;
       let iconType = "unsigned";
       if (signed) {
         iconType = "signed";

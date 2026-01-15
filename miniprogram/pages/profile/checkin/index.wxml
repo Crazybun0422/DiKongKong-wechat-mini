@@ -39,7 +39,7 @@
       
     </view>
     <image class="checkin-card-hero" src="/pages/profile/assets/check-in-main.png" mode="widthFix" />
-    <view class="checkin-card-body">
+    <view class="checkin-card-body {{showCheckinSubscriptionBanner ? '' : 'checkin-card-body--no-banner'}}">
       <view class="checkin-week-grid">
         <block wx:for="{{weekDays}}" wx:key="date">
           <view
@@ -49,7 +49,7 @@
           >
             <view
               wx:if="{{item.isSunday}}"
-              class="checkin-turntable {{canLotteryToday ? 'is-breathing' : ''}}"
+              class="checkin-turntable {{canLotteryToday && !showLotteryModal ? 'is-breathing' : ''}}"
               catchtap="onTurntableTap"
               hover-class="{{canLotteryToday ? 'checkin-turntable--active' : ''}}"
             >
@@ -147,7 +147,7 @@
           <view wx:else class="checkin-lottery-cell">
             <view class="checkin-lottery-prize-card {{lotteryActiveIndex === index ? 'is-active' : ''}}">
               <image wx:if="{{item && item.displayImageUrl}}" class="checkin-lottery-coin" src="{{item.displayImageUrl}}" mode="aspectFit" />
-              <text class="checkin-lottery-text">{{item ? item.displayText : ''}}</text>
+              <text class="checkin-lottery-text {{item && item.isLowestProbability ? 'checkin-lottery-text--lowest' : (item && item.isLowProbability ? 'checkin-lottery-text--low' : '')}}">{{item ? item.displayText : ''}}</text>
             </view>
           </view>
         </block>
