@@ -40,8 +40,8 @@
 
 .status-breath-button {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 24rpx + 35px);
-  right: calc(40rpx + 100px);
+  top: calc(env(safe-area-inset-top) + 5.1vh);
+  right: 30vw;
   width: 150rpx;
   height: 50rpx;
   z-index: 20;

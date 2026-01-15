@@ -21,10 +21,11 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode
 } = require("../../../utils/share");
+const { buildFileDownloadUrl } = require("../../../utils/markers");
 
 const MAP_PAGE_PATH = "/pages/map/map";
-const ELEME_APP_ID = "";
-const ELEME_PATH = "";
+const ELEME_APP_ID = "wxece3a9a4c82f58c9";
+const ELEME_PATH = "ele-recommend-price/pages/guest/index?inviterId=64e1965&chInfo=ch_wechat_chsub_CopyLink&_ltracker_f=ch_wechat_grzx_cp_tjyj";
 const ELEME_ENV = "release";
 
 const WEEKDAY_LABELS = {
@@ -185,6 +186,7 @@ Page({
   },
 
   onLoad() {
+    this.loadCheckinFont();
     const stored = loadStoredProfile() || {};
     const normalized = normalizeProfileData(stored, { storedProfile: stored, apiBase: resolveApiBase() });
     this.setData({
@@ -205,6 +207,22 @@ Page({
     this.loadCheckinDetail();
     this.initCheckinSubscription().catch((err) => {
       console.warn("initCheckinSubscription onShow failed", err);
+    });
+  },
+
+  loadCheckinFont() {
+    if (typeof wx === "undefined" || typeof wx.loadFontFace !== "function") return;
+    const apiBase = resolveApiBase();
+    const fontUrl = buildFileDownloadUrl("zh.subset.woff2", { apiBase });
+    if (!fontUrl) return;
+    wx.loadFontFace({
+      family: "ZhSubset",
+      source: `url("${fontUrl}")`,
+      global: false,
+      success: () => {},
+      fail: (err) => {
+        console.warn("loadCheckinFont failed", err);
+      }
     });
   },
 
