@@ -131,9 +131,14 @@ button.checkin-back::after {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: calc(100% + 0rpx);
+  height: 100%;
   z-index: 0;
   transform: translateY(-70rpx);
+  transform-origin: top center;
+}
+
+.checkin-card--no-banner .checkin-card-bg {
+  transform: translateY(-70rpx) scaleY(0.92);
 }
 
 .checkin-card-top {
@@ -215,7 +220,7 @@ button.checkin-back::after {
 }
 
 .checkin-card-body--no-banner {
-  transform: translateY(60rpx);
+  transform: translateY(50rpx);
 }
 
 .checkin-day-card {
@@ -261,6 +266,7 @@ button.checkin-back::after {
   width: 72rpx;
   height: 72rpx;
   transform-origin: center;
+  transform: scale(1.24);
 }
 
 .checkin-turntable.is-breathing .checkin-turntable-image {
@@ -275,7 +281,7 @@ button.checkin-back::after {
 
 @keyframes checkinTurntableBreath {
   0% {
-    transform: scale(1);
+    transform: scale(1.1);
     filter: none;
   }
   50% {
@@ -283,7 +289,7 @@ button.checkin-back::after {
     filter: none;
   }
   100% {
-    transform: scale(1);
+    transform: scale(1.1);
     filter: none;
   }
 }
@@ -436,6 +442,10 @@ button.checkin-back::after {
   box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.08);
 }
 
+.checkin-task-card--no-banner {
+  margin-top: -100rpx;
+}
+
 .checkin-task-title {
   font-size: 32rpx;
   font-weight: 600;
@@ -542,7 +552,7 @@ button.checkin-back::after {
 
 .checkin-lottery-card {
   position: relative;
-  width: 520rpx;
+  width: 650rpx;
   height: 694rpx;
   background: transparent;
 }
@@ -556,18 +566,18 @@ button.checkin-back::after {
 
 .checkin-lottery-spray {
   position: absolute;
-  bottom: 60rpx;
-  left: -20rpx;
-  width: 200rpx;
+  bottom: 0rpx;
+  left: -10rpx;
+  width: 280rpx;
   z-index: 3;
   animation: checkinFlyInBottom 1s ease-out both;
 }
 
 .checkin-lottery-title {
   position: absolute;
-  top: 10rpx;
+  top: -50rpx;
   left: 80%;
-  width: 180rpx;
+  width: 280rpx;
   transform: translateX(-50%);
   z-index: 2;
   animation: checkinFlyInTop 1s ease-out both;
@@ -575,24 +585,24 @@ button.checkin-back::after {
 
 .checkin-lottery-grid {
   position: absolute;
-  left: 96rpx;
-  top: 166rpx;
-  width: 328rpx;
-  height: 352rpx;
+  left: 136.4rpx;
+  top: 134.9rpx;
+  width: 391.6rpx;
+  height: 421.7rpx;
   display: grid;
-  grid-template-columns: repeat(3, 100rpx);
-  grid-template-rows: repeat(3, 108rpx);
-  gap: 14rpx;
+  grid-template-columns: repeat(3, 120.9rpx);
+  grid-template-rows: repeat(3, 129.1rpx);
+  gap: 17.2rpx 14.4rpx;
   align-items: center;
   justify-items: center;
 }
 
 .checkin-lottery-result {
   position: absolute;
-  left: 96rpx;
-  top: 166rpx;
-  width: 328rpx;
-  height: 352rpx;
+  left: 136.4rpx;
+  top: 134.9rpx;
+  width: 391.6rpx;
+  height: 421.7rpx;
   z-index: 4;
   display: flex;
   align-items: center;
@@ -602,11 +612,11 @@ button.checkin-back::after {
 .checkin-lottery-frost {
   position: absolute;
   inset: 0;
-  border-radius: 22rpx;
+  border-radius: 24rpx;
   background: rgba(255, 255, 255, 0.22);
   border: 1rpx solid rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(16rpx);
-  -webkit-backdrop-filter: blur(16rpx);
+  backdrop-filter: blur(18.8rpx);
+  -webkit-backdrop-filter: blur(18.8rpx);
 }
 
 .checkin-lottery-result-content {
@@ -615,38 +625,38 @@ button.checkin-back::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12rpx;
+  gap: 14rpx;
 }
 
 .checkin-lottery-result-image {
-  width: 180rpx;
-  height: 180rpx;
+  width: 195rpx;
+  height: 195rpx;
 }
 
 .checkin-lottery-result-text {
-  font-size: 24rpx;
+  font-size: 26rpx;
   font-weight: 600;
   color: #1b1f26;
-  text-shadow: 0 4rpx 10rpx rgba(255, 255, 255, 0.8);
+  text-shadow: 0 4.5rpx 11.5rpx rgba(255, 255, 255, 0.8);
   animation: checkinLotteryPulse 1.8s ease-in-out infinite;
 }
 
 .checkin-lottery-claim {
-  width: 200rpx !important;
-  height: 56rpx;
+  width: 216.7rpx !important;
+  height: 60.6rpx;
   border-radius: 999rpx;
   background: #0f1216;
   color: #fff;
-  font-size: 26rpx !important;
+  font-size: 28rpx !important;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  margin-top: 6rpx;
+  margin-top: 6.5rpx;
   padding: 0;
   min-width: 0;
-  line-height: 56rpx;
+  line-height: 60.6rpx;
   align-self: center;
   box-sizing: border-box;
 }
@@ -656,31 +666,31 @@ button.checkin-back::after {
 }
 
 .checkin-lottery-cell {
-  width: 100rpx;
-  height: 108rpx;
+  width: 120.9rpx;
+  height: 129.1rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .checkin-lottery-prize-card {
-  width: 100rpx;
-  height: 108rpx;
-  border-radius: 18rpx;
+  width: 120.9rpx;
+  height: 129.1rpx;
+  border-radius: 23.4rpx;
   background: transparent;
   box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4rpx;
+  gap: 4.3rpx;
   transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .checkin-lottery-prize-card.is-active {
   background: rgba(255, 221, 138, 0.55);
-  box-shadow: 0 10rpx 22rpx rgba(255, 198, 92, 0.4);
-  transform: translateY(5rpx);
+  box-shadow: 0 10.8rpx 23.8rpx rgba(255, 198, 92, 0.4);
+  transform: translateY(5.4rpx);
 }
 
 .checkin-lottery-prize-card.is-active .checkin-lottery-text {
@@ -688,19 +698,20 @@ button.checkin-back::after {
 }
 
 .checkin-lottery-button {
-  width: 107rpx;
-  height: 108rpx;
-  border-radius: 18rpx;
-  font-size: 30rpx;
+  width: 161.6rpx;
+  height: 142rpx;
+  border-radius: 24rpx;
+  font-size: 32.5rpx;
   font-weight: 800;
-  letter-spacing: 2rpx;
+  letter-spacing: 2.4rpx;
   color: #7a4a00;
   background: transparent;
   border: none;
-  line-height: 108rpx;
+  line-height: 142rpx;
   padding: 0;
-  text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.5);
-  transform: translate(3rpx, 4rpx);
+  text-shadow: 0 2.2rpx 6.9rpx rgba(255, 255, 255, 0.5);
+  margin-left: 0 !important;
+  transform: translateY(-0.5rpx);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -715,33 +726,67 @@ button.checkin-back::after {
   transition: transform 120ms ease, letter-spacing 120ms ease, text-shadow 120ms ease;
 }
 
+.checkin-lottery-button-text--android {
+  margin-left: 2rpx;
+}
+
+.checkin-lottery-button-text--ios {
+  margin-left: -10rpx;
+}
+
 .checkin-lottery-button-text.is-active {
   transform: scale(0.92);
-  letter-spacing: 1rpx;
+  letter-spacing: 1.1rpx;
   text-shadow: 0 1rpx 3rpx rgba(255, 255, 255, 0.35);
 }
 
 .checkin-lottery-coin {
-  width: 54rpx;
-  height: 54rpx;
+  width: 58.5rpx;
+  height: 58.5rpx;
+}
+
+.checkin-lottery-coin--non-flp {
+  border-radius: 999rpx;
+  overflow: hidden;
+  transform: scale(1.12);
+}
+
+.checkin-lottery-coin--non-flp-low {
+  transform: scale(1.22);
+}
+
+.checkin-lottery-coin--non-flp-lowest {
+  transform: scale(1.34);
+  animation: checkinLotteryImageBlinkScale 1.6s ease-in-out infinite;
+}
+
+.checkin-lottery-text--non-flp {
+  font-size: 16rpx;
+}
+
+.checkin-lottery-text--non-flp.checkin-lottery-text--low,
+.checkin-lottery-text--non-flp.checkin-lottery-text--lowest {
+  font-size: 16rpx;
+  animation: none;
+  transform: none;
 }
 
 .checkin-lottery-text {
-  font-size: 18rpx;
+  font-size: 19.5rpx;
   font-weight: 700;
   color: #8fa5cc;
-  margin-top: 6rpx;
-  letter-spacing: 1rpx;
+  margin-top: 6.5rpx;
+  letter-spacing: 1.1rpx;
 }
 
 .checkin-lottery-text--low {
-  font-size: 26rpx;
+  font-size: 28.2rpx;
   font-weight: 800;
   color: #1b1f26;
 }
 
 .checkin-lottery-text--lowest {
-  font-size: 32rpx;
+  font-size: 34.7rpx;
   font-weight: 900;
   color: transparent;
   background-image: linear-gradient(120deg, #a87312 0%, #d2a84a 35%, #8b5c0f 70%, #f0d28a 100%);
@@ -749,6 +794,18 @@ button.checkin-back::after {
   -webkit-background-clip: text;
   text-shadow: 0 2rpx 6rpx rgba(255, 255, 255, 0.5);
   animation: checkinLotteryBreath 1.6s ease-in-out infinite;
+}
+
+@keyframes checkinLotteryImageBlinkScale {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1.34);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.48);
+  }
 }
 
 @keyframes checkinLotteryBreath {

@@ -23,7 +23,7 @@ const {
 } = require("../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../utils/markers");
 
-const MAP_PAGE_PATH = "/pages/map/map";
+const CHECKIN_PAGE_PATH = "/pages/profile/checkin/index";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
 const ELEME_PATH = "ele-recommend-price/pages/guest/index?inviterId=64e1965&chInfo=ch_wechat_chsub_CopyLink&_ltracker_f=ch_wechat_grzx_cp_tjyj";
 const ELEME_ENV = "release";
@@ -182,10 +182,10 @@ function buildLotteryDisplay(entries = [], apiBase) {
 }
 
 function shouldEnableTurntable({ todayDate, continuousDays, hasDrawToday }) {
-  // if (!todayDate) return false;
-  // const parsed = parseDate(todayDate);
-  // const isSunday = parsed ? parsed.getDay() === 0 : false;
-  // return isSunday && Number(continuousDays) >= 7 && !hasDrawToday;
+  if (!todayDate) return false;
+  const parsed = parseDate(todayDate);
+  const isSunday = parsed ? parsed.getDay() === 0 : false;
+  return isSunday && Number(continuousDays) >= 7 && !hasDrawToday;
   return true
 }
 
@@ -209,10 +209,20 @@ Page({
     isLotteryFinished: false,
     lotteryResultText: "",
     lotteryResultImage: "",
-    canLotteryToday: false
+    lotteryResultIsFlp: true,
+    canLotteryToday: false,
+    isAndroid: false,
+    isIOS: false
   },
 
   onLoad() {
+    if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
+      const system = (wx.getSystemInfoSync()?.system || "").toLowerCase();
+      this.setData({
+        isAndroid: system.includes("android"),
+        isIOS: system.includes("ios")
+      });
+    }
     this.loadCheckinFont();
     const stored = loadStoredProfile() || {};
     const normalized = normalizeProfileData(stored, { storedProfile: stored, apiBase: resolveApiBase() });
@@ -246,7 +256,7 @@ Page({
       family: "ZhSubset",
       source: `url("${fontUrl}")`,
       global: false,
-      success: () => {},
+      success: () => { },
       fail: (err) => {
         console.warn("loadCheckinFont failed", err);
       }
@@ -512,7 +522,7 @@ Page({
       const isToday = date === todayDate;
       const parsedDate = parseDate(date);
       const isSunday = parsedDate ? parsedDate.getDay() === 0 : weekdayLabel === "周日";
-      const bonus = isDoubleReward(item.weekday || weekdayLabel);
+      const bonus = !isSunday && isDoubleReward(item.weekday || weekdayLabel);
       const rewardValue = bonus ? 0.2 : 0.1;
       let iconType = "unsigned";
       if (signed) {
@@ -544,12 +554,12 @@ Page({
   },
 
   onTurntableTap() {
-    if (!this.data.canLotteryToday) return;
     this.setData({
       showLotteryModal: true,
       isLotteryFinished: false,
       lotteryResultText: "",
-      lotteryResultImage: ""
+      lotteryResultImage: "",
+      lotteryResultIsFlp: true
     });
     this.loadLotteryConfig();
   },
@@ -580,16 +590,16 @@ Page({
   onShareAppMessage() {
     const inviteCode = getShareInviteCode();
     return {
-      title: "晒晒余额~",
-      path: appendInviteCodeToPath(MAP_PAGE_PATH, { inviteCode })
+      title: "每日签到领FLP，连签还可抽大奖~",
+      path: appendInviteCodeToPath(CHECKIN_PAGE_PATH, { inviteCode })
     };
   },
 
   onShareTimeline() {
     const inviteCode = getShareInviteCode();
     return {
-      title: "晒晒余额~",
-      query: appendInviteCodeToQuery("", { inviteCode })
+      title: "每日签到领FLP，连签还可抽大奖~",
+      query: appendInviteCodeToQuery(CHECKIN_PAGE_PATH, { inviteCode })
     };
   },
 
@@ -630,7 +640,8 @@ Page({
       isLotteryDrawing: false,
       isLotteryFinished: false,
       lotteryResultText: "",
-      lotteryResultImage: ""
+      lotteryResultImage: "",
+      lotteryResultIsFlp: true
     });
   },
 
@@ -639,11 +650,20 @@ Page({
   onLotteryCardTap() { },
 
   onLotteryButtonTap() {
+    if (!this.data.canLotteryToday) {
+      wx.showToast({ title: "连签满7天才可抽奖哦~", icon: "none" });
+      return;
+    }
     if (this.data.isLotteryDrawing) return;
     this._triggerLotteryButtonActive();
     this._lotteryTargetOrderIndex = null;
     this._lotteryResult = null;
-    this.setData({ isLotteryFinished: false, lotteryResultText: "", lotteryResultImage: "" });
+    this.setData({
+      isLotteryFinished: false,
+      lotteryResultText: "",
+      lotteryResultImage: "",
+      lotteryResultIsFlp: true
+    });
     this._startLotterySpin();
     this._requestLotteryDraw();
   },
@@ -720,7 +740,8 @@ Page({
           : (imageUrl ? buildAvatarDownloadUrl(imageUrl, { apiBase }) : "");
         this.setData({
           lotteryResultText: displayText,
-          lotteryResultImage: displayImage
+          lotteryResultImage: displayImage,
+          lotteryResultIsFlp: isFlpPrize
         });
         const level = Number(result.prizeLevel);
         const targetOrderIndex = this._lotteryLevelIndexMap?.get(level);
@@ -875,7 +896,8 @@ Page({
       isLotteryDrawing: false,
       isLotteryFinished: false,
       lotteryResultText: "",
-      lotteryResultImage: ""
+      lotteryResultImage: "",
+      lotteryResultIsFlp: true
     });
     this.refreshFlp();
   },
@@ -898,7 +920,10 @@ Page({
     if (typeof wx.openEmbeddedMiniProgram === "function") {
       wx.openEmbeddedMiniProgram({
         ...options,
-        fail: () => {
+        fail: (err = {}) => {
+          if (typeof err.errMsg === "string" && err.errMsg.toLowerCase().includes("cancel")) {
+            return;
+          }
           if (typeof wx.navigateToMiniProgram === "function") {
             wx.navigateToMiniProgram(options);
             return;

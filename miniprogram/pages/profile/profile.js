@@ -40,7 +40,8 @@ Page({
     likeSummary: { total: "--" },
     showSubscriptionRedDot: false,
     showSubscribeWaitOverlay: false,
-    checkinTodaySigned: false
+    checkinTodaySigned: false,
+    statusBadgeStyle: ""
   },
 
   loadLikeSummary() {
@@ -93,6 +94,7 @@ Page({
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
       nicknameInput: normalized.nickname
     });
+    this.updateStatusBadgeStyle();
     this.reloadProfile();
     this.loadLikeSummary();
     this.loadCheckinStatus();
@@ -102,6 +104,7 @@ Page({
     if (this.data.activeTab !== "profile") {
       this.setData({ activeTab: "profile" });
     }
+    this.updateStatusBadgeStyle();
     const app = typeof getApp === "function" ? getApp() : null;
     if (app && app.globalData) {
       this.setData({
@@ -115,6 +118,27 @@ Page({
 
   onPullDownRefresh() {
     this.reloadProfile({ fromPullDown: true });
+  },
+
+  updateStatusBadgeStyle() {
+    if (typeof wx.getMenuButtonBoundingClientRect !== "function") return;
+    const menuRect = wx.getMenuButtonBoundingClientRect();
+    if (!menuRect || !menuRect.left) return;
+    const systemInfo = typeof wx.getSystemInfoSync === "function" ? wx.getSystemInfoSync() : null;
+    const screenWidth = systemInfo?.screenWidth;
+    if (!screenWidth) return;
+    const rpx = screenWidth / 750;
+    const badgeWidth = 150 * rpx;
+    const badgeHeight = 50 * rpx;
+    const gap = 40 * rpx;
+    const badgeRight = menuRect.left - gap;
+    let left = badgeRight - badgeWidth;
+    const minLeft = 12 * rpx;
+    if (left < minLeft) left = minLeft;
+    const top = menuRect.top + (menuRect.height - badgeHeight) / 2;
+    this.setData({
+      statusBadgeStyle: `left:${left.toFixed(2)}px;top:${top.toFixed(2)}px;right:auto;`
+    });
   },
 
   reloadProfile(options = {}) {

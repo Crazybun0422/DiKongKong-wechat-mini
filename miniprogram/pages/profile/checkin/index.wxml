@@ -24,7 +24,7 @@
     </view>
   </view>
 
-  <view class="checkin-card">
+  <view class="checkin-card {{showCheckinSubscriptionBanner ? '' : 'checkin-card--no-banner'}}">
     <image class="checkin-card-bg" src="/pages/profile/assets/checkin-card-shape.svg" mode="scaleToFill" />
     <view class="checkin-card-content">
     <view class="checkin-card-top">
@@ -105,7 +105,7 @@
     </view>
   </view>
 
-  <view class="checkin-task-card">
+  <view class="checkin-task-card {{showCheckinSubscriptionBanner ? '' : 'checkin-task-card--no-banner'}}">
     <view class="checkin-task-title">每日任务</view>
     <view class="checkin-task-item">
       <view class="checkin-task-info">
@@ -141,13 +141,18 @@
               class="checkin-lottery-button"
               bindtap="onLotteryButtonTap"
             >
-              <text class="checkin-lottery-button-text {{lotteryButtonActive ? 'is-active' : ''}}">抽奖</text>
+              <text class="checkin-lottery-button-text {{lotteryButtonActive ? 'is-active' : ''}} {{isAndroid ? 'checkin-lottery-button-text--android' : (isIOS ? 'checkin-lottery-button-text--ios' : '')}}">抽奖</text>
             </button>
           </view>
           <view wx:else class="checkin-lottery-cell">
             <view class="checkin-lottery-prize-card {{lotteryActiveIndex === index ? 'is-active' : ''}}">
-              <image wx:if="{{item && item.displayImageUrl}}" class="checkin-lottery-coin" src="{{item.displayImageUrl}}" mode="aspectFit" />
-              <text class="checkin-lottery-text {{item && item.isLowestProbability ? 'checkin-lottery-text--lowest' : (item && item.isLowProbability ? 'checkin-lottery-text--low' : '')}}">{{item ? item.displayText : ''}}</text>
+              <image
+                wx:if="{{item && item.displayImageUrl}}"
+                class="checkin-lottery-coin {{item && !item.flp ? 'checkin-lottery-coin--non-flp' : ''}} {{item && !item.flp && item.isLowestProbability ? 'checkin-lottery-coin--non-flp-lowest' : (item && !item.flp && item.isLowProbability ? 'checkin-lottery-coin--non-flp-low' : '')}}"
+                src="{{item.displayImageUrl}}"
+                mode="aspectFit"
+              />
+              <text class="checkin-lottery-text {{item && item.isLowestProbability ? 'checkin-lottery-text--lowest' : (item && item.isLowProbability ? 'checkin-lottery-text--low' : '')}} {{item && !item.flp ? 'checkin-lottery-text--non-flp' : ''}}">{{item ? item.displayText : ''}}</text>
             </view>
           </view>
         </block>
