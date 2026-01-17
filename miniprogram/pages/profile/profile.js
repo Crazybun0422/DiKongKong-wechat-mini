@@ -522,8 +522,20 @@ Page({
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     const canGoBack = typeof wx.navigateBack === "function" && pages.length > 1;
     if (canGoBack) {
-      wx.navigateBack({ delta: 1 });
-      return;
+      const prevRoute = pages[pages.length - 2]?.route || "";
+      if (prevRoute === "pages/profile/checkin/index") {
+        if (typeof wx.reLaunch === "function") {
+          wx.reLaunch({ url: "/pages/map/map" });
+          return;
+        }
+        if (typeof wx.redirectTo === "function") {
+          wx.redirectTo({ url: "/pages/map/map" });
+          return;
+        }
+      } else {
+        wx.navigateBack({ delta: 1 });
+        return;
+      }
     }
     if (typeof wx.reLaunch === "function") {
       wx.reLaunch({ url: "/pages/map/map" });

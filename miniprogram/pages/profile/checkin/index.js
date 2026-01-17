@@ -223,6 +223,7 @@ Page({
         isIOS: system.includes("ios")
       });
     }
+    this.setData({ pageLoading: true });
     this.loadCheckinFont();
     const stored = loadStoredProfile() || {};
     const normalized = normalizeProfileData(stored, { storedProfile: stored, apiBase: resolveApiBase() });
@@ -230,9 +231,15 @@ Page({
       flpDisplay: normalized.flpDisplay || "--"
     });
     this.loadLotteryConfig({ fallbackOnly: true });
-    this.loadAllData({ showPageLoading: true }).finally(() => {
-      this._initialLoadDone = true;
-    });
+    this.ensureValidToken()
+      .catch((err) => {
+        console.warn("checkin ensureValidToken failed", err);
+      })
+      .finally(() => {
+        this.loadAllData({ showPageLoading: true }).finally(() => {
+          this._initialLoadDone = true;
+        });
+      });
     this.initCheckinSubscription().catch((err) => {
       console.warn("initCheckinSubscription failed", err);
     });
@@ -277,7 +284,7 @@ Page({
   refreshFlp() {
     const apiBase = resolveApiBase();
     if (!apiBase) return Promise.resolve();
-    return fetchUserProfile({ apiBase })
+    return this.runWithLoginRetry(() => fetchUserProfile({ apiBase }))
       .then((profile) => {
         const normalized = normalizeProfileData(profile, {
           storedProfile: loadStoredProfile() || {},
@@ -291,11 +298,65 @@ Page({
       });
   },
 
+  ensureAccessToken(options = {}) {
+    if (getAuthToken()) {
+      return Promise.resolve();
+    }
+    if (this._ensureLoginPromise) {
+      return this._ensureLoginPromise;
+    }
+    if (typeof getApp !== "function") {
+      return Promise.reject(new Error("login-unavailable"));
+    }
+    const app = getApp();
+    if (!app || typeof app.loginWithProfile !== "function") {
+      return Promise.reject(new Error("login-unavailable"));
+    }
+    const profile = options.profileOverride || loadStoredProfile() || {};
+    this._ensureLoginPromise = app
+      .loginWithProfile(profile)
+      .catch((err) => {
+        throw err || new Error("login-failed");
+      })
+      .finally(() => {
+        this._ensureLoginPromise = null;
+      });
+    return this._ensureLoginPromise;
+  },
+
+  ensureValidToken(options = {}) {
+    const token = getAuthToken();
+    if (!token) {
+      return this.ensureAccessToken(options);
+    }
+    if (typeof getApp !== "function") {
+      return Promise.resolve();
+    }
+    const app = getApp();
+    if (app && typeof app.validateStoredToken === "function") {
+      return app.validateStoredToken(token);
+    }
+    return Promise.resolve();
+  },
+
+  runWithLoginRetry(task, options = {}) {
+    const allowRetry = options.allowRetry !== false;
+    return Promise.resolve()
+      .then(() => task())
+      .catch((err) => {
+        if (allowRetry && err?.message === "missing-token") {
+          return this.ensureAccessToken()
+            .then(() => this.runWithLoginRetry(task, { allowRetry: false }));
+        }
+        throw err;
+      });
+  },
+
   loadCheckinDetail() {
     const apiBase = resolveApiBase();
     const todayDate = formatDate(new Date());
     this.setData({ loading: true, error: "", todayDate });
-    return fetchCheckinDetail({ apiBase })
+    return this.runWithLoginRetry(() => fetchCheckinDetail({ apiBase }))
       .then((detail = {}) => {
         const weekDays = this.buildWeekDays(detail, todayDate);
         const canCheckinToday = !detail.todaySigned && weekDays.some((item) => item.isToday);
