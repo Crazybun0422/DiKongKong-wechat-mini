@@ -1,4 +1,5 @@
 ﻿const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+const { completeNewbieTask } = require("../../../utils/newbie-tasks");
 const { fetchLotteryConfig, drawLottery, fetchLotteryLogs } = require("../../../utils/lottery");
 const {
   fetchUserProfile,
@@ -626,8 +627,17 @@ Page({
   },
 
   onCheckinTap() {
-    if (!this.data.canCheckinToday) return;
     const apiBase = resolveApiBase();
+    const app = typeof getApp === "function" ? getApp() : null;
+    const guideActive = !!(app && app.globalData && app.globalData.checkinGuide?.active);
+    if (guideActive) {
+      completeNewbieTask(2, { apiBase, token: getAuthToken() })
+        .catch((err) => {
+          console.warn("complete newbie task 2 failed", err);
+        });
+      app.globalData.checkinGuide = { active: false, step: "" };
+    }
+    if (!this.data.canCheckinToday) return;
     const showLoading = typeof wx.showLoading === "function";
     const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
     if (showLoading) wx.showLoading({ title: "签到中...", mask: true });

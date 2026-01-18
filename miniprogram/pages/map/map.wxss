@@ -754,6 +754,47 @@ button.search-btn::after {
   pointer-events: none;
 }
 
+button.newbie-gift-entry {
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 50%;
+  background: rgba(244, 140, 151, 0.85);
+  box-shadow: 0 14rpx 26rpx rgba(0, 0, 0, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  pointer-events: auto;
+  transform: translateY(-50rpx);
+  animation: newbie-gift-breathe 1.8s ease-in-out infinite;
+}
+
+button.newbie-gift-entry::after {
+  border: 0;
+}
+
+.newbie-gift-entry-icon {
+  width: 72rpx;
+  height: 72rpx;
+  transform: translateX(5rpx);
+}
+
+@keyframes newbie-gift-breathe {
+  0% {
+    transform: translateY(-50rpx) scale(0.92);
+    box-shadow: 0 8rpx 18rpx rgba(244, 140, 151, 0.24);
+  }
+  50% {
+    transform: translateY(-50rpx) scale(1.06);
+    box-shadow: 0 22rpx 38rpx rgba(244, 140, 151, 0.52);
+  }
+  100% {
+    transform: translateY(-50rpx) scale(0.92);
+    box-shadow: 0 8rpx 18rpx rgba(244, 140, 151, 0.24);
+  }
+}
+
 button.dashboard-toggle,
 button.marker-button,
 button.layer-button,
@@ -2265,4 +2306,41 @@ button.panorama-button::after,
 
 .invite-btn.primary:disabled {
   opacity: 0.6;
+}
+
+.checkin-guide-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: transparent;
+  z-index: 240;
+}
+
+.checkin-guide-mask-top {
+  top: 0;
+}
+
+.checkin-guide-mask-left {
+  left: 0;
+  right: auto;
+}
+
+.checkin-guide-mask-right {
+  right: 0;
+}
+
+.checkin-guide-mask-bottom {
+  bottom: 0;
+}
+
+.checkin-guide-ring {
+  position: fixed;
+  display: none;
+}
+
+.checkin-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 239;
+  pointer-events: none;
 }

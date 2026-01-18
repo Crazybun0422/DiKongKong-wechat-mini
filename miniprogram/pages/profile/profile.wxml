@@ -8,7 +8,12 @@
       <image class="subscribe-wait-image" src="/pages/profile/assets/introduction_bg.png" mode="widthFix" />
     </view>
   </view>
-  <view class="status-breath-button {{checkinTodaySigned ? '' : 'is-breathing'}}" style="{{statusBadgeStyle}}" bindtap="onCheckinEntryTap">
+  <view
+    class="status-breath-button {{checkinTodaySigned ? '' : 'is-breathing'}}"
+    style="{{statusBadgeStyle}}"
+    bindtap="onCheckinEntryTap"
+    id="checkin-entry-btn"
+  >
     <image
       class="status-breath-image"
       src="{{checkinTodaySigned ? '/pages/profile/assets/status-check-in.png' : '/pages/profile/assets/status-uncheck-in.png'}}"
@@ -174,6 +179,36 @@
       <image class="chat-fab-icon" src="/assets/ai-chat.png" mode="aspectFit" />
     </button>
   </view>
+
+  <block wx:if="{{showCheckinGuideProfile}}">
+    <view class="checkin-guide-overlay" style="{{checkinGuideOverlayStyle}}"></view>
+    <view class="checkin-guide-mask checkin-guide-mask-top" style="height: {{checkinGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-left"
+      style="top: {{checkinGuideMask.top}}px; height: {{checkinGuideMask.size}}px; width: {{checkinGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-right"
+      style="top: {{checkinGuideMask.top}}px; height: {{checkinGuideMask.size}}px; left: {{checkinGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-bottom"
+      style="top: {{checkinGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-ring"
+      style="left: {{checkinGuideMask.left}}px; top: {{checkinGuideMask.top}}px; width: {{checkinGuideMask.size}}px; height: {{checkinGuideMask.size}}px;"
+    ></view>
+    <image
+      class="checkin-guide-introduce"
+      src="/assets/right_introduce.png"
+      mode="widthFix"
+      style="left: {{checkinGuideIntroduce.left}}px; top: {{checkinGuideIntroduce.top}}px;"
+    />
+  </block>
 </view>
 
 

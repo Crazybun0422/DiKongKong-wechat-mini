@@ -1,4 +1,9 @@
 {
-  "usingComponents": {},
+  "usingComponents": {
+    "newbie-task-popup": "/packages/newbie-task/components/newbie-task-popup/index"
+  },
+  "componentPlaceholder": {
+    "newbie-task-popup": "view"
+  },
   "navigationStyle": "custom"
 }

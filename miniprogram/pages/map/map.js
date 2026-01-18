@@ -641,6 +641,16 @@ Page({
     showDashboardPanel: true,
     activeTab: "home",
     showProfileRedDot: false,
+    showNewbieGiftEntry: false,
+    showCheckinGuideMap: false,
+    checkinGuideOverlayStyle: "",
+    checkinGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    },
     showSubscriptionBanner: false,
     subscriptionBannerLoading: false,
     showSubscribeWaitOverlay: false,
@@ -2820,10 +2830,88 @@ Page({
     this.consumePendingMarkerFocus({ source: "show" });
     this.consumePendingPinPreview();
     this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
+    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "map") {
+      this.showCheckinGuideOnMap();
+    } else if (this.data.showCheckinGuideMap) {
+      this.setData({ showCheckinGuideMap: false });
+    }
   },
 
   onHide() {
     this.clearPinPreview();
+  },
+
+  noop() { },
+
+  onCheckinGuideStart() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.checkinGuide = { active: true, step: "map" };
+    }
+    this.showCheckinGuideOnMap();
+  },
+
+  showCheckinGuideOnMap() {
+    if (this.data.showCheckinGuideMap) return;
+    this.measureCheckinGuideTarget()
+      .then((mask) => {
+        if (!mask) return;
+        const overlayStyle = this.buildGuideOverlayStyle(mask);
+        this.setData({ showCheckinGuideMap: true, checkinGuideMask: mask, checkinGuideOverlayStyle: overlayStyle });
+      })
+      .catch((err) => {
+        console.warn("measure checkin guide target failed", err);
+      });
+  },
+
+  measureCheckinGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#menu-profile-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = Math.max(0, mask.size / 2 - 30);
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
+  },
+
+  onNewbieTaskStateChange(event) {
+    const detail = event?.detail || {};
+    this.setData({ showNewbieGiftEntry: !!detail.showGiftEntry });
+  },
+
+  onNewbieGiftTap() {
+    const popup = this.selectComponent("#newbie-task-popup");
+    if (popup && typeof popup.openFromEntry === "function") {
+      popup.openFromEntry();
+    }
   },
 
   onUnload() {
@@ -2842,6 +2930,7 @@ Page({
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
   },
+
 
   handleWorkGroupInviteOptions(options = {}) {
     const payload = extractWorkGroupInvite(options);
@@ -3085,6 +3174,13 @@ Page({
   onMenuProfileTap() {
     if (this.data.activeTab !== "profile") {
       this.setData({ activeTab: "profile" });
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.checkinGuide?.active) {
+      app.globalData.checkinGuide = { active: true, step: "profile" };
+      if (this.data.showCheckinGuideMap) {
+        this.setData({ showCheckinGuideMap: false });
+      }
     }
     const loadingShown = typeof wx !== "undefined" && typeof wx.showLoading === "function";
     const hideLoading = typeof wx !== "undefined" && typeof wx.hideLoading === "function"

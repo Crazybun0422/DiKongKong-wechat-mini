@@ -259,6 +259,51 @@ button.profile-avatar-button::after {
   background: rgba(0, 0, 0, 0.08);
 }
 
+.checkin-guide-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: transparent;
+  z-index: 240;
+}
+
+.checkin-guide-mask-top {
+  top: 0;
+}
+
+.checkin-guide-mask-left {
+  left: 0;
+  right: auto;
+}
+
+.checkin-guide-mask-right {
+  right: 0;
+}
+
+.checkin-guide-mask-bottom {
+  bottom: 0;
+}
+
+.checkin-guide-ring {
+  position: fixed;
+  display: none;
+}
+
+.checkin-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 239;
+  pointer-events: none;
+}
+
+.checkin-guide-introduce {
+  position: fixed;
+  width: 180rpx;
+  transform: translateY(-50rpx);
+  z-index: 241;
+  pointer-events: none;
+}
+
 .profile-card {
   display: flex;
   align-items: center;

@@ -28,6 +28,12 @@
         "pin-picker/index",
         "workgroup-members/index"
       ]
+    },
+    {
+      "root": "packages/newbie-task",
+      "pages": [
+        "placeholder/index"
+      ]
     }
   ],
   "window": {

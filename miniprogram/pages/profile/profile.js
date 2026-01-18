@@ -41,7 +41,20 @@ Page({
     showSubscriptionRedDot: false,
     showSubscribeWaitOverlay: false,
     checkinTodaySigned: false,
-    statusBadgeStyle: ""
+    statusBadgeStyle: "",
+    showCheckinGuideProfile: false,
+    checkinGuideOverlayStyle: "",
+    checkinGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    },
+    checkinGuideIntroduce: {
+      left: 0,
+      top: 0
+    }
   },
 
   loadLikeSummary() {
@@ -114,6 +127,11 @@ Page({
     }
     this.refreshSubscriptionRedDot();
     this.loadCheckinStatus();
+    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "profile") {
+      this.showCheckinGuideProfile();
+    } else if (this.data.showCheckinGuideProfile) {
+      this.setData({ showCheckinGuideProfile: false });
+    }
   },
 
   onPullDownRefresh() {
@@ -600,10 +618,73 @@ Page({
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
     }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.checkinGuide?.active) {
+      app.globalData.checkinGuide = { active: true, step: "checkin" };
+      if (this.data.showCheckinGuideProfile) {
+        this.setData({ showCheckinGuideProfile: false });
+      }
+    }
     wx.navigateTo({ url: "/pages/profile/checkin/index" });
     this.ensureCheckinSubscriptionOnEntry().catch((err) => {
       console.warn("ensureCheckinSubscriptionOnEntry failed", err);
     });
+  },
+
+  noop() {},
+
+  showCheckinGuideProfile() {
+    this.measureCheckinEntryTarget()
+      .then((result) => {
+        if (!result) return;
+        this.setData({
+          showCheckinGuideProfile: true,
+          checkinGuideMask: result.mask,
+          checkinGuideIntroduce: result.introduce,
+          checkinGuideOverlayStyle: this.buildGuideOverlayStyle(result.mask)
+        });
+      })
+      .catch((err) => {
+        console.warn("showCheckinGuideProfile failed", err);
+      });
+  },
+
+  measureCheckinEntryTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#checkin-entry-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const rpx = system.windowWidth / 750;
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        const introduceLeft = Math.max(0, left - 14 - 150 * rpx);
+        const introduceTop = Math.min(system.windowHeight, top + size + 12);
+        resolve({
+          mask: { top, left, size, rightLeft, bottomTop },
+          introduce: { left: introduceLeft, top: introduceTop }
+        });
+      });
+    });
+  },
+
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = mask.size / 2;
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
   },
 
   ensureCheckinSubscriptionOnEntry() {
