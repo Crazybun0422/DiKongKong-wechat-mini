@@ -296,6 +296,42 @@ button.profile-avatar-button::after {
   pointer-events: none;
 }
 
+.invite-guide-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: transparent;
+  z-index: 240;
+}
+
+.invite-guide-mask-top {
+  top: 0;
+}
+
+.invite-guide-mask-left {
+  left: 0;
+  right: auto;
+}
+
+.invite-guide-mask-right {
+  right: 0;
+}
+
+.invite-guide-mask-bottom {
+  bottom: 0;
+}
+
+.invite-guide-rect {
+  position: fixed;
+  border: 2rpx solid rgba(255, 255, 255, 0.9);
+  border-radius: 40rpx;
+  box-sizing: border-box;
+  background: transparent;
+  box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 241;
+}
+
 .checkin-guide-introduce {
   position: fixed;
   width: 180rpx;

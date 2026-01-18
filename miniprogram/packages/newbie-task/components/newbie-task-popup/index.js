@@ -1,5 +1,11 @@
-const { fetchNewbieTasks, closeNewbieTaskPopup, completeNewbieTask } = require("../../../../utils/newbie-tasks");
+const {
+  fetchNewbieTasks,
+  closeNewbieTaskPopup,
+  completeNewbieTask,
+  claimNewbieTaskReward
+} = require("../../../../utils/newbie-tasks");
 const { fetchCheckinDetail } = require("../../../../utils/checkin");
+const { fetchFlpLogs } = require("../../../../utils/flp");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
 
 const POPUP_DURATION_MS = 30 * 1000;
@@ -32,7 +38,8 @@ Component({
     showScrollHint: false,
     rewardAvailable: false,
     showGiftEntry: false,
-    showCountdownTitle: true
+    showCountdownTitle: true,
+    showRewardSuccess: false
   },
   lifetimes: {
     attached() {
@@ -150,6 +157,7 @@ Component({
       });
       this.ensureTaskOneCompleted(tasks);
       this.ensureCheckinTaskCompleted(tasks);
+      this.ensureInviteTaskCompleted(tasks);
     },
     hidePopup(options = {}) {
       if (!this.data.visible) return;
@@ -199,6 +207,55 @@ Component({
     },
     openFromEntry() {
       this.openPopup({ mode: "manual" });
+    },
+    onRewardTap() {
+      if (!this.data.rewardAvailable || this._claimingReward) return;
+      const apiBase = getApiBase();
+      const token = getAuthToken();
+      if (!apiBase || !token) {
+        wx.showToast({ title: "请先登录后领取", icon: "none" });
+        return;
+      }
+      this._claimingReward = true;
+      claimNewbieTaskReward({ apiBase, token })
+        .then((payload = {}) => {
+          const links = Array.isArray(payload.links) ? payload.links : [];
+          const lines = [];
+          links.forEach((link) => {
+            const name = link && link.name ? String(link.name).trim() : "";
+            const url = link && link.url ? String(link.url).trim() : "";
+            if (name) lines.push(`网盘名称:${name}`);
+            if (url) lines.push(`网盘连接:${url}`);
+          });
+          const copyText = lines.join("\n");
+          const afterCopy = () => {
+            this.setData({ rewardAvailable: false, showRewardSuccess: true });
+            this.hidePopup({ persist: false, refresh: false });
+            this.loadTasks();
+          };
+          if (copyText && typeof wx?.setClipboardData === "function") {
+            wx.setClipboardData({
+              data: copyText,
+              showToast: false,
+              success: afterCopy,
+              fail: afterCopy
+            });
+          } else {
+            afterCopy();
+          }
+        })
+        .catch((err) => {
+          const message = err?.message === "missing-token" ? "请先登录后领取" : "领取失败，请稍后再试";
+          wx.showToast({ title: message, icon: "none" });
+        })
+        .finally(() => {
+          this._claimingReward = false;
+        });
+    },
+    onRewardSuccessClose() {
+      if (this.data.showRewardSuccess) {
+        this.setData({ showRewardSuccess: false });
+      }
     },
     ensureTaskOneCompleted(tasksOverride) {
       if (this._completingOne) return;
@@ -351,12 +408,21 @@ Component({
       }
       if (index === 3) {
         this.startVideoTask();
+        return;
+      }
+      if (index === 4) {
+        this.startInviteGuide();
       }
     },
     startCheckinGuide() {
       if (!this.data.visible) return;
       this.hidePopup({ persist: false, refresh: false });
       this.triggerEvent("checkinguide", { step: "map" });
+    },
+    startInviteGuide() {
+      if (!this.data.visible) return;
+      this.hidePopup({ persist: false, refresh: false });
+      this.triggerEvent("inviteguide", { step: "map" });
     },
     startVideoTask() {
       const apiBase = getApiBase();
@@ -421,6 +487,39 @@ Component({
         })
         .finally(() => {
           this._checkingCheckinStatus = false;
+        });
+    },
+    isInviteRewardLog(entry = {}) {
+      const reason = typeof entry.reason === "string" ? entry.reason : "";
+      const featureCode = typeof entry.featureCode === "string" ? entry.featureCode : "";
+      const source = typeof entry.source === "string" ? entry.source : "";
+      return [reason, featureCode, source].some((value) => /邀请|invite/i.test(value));
+    },
+    ensureInviteTaskCompleted(tasksOverride) {
+      if (this._checkingInviteLogs) return;
+      const tasks = Array.isArray(tasksOverride) ? tasksOverride : this.data.tasks || [];
+      const target = tasks.find((task) => Number(task.index) === 4);
+      if (!target || target.completed) return;
+      const apiBase = getApiBase();
+      const token = getAuthToken();
+      if (!apiBase || !token) return;
+      this._checkingInviteLogs = true;
+      fetchFlpLogs({ page: 0, size: 20 }, { apiBase, token })
+        .then((payload = {}) => {
+          const list = Array.isArray(payload.content) ? payload.content : [];
+          if (!list.some((entry) => this.isInviteRewardLog(entry))) return;
+          return completeNewbieTask(4, { apiBase, token }).then((result = {}) => {
+            this.applyTaskPayload(result);
+            wx.nextTick(() => {
+              this.measureTaskList();
+            });
+          });
+        })
+        .catch((err) => {
+          console.warn("fetch invite flp logs failed", err);
+        })
+        .finally(() => {
+          this._checkingInviteLogs = false;
         });
     }
   }

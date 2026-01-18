@@ -80,7 +80,7 @@
           </view>
         </view>
 
-        <view class="profile-card" bindtap="onFlpCardTap">
+        <view class="profile-card" id="profile-flp-card" bindtap="onFlpCardTap">
           <view class="profile-card-left">
             <text class="profile-card-title">FLP</text>
             <text class="profile-card-value">{{profile.flpDisplay}}</text>
@@ -208,6 +208,28 @@
       mode="widthFix"
       style="left: {{checkinGuideIntroduce.left}}px; top: {{checkinGuideIntroduce.top}}px;"
     />
+  </block>
+  <block wx:if="{{showInviteGuideProfile}}">
+    <view class="invite-guide-mask invite-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-left"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.height}}px; width: {{inviteGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-right"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.height}}px; left: {{inviteGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-bottom"
+      style="top: {{inviteGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-rect"
+      style="left: {{inviteGuideMask.left}}px; top: {{inviteGuideMask.top}}px; width: {{inviteGuideMask.width}}px; height: {{inviteGuideMask.height}}px;"
+    ></view>
   </block>
 </view>
 

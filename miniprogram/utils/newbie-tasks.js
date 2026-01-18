@@ -28,8 +28,18 @@ function completeNewbieTask(index, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function claimNewbieTaskReward(options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/newbie-tasks/reward",
+    method: "POST"
+  }).then((body = {}) => body.data || {});
+}
+
 module.exports = {
   fetchNewbieTasks,
   closeNewbieTaskPopup,
-  completeNewbieTask
+  completeNewbieTask,
+  claimNewbieTaskReward
 };

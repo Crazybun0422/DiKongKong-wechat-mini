@@ -651,6 +651,15 @@ Page({
       rightLeft: 0,
       bottomTop: 0
     },
+    showInviteGuideMap: false,
+    inviteGuideOverlayStyle: "",
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    },
     showSubscriptionBanner: false,
     subscriptionBannerLoading: false,
     showSubscribeWaitOverlay: false,
@@ -2835,6 +2844,11 @@ Page({
     } else if (this.data.showCheckinGuideMap) {
       this.setData({ showCheckinGuideMap: false });
     }
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "map") {
+      this.showInviteGuideOnMap();
+    } else if (this.data.showInviteGuideMap) {
+      this.setData({ showInviteGuideMap: false });
+    }
   },
 
   onHide() {
@@ -2851,6 +2865,14 @@ Page({
     this.showCheckinGuideOnMap();
   },
 
+  onInviteGuideStart() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.inviteGuide = { active: true, step: "map" };
+    }
+    this.showInviteGuideOnMap();
+  },
+
   showCheckinGuideOnMap() {
     if (this.data.showCheckinGuideMap) return;
     this.measureCheckinGuideTarget()
@@ -2864,7 +2886,48 @@ Page({
       });
   },
 
+  showInviteGuideOnMap() {
+    if (this.data.showInviteGuideMap) return;
+    this.measureInviteGuideTarget()
+      .then((mask) => {
+        if (!mask) return;
+        const overlayStyle = this.buildGuideOverlayStyle(mask);
+        this.setData({ showInviteGuideMap: true, inviteGuideMask: mask, inviteGuideOverlayStyle: overlayStyle });
+      })
+      .catch((err) => {
+        console.warn("measure invite guide target failed", err);
+      });
+  },
+
   measureCheckinGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#menu-profile-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  measureInviteGuideTarget() {
     return new Promise((resolve) => {
       const query = wx.createSelectorQuery().in(this);
       query.select("#menu-profile-btn").boundingClientRect();
@@ -3180,6 +3243,12 @@ Page({
       app.globalData.checkinGuide = { active: true, step: "profile" };
       if (this.data.showCheckinGuideMap) {
         this.setData({ showCheckinGuideMap: false });
+      }
+    }
+    if (app && app.globalData && app.globalData.inviteGuide?.active) {
+      app.globalData.inviteGuide = { active: true, step: "profile" };
+      if (this.data.showInviteGuideMap) {
+        this.setData({ showInviteGuideMap: false });
       }
     }
     const loadingShown = typeof wx !== "undefined" && typeof wx.showLoading === "function";

@@ -3,6 +3,7 @@ const { fetchUserProfile, resolveApiBase, loadStoredProfile } = require("../../.
 const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
 const { requestWeappQrcode } = require("../../../../utils/weapp");
+const { completeNewbieTask } = require("../../../../utils/newbie-tasks");
 
 const MAP_PAGE_PATH = "/pages/map/map";
 const SHARE_TITLE = "与uom、大疆100%同步且可视化，还有低空智能体~";
@@ -25,7 +26,16 @@ Page({
     shareImageUrl: "",
     shareTitle: SHARE_TITLE,
     qrImageSource: "",
-    qrImageReady: false
+    qrImageReady: false,
+    showInviteGuideInvite: false,
+    inviteGuideOverlayStyle: "",
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    }
   },
 
   onLoad() {
@@ -40,8 +50,28 @@ Page({
     this.reloadInviteInfo();
   },
 
+  onShow() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "invite") {
+      this.showInviteGuideOnInvite();
+    } else if (this.data.showInviteGuideInvite) {
+      this.setData({ showInviteGuideInvite: false });
+    }
+  },
+
   onPullDownRefresh() {
     this.reloadInviteInfo({ fromPullDown: true });
+  },
+
+  onInviteShareTap() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData || !app.globalData.inviteGuide?.active) {
+      return;
+    }
+    app.globalData.inviteGuide = { active: false, step: "" };
+    if (this.data.showInviteGuideInvite) {
+      this.setData({ showInviteGuideInvite: false });
+    }
   },
 
   reloadInviteInfo(options = {}) {
@@ -106,6 +136,15 @@ Page({
   composeQueryString(inviteCode) {
     const code = this.normalizeInviteCode(inviteCode);
     return appendInviteCodeToQuery("", { inviteCode: code });
+  },
+
+  getAuthToken() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      return (app && app.globalData && app.globalData.token) || "";
+    } catch (err) {
+      return "";
+    }
   },
 
   prepareQrImage(inviteCode, shareLink) {
@@ -438,5 +477,58 @@ Page({
       title: SHARE_TITLE,
       query: this.composeQueryString(this.data.inviteCode)
     };
+  },
+
+  noop() {},
+
+  showInviteGuideOnInvite() {
+    if (this.data.showInviteGuideInvite) return;
+    this.measureInviteGuideTarget()
+      .then((mask) => {
+        if (!mask) return;
+        const overlayStyle = this.buildGuideOverlayStyle(mask);
+        this.setData({ showInviteGuideInvite: true, inviteGuideMask: mask, inviteGuideOverlayStyle: overlayStyle });
+      })
+      .catch((err) => {
+        console.warn("show invite guide invite failed", err);
+      });
+  },
+
+  measureInviteGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#invite-share-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = Math.max(0, mask.size / 2 - 4);
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
   }
 });

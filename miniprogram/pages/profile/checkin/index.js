@@ -971,6 +971,12 @@ Page({
       lotteryResultIsFlp: true
     });
     this.refreshFlp();
+    this.refreshLotteryEligibility({
+      continuousDays: this.data.continuousDays,
+      todayDate: this.data.todayDate
+    }).catch((err) => {
+      console.warn("refreshLotteryEligibility after claim failed", err);
+    });
   },
 
   onInviteFriendTap() {

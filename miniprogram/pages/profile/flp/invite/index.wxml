@@ -20,7 +20,13 @@
     </view> -->
 
     <view class="invite-actions">
-      <button class="invite-action" open-type="share" hover-class="invite-action-hover">
+      <button
+        class="invite-action"
+        id="invite-share-btn"
+        open-type="share"
+        hover-class="invite-action-hover"
+        bindtap="onInviteShareTap"
+      >
         <image class="invite-action-icon" src="/pages/profile/assets/share-wechat.png" mode="aspectFit" />
         <text class="invite-action-text">发给好友</text>
       </button>
@@ -63,6 +69,26 @@
       <button class="invite-error-btn" bindtap="onRetryTap">重试</button>
     </view>
   </view>
+
+  <block wx:if="{{showInviteGuideInvite}}">
+    <view class="invite-guide-overlay" style="{{inviteGuideOverlayStyle}}"></view>
+    <view class="invite-guide-mask invite-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-left"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; width: {{inviteGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-right"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; left: {{inviteGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-bottom"
+      style="top: {{inviteGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+  </block>
 
   <canvas
     canvas-id="invite-qrcode"

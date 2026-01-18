@@ -29,6 +29,7 @@
       id="newbie-task-popup"
       bind:statechange="onNewbieTaskStateChange"
       bind:checkinguide="onCheckinGuideStart"
+      bind:inviteguide="onInviteGuideStart"
     />
     <view
       class="subscription-banner"
@@ -662,6 +663,25 @@
     <view
       class="checkin-guide-ring"
       style="left: {{checkinGuideMask.left}}px; top: {{checkinGuideMask.top}}px; width: {{checkinGuideMask.size}}px; height: {{checkinGuideMask.size}}px;"
+    ></view>
+  </block>
+  <block wx:if="{{showInviteGuideMap}}">
+    <view class="checkin-guide-overlay" style="{{inviteGuideOverlayStyle}}"></view>
+    <view class="checkin-guide-mask checkin-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-left"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; width: {{inviteGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-right"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; left: {{inviteGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-bottom"
+      style="top: {{inviteGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
     ></view>
   </block>
 </view>

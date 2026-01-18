@@ -54,6 +54,15 @@ Page({
     checkinGuideIntroduce: {
       left: 0,
       top: 0
+    },
+    showInviteGuideProfile: false,
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      width: 0,
+      height: 0,
+      rightLeft: 0,
+      bottomTop: 0
     }
   },
 
@@ -132,6 +141,11 @@ Page({
     } else if (this.data.showCheckinGuideProfile) {
       this.setData({ showCheckinGuideProfile: false });
     }
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "profile") {
+      this.showInviteGuideProfile();
+    } else if (this.data.showInviteGuideProfile) {
+      this.setData({ showInviteGuideProfile: false });
+    }
   },
 
   onPullDownRefresh() {
@@ -201,6 +215,12 @@ Page({
           wx.stopPullDownRefresh();
         }
         this.loadLikeSummary();
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "profile") {
+          wx.nextTick(() => {
+            this.showInviteGuideProfile();
+          });
+        }
       });
   },
 
@@ -322,7 +342,6 @@ Page({
 
   onNicknameInputBlur() {
     if (this.data.nicknameSaving) return;
-    console.log("xxxxxxxxxxxxxxxxxxx")
     this.cancelNicknameEdit();
   },
 
@@ -467,6 +486,13 @@ Page({
     if (typeof wx.navigateTo !== "function") {
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.inviteGuide?.active) {
+      app.globalData.inviteGuide = { active: true, step: "flp" };
+      if (this.data.showInviteGuideProfile) {
+        this.setData({ showInviteGuideProfile: false });
+      }
     }
     const balance = this.data.profile?.flpDisplay || "0.00";
     const query = encodeURIComponent(balance);
@@ -631,7 +657,7 @@ Page({
     });
   },
 
-  noop() {},
+  noop() { },
 
   showCheckinGuideProfile() {
     this.measureCheckinEntryTarget()
@@ -685,6 +711,58 @@ Page({
     const edge = Math.max(2, Math.round(radius * 0.04));
     const clearRadius = radius + 1;
     return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
+  },
+
+  showInviteGuideProfile() {
+    this.measureInviteGuideProfileTarget()
+      .then((mask) => {
+        if (!mask) {
+          if (!this._inviteGuideRetryTimer) {
+            this._inviteGuideRetryTimer = setTimeout(() => {
+              this._inviteGuideRetryTimer = null;
+              this.showInviteGuideProfile();
+            }, 200);
+          }
+          return;
+        }
+        this.setData({
+          showInviteGuideProfile: true,
+          inviteGuideMask: mask
+        });
+      })
+      .catch((err) => {
+        console.warn("show invite guide profile failed", err);
+      });
+  },
+
+  measureInviteGuideProfileTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#profile-flp-card").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const width = rect.width + padding * 2;
+        const height = rect.height + padding * 2;
+        const left = Math.max(0, rect.left - padding);
+        const top = Math.max(0, rect.top - padding);
+        const rightLeft = Math.min(system.windowWidth, left + width);
+        const bottomTop = Math.min(system.windowHeight, top + height);
+        resolve({
+          top,
+          left,
+          width,
+          height,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
   },
 
   ensureCheckinSubscriptionOnEntry() {

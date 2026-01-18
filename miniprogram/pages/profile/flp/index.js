@@ -57,7 +57,16 @@ Page({
   data: {
     balance: DEFAULT_BALANCE_DISPLAY,
     detailIcon: "/assets/detais.png",
-    benefits: BENEFIT_ITEMS
+    benefits: BENEFIT_ITEMS,
+    showInviteGuideFlp: false,
+    inviteGuideOverlayStyle: "",
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    }
   },
 
   onLoad(options = {}) {
@@ -68,6 +77,15 @@ Page({
       this.applyStoredBalance();
     }
     this.syncBalanceFromProfile({ silent: true });
+  },
+
+  onShow() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "flp") {
+      this.showInviteGuideOnFlp();
+    } else if (this.data.showInviteGuideFlp) {
+      this.setData({ showInviteGuideFlp: false });
+    }
   },
 
   onPullDownRefresh() {
@@ -115,6 +133,13 @@ Page({
       return;
     }
     if (action === "invite") {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData && app.globalData.inviteGuide?.active) {
+        app.globalData.inviteGuide = { active: true, step: "invite" };
+        if (this.data.showInviteGuideFlp) {
+          this.setData({ showInviteGuideFlp: false });
+        }
+      }
       this.navigateToInvitePage();
     }
   },
@@ -200,6 +225,69 @@ Page({
           wx.stopPullDownRefresh();
         }
       });
+  },
+  noop() { },
+  showInviteGuideOnFlp() {
+    wx.nextTick(() => {
+      this.measureInviteGuideTarget()
+        .then((mask) => {
+          if (!mask) {
+            if ((this._inviteGuideAttempts || 0) < 5 && !this._inviteGuideRetryTimer) {
+              this._inviteGuideAttempts = (this._inviteGuideAttempts || 0) + 1;
+              this._inviteGuideRetryTimer = setTimeout(() => {
+                this._inviteGuideRetryTimer = null;
+                this.showInviteGuideOnFlp();
+              }, 200);
+            }
+            return;
+          }
+          this._inviteGuideAttempts = 0;
+          const overlayStyle = this.buildGuideOverlayStyle(mask);
+          this.setData({ showInviteGuideFlp: true, inviteGuideMask: mask, inviteGuideOverlayStyle: overlayStyle });
+        })
+        .catch((err) => {
+          console.warn("show invite guide flp failed", err);
+        });
+    });
+  },
+  measureInviteGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#flp-invite-btn").boundingClientRect();
+      query.selectAll(".flp-action-btn").boundingClientRect();
+      query.exec((res) => {
+        const direct = res && res[0] ? res[0] : null;
+        const list = res && res[1] ? res[1] : [];
+        const target = (direct && direct.width > 1 && direct.height > 1) ? direct : (list[0] || null);
+        if (!target || target.width <= 1 || target.height <= 1) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(target.width, target.height) + padding * 2;
+        const left = Math.max(0, target.left + target.width / 2 - size / 2);
+        const top = Math.max(0, target.top + target.height / 2 - size / 2) - 210;
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = Math.max(0, mask.size / 2 - 4);
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
   }
 });
 

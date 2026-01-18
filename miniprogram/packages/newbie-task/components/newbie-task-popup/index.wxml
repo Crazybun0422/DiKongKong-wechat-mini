@@ -40,12 +40,21 @@
         <view class="newbie-task-scroll-hint" wx:if="{{showScrollHint}}"></view>
       </view>
       <view class="newbie-task-footer">
-        <view class="newbie-task-claim-btn {{rewardAvailable ? '' : 'is-disabled'}}">立即领取</view>
+        <view class="newbie-task-claim-btn {{rewardAvailable ? '' : 'is-disabled'}}" bindtap="onRewardTap">立即领取</view>
       </view>
       <view class="newbie-task-close" bindtap="onCloseTap">
         <canvas type="2d" id="newbie-close-progress" class="newbie-task-close-canvas"></canvas>
         <image class="newbie-task-close-icon" src="/assets/newbie-git-close.png" mode="aspectFit" />
       </view>
+    </view>
+  </view>
+</block>
+<block wx:if="{{showRewardSuccess}}">
+  <view class="newbie-reward-overlay" bindtap="onRewardSuccessClose">
+    <view class="newbie-reward-card" catchtap="noop">
+      <view class="newbie-reward-icon">✓</view>
+      <text class="newbie-reward-title">领取成功</text>
+      <text class="newbie-reward-sub">请在微信粘贴并打开</text>
     </view>
   </view>
 </block>
