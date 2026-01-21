@@ -7,10 +7,12 @@ const {
 const { fetchCheckinDetail } = require("../../../../utils/checkin");
 const { fetchFlpLogs } = require("../../../../utils/flp");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
+const appConfig = require("../../../../app.json");
 
 const POPUP_DURATION_MS = 30 * 1000;
 const PROGRESS_INTERVAL_MS = 100;
 const VIDEO_FINDER_USER_NAME = "sphW8PwCfzcysHB";
+const ZH_SUBSET_FONT_FILE = appConfig?.fontAssets?.zhSubset || "zh.subset.v2.woff2";
 
 const getApiBase = () => {
   try {
@@ -94,15 +96,16 @@ Component({
       }
       return normalized;
     },
-    loadTasks() {
+    loadTasks(options = {}) {
       if (this._loading) return;
+      const autoTogglePopup = options.autoTogglePopup !== false;
       const apiBase = getApiBase();
       const token = getAuthToken();
       if (!apiBase || !token) return;
       this._loading = true;
       fetchNewbieTasks({ apiBase, token })
         .then((payload = {}) => {
-          this.applyTaskPayload(payload, { autoTogglePopup: true });
+          this.applyTaskPayload(payload, { autoTogglePopup });
           wx.nextTick(() => {
             this.measureTaskList();
           });
@@ -117,7 +120,7 @@ Component({
     ensureFontLoaded() {
       if (this._fontLoaded) return;
       const apiBase = getApiBase();
-      const fontUrl = buildFileDownloadUrl("zh.subset.woff2", { apiBase });
+      const fontUrl = buildFileDownloadUrl(ZH_SUBSET_FONT_FILE, { apiBase });
       if (!fontUrl) return;
       this._fontLoaded = true;
       wx.loadFontFace({
@@ -134,7 +137,7 @@ Component({
     openPopup(options = {}) {
       if (this.data.visible) return;
       const mode = options.mode === "manual" ? "manual" : "auto";
-      const showCountdownTitle = mode === "auto";
+      const showCountdownTitle = false;
       const tasks = Array.isArray(options.tasks) ? options.tasks : this.data.tasks;
       this._popupAuto = mode === "auto";
       this.setData({ visible: true, showCountdownTitle });
@@ -142,15 +145,16 @@ Component({
         this.startPopupTimer();
       } else {
         this.stopPopupTimer();
-        this.setRemainingSeconds(0);
-        if (this._progressCtx) {
-          this.drawProgress(1);
-        } else {
-          this._pendingProgress = 1;
-        }
-        wx.nextTick(() => {
-          this.initPopupCanvas();
-        });
+        // Progress ring is removed; keep logic disabled for now.
+        // this.setRemainingSeconds(0);
+        // if (this._progressCtx) {
+        //   this.drawProgress(1);
+        // } else {
+        //   this._pendingProgress = 1;
+        // }
+        // wx.nextTick(() => {
+        //   this.initPopupCanvas();
+        // });
       }
       wx.nextTick(() => {
         this.measureTaskList();
@@ -194,16 +198,17 @@ Component({
       if (!this._popupAuto || !this.data.visible) return;
       this._popupAuto = false;
       this.stopPopupTimer();
-      this.setRemainingSeconds(0);
       this.setData({ showCountdownTitle: false });
-      if (this._progressCtx) {
-        this.drawProgress(1);
-      } else {
-        this._pendingProgress = 1;
-        wx.nextTick(() => {
-          this.initPopupCanvas();
-        });
-      }
+      // Progress ring is removed; keep logic disabled for now.
+      // this.setRemainingSeconds(0);
+      // if (this._progressCtx) {
+      //   this.drawProgress(1);
+      // } else {
+      //   this._pendingProgress = 1;
+      //   wx.nextTick(() => {
+      //     this.initPopupCanvas();
+      //   });
+      // }
     },
     openFromEntry() {
       this.openPopup({ mode: "manual" });
@@ -229,9 +234,12 @@ Component({
           });
           const copyText = lines.join("\n");
           const afterCopy = () => {
-            this.setData({ rewardAvailable: false, showRewardSuccess: true });
             this.hidePopup({ persist: false, refresh: false });
-            this.loadTasks();
+            this.setData({ rewardAvailable: false, showRewardSuccess: true });
+            this.loadTasks({ autoTogglePopup: false });
+            if (typeof wx?.hideToast === "function") {
+              wx.hideToast();
+            }
           };
           if (copyText && typeof wx?.setClipboardData === "function") {
             wx.setClipboardData({
@@ -282,23 +290,24 @@ Component({
     },
     startPopupTimer() {
       this.stopPopupTimer();
-      this._popupStart = Date.now();
-      this._lastRemainingSeconds = null;
-      this.setRemainingSeconds(30);
-      wx.nextTick(() => {
-        this.initPopupCanvas();
-        this.drawProgress(0);
-      });
-      this._popupTimer = setInterval(() => {
-        const elapsed = Date.now() - this._popupStart;
-        const progress = Math.min(1, elapsed / POPUP_DURATION_MS);
-        this.setRemainingSeconds(Math.ceil((POPUP_DURATION_MS - elapsed) / 1000));
-        this.drawProgress(progress);
-        if (progress >= 1) {
-          this.setRemainingSeconds(0);
-          this.hidePopup({ persist: true });
-        }
-      }, PROGRESS_INTERVAL_MS);
+      // Countdown/progress disabled: keep popup open without auto-close.
+      // this._popupStart = Date.now();
+      // this._lastRemainingSeconds = null;
+      // this.setRemainingSeconds(30);
+      // wx.nextTick(() => {
+      //   this.initPopupCanvas();
+      //   this.drawProgress(0);
+      // });
+      // this._popupTimer = setInterval(() => {
+      //   const elapsed = Date.now() - this._popupStart;
+      //   const progress = Math.min(1, elapsed / POPUP_DURATION_MS);
+      //   this.setRemainingSeconds(Math.ceil((POPUP_DURATION_MS - elapsed) / 1000));
+      //   this.drawProgress(progress);
+      //   if (progress >= 1) {
+      //     this.setRemainingSeconds(0);
+      //     this.hidePopup({ persist: true });
+      //   }
+      // }, PROGRESS_INTERVAL_MS);
     },
     stopPopupTimer() {
       if (this._popupTimer) {

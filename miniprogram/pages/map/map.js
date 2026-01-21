@@ -633,6 +633,7 @@ Page({
     centerPinTitle: "",
     centerCoordinateLatText: "",
     centerCoordinateLngText: "",
+    coordinateSystem: "gcj02",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -1284,9 +1285,18 @@ Page({
   },
 
   autoLoginOnLaunch() {
-    this.ensureAccessToken().catch((err) => {
-      console.warn("自动登录失败", err);
-    });
+    this.ensureAccessToken()
+      .then(() => {
+        wx.nextTick(() => {
+          const popup = this.selectComponent("#newbie-task-popup");
+          if (popup && typeof popup.loadTasks === "function") {
+            popup.loadTasks();
+          }
+        });
+      })
+      .catch((err) => {
+        console.warn("自动登录失败", err);
+      });
   },
 
   initSubscriptionBanner() {
@@ -3892,8 +3902,17 @@ Page({
       });
       return;
     }
+    let displayLat = center.latitude;
+    let displayLng = center.longitude;
+    if (this.data.coordinateSystem === "wgs84") {
+      const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+      if (Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng)) {
+        displayLat = wgs.lat;
+        displayLng = wgs.lng;
+      }
+    }
     const pin = this.findPinContainingPoint(center);
-    const coord = formatCoordinateParts(center.latitude, center.longitude);
+    const coord = formatCoordinateParts(displayLat, displayLng);
     this.setData({
       centerPinTitle: pin ? pin.name || "" : "",
       centerCoordinateLngText: coord ? coord.lngText : "",
@@ -3915,6 +3934,13 @@ Page({
         console.error("复制经纬度失败", err);
         wx.showToast({ title: "复制失败", icon: "none" });
       }
+    });
+  },
+
+  onCoordinateSystemToggle() {
+    const next = this.data.coordinateSystem === "wgs84" ? "gcj02" : "wgs84";
+    this.setData({ coordinateSystem: next }, () => {
+      this.updateCenterPinIndicator();
     });
   },
 

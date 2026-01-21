@@ -23,11 +23,13 @@ const {
   getShareInviteCode
 } = require("../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../utils/markers");
+const appConfig = require("../../../app.json");
 
 const CHECKIN_PAGE_PATH = "/pages/profile/checkin/index";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
 const ELEME_PATH = "ele-recommend-price/pages/guest/index?inviterId=64e1965&chInfo=ch_wechat_chsub_CopyLink&_ltracker_f=ch_wechat_grzx_cp_tjyj";
 const ELEME_ENV = "release";
+const ZH_SUBSET_FONT_FILE = appConfig?.fontAssets?.zhSubset || "zh.subset.v2.woff2";
 
 const WEEKDAY_LABELS = {
   monday: "周一",
@@ -258,7 +260,7 @@ Page({
   loadCheckinFont() {
     if (typeof wx === "undefined" || typeof wx.loadFontFace !== "function") return;
     const apiBase = resolveApiBase();
-    const fontUrl = buildFileDownloadUrl("zh.subset.woff2", { apiBase });
+    const fontUrl = buildFileDownloadUrl(ZH_SUBSET_FONT_FILE, { apiBase });
     if (!fontUrl) return;
     wx.loadFontFace({
       family: "ZhSubset",

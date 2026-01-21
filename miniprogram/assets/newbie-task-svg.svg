@@ -23,14 +23,6 @@
       <stop offset="1"    stop-color="#0B2E7A"/>
     </linearGradient>
 
-    <linearGradient id="frameStrokeSoft" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0"    stop-color="#2D86FF"/>
-      <stop offset="0.32" stop-color="#7EF0FF"/>
-      <stop offset="0.54" stop-color="#FFFFFF"/>
-      <stop offset="0.76" stop-color="#63C8FF"/>
-      <stop offset="1"    stop-color="#3E57FF"/>
-    </linearGradient>
-
     <path id="cardRect" d="
       M 52.8 43.44
       H 571.2
@@ -44,10 +36,14 @@
       Z
     "/>
 
-    <!-- ✅ 矩形整体往右移动 100rpx：x 360 -> 460 -->
+    <clipPath id="clipInside">
+      <use href="#cardRect"/>
+    </clipPath>
+
+    <!-- ✅ 再缩小一点：r 105 -> 95（位置不变） -->
     <mask id="cutTopRight" maskUnits="userSpaceOnUse" x="-200" y="-200" width="1200" height="1400">
       <rect x="-200" y="-200" width="1200" height="1400" fill="white"/>
-      <rect x="460" y="-10" width="340" height="260" rx="70" fill="black"/>
+      <circle cx="630" cy="40" r="95" fill="black"/>
     </mask>
   </defs>
 
@@ -62,20 +58,20 @@
     />
 
     <use href="#cardRect"
-      fill="#FFFFFF"
-      stroke="url(#frameStroke)"
-      stroke-width="43.04"
+      fill="none"
+      stroke="#FFFFFF"
+      stroke-width="48.8"
       stroke-linejoin="round"
+      clip-path="url(#clipInside)"
     />
 
     <use href="#cardRect"
       fill="none"
-      stroke="url(#frameStrokeSoft)"
-      stroke-opacity="0.85"
+      stroke="#FFFFFF"
       stroke-width="3.2"
       stroke-linejoin="round"
     />
+
+    <use href="#cardRect" fill="#FFFFFF"/>
   </g>
-
-
 </svg>

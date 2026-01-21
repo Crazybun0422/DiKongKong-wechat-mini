@@ -743,6 +743,27 @@ button.search-btn::after {
   word-break: break-all;
 }
 
+.map-center-coords-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  margin-left: -1rpx;
+  margin-top: 20rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: #000;
+}
+
+.map-center-coords-pill-text {
+  font-size: 20rpx;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.3rpx;
+}
+
 .floating-controls {
     position: absolute;
     right: 32rpx;

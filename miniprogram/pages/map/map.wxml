@@ -64,6 +64,9 @@
       >
         <text class="map-center-coords-text">{{centerCoordinateLngText}}</text>
         <text class="map-center-coords-text">{{centerCoordinateLatText}}</text>
+        <view class="map-center-coords-pill" catchtap="onCoordinateSystemToggle">
+          <text class="map-center-coords-pill-text">{{coordinateSystem === 'wgs84' ? 'wgs84' : 'gcj-02'}}</text>
+        </view>
       </view>
     </view>
 
