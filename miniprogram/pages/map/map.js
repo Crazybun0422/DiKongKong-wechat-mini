@@ -4795,6 +4795,22 @@ Page({
     if (!detail.raw) {
       detail.raw = raw;
     }
+    if (!detail.reviewStatus) {
+      const reviewStatus =
+        raw?.reviewStatus ??
+        raw?.raw?.reviewStatus ??
+        raw?.status ??
+        raw?.raw?.status;
+      if (reviewStatus !== undefined && reviewStatus !== null && `${reviewStatus}`.trim()) {
+        detail.reviewStatus = reviewStatus;
+      }
+    }
+    if (detail.shareDisabled === undefined) {
+      const shareDisabled = raw?.shareDisabled ?? raw?.raw?.shareDisabled;
+      if (shareDisabled !== undefined) {
+        detail.shareDisabled = shareDisabled;
+      }
+    }
     return detail;
   },
 
