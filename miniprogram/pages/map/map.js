@@ -643,6 +643,7 @@ Page({
     activeTab: "home",
     showProfileRedDot: false,
     showNewbieGiftEntry: false,
+    newbieTaskBlockerVisible: false,
     showCheckinGuideMap: false,
     checkinGuideOverlayStyle: "",
     checkinGuideMask: {
@@ -2977,7 +2978,10 @@ Page({
 
   onNewbieTaskStateChange(event) {
     const detail = event?.detail || {};
-    this.setData({ showNewbieGiftEntry: !!detail.showGiftEntry });
+    this.setData({
+      showNewbieGiftEntry: !!detail.showGiftEntry,
+      newbieTaskBlockerVisible: !!detail.blockMap
+    });
   },
 
   onNewbieGiftTap() {

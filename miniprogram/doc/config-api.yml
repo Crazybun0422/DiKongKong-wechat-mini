@@ -111,6 +111,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/font-file:
+    get:
+      summary: 获取最新字体文件配置
+      description: 普通用户可读取，返回最新上传的字体文件名与版本号；数据库中仅维护一条记录。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFontFileConfigResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 上传并配置字体文件
+      description: 仅管理员可调用，上传字体文件并保存文件名与版本号。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - version
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 字体文件本体。
+                version:
+                  type: string
+                  description: 字体文件版本号。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFontFileConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/invite-guide:
     get:
       summary: 获取邀请攻略文案
@@ -606,6 +664,26 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/OpenPlatformCopyResponse'
+    FontFileConfigResponse:
+      type: object
+      properties:
+        fileName:
+          type: string
+          description: 字体文件在存储中的对象名称。
+        version:
+          type: string
+          description: 字体文件版本号。
+    ApiResponseFontFileConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/FontFileConfigResponse'
     InviteGuideRequest:
       type: object
       required:

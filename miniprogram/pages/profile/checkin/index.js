@@ -23,13 +23,12 @@ const {
   getShareInviteCode
 } = require("../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../utils/markers");
-const appConfig = require("../../../app.json");
+const { getLatestFontFileName } = require("../../../utils/font-config");
 
 const CHECKIN_PAGE_PATH = "/pages/profile/checkin/index";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
 const ELEME_PATH = "ele-recommend-price/pages/guest/index?inviterId=64e1965&chInfo=ch_wechat_chsub_CopyLink&_ltracker_f=ch_wechat_grzx_cp_tjyj";
 const ELEME_ENV = "release";
-const ZH_SUBSET_FONT_FILE = appConfig?.fontAssets?.zhSubset || "zh.subset.v2.woff2";
 
 const WEEKDAY_LABELS = {
   monday: "周一",
@@ -201,6 +200,7 @@ Page({
     continuousDays: 0,
     weekDays: [],
     canCheckinToday: false,
+    todaySigned: false,
     todayDate: "",
     checkinSubscriptionLoading: false,
     showCheckinSubscriptionBanner: false,
@@ -260,17 +260,23 @@ Page({
   loadCheckinFont() {
     if (typeof wx === "undefined" || typeof wx.loadFontFace !== "function") return;
     const apiBase = resolveApiBase();
-    const fontUrl = buildFileDownloadUrl(ZH_SUBSET_FONT_FILE, { apiBase });
-    if (!fontUrl) return;
-    wx.loadFontFace({
-      family: "ZhSubset",
-      source: `url("${fontUrl}")`,
-      global: false,
-      success: () => { },
-      fail: (err) => {
-        console.warn("loadCheckinFont failed", err);
-      }
-    });
+    getLatestFontFileName({ apiBase })
+      .then((fileName) => {
+        const fontUrl = buildFileDownloadUrl(fileName, { apiBase });
+        if (!fontUrl) return;
+        wx.loadFontFace({
+          family: "ZhSubset",
+          source: `url("${fontUrl}")`,
+          global: false,
+          success: () => { },
+          fail: (err) => {
+            console.warn("loadCheckinFont failed", err);
+          }
+        });
+      })
+      .catch((err) => {
+        console.warn("loadCheckinFont config failed", err);
+      });
   },
 
   onBackTap() {
@@ -362,12 +368,14 @@ Page({
     return this.runWithLoginRetry(() => fetchCheckinDetail({ apiBase }))
       .then((detail = {}) => {
         const weekDays = this.buildWeekDays(detail, todayDate);
-        const canCheckinToday = !detail.todaySigned && weekDays.some((item) => item.isToday);
+        const todaySigned = !!detail.todaySigned;
+        const canCheckinToday = !todaySigned && weekDays.some((item) => item.isToday);
         this.setData({
           loading: false,
           continuousDays: Number(detail.continuousDays) || 0,
           weekDays,
-          canCheckinToday
+          canCheckinToday,
+          todaySigned
         });
         this.refreshLotteryEligibility({
           continuousDays: Number(detail.continuousDays) || 0,
@@ -379,7 +387,14 @@ Page({
           err?.message === "missing-token"
             ? "未登录，暂时无法签到"
             : err?.message || "加载失败，请稍后重试";
-        this.setData({ loading: false, error: message, weekDays: [], canCheckinToday: false, canLotteryToday: false });
+        this.setData({
+          loading: false,
+          error: message,
+          weekDays: [],
+          canCheckinToday: false,
+          canLotteryToday: false,
+          todaySigned: false
+        });
       });
   },
 
@@ -487,14 +502,16 @@ Page({
             })
             .finally(() => {
               this.setCheckinSubscriptionBannerVisibility(!accepted);
-            });
+            })
+            .then(() => accepted);
         }
         this.setCheckinSubscriptionBannerVisibility(!accepted);
-        return null;
+        return accepted;
       })
       .catch((err) => {
         console.warn("checkin subscription request failed", err);
         this.setCheckinSubscriptionBannerVisibility(false);
+        return false;
       })
       .finally(() => {
         this.refreshCheckinSubscriptionStatus().catch(() => { });
@@ -692,10 +709,27 @@ Page({
         const openPromise = needOpenSetting
           ? this.openCheckinSubscriptionSetting(this._checkinServerIds || [])
           : Promise.resolve(accepted);
-        return openPromise.then((merged) => this.requestCheckinSubscription(merged || accepted));
+        return openPromise.then(() => this.getSubscriptionSettingsFromWx());
       })
-      .then(() => {
-        if (!this.data.showCheckinSubscriptionBanner) {
+      .then((settings = {}) => {
+        const mainEnabled = settings.mainSwitch !== false;
+        const accepted = normalizeTemplateIds(settings.acceptedIds || []);
+        if (!mainEnabled) {
+          return false;
+        }
+        if (accepted.includes(templateId)) {
+          return true;
+        }
+        return this.requestCheckinSubscription(this._checkinServerIds || []).then((result) => !!result);
+      })
+      .then((enabled) => {
+        if (enabled) return true;
+        return this.refreshCheckinSubscriptionStatus()
+          .then(() => !this.data.showCheckinSubscriptionBanner)
+          .catch(() => false);
+      })
+      .then((enabled) => {
+        if (enabled) {
           wx.showToast({ title: "已开启提醒", icon: "success" });
         }
       })

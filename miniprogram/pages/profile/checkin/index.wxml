@@ -70,7 +70,7 @@
                 mode="aspectFit"
               />
               <view wx:elif="{{item.iconType === 'today'}}" class="checkin-today-icon">
-                <image class="checkin-day-image" src="/pages/profile/assets/already-check-in.png" mode="aspectFit" />
+                <image class="checkin-day-image" src="/pages/profile/assets/not-check-in.png" mode="aspectFit" />
                 <image class="checkin-day-check" src="/assets/check.png" mode="aspectFit" />
               </view>
             </view>
@@ -86,7 +86,7 @@
             bindtap="onCheckinTap"
             disabled="{{!canCheckinToday}}"
           >
-            签到领积分
+            {{todaySigned ? "已签到" : "签到领积分"}}
           </button>
         </view>
         <view class="checkin-subscription-banner" wx:if="{{showCheckinSubscriptionBanner}}">

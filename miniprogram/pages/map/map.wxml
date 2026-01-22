@@ -3,6 +3,7 @@
     <map
       id="main-map"
       class="map-canvas"
+      hidden="{{newbieTaskBlockerVisible}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
@@ -11,6 +12,10 @@
       subkey="{{mapSubKey}}"
       layer-style="1"
       enable-satellite="{{enableSatellite}}"
+      enable-scroll="{{!newbieTaskBlockerVisible}}"
+      enable-zoom="{{!newbieTaskBlockerVisible}}"
+      enable-rotate="{{!newbieTaskBlockerVisible}}"
+      enable-overlooking="{{!newbieTaskBlockerVisible}}"
       show-location="true"
       markers="{{markers}}"
       polygons="{{polygons}}"

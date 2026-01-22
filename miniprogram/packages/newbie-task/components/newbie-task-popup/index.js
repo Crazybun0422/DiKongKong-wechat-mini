@@ -7,12 +7,11 @@ const {
 const { fetchCheckinDetail } = require("../../../../utils/checkin");
 const { fetchFlpLogs } = require("../../../../utils/flp");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
-const appConfig = require("../../../../app.json");
+const { getLatestFontFileName } = require("../../../../utils/font-config");
 
 const POPUP_DURATION_MS = 30 * 1000;
 const PROGRESS_INTERVAL_MS = 100;
 const VIDEO_FINDER_USER_NAME = "sphW8PwCfzcysHB";
-const ZH_SUBSET_FONT_FILE = appConfig?.fontAssets?.zhSubset || "zh.subset.v2.woff2";
 
 const getApiBase = () => {
   try {
@@ -58,7 +57,7 @@ Component({
     }
   },
   methods: {
-    noop() {},
+    noop() { },
     normalizeTaskPayload(payload = {}) {
       const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
       const showPopup = !!payload.showThirtySecondPopup;
@@ -120,19 +119,30 @@ Component({
     ensureFontLoaded() {
       if (this._fontLoaded) return;
       const apiBase = getApiBase();
-      const fontUrl = buildFileDownloadUrl(ZH_SUBSET_FONT_FILE, { apiBase });
-      if (!fontUrl) return;
       this._fontLoaded = true;
-      wx.loadFontFace({
-        family: "ZhSubset",
-        source: `url("${fontUrl}")`,
-        global: false,
-        success: () => { },
-        fail: (err) => {
+      getLatestFontFileName({ apiBase })
+        .then((fileName) => {
+          console.log("load font file name:", fileName);
+          const fontUrl = buildFileDownloadUrl(fileName, { apiBase });
+          if (!fontUrl) {
+            this._fontLoaded = false;
+            return;
+          }
+          wx.loadFontFace({
+            family: "ZhSubset",
+            source: `url("${fontUrl}")`,
+            global: false,
+            success: () => { },
+            fail: (err) => {
+              this._fontLoaded = false;
+              console.warn("load font face failed", err);
+            }
+          });
+        })
+        .catch((err) => {
           this._fontLoaded = false;
-          console.warn("load font face failed", err);
-        }
-      });
+          console.warn("load font config failed", err);
+        });
     },
     openPopup(options = {}) {
       if (this.data.visible) return;
@@ -140,7 +150,9 @@ Component({
       const showCountdownTitle = false;
       const tasks = Array.isArray(options.tasks) ? options.tasks : this.data.tasks;
       this._popupAuto = mode === "auto";
-      this.setData({ visible: true, showCountdownTitle });
+      this.setData({ visible: true, showCountdownTitle }, () => {
+        this.triggerStateChange();
+      });
       if (mode === "auto") {
         this.startPopupTimer();
       } else {
@@ -166,7 +178,9 @@ Component({
     hidePopup(options = {}) {
       if (!this.data.visible) return;
       this._popupAuto = false;
-      this.setData({ visible: false });
+      this.setData({ visible: false }, () => {
+        this.triggerStateChange();
+      });
       this.stopPopupTimer();
       this._progressCtx = null;
       this._progressCanvas = null;
@@ -235,7 +249,9 @@ Component({
           const copyText = lines.join("\n");
           const afterCopy = () => {
             this.hidePopup({ persist: false, refresh: false });
-            this.setData({ rewardAvailable: false, showRewardSuccess: true });
+            this.setData({ rewardAvailable: false, showRewardSuccess: true }, () => {
+              this.triggerStateChange();
+            });
             this.loadTasks({ autoTogglePopup: false });
             if (typeof wx?.hideToast === "function") {
               wx.hideToast();
@@ -262,18 +278,20 @@ Component({
     },
     onRewardSuccessClose() {
       if (this.data.showRewardSuccess) {
-        this.setData({ showRewardSuccess: false });
+        this.setData({ showRewardSuccess: false }, () => {
+          this.triggerStateChange();
+        });
       }
     },
     ensureTaskOneCompleted(tasksOverride) {
       if (this._completingOne) return;
-          const tasks = Array.isArray(tasksOverride) ? tasksOverride : this.data.tasks || [];
-          const target = tasks.find((task) => Number(task.index) === 1);
-          if (!target || target.completed) return;
-          const apiBase = getApiBase();
-          const token = getAuthToken();
-          if (!apiBase || !token) return;
-          this._completingOne = true;
+      const tasks = Array.isArray(tasksOverride) ? tasksOverride : this.data.tasks || [];
+      const target = tasks.find((task) => Number(task.index) === 1);
+      if (!target || target.completed) return;
+      const apiBase = getApiBase();
+      const token = getAuthToken();
+      if (!apiBase || !token) return;
+      this._completingOne = true;
       completeNewbieTask(1, { apiBase, token })
         .then((payload = {}) => {
           this.applyTaskPayload(payload);
@@ -384,7 +402,12 @@ Component({
       this.setData({ remainingSeconds: nextValue });
     },
     triggerStateChange(payload) {
-      this.triggerEvent("statechange", payload || {});
+      const state = {
+        popupVisible: !!this.data.visible,
+        rewardVisible: !!this.data.showRewardSuccess,
+        blockMap: !!(this.data.visible || this.data.showRewardSuccess)
+      };
+      this.triggerEvent("statechange", Object.assign(state, payload || {}));
     },
     measureTaskList() {
       if (!this.data.tasks.length) {

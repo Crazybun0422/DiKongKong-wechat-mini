@@ -11,6 +11,7 @@ const {
   extractAcceptedTemplateIdsFromWxSetting,
   areTemplateIdSetsEqual
 } = require("./utils/subscriptions");
+const { prefetchFontFileConfig } = require("./utils/font-config");
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
@@ -163,6 +164,10 @@ App({
       });
       this.syncSubscriptionsFromWxSetting();
     }
+
+    prefetchFontFileConfig({ apiBase: this.globalData.apiBase }).catch((err) => {
+      console.warn("prefetch font config failed", err);
+    });
 
     this.initUpdateManager();
   },

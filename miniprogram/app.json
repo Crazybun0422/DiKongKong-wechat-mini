@@ -43,9 +43,6 @@
   },
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
-  "fontAssets": {
-    "zhSubset": "zh.subset.v2.woff2"
-  },
   "permission": {
     "scope.userLocation": {
       "desc": "用于展示附近空域信息和服务"
