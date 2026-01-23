@@ -2,7 +2,7 @@ const drawQrcode = require("../../../../libs/weapp-qrcode");
 const { fetchUserProfile, resolveApiBase, loadStoredProfile } = require("../../../../utils/profile");
 const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
-const { requestWeappQrcode } = require("../../../../utils/weapp");
+const { requestWeappQrcode, requestWeappPosterStatus } = require("../../../../utils/weapp");
 const { completeNewbieTask } = require("../../../../utils/newbie-tasks");
 
 const MAP_PAGE_PATH = "/pages/map/map";
@@ -93,7 +93,20 @@ Page({
           inviteCode,
           shareLink
         });
-        return this.loadInvitePoster(inviteCode, shareLink, { skipCache: fromPullDown });
+        return this.fetchPosterStatus()
+          .then((status = {}) => {
+            const needRegenerate = !!status.needRegenerate;
+            if (needRegenerate) {
+              this.clearPosterCache();
+            }
+            return this.loadInvitePoster(inviteCode, shareLink, {
+              skipCache: fromPullDown || needRegenerate
+            });
+          })
+          .catch((err) => {
+            console.warn("fetchPosterStatus failed", err);
+            return this.loadInvitePoster(inviteCode, shareLink, { skipCache: fromPullDown });
+          });
       })
       .then(() => {
         this.setData({ loading: false });
@@ -134,6 +147,10 @@ Page({
   composeQueryString(inviteCode) {
     const code = this.normalizeInviteCode(inviteCode);
     return appendInviteCodeToQuery("", { inviteCode: code });
+  },
+
+  fetchPosterStatus() {
+    return requestWeappPosterStatus({ apiBase: this.apiBase }).then((status = {}) => status || {});
   },
 
   getAuthToken() {
