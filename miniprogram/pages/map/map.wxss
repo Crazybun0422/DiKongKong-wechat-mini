@@ -365,6 +365,31 @@
   margin-left: auto;
 }
 
+button.marker-page-share-header {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.marker-page-share-header::after {
+  border: none;
+}
+
+.marker-page-share-header-icon {
+  width: 88rpx;
+  height: 88rpx;
+}
+
+button.marker-page-share-header--disabled {
+  opacity: 0.5;
+}
+
 .like-badge.is-anim {
   animation: like-bounce 500ms ease-out both;
 }
@@ -1615,6 +1640,17 @@ button.panorama-button::after,
   gap: 16rpx;
 }
 
+.marker-page-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.marker-page-header-actions .like-badge--inline {
+  margin-left: 0;
+}
+
 .marker-page-title {
   font-size: 40rpx;
   font-weight: 600;
@@ -1680,6 +1716,7 @@ button.panorama-button::after,
   display: flex;
   gap: 20rpx;
   align-items: center;
+  flex-wrap: nowrap;
 }
 
 .marker-page-action {
@@ -1713,6 +1750,7 @@ button.panorama-button::after,
   width: 48rpx;
   height: 48rpx;
 }
+
 
 .marker-page-section {
   margin-top: 45rpx;
@@ -1814,47 +1852,6 @@ button.panorama-button::after,
   box-sizing: border-box;
 }
 
-.marker-page-share {
-  position: fixed;
-  left: 48rpx;
-  bottom: calc(72rpx + env(safe-area-inset-bottom));
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  padding: 18rpx 32rpx;
-  background: #ffffff;
-  border-radius: 999rpx;
-  box-shadow: 0 10rpx 30rpx rgba(15, 23, 42, 0.12);
-  font-size: 26rpx;
-  color: #1f2329;
-  border: none;
-  line-height: 1;
-}
-
-.marker-page-share::after {
-  border: none;
-}
-
-.marker-page-share-icon {
-  width: 40rpx;
-  height: 40rpx;
-}
-
-.marker-page-share-text {
-  color: inherit;
-}
-
-.marker-page-share--disabled {
-  opacity: 0.55;
-  box-shadow: none;
-  color: #94a3b8;
-}
-
-.marker-page-share--disabled .marker-page-share-icon {
-  opacity: 0.85;
-}
-
 .marker-page-close-hint {
   position: fixed;
   left: 50%;
@@ -1873,14 +1870,11 @@ button.panorama-button::after,
 }
 
 .marker-detail-creator--page {
-  position: fixed;
-  left: 50%;
-  bottom: calc(24rpx + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  position: relative;
+  margin-top: 56rpx;
   text-align: center;
   font-size: 22rpx;
   color: #dfe4ea;
-  z-index: 3;
   pointer-events: none;
 }
 

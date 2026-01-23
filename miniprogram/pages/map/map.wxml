@@ -384,27 +384,39 @@
             <view class="marker-page-header">
               <view class="marker-page-header-top">
                 <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
-                <view
-                  class="like-badge like-badge--page like-badge--inline {{markerPageLikeAnimating ? 'is-anim' : ''}}"
-                  bindtouchstart="onMarkerLikeTouchStart"
-                  bindtouchend="onMarkerLikeTouchEnd"
-                  bindtouchcancel="onMarkerLikeTouchEnd"
-                  data-page="{{true}}"
-                >
-                  <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
-                  <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
-                  <image
-                    class="like-badge-icon"
-                    src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
-                    mode="widthFix"
-                  />
-                  <text
-                    class="like-badge-count"
-                    data-count="{{markerPageLikeCount}}"
-                    bindtap="onLikeCountTap"
+                <view class="marker-page-header-actions">
+                  <view
+                    class="like-badge like-badge--page like-badge--inline {{markerPageLikeAnimating ? 'is-anim' : ''}}"
+                    bindtouchstart="onMarkerLikeTouchStart"
+                    bindtouchend="onMarkerLikeTouchEnd"
+                    bindtouchcancel="onMarkerLikeTouchEnd"
+                    data-page="{{true}}"
                   >
-                    {{markerPageLikeCountDisplay}}
-                  </text>
+                    <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
+                    <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
+                    <image
+                      class="like-badge-icon"
+                      src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
+                      mode="widthFix"
+                    />
+                    <text
+                      class="like-badge-count"
+                      data-count="{{markerPageLikeCount}}"
+                      bindtap="onLikeCountTap"
+                    >
+                      {{markerPageLikeCountDisplay}}
+                    </text>
+                  </view>
+                  <block wx:if="{{markerPageShareEnabled}}">
+                    <button open-type="share" class="marker-page-share-header" hover-class="none">
+                      <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+                    </button>
+                  </block>
+                  <block wx:else>
+                    <button class="marker-page-share-header marker-page-share-header--disabled" bindtap="onMarkerPageShareDisabledTap" hover-class="none">
+                      <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+                    </button>
+                  </block>
                 </view>
               </view>
             </view>
@@ -518,25 +530,14 @@
                 />
               </block>
             </view>
+
+            <view class="marker-detail-creator marker-detail-creator--page" wx:if="{{markerPageDetail.creatorName}}">
+              @{{markerPageDetail.creatorName}}
+            </view>
           </view>
         </scroll-view>
 
-        <block wx:if="{{markerPageShareEnabled}}">
-          <button open-type="share" class="marker-page-share">
-            <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
-            <text class="marker-page-share-text">转发</text>
-          </button>
-        </block>
-        <block wx:else>
-          <button class="marker-page-share marker-page-share--disabled" bindtap="onMarkerPageShareDisabledTap">
-            <image class="marker-page-share-icon" src="/assets/tansmit.png" mode="aspectFit" />
-            <text class="marker-page-share-text">转发</text>
-          </button>
-        </block>
         <view class="marker-page-close-hint">下滑关闭详情</view>
-        <view class="marker-detail-creator marker-detail-creator--page" wx:if="{{markerPageDetail.creatorName}}">
-          @{{markerPageDetail.creatorName}}
-        </view>
       </view>
     </block>
 

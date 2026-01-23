@@ -362,6 +362,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
+  /api/weapp/qrcode:
+    post:
+      summary: 获取小程序二维码
+      description: 返回当前用户的小程序二维码 Base64 数据。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappQrcodeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappQrcodeResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/weapp/poster-invite:
     post:
       summary: 获取小程序海报
@@ -380,6 +415,35 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-invite/status:
+    get:
+      summary: 查询邀请海报状态
+      description: 判断当前用户是否需要重新生成邀请海报，并返回上次生成时的头像和昵称。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappPosterStatusResponse'
         '400':
           description: Bad Request
           content:
@@ -713,6 +777,28 @@ components:
           type: object
         data:
           $ref: '#/components/schemas/WeappLoginResponse'
+    ApiResponseWeappQrcodeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappQrcodeResponse'
+    ApiResponseWeappPosterStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappPosterStatusResponse'
     WeappLoginRequest:
       type: object
       properties:
@@ -767,6 +853,24 @@ components:
         inviteCode:
           type: string
           description: 邀请码。
+    WeappQrcodeResponse:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64 编码的小程序二维码。
+    WeappPosterStatusResponse:
+      type: object
+      properties:
+        needRegenerate:
+          type: boolean
+          description: 是否需要重新生成邀请海报。
+        lastUsername:
+          type: string
+          description: 上一次生成邀请海报时使用的昵称。
+        lastAvatarUrl:
+          type: string
+          description: 上一次生成邀请海报时使用的头像地址。
     ApiResponseWeappConfigResponse:
       type: object
       properties:

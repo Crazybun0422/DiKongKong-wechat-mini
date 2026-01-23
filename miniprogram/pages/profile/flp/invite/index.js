@@ -11,6 +11,7 @@ const APP_ID = "wx5ebbcb44d73c2f17";
 const POSTER_FILE_NAME = "main-page.png";
 const QR_CANVAS_ID = "invite-qrcode";
 const QR_IMAGE_SIZE = 520;
+const INVITE_POSTER_CACHE_KEY = "invitePosterCache";
 
 const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value);
 const isFilePath = (value) =>
@@ -90,12 +91,9 @@ Page({
         const shareLink = this.composeSharePath(inviteCode);
         this.setData({
           inviteCode,
-          shareLink,
-          qrImagePath: "",
-          qrImageSource: "",
-          qrImageReady: false
+          shareLink
         });
-        return this.prepareQrImage(inviteCode, shareLink);
+        return this.loadInvitePoster(inviteCode, shareLink, { skipCache: fromPullDown });
       })
       .then(() => {
         this.setData({ loading: false });
@@ -152,11 +150,139 @@ Page({
       return this.requestOfficialQrCode(inviteCode)
         .catch((err) => {
           console.warn("requestOfficialQrCode failed, fallback to canvas", err);
-          return this.generateQrCode(shareLink);
+          return this.generateQrCode(shareLink, { cache: false });
         })
         .then(() => {});
     }
-    return this.generateQrCode(shareLink);
+    return this.generateQrCode(shareLink, { cache: false });
+  },
+
+  loadInvitePoster(inviteCode, shareLink, options = {}) {
+    if (!inviteCode) {
+      this.resetPosterState();
+      return this.prepareQrImage(inviteCode, shareLink);
+    }
+    if (options.skipCache) {
+      this.resetPosterState();
+      return this.prepareQrImage(inviteCode, shareLink);
+    }
+    return this.readCachedPoster(inviteCode)
+      .then((cached) => {
+        if (cached) {
+          this.setData({
+            qrImagePath: cached.path,
+            qrImageSource: cached.source,
+            qrImageReady: true
+          });
+          return;
+        }
+        this.resetPosterState();
+        return this.prepareQrImage(inviteCode, shareLink);
+      })
+      .catch((err) => {
+        console.warn("readCachedPoster failed", err);
+        this.resetPosterState();
+        return this.prepareQrImage(inviteCode, shareLink);
+      });
+  },
+
+  resetPosterState() {
+    this.setData({
+      qrImagePath: "",
+      qrImageSource: "",
+      qrImageReady: false
+    });
+  },
+
+  readCachedPoster(inviteCode) {
+    if (!inviteCode || typeof wx === "undefined" || typeof wx.getStorageSync !== "function") {
+      return Promise.resolve(null);
+    }
+    let cached = null;
+    try {
+      cached = wx.getStorageSync(INVITE_POSTER_CACHE_KEY);
+    } catch (err) {
+      console.warn("readCachedPoster storage failed", err);
+    }
+    if (!cached || typeof cached !== "object") return Promise.resolve(null);
+    if (cached.inviteCode !== inviteCode) return Promise.resolve(null);
+    const path = typeof cached.path === "string" ? cached.path.trim() : "";
+    if (!path) return Promise.resolve(null);
+    const source = cached.source || (isHttpUrl(path) ? "remote" : "file");
+    if (isHttpUrl(path)) {
+      return Promise.resolve({ path, source });
+    }
+    return this.checkFileExists(path).then((exists) => {
+      if (!exists) {
+        this.clearPosterCache();
+        return null;
+      }
+      return { path, source };
+    });
+  },
+
+  checkFileExists(path) {
+    const fs = this.fileSystemManager;
+    if (!fs || !path) return Promise.resolve(false);
+    if (typeof fs.access === "function") {
+      return new Promise((resolve) => {
+        fs.access({
+          path,
+          success: () => resolve(true),
+          fail: () => resolve(false)
+        });
+      });
+    }
+    if (typeof fs.accessSync === "function") {
+      try {
+        fs.accessSync(path);
+        return Promise.resolve(true);
+      } catch (err) {
+        return Promise.resolve(false);
+      }
+    }
+    return Promise.resolve(true);
+  },
+
+  cachePosterPath(inviteCode, path, source) {
+    if (!inviteCode || !path || typeof wx === "undefined" || typeof wx.setStorageSync !== "function") {
+      return;
+    }
+    const trimmed = typeof path === "string" ? path.trim() : "";
+    if (!trimmed || trimmed === "/pages/profile/assets/qrcode.png") {
+      return;
+    }
+    if (trimmed.startsWith("/pages/") || trimmed.startsWith("/assets/")) {
+      return;
+    }
+    const payload = {
+      inviteCode,
+      path: trimmed,
+      source: source || "",
+      updatedAt: Date.now()
+    };
+    try {
+      wx.setStorageSync(INVITE_POSTER_CACHE_KEY, payload);
+    } catch (err) {
+      console.warn("cachePosterPath failed", err);
+    }
+  },
+
+  clearPosterCache() {
+    if (typeof wx === "undefined") return;
+    if (typeof wx.removeStorageSync === "function") {
+      try {
+        wx.removeStorageSync(INVITE_POSTER_CACHE_KEY);
+      } catch (err) {
+        console.warn("clearPosterCache failed", err);
+      }
+    } else if (typeof wx.setStorageSync === "function") {
+      try {
+        wx.setStorageSync(INVITE_POSTER_CACHE_KEY, {});
+      } catch (err) {
+        console.warn("clearPosterCache failed", err);
+      }
+    }
   },
 
   requestOfficialQrCode(inviteCode) {
@@ -180,6 +306,7 @@ Page({
       return Promise.reject(new Error("empty-qrcode"));
     }
     if (normalized.type === "url") {
+      this.cachePosterPath(this.data.inviteCode, normalized.value, "remote");
       this.setData({
         qrImagePath: normalized.value,
         qrImageSource: "remote",
@@ -188,6 +315,7 @@ Page({
       return normalized.value;
     }
     if (normalized.type === "file") {
+      this.cachePosterPath(this.data.inviteCode, normalized.value, "file");
       this.setData({
         qrImagePath: normalized.value,
         qrImageSource: "file",
@@ -197,6 +325,7 @@ Page({
     }
     if (normalized.type === "base64") {
       return this.persistBase64Image(normalized.value).then((filePath) => {
+        this.cachePosterPath(this.data.inviteCode, filePath, "file");
         this.setData({
           qrImagePath: filePath,
           qrImageSource: "file",
@@ -323,8 +452,9 @@ Page({
     }
   },
 
-  generateQrCode(content) {
+  generateQrCode(content, options = {}) {
     const text = content || MAP_PAGE_PATH;
+    const shouldCache = options.cache !== false;
     return new Promise((resolve, reject) => {
       drawQrcode({
         width: QR_IMAGE_SIZE,
@@ -341,6 +471,9 @@ Page({
               destWidth: QR_IMAGE_SIZE,
               destHeight: QR_IMAGE_SIZE,
               success: (res) => {
+                if (shouldCache) {
+                  this.cachePosterPath(this.data.inviteCode, res.tempFilePath, "canvas");
+                }
                 this.setData({
                   qrImagePath: res.tempFilePath,
                   qrImageSource: "canvas",
@@ -391,7 +524,8 @@ Page({
     if (existing) {
       return Promise.resolve(existing);
     }
-    return this.generateQrCode(this.data.shareLink || MAP_PAGE_PATH).then(() => this.data.qrImagePath);
+    return this.generateQrCode(this.data.shareLink || MAP_PAGE_PATH, { cache: false })
+      .then(() => this.data.qrImagePath);
   },
 
   onGuideTap() {

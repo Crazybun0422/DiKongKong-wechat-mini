@@ -61,7 +61,7 @@
     </button>
 
     <view class="invite-status" wx:if="{{loading}}">
-      <text class="invite-status-text">二维码生成中...</text>
+      <text class="invite-status-text">邀请海报生成中...</text>
     </view>
 
     <view class="invite-error" wx:if="{{error}}">
