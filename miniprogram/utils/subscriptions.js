@@ -104,6 +104,18 @@ function updateSubscriptions(templateIds = [], options = {}) {
   }).then((body = {}) => body?.data || {});
 }
 
+const ACCEPTED_SUBSCRIPTION_STATUSES = new Set([
+  "accept",
+  "accepted",
+  "always",
+  "acceptwithforcepush"
+]);
+
+function isAcceptedStatus(val) {
+  const text = `${val || ""}`.toLowerCase();
+  return ACCEPTED_SUBSCRIPTION_STATUSES.has(text);
+}
+
 function requestSubscribeMessageForTemplateIds(templateIds = []) {
   return new Promise((resolve, reject) => {
     const ids = normalizeTemplateIds(templateIds);
@@ -122,8 +134,8 @@ function requestSubscribeMessageForTemplateIds(templateIds = []) {
         const acceptedIds = ids.filter((id) => {
           const status = res[id];
           if (!status) return false;
-          const text = `${status}`.toLowerCase();
-          return text === "accept" || text === "accepted" || text === "always";
+          console.log(`Template ID: ${id}, status: ${`${status}`.toLowerCase()}`);
+          return isAcceptedStatus(status);
         });
         const isRejectStatus = (val) => {
           const text = `${val || ""}`.toLowerCase();
@@ -154,8 +166,7 @@ function extractAcceptedTemplateIdsFromWxSetting(subscriptionsSetting) {
   const accepted = [];
   Object.keys(itemSettings).forEach((key) => {
     const status = itemSettings[key];
-    const text = typeof status === "string" ? status.toLowerCase() : "";
-    if (text === "accept" || text === "accepted" || text === "always") {
+    if (isAcceptedStatus(status)) {
       accepted.push(key);
     }
   });

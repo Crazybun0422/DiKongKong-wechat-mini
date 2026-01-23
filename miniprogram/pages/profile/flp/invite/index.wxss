@@ -81,8 +81,8 @@
 }
 
 .invite-qr-loading-image {
-  width: 128rpx;
-  height: 128rpx;
+  width: 180rpx;
+  height: 180rpx;
   animation: invite-loading-breathe 1.6s ease-in-out infinite;
 }
 

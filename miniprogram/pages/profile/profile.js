@@ -26,6 +26,21 @@ const {
 } = require("../../utils/latest-items");
 const { fetchCheckinDetail } = require("../../utils/checkin");
 
+const NICKNAME_MAX_UNITS = 16;
+const NICKNAME_CJK_RE = /[\u4e00-\u9fff]/;
+
+function truncateNicknameByUnits(value, maxUnits = NICKNAME_MAX_UNITS) {
+  let total = 0;
+  let output = "";
+  for (const char of Array.from(value || "")) {
+    const nextTotal = total + (NICKNAME_CJK_RE.test(char) ? 2 : 1);
+    if (nextTotal > maxUnits) break;
+    total = nextTotal;
+    output += char;
+  }
+  return output;
+}
+
 Page({
   data: {
     loading: true,
@@ -296,20 +311,22 @@ Page({
   startNicknameEdit() {
     if (this.data.nicknameSaving) return;
     const nickname = this.data.profile?.nickname || "";
+    const limited = truncateNicknameByUnits(nickname);
     this.setData({
       nicknameEditing: true,
-      nicknameInput: nickname
+      nicknameInput: limited
     });
   },
 
   onNicknameInputChange(e) {
     const value = e?.detail?.value || "";
-    this.setData({ nicknameInput: value });
+    const limited = truncateNicknameByUnits(value);
+    this.setData({ nicknameInput: limited });
     const inputTypeRaw = e?.detail?.inputType || "";
     const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
     console.log("xxxxxxx", e)
     if (inputType === "nickname") {
-      this.saveNicknameInline(value);
+      this.saveNicknameInline(limited);
     }
   },
   onEditing(e) {
@@ -322,6 +339,7 @@ Page({
   },
   onNickReview(e) {
     const value = e?.detail?.value ?? this.data.nicknameInput;
+    const limited = truncateNicknameByUnits(value);
 
     if (!e.detail.pass) {
       wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
@@ -331,13 +349,14 @@ Page({
       });
       return
     }
-    this.saveNicknameInline(value);
+    this.saveNicknameInline(limited);
 
   },
 
   onNicknameInputConfirm(e) {
     const value = e?.detail?.value ?? this.data.nicknameInput;
-    this.saveNicknameInline(value);
+    const limited = truncateNicknameByUnits(value);
+    this.saveNicknameInline(limited);
   },
 
   onNicknameInputBlur() {
@@ -346,7 +365,7 @@ Page({
   },
 
   saveNicknameInline(nickname) {
-    const trimmed = (nickname || "").trim();
+    const trimmed = truncateNicknameByUnits((nickname || "").trim());
     if (!this.data.nicknameEditing) return;
     if (this.data.nicknameSaving) return;
     const current = this.data.profile?.nickname || "";
