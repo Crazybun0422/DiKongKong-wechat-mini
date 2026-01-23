@@ -178,6 +178,46 @@ function requestWeappQrcode(payload = {}, options = {}) {
   });
 }
 
+function requestWeappPosterStatus(options = {}) {
+  const apiBase = ensureApiBase(options);
+  const token = options.token || getAuthToken();
+  if (!apiBase) {
+    return Promise.reject(new Error("missing-api-base"));
+  }
+  if (!token) {
+    return Promise.reject(new Error("missing-token"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${apiBase}/api/weapp/poster-invite/status`,
+      method: "GET",
+      header: Object.assign(
+        {
+          "content-type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        options.header || {}
+      ),
+      success: (res) => {
+        const status = Number(res?.statusCode);
+        if (status >= 200 && status < 300) {
+          const data = res?.data;
+          if (data && typeof data === "object") {
+            resolve(data.data || {});
+            return;
+          }
+          resolve({});
+          return;
+        }
+        const reason = extractErrorMessage(res);
+        reject(new Error(reason || `status-${status || "unknown"}`));
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 module.exports = {
-  requestWeappQrcode
+  requestWeappQrcode,
+  requestWeappPosterStatus
 };
