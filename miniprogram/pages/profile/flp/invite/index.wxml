@@ -9,7 +9,7 @@
         <image
           class="invite-qr-image"
           src="{{qrImagePath || '/pages/profile/assets/qrcode.png'}}"
-          mode="aspectFit"
+          mode="widthFix"
         />
       </view>
     </view>

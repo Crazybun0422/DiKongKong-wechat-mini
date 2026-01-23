@@ -165,8 +165,7 @@ Page({
     }
     const payload = {
       path: MAP_PAGE_PATH,
-      inviteCode,
-      width: QR_IMAGE_SIZE
+      inviteCode
     };
     return requestWeappQrcode(payload, { apiBase: this.apiBase })
       .then((result) => this.applyQrCodeResult(result))

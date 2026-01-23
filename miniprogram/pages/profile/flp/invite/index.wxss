@@ -10,23 +10,23 @@
 
 .invite-body {
   width: 100%;
-  max-width: 600rpx;
+  max-width: 680rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32rpx;
+  gap: 20rpx;
 }
 
 .invite-card {
   width: 100%;
   background: #ffffff;
   border-radius: 32rpx;
-  padding: 48rpx 32rpx;
+  padding: 12rpx 16rpx 16rpx;
   box-shadow: 0 16rpx 48rpx rgba(18, 23, 40, 0.06);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32rpx;
+  gap: 12rpx;
 }
 
 .invite-card-info {
@@ -48,18 +48,16 @@
 }
 
 .invite-qr-wrapper {
-  width: 420rpx;
-  height: 420rpx;
-  border-radius: 24rpx;
-  background: #f9fafc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  background: transparent;
+  border-radius: 0;
+  margin-top: 0;
+  overflow: visible;
 }
 
 .invite-qr-image {
-  width: 320rpx;
-  height: 320rpx;
+  width: 100%;
+  display: block;
 }
 
 .invite-code {
@@ -129,7 +127,7 @@
   width: 100%;
   max-width: 680rpx;
   min-width: 460rpx;
-  margin-top: 72rpx;
+  margin-top: 40rpx;
   background: #ffffff;
   border: 2rpx solid #1d4dff;
   border-radius: 999rpx;
