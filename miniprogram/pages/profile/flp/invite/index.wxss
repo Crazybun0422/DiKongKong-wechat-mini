@@ -1,7 +1,7 @@
 .invite-page {
-  min-height: 100vh;
+  min-height: 100%;
   background: #f6f7fb;
-  padding: 32rpx;
+  
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -27,6 +27,8 @@
   flex-direction: column;
   align-items: center;
   gap: 12rpx;
+  margin-top: 32rpx;
+  margin-bottom: 50rpx;
 }
 
 .invite-card-info {
@@ -53,7 +55,7 @@
   border-radius: 24rpx;
   margin-top: 0;
   overflow: hidden;
-  padding-top: 90%;
+  padding-top: calc(90% + 100rpx);
   background: linear-gradient(140deg, #0f3aff 0%, #1d6bff 38%, #2ea7ff 70%, #54e0ff 100%);
 }
 
