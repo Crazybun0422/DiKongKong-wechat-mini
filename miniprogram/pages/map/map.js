@@ -148,6 +148,7 @@ const UOM_TILE_HIRES_MIN_ZOOM = 14;
 const UOM_TILE_MAX_TILES = 36;
 const UOM_MASK_KEEP_RADIUS = 1;
 const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
+const WMS_FINAL_REFRESH_DELAY_MS = 150;
 const WMS_OVERLAY_REMOVE_RETRY_MS = 500;
 
 const clampMapScale = (value) => {
@@ -771,6 +772,7 @@ Page({
     this._wmsOverlaySeed = 0;
     this._wmsOverlayRemovals = new Set();
     this._wmsOverlayRemovalTimer = null;
+    this._wmsFinalRefreshTimer = null;
     this._uomEnvReported = false;
     this._uomModalShown = false;
     this._uomFallbackTimer = null;
@@ -3024,6 +3026,7 @@ Page({
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
+    if (this._wmsFinalRefreshTimer) clearTimeout(this._wmsFinalRefreshTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
@@ -5760,14 +5763,61 @@ Page({
         } else {
           afterSync();
         }
+        this.scheduleFinalWmsRefresh();
         return;
       }
       // 兜底：取中心再刷新（少量机型可能无 centerLocation）
       this.updateCenterAndRadius(detail);
+      this.scheduleFinalWmsRefresh();
     }
   },
 
   onMapUpdated() { },
+
+  scheduleFinalWmsRefresh() {
+    if (!this.mapCtx) return;
+    if (this._wmsFinalRefreshTimer) clearTimeout(this._wmsFinalRefreshTimer);
+    this._wmsFinalRefreshTimer = setTimeout(() => {
+      if (!this.mapCtx) return;
+      const scale = clampMapScale(this.data?.scale);
+      const apply = (center, region) => {
+        const resolvedCenter = center || this._centerOverride || this.data.center;
+        if (region && region.northeast && region.southwest) {
+          this._lastRegion = region;
+        }
+        this.refreshWmsOverlay(resolvedCenter, scale, region || this._lastRegion);
+      };
+      const applyRegion = (center, res) => {
+        const region = res?.region || (res?.northeast && res?.southwest
+          ? { northeast: res.northeast, southwest: res.southwest }
+          : null);
+        apply(center, region);
+      };
+      if (typeof this.mapCtx.getCenterLocation === "function") {
+        this.mapCtx.getCenterLocation({
+          type: "gcj02",
+          success: (res) => {
+            const center = {
+              latitude: res.latitude,
+              longitude: res.longitude
+            };
+            this._centerOverride = center;
+            if (typeof this.mapCtx.getRegion === "function") {
+              this.mapCtx.getRegion({
+                success: (regionRes) => applyRegion(center, regionRes),
+                fail: () => apply(center, null)
+              });
+            } else {
+              apply(center, null);
+            }
+          },
+          fail: () => apply(null, null)
+        });
+      } else {
+        apply(null, null);
+      }
+    }, WMS_FINAL_REFRESH_DELAY_MS);
+  },
 
   updateCenterAndRadius(detail) {
     this.updateMapGestureState(detail);
