@@ -7,13 +7,13 @@ const {
 } = require("./coords");
 const { CAAC_TOKEN } = require("./config");
 
-const WMS_MIN_ZOOM = 5;
+const WMS_MIN_ZOOM = 6;
 const WMS_MAX_ZOOM = 18;
 const DEFAULT_WMS_TILE_SIZE = 256;
 const MAX_WMS_TILE_SIZE = 512;
 const DEFAULT_WMS_FORMAT = "image/png";
-const DEFAULT_WMS_MAX_SPAN = 6;
-const DEFAULT_WMS_MAX_TILES = 16;
+const DEFAULT_WMS_MAX_SPAN = 7;
+const DEFAULT_WMS_MAX_TILES = 9;
 const MAX_ZOOM_EAST_OFFSET_METERS = 430;
 const MAX_ZOOM_NORTH_OFFSET_METERS = -300;
 
