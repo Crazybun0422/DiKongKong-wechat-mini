@@ -146,6 +146,7 @@ const UOM_MASK_SAMPLE_SIZE = 256;
 const UOM_TILE_HIRES_SIZE = 512;
 const UOM_TILE_HIRES_MIN_ZOOM = 14;
 const UOM_TILE_MAX_TILES = 36;
+const UOM_VIEWPORT_PADDING_PX = 120;
 const UOM_MASK_KEEP_RADIUS = 1;
 const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
@@ -5474,6 +5475,33 @@ Page({
     this._scaleBarBaseRpx = Math.max(30, Math.round(CSS_PIXELS_PER_CM / pxPerRpx));
   },
 
+  getMapViewportSize() {
+    if (this._mapViewport && this._mapViewport.width && this._mapViewport.height) {
+      return this._mapViewport;
+    }
+    let width = 375;
+    let height = 667;
+    try {
+      if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+        const info = wx.getWindowInfo();
+        if (info) {
+          width = info.windowWidth || info.screenWidth || width;
+          height = info.windowHeight || info.screenHeight || height;
+        }
+      } else if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
+        const info = wx.getSystemInfoSync();
+        if (info) {
+          width = info.windowWidth || info.screenWidth || width;
+          height = info.windowHeight || info.screenHeight || height;
+        }
+      }
+    } catch (err) {
+      console.warn("getMapViewportSize failed", err);
+    }
+    this._mapViewport = { width, height };
+    return this._mapViewport;
+  },
+
   updateScaleBar(context = {}) {
     const ctx = context && typeof context === "object" ? context : {};
     if (!this._pxPerRpx || this._pxPerRpx <= 0) {
@@ -6776,6 +6804,7 @@ Page({
       return;
     }
     const tileSize = this.resolveUomTileSize(scale);
+    const viewport = this.getMapViewportSize();
     const overlays = buildWmsOverlay(
       { longitude: center.longitude, latitude: center.latitude },
       scale,
@@ -6785,7 +6814,10 @@ Page({
         maskSize: UOM_MASK_SAMPLE_SIZE,
         paddingTiles: this.resolveUomTilePadding(scale),
         maxSpan: this.resolveUomTileSpan(scale),
-        maxTiles: UOM_TILE_MAX_TILES
+        maxTiles: UOM_TILE_MAX_TILES,
+        viewportWidth: viewport?.width,
+        viewportHeight: viewport?.height,
+        viewportPaddingPx: UOM_VIEWPORT_PADDING_PX
       }
     );
     const applyOverlays = () => {
