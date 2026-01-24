@@ -1,4 +1,4 @@
-<view class="page">
+﻿<view class="page">
   <view class="map-wrap">
     <map
       id="main-map"
@@ -85,7 +85,7 @@
           </view> -->
           <view class="drone-picker-display" bindtap="openDronePicker">
             <text class="preflight-label">执飞机型：</text>
-            <text class="drone-picker-value picker-underline">{{selectedDroneName}}</text>
+            <text class="drone-picker-value picker-underline">{{dronePickerLabel}}</text>
           </view>
         </view>
         <view class="preflight-row temporary-no-fly-row">
@@ -694,3 +694,4 @@
     ></view>
   </block>
 </view>
+

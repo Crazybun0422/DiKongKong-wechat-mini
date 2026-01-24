@@ -1,4 +1,4 @@
-﻿const { DRONES } = require("../../utils/drones");
+﻿const { DRONES, fetchDrones } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const {
@@ -118,7 +118,7 @@ const NFZ_CENTER_COLORS = {
 };
 
 const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 16;
+const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
 const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
 
@@ -141,6 +141,11 @@ const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
+const MIN_CENTER_SYNC_METERS = 6;
+const UOM_MASK_SAMPLE_SIZE = 256;
+const UOM_TILE_HIRES_SIZE = 512;
+const UOM_TILE_HIRES_MIN_ZOOM = 14;
+const UOM_TILE_MAX_TILES = 81;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -614,6 +619,9 @@ Page({
     polygons: [],
     circles: [],
     droneNames: DRONES.map((d) => d.name),
+    loadingDrones: false,
+    droneListAvailable: true,
+    dronePickerLabel: DEFAULT_DRONE.name,
     selectedDroneIndex: DEFAULT_DRONE_INDEX,
     selectedDrone: DEFAULT_DRONE.slug,
     selectedDroneName: DEFAULT_DRONE.name,
@@ -749,6 +757,10 @@ Page({
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
     this._pendingRegionUpdates = 0;
+    this._mapSkew = 0;
+    this._mapRotate = 0;
+    this._isIOS = false;
+    this._devicePixelRatio = 1;
     this._centerOverride = this.data.center;
     this._currentWmsTiles = [];
     this._wmsOverlayMap = new Map();
@@ -792,6 +804,8 @@ Page({
         platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
       })
     });
+    this._droneList = DRONES;
+    this.loadDronesFromApi();
     // if (!this.data.uomTileWarningDismissed) {
     //   if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
     //   this._uomFallbackTimer = setTimeout(() => {
@@ -3204,6 +3218,102 @@ Page({
     this.performSearch();
   },
 
+  computeDronePickerLabel(state = {}) {
+    const loading =
+      Object.prototype.hasOwnProperty.call(state, "loadingDrones")
+        ? state.loadingDrones
+        : this.data.loadingDrones;
+    const available =
+      Object.prototype.hasOwnProperty.call(state, "droneListAvailable")
+        ? state.droneListAvailable
+        : this.data.droneListAvailable;
+    const name =
+      Object.prototype.hasOwnProperty.call(state, "selectedDroneName")
+        ? state.selectedDroneName
+        : this.data.selectedDroneName;
+    if (loading) return "加载中";
+    if (!available) return "未提供";
+    return name || "未提供";
+  },
+
+  getDroneList() {
+    if (Array.isArray(this._droneList) && this._droneList.length) {
+      return this._droneList;
+    }
+    return DRONES;
+  },
+
+  applyDroneList(list = []) {
+    if (!Array.isArray(list) || !list.length) return;
+    this._droneList = list;
+    const names = list.map((item) => item.name);
+    const currentSlug = this.data.selectedDrone;
+    let nextIndex = list.findIndex((item) => item.slug === currentSlug);
+    if (nextIndex < 0) {
+      nextIndex = 0;
+    }
+    const next = list[nextIndex];
+    if (!next) return;
+    const changed = next.slug !== currentSlug;
+    const dronePickerLabel = this.computeDronePickerLabel({
+      loadingDrones: false,
+      droneListAvailable: true,
+      selectedDroneName: next.name
+    });
+    this.setData({
+      droneNames: names,
+      selectedDroneIndex: nextIndex,
+      selectedDrone: next.slug,
+      selectedDroneName: next.name,
+      loadingDrones: false,
+      droneListAvailable: true,
+      dronePickerLabel
+    });
+    if (changed) {
+      this.scheduleFetchDji(0, true);
+    }
+  },
+
+  loadDronesFromApi() {
+    const dronePickerLabel = this.computeDronePickerLabel({
+      loadingDrones: true,
+      droneListAvailable: this.data.droneListAvailable
+    });
+    this.setData({ loadingDrones: true, dronePickerLabel });
+    return fetchDrones()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) {
+          this.applyDroneList(list);
+          return;
+        }
+        this._droneList = [];
+        const fallbackLabel = this.computeDronePickerLabel({
+          loadingDrones: false,
+          droneListAvailable: false
+        });
+        this.setData({
+          droneNames: [],
+          loadingDrones: false,
+          droneListAvailable: false,
+          dronePickerLabel: fallbackLabel
+        });
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch drone list", err);
+        this._droneList = [];
+        const fallbackLabel = this.computeDronePickerLabel({
+          loadingDrones: false,
+          droneListAvailable: false
+        });
+        this.setData({
+          droneNames: [],
+          loadingDrones: false,
+          droneListAvailable: false,
+          dronePickerLabel: fallbackLabel
+        });
+      });
+  },
+
   onSearchTap() {
     this.performSearch();
   },
@@ -3896,8 +4006,8 @@ Page({
     this.setData({ markers: combined });
   },
 
-  updateCenterPinIndicator() {
-    const center = this.data.center;
+  updateCenterPinIndicator(centerOverride) {
+    const center = centerOverride || this._centerOverride || this.data.center;
     if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
       this.setData({
         centerPinTitle: "",
@@ -3960,7 +4070,8 @@ Page({
   },
 
   onCenterPinIndicatorTap() {
-    const pin = this.findPinContainingPoint(this.data.center);
+    const center = this._centerOverride || this.data.center;
+    const pin = this.findPinContainingPoint(center);
     if (!pin) {
       wx.showToast({ title: "未找到标记", icon: "none" });
       return;
@@ -4308,11 +4419,11 @@ Page({
     }
     wx.showLoading({ title: "Searching...", mask: true });
     let locationArgs = null;
+    const center = this._centerOverride || this.data.center;
     try {
-      const centerWgs = gcj02ToWgs84(
-        this.data.center.longitude,
-        this.data.center.latitude
-      );
+      const centerWgs = center
+        ? gcj02ToWgs84(center.longitude, center.latitude)
+        : null;
       if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
         locationArgs = {
           latitude: centerWgs.lat,
@@ -4444,11 +4555,11 @@ Page({
     }
     const snapshot = keyword;
     let locationArgs = null;
+    const center = this._centerOverride || this.data.center;
     try {
-      const centerWgs = gcj02ToWgs84(
-        this.data.center.longitude,
-        this.data.center.latitude
-      );
+      const centerWgs = center
+        ? gcj02ToWgs84(center.longitude, center.latitude)
+        : null;
       if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
         locationArgs = {
           latitude: centerWgs.lat,
@@ -4604,6 +4715,14 @@ Page({
   },
 
   openDronePicker() {
+    if (this.data.loadingDrones) {
+      wx.showToast({ title: "机型加载中", icon: "none" });
+      return;
+    }
+    if (!this.data.droneListAvailable) {
+      wx.showToast({ title: "机型未提供", icon: "none" });
+      return;
+    }
     this.setData({
       dronePickerVisible: true,
       pendingDroneIndex: this.data.selectedDroneIndex
@@ -4632,12 +4751,20 @@ Page({
   },
 
   applyDroneByIndex(idx) {
-    const bounded = Math.max(0, Math.min(DRONES.length - 1, idx));
-    const drone = DRONES[bounded] || DRONES[0];
+    const list = this.getDroneList();
+    if (!Array.isArray(list) || !list.length) return;
+    const bounded = Math.max(0, Math.min(list.length - 1, idx));
+    const drone = list[bounded] || list[0];
+    const dronePickerLabel = this.computeDronePickerLabel({
+      loadingDrones: false,
+      droneListAvailable: true,
+      selectedDroneName: drone.name
+    });
     this.setData({
       selectedDroneIndex: bounded,
       selectedDrone: drone.slug,
-      selectedDroneName: drone.name
+      selectedDroneName: drone.name,
+      dronePickerLabel
     });
     this.scheduleFetchDji(200, true);
   },
@@ -5397,6 +5524,22 @@ Page({
     this._pendingRegionUpdates = pending + inc;
   },
 
+  updateMapGestureState(detail = {}) {
+    const skew = Number(detail?.skew);
+    if (Number.isFinite(skew)) {
+      this._mapSkew = skew;
+    }
+    const rotate = Number(detail?.rotate);
+    if (Number.isFinite(rotate)) {
+      this._mapRotate = rotate;
+    }
+  },
+
+  shouldAvoidCenterSync() {
+    // iOS map can snap back when syncing center/scale during overlooking (skew) gestures.
+    return !!this._isIOS && Number.isFinite(this._mapSkew) && this._mapSkew > 0;
+  },
+
   scaleForMeters(targetMeters, latitude) {
     if (!Number.isFinite(targetMeters) || targetMeters <= 0) return null;
     if (!this._pxPerRpx || this._pxPerRpx <= 0) {
@@ -5527,30 +5670,51 @@ Page({
     }
     if (e.type === "end") {
       const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
+      const detail = e?.detail || {};
+      this.updateMapGestureState(detail);
       if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
         this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
         return;
       }
       // 使用事件内的中心与范围，仅用于刷新覆盖物，避免 setData 改 center 造成回环抖动
-      const region = e.detail && (e.detail.region || {
-        northeast: e.detail.northeast,
-        southwest: e.detail.southwest
+      const rawScale = Number(detail.scale);
+      const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
+      const region = detail && (detail.region || {
+        northeast: detail.northeast,
+        southwest: detail.southwest
       });
-      const cl = e.detail && (e.detail.centerLocation || null);
+      const cl = detail && (detail.centerLocation || null);
       if (region && region.northeast && region.southwest && cl) {
         const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
         this._centerOverride = newCenter;
         const prevScale = this.data.scale;
-        const scale = clampMapScale(e.detail.scale || prevScale);
+        const scale = clampMapScale(detail.scale || prevScale);
         const scaleChanged = scale !== prevScale;
         console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
         this._currentRadius = clampRadius(radius);
         this._currentBounds = this.buildBoundsRect(region, newCenter, this._currentRadius);
-        const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
-        const diffLng = Math.abs((this.data.center?.longitude || 0) - newCenter.longitude);
-        const shouldSync = diffLat > 1e-5 || diffLng > 1e-5 || scale !== this.data.scale;
+        const prevCenter = this.data.center;
+        const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+          ? haversineMeters(
+            prevCenter.latitude,
+            prevCenter.longitude,
+            newCenter.latitude,
+            newCenter.longitude
+          )
+          : Number.POSITIVE_INFINITY;
+        const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
+        const shouldSync = centerMoved || scale !== this.data.scale;
+        const avoidCenterSync = this.shouldAvoidCenterSync();
+        if (avoidCenterSync) {
+          this.data.center = newCenter;
+          this.data.scale = scale;
+          if (forceScaleSync) {
+            this.queueRegionUpdateSkip(1);
+            this.setData({ scale: MAP_MAX_SCALE });
+          }
+        }
         const run = (forceRefresh) => {
           this.refreshWmsOverlay(newCenter, scale, region);
           this.requestDjiZones(forceRefresh, newCenter, region, scale);
@@ -5579,22 +5743,29 @@ Page({
           run(scaleChanged);
           this.updateCenterPinIndicator();
         };
-        if (shouldSync) {
-          this.queueRegionUpdateSkip(1);
-          this.setData({ center: newCenter, scale }, afterSync);
+        if (shouldSync || forceScaleSync) {
+          if (avoidCenterSync) {
+            afterSync();
+          } else {
+            this.queueRegionUpdateSkip(1);
+            this.setData({ center: newCenter, scale }, afterSync);
+          }
         } else {
           afterSync();
         }
         return;
       }
       // 兜底：取中心再刷新（少量机型可能无 centerLocation）
-      this.updateCenterAndRadius(e.detail);
+      this.updateCenterAndRadius(detail);
     }
   },
 
   onMapUpdated() { },
 
   updateCenterAndRadius(detail) {
+    this.updateMapGestureState(detail);
+    const rawScale = Number(detail?.scale);
+    const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
     this.mapCtx.getCenterLocation({
       type: "gcj02",
       success: (res) => {
@@ -5604,11 +5775,28 @@ Page({
         };
         this._centerOverride = newCenter;
         const scale = clampMapScale(detail?.scale || this.data.scale);
+        const avoidCenterSync = this.shouldAvoidCenterSync();
         // cache region for WMS tiling
         this._lastRegion = detail?.region || null;
-        const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
-        const diffLng = Math.abs((this.data.center?.longitude || 0) - newCenter.longitude);
-        const needSync = diffLat > 1e-5 || diffLng > 1e-5 || scale !== this.data.scale;
+        const prevCenter = this.data.center;
+        const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+          ? haversineMeters(
+            prevCenter.latitude,
+            prevCenter.longitude,
+            newCenter.latitude,
+            newCenter.longitude
+          )
+          : Number.POSITIVE_INFINITY;
+        const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
+        const needSync = centerMoved || scale !== this.data.scale;
+        if (avoidCenterSync) {
+          this.data.center = newCenter;
+          this.data.scale = scale;
+          if (forceScaleSync) {
+            this.queueRegionUpdateSkip(1);
+            this.setData({ scale: MAP_MAX_SCALE });
+          }
+        }
         const run = () => {
           const radius = this.computeRadius(detail);
           this._currentRadius = clampRadius(radius);
@@ -5644,9 +5832,13 @@ Page({
           this.updateStatusPanel(this._lastAreas);
           this.updateCenterPinIndicator();
         };
-        if (needSync) {
-          this.queueRegionUpdateSkip(1);
-          this.setData({ center: newCenter, scale }, afterUpdate);
+        if (needSync || forceScaleSync) {
+          if (avoidCenterSync) {
+            afterUpdate();
+          } else {
+            this.queueRegionUpdateSkip(1);
+            this.setData({ center: newCenter, scale }, afterUpdate);
+          }
         } else {
           afterUpdate();
         }
@@ -6236,6 +6428,8 @@ Page({
       const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
       const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
       const platform = (info.platform || "").toLowerCase();
+      this._isIOS = platform === "ios";
+      this._devicePixelRatio = Number(info.pixelRatio) || 1;
       this.reportUomEnv({
         appName,
         appPlatform,
@@ -6380,12 +6574,6 @@ Page({
     if (this.data.temporaryNoFlyZoneEnabled === false) {
       return { zoneInfo: null, text: "已禁用", tone: "warn" };
     }
-    // if (!this._noFlyZonesReady) {
-    //   return { zoneInfo: null, text: "评估中", tone: "neutral" };
-    // }
-    // if (this._noFlyZonesError) {
-    //   return { zoneInfo: null, text: "临时禁飞数据不可用", tone: "warn" };
-    // }
     const center = this._centerOverride || this.data.center;
     if (!center) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
@@ -6428,7 +6616,7 @@ Page({
     }
     const tile = this.findUomTileForPoint(center);
     if (!tile) {
-      return { status: "非适飞空域", tone: "alert" };
+      return { status: "管制空域", tone: "alert" };
     }
     const maskEntry = this._uomTileMasks?.get(tile.id);
     if (!maskEntry) {
@@ -6442,15 +6630,15 @@ Page({
       const withinBounds = this.pointInBounds(center, tile.bounds);
       return withinBounds
         ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
-        : { status: "非适飞空域", tone: "alert" };
+        : { status: "管制空域", tone: "alert" };
     }
     if (maskEntry.status !== "ready" || !maskEntry.data) {
-      return { status: "非适飞空域", tone: "alert" };
+      return { status: "管制空域", tone: "alert" };
     }
     const covered = this.pointCoveredByUomMask(center, tile.bounds, maskEntry);
     return covered
       ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
-      : { status: "非适飞空域", tone: "alert" };
+      : { status: "管制空域", tone: "alert" };
   },
 
   pointInBounds(point, bounds) {
@@ -6485,6 +6673,29 @@ Page({
     return cleaned.length ? cleaned.join(",") : DEFAULT_LEVELS_PARAM;
   },
 
+  resolveUomTileSize(scale) {
+    const zoom = clampMapScale(scale ?? this.data.scale);
+    const dpr = Number(this._devicePixelRatio) || 1;
+    if (dpr >= 2 && zoom >= UOM_TILE_HIRES_MIN_ZOOM) {
+      return UOM_TILE_HIRES_SIZE;
+    }
+    return WEB_TILE_SIZE;
+  },
+
+  resolveUomTilePadding(scale) {
+    const zoom = clampMapScale(scale ?? this.data.scale);
+    if (zoom >= 17) return 4;
+    if (zoom >= 15) return 3;
+    return 0;
+  },
+
+  resolveUomTileSpan(scale) {
+    const zoom = clampMapScale(scale ?? this.data.scale);
+    if (zoom >= 17) return 16;
+    if (zoom >= 15) return 14;
+    return 6;
+  },
+
   refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
     if (this.data.uomDivisionEnabled === false) {
       this.clearMapOverlays();
@@ -6499,15 +6710,37 @@ Page({
       this.updateStatusPanel(this._lastAreas);
       return;
     }
+    const tileSize = this.resolveUomTileSize(scale);
     const overlays = buildWmsOverlay(
       { longitude: center.longitude, latitude: center.latitude },
       scale,
-      regionOverride || this._lastRegion || null
+      regionOverride || this._lastRegion || null,
+      {
+        tileSize,
+        maskSize: UOM_MASK_SAMPLE_SIZE,
+        paddingTiles: this.resolveUomTilePadding(scale),
+        maxSpan: this.resolveUomTileSpan(scale),
+        maxTiles: UOM_TILE_MAX_TILES
+      }
     );
     this._currentWmsTiles = overlays;
+    this.pruneUomTileMasks(overlays);
     this.updateStatusPanel(this._lastAreas);
     overlays.forEach((tile) => this.ensureUomMask(tile));
     this.applyWmsOverlays(overlays);
+  },
+
+  pruneUomTileMasks(tiles = []) {
+    if (!this._uomTileMasks || !this._uomTileMasks.size) return;
+    const keepIds = new Set();
+    (tiles || []).forEach((tile) => {
+      if (tile && tile.id) keepIds.add(tile.id);
+    });
+    for (const key of Array.from(this._uomTileMasks.keys())) {
+      if (!keepIds.has(key)) {
+        this._uomTileMasks.delete(key);
+      }
+    }
   },
 
   applyWmsOverlays(tiles) {
@@ -6593,6 +6826,9 @@ Page({
       }
     }
     this._wmsOverlayMap.clear();
+    if (this._uomTileMasks) {
+      this._uomTileMasks.clear();
+    }
     this._currentWmsTiles = [];
     this.updateStatusPanel(this._lastAreas);
   },
@@ -6857,20 +7093,19 @@ Page({
       return;
     }
     try {
-      const canvas = wx.createOffscreenCanvas({ type: "2d", width: 256, height: 256 });
+      const sampleSize = Number(tile.maskSize) || UOM_MASK_SAMPLE_SIZE;
+      const canvas = wx.createOffscreenCanvas({ type: "2d", width: sampleSize, height: sampleSize });
       const ctx = canvas.getContext("2d");
       const img = canvas.createImage();
       const entry = { status: "pending" };
       this._uomTileMasks.set(tile.id, entry);
       img.onload = () => {
         try {
-          const w = img.width || 256;
-          const h = img.height || 256;
-          canvas.width = w;
-          canvas.height = h;
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(img, 0, 0, w, h);
-          const imageData = ctx.getImageData(0, 0, w, h);
+          canvas.width = sampleSize;
+          canvas.height = sampleSize;
+          ctx.clearRect(0, 0, sampleSize, sampleSize);
+          ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+          const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
           entry.status = "ready";
           entry.width = imageData.width;
           entry.height = imageData.height;
@@ -6916,4 +7151,5 @@ Page({
     return alpha > 16;
   }
 });
+
 
