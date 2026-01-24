@@ -148,6 +148,7 @@ const UOM_TILE_HIRES_MIN_ZOOM = 14;
 const UOM_TILE_MAX_TILES = 81;
 const UOM_MASK_KEEP_RADIUS = 1;
 const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
+const WMS_OVERLAY_REMOVE_RETRY_MS = 500;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -768,6 +769,8 @@ Page({
     this._wmsOverlayMap = new Map();
     this._wmsOverlayHealth = new Map();
     this._wmsOverlaySeed = 0;
+    this._wmsOverlayRemovals = new Set();
+    this._wmsOverlayRemovalTimer = null;
     this._uomEnvReported = false;
     this._uomModalShown = false;
     this._uomFallbackTimer = null;
@@ -3020,6 +3023,7 @@ Page({
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
+    if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
     this.clearMapOverlays();
@@ -6751,8 +6755,51 @@ Page({
     this.enforceUomMaskCacheLimit(keepIds);
   },
 
+  isWmsOverlayNotFound(err) {
+    const msg = `${err?.errMsg || ""}`.toLowerCase();
+    return (
+      msg.includes("not exist") ||
+      msg.includes("not found") ||
+      msg.includes("no overlay") ||
+      msg.includes("不存在")
+    );
+  },
+
+  queueWmsOverlayRemoval(overlayId) {
+    if (!Number.isFinite(overlayId)) return;
+    if (!this._wmsOverlayRemovals) this._wmsOverlayRemovals = new Set();
+    this._wmsOverlayRemovals.add(overlayId);
+    if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
+    this._wmsOverlayRemovalTimer = setTimeout(() => {
+      this.flushWmsOverlayRemovals();
+    }, WMS_OVERLAY_REMOVE_RETRY_MS);
+  },
+
+  flushWmsOverlayRemovals() {
+    if (!this.mapCtx) return;
+    if (!this._wmsOverlayRemovals || !this._wmsOverlayRemovals.size) return;
+    const ctx = this.mapCtx;
+    const ids = Array.from(this._wmsOverlayRemovals);
+    ids.forEach((overlayId) => {
+      ctx.removeGroundOverlay({
+        id: overlayId,
+        success: () => {
+          if (this._wmsOverlayRemovals) {
+            this._wmsOverlayRemovals.delete(overlayId);
+          }
+        },
+        fail: (err) => {
+          if (this.isWmsOverlayNotFound(err) && this._wmsOverlayRemovals) {
+            this._wmsOverlayRemovals.delete(overlayId);
+          }
+        }
+      });
+    });
+  },
+
   applyWmsOverlays(tiles) {
     if (!this.mapCtx) return;
+    this.flushWmsOverlayRemovals();
     const ctx = this.mapCtx;
     this._wmsOverlayMap = this._wmsOverlayMap || new Map();
     this._wmsOverlaySeed = this._wmsOverlaySeed || 0;
@@ -6763,10 +6810,7 @@ Page({
     if (this._wmsOverlayMap.size) {
       for (const [tileId, handle] of Array.from(this._wmsOverlayMap.entries())) {
         if (!nextIds.has(tileId)) {
-          ctx.removeGroundOverlay({
-            id: handle.overlayId,
-            fail: () => { }
-          });
+          this.queueWmsOverlayRemoval(handle.overlayId);
           this._wmsOverlayMap.delete(tileId);
         }
       }
@@ -6780,10 +6824,7 @@ Page({
       }
 
       if (existing) {
-        ctx.removeGroundOverlay({
-          id: existing.overlayId,
-          fail: () => { }
-        });
+        this.queueWmsOverlayRemoval(existing.overlayId);
         this._wmsOverlayMap.delete(tile.id);
       }
       this._wmsOverlaySeed += 1;
@@ -6800,11 +6841,13 @@ Page({
           this._uomOverlayFailed = true;
           this.updateUomTileWarning();
 
+          this.queueWmsOverlayRemoval(overlayId);
           this._wmsOverlayMap.delete(tile.id);
         }
       });
       this._wmsOverlayMap.set(tile.id, { overlayId, signature });
     });
+    this.flushWmsOverlayRemovals();
   },
 
   tileSignature(tile) {
@@ -6827,13 +6870,11 @@ Page({
     this._wmsOverlayMap = this._wmsOverlayMap || new Map();
     if (this.mapCtx) {
       for (const [, handle] of this._wmsOverlayMap.entries()) {
-        this.mapCtx.removeGroundOverlay({
-          id: handle.overlayId,
-          fail: () => { }
-        });
+        this.queueWmsOverlayRemoval(handle.overlayId);
       }
     }
     this._wmsOverlayMap.clear();
+    this.flushWmsOverlayRemovals();
     if (this._uomTileMasks) {
       this._uomTileMasks.clear();
     }
