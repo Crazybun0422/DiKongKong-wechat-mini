@@ -146,6 +146,8 @@ const UOM_MASK_SAMPLE_SIZE = 256;
 const UOM_TILE_HIRES_SIZE = 512;
 const UOM_TILE_HIRES_MIN_ZOOM = 14;
 const UOM_TILE_MAX_TILES = 81;
+const UOM_MASK_KEEP_RADIUS = 1;
+const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -777,6 +779,7 @@ Page({
     this._nfzPolygons = [];
     this._nfzCircles = [];
     this._uomTileMasks = new Map();
+    this._uomMaskKeepIds = new Set();
     this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
     this._uomOverlayFailed = false;
     this._uomOverlayUnsupported = false;
@@ -6684,7 +6687,7 @@ Page({
 
   resolveUomTilePadding(scale) {
     const zoom = clampMapScale(scale ?? this.data.scale);
-    if (zoom >= 17) return 4;
+    if (zoom >= 17) return 3;
     if (zoom >= 15) return 3;
     return 0;
   },
@@ -6692,7 +6695,7 @@ Page({
   resolveUomTileSpan(scale) {
     const zoom = clampMapScale(scale ?? this.data.scale);
     if (zoom >= 17) return 16;
-    if (zoom >= 15) return 14;
+    if (zoom >= 15) return 16;
     return 6;
   },
 
@@ -6724,23 +6727,28 @@ Page({
       }
     );
     this._currentWmsTiles = overlays;
-    this.pruneUomTileMasks(overlays);
+    const maskTiles = this.pickUomMaskTiles(overlays, center, UOM_MASK_KEEP_RADIUS);
+    this.pruneUomTileMasks(maskTiles);
     this.updateStatusPanel(this._lastAreas);
-    overlays.forEach((tile) => this.ensureUomMask(tile));
+    maskTiles.forEach((tile) => this.ensureUomMask(tile));
     this.applyWmsOverlays(overlays);
   },
 
   pruneUomTileMasks(tiles = []) {
-    if (!this._uomTileMasks || !this._uomTileMasks.size) return;
     const keepIds = new Set();
     (tiles || []).forEach((tile) => {
       if (tile && tile.id) keepIds.add(tile.id);
     });
-    for (const key of Array.from(this._uomTileMasks.keys())) {
-      if (!keepIds.has(key)) {
-        this._uomTileMasks.delete(key);
+    this._uomMaskKeepIds = keepIds;
+    if (!this._uomTileMasks || !this._uomTileMasks.size) return;
+    if (keepIds.size) {
+      for (const key of Array.from(this._uomTileMasks.keys())) {
+        if (!keepIds.has(key)) {
+          this._uomTileMasks.delete(key);
+        }
       }
     }
+    this.enforceUomMaskCacheLimit(keepIds);
   },
 
   applyWmsOverlays(tiles) {
@@ -7083,11 +7091,79 @@ Page({
     return null;
   },
 
+  parseWmsTileId(tileId) {
+    if (typeof tileId !== "string") return null;
+    const parts = tileId.split("-");
+    if (parts.length < 3) return null;
+    const zoom = Number(parts[0]);
+    const x = Number(parts[1]);
+    const y = Number(parts[2]);
+    if (!Number.isFinite(zoom) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    return {
+      zoom: Math.round(zoom),
+      x: Math.round(x),
+      y: Math.round(y)
+    };
+  },
+
+  pickUomMaskTiles(tiles = [], center, radius = UOM_MASK_KEEP_RADIUS) {
+    if (!Array.isArray(tiles) || !tiles.length || !center) return [];
+    const centerTile = this.findUomTileForPoint(center);
+    if (!centerTile || !centerTile.id) return [];
+    const parsed = this.parseWmsTileId(centerTile.id);
+    if (!parsed) return [centerTile];
+    const span = Number.isFinite(radius) ? Math.max(0, Math.round(radius)) : 0;
+    const tileMap = new Map();
+    tiles.forEach((tile) => {
+      if (tile && tile.id) tileMap.set(tile.id, tile);
+    });
+    const picked = [];
+    for (let dx = -span; dx <= span; dx += 1) {
+      for (let dy = -span; dy <= span; dy += 1) {
+        const id = `${parsed.zoom}-${parsed.x + dx}-${parsed.y + dy}`;
+        const tile = tileMap.get(id);
+        if (tile) picked.push(tile);
+      }
+    }
+    return picked.length ? picked : [centerTile];
+  },
+
+  touchUomMaskEntry(tileId) {
+    if (!this._uomTileMasks || !tileId) return;
+    const entry = this._uomTileMasks.get(tileId);
+    if (!entry) return;
+    this._uomTileMasks.delete(tileId);
+    this._uomTileMasks.set(tileId, entry);
+  },
+
+  enforceUomMaskCacheLimit(keepIds) {
+    if (!this._uomTileMasks || !this._uomTileMasks.size) return;
+    const max = UOM_MASK_MAX_CACHE;
+    if (!Number.isFinite(max) || max <= 0) return;
+    if (this._uomTileMasks.size <= max) return;
+    const keepSet = keepIds instanceof Set ? keepIds : new Set();
+    for (const key of Array.from(this._uomTileMasks.keys())) {
+      if (this._uomTileMasks.size <= max) break;
+      if (!keepSet.has(key)) {
+        this._uomTileMasks.delete(key);
+      }
+    }
+    for (const key of Array.from(this._uomTileMasks.keys())) {
+      if (this._uomTileMasks.size <= max) break;
+      this._uomTileMasks.delete(key);
+    }
+  },
+
   ensureUomMask(tile) {
     if (!tile || !tile.id) return;
     if (!this._uomTileMasks) this._uomTileMasks = new Map();
     const cached = this._uomTileMasks.get(tile.id);
-    if (cached && (cached.status === "ready" || cached.status === "pending")) return;
+    if (cached && (cached.status === "ready" || cached.status === "pending")) {
+      this.touchUomMaskEntry(tile.id);
+      return;
+    }
     if (!this._uomMaskSupported) {
       this._uomTileMasks.set(tile.id, { status: "unsupported" });
       return;
@@ -7099,6 +7175,7 @@ Page({
       const img = canvas.createImage();
       const entry = { status: "pending" };
       this._uomTileMasks.set(tile.id, entry);
+      this.enforceUomMaskCacheLimit(this._uomMaskKeepIds);
       img.onload = () => {
         try {
           canvas.width = sampleSize;
