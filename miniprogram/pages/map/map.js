@@ -149,7 +149,8 @@ const UOM_TILE_MAX_TILES = 36;
 const UOM_MASK_KEEP_RADIUS = 1;
 const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
-const WMS_OVERLAY_REMOVE_RETRY_MS = 500;
+const WMS_OVERLAY_REMOVE_RETRY_MS = 0;
+const WMS_OVERLAY_REMOVE_STALE_MS = 60000;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -770,7 +771,14 @@ Page({
     this._wmsOverlayMap = new Map();
     this._wmsOverlayHealth = new Map();
     this._wmsOverlaySeed = 0;
+    this._wmsOverlayZoom = null;
+    this._wmsOverlayEpoch = 0;
     this._wmsOverlayRemovals = new Set();
+    this._wmsOverlayRemovalQueue = [];
+    this._wmsOverlayRemovalQueued = new Set();
+    this._wmsOverlayRemovalMeta = new Map();
+    this._wmsOverlayRemoving = false;
+    this._wmsOverlayClearCallbacks = [];
     this._wmsOverlayRemovalTimer = null;
     this._wmsFinalRefreshTimer = null;
     this._uomEnvReported = false;
@@ -6780,12 +6788,21 @@ Page({
         maxTiles: UOM_TILE_MAX_TILES
       }
     );
-    this._currentWmsTiles = overlays;
-    const maskTiles = this.pickUomMaskTiles(overlays, center, UOM_MASK_KEEP_RADIUS);
-    this.pruneUomTileMasks(maskTiles);
-    this.updateStatusPanel(this._lastAreas);
-    maskTiles.forEach((tile) => this.ensureUomMask(tile));
-    this.applyWmsOverlays(overlays);
+    const applyOverlays = () => {
+      if (this.data.uomDivisionEnabled === false) return;
+      this._currentWmsTiles = overlays;
+      const maskTiles = this.pickUomMaskTiles(overlays, center, UOM_MASK_KEEP_RADIUS);
+      this.pruneUomTileMasks(maskTiles);
+      this.updateStatusPanel(this._lastAreas);
+      maskTiles.forEach((tile) => this.ensureUomMask(tile));
+      this.applyWmsOverlays(overlays);
+      this._wmsOverlayZoom = scale;
+    };
+    if (this._wmsOverlayZoom !== null && this._wmsOverlayZoom !== scale) {
+      this.clearMapOverlays({ onCleared: applyOverlays });
+      return;
+    }
+    applyOverlays();
   },
 
   pruneUomTileMasks(tiles = []) {
@@ -6805,6 +6822,12 @@ Page({
     this.enforceUomMaskCacheLimit(keepIds);
   },
 
+  bumpWmsOverlayEpoch() {
+    const next = Number.isFinite(this._wmsOverlayEpoch) ? this._wmsOverlayEpoch + 1 : 1;
+    this._wmsOverlayEpoch = next;
+    return next;
+  },
+
   isWmsOverlayNotFound(err) {
     const msg = `${err?.errMsg || ""}`.toLowerCase();
     return (
@@ -6818,39 +6841,104 @@ Page({
   queueWmsOverlayRemoval(overlayId) {
     if (!Number.isFinite(overlayId)) return;
     if (!this._wmsOverlayRemovals) this._wmsOverlayRemovals = new Set();
+    if (!this._wmsOverlayRemovalQueue) this._wmsOverlayRemovalQueue = [];
+    if (!this._wmsOverlayRemovalQueued) this._wmsOverlayRemovalQueued = new Set();
+    if (!this._wmsOverlayRemovalMeta) this._wmsOverlayRemovalMeta = new Map();
     this._wmsOverlayRemovals.add(overlayId);
-    if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
-    this._wmsOverlayRemovalTimer = setTimeout(() => {
-      this.flushWmsOverlayRemovals();
-    }, WMS_OVERLAY_REMOVE_RETRY_MS);
+    this._wmsOverlayRemovalMeta.set(overlayId, Date.now());
+    if (this._wmsOverlayRemovalQueued.has(overlayId)) return;
+    this._wmsOverlayRemovalQueued.add(overlayId);
+    this._wmsOverlayRemovalQueue.push(overlayId);
+    this.processWmsOverlayRemovalQueue();
   },
 
-  flushWmsOverlayRemovals() {
+  processWmsOverlayRemovalQueue() {
     if (!this.mapCtx) return;
-    if (!this._wmsOverlayRemovals || !this._wmsOverlayRemovals.size) return;
-    const ctx = this.mapCtx;
-    const ids = Array.from(this._wmsOverlayRemovals);
-    ids.forEach((overlayId) => {
-      ctx.removeGroundOverlay({
-        id: overlayId,
-        success: () => {
-          if (this._wmsOverlayRemovals) {
-            this._wmsOverlayRemovals.delete(overlayId);
+    if (this._wmsOverlayRemoving) return;
+    if (!this._wmsOverlayRemovalQueue || !this._wmsOverlayRemovalQueue.length) {
+      this.sweepWmsOverlayRemovals();
+      this.flushWmsOverlayClearCallbacks();
+      return;
+    }
+    const overlayId = this._wmsOverlayRemovalQueue.shift();
+    this._wmsOverlayRemoving = true;
+    this.mapCtx.removeGroundOverlay({
+      id: overlayId,
+      success: () => {
+        if (this._wmsOverlayRemovals) {
+          this._wmsOverlayRemovals.delete(overlayId);
+        }
+        if (this._wmsOverlayRemovalQueued) {
+          this._wmsOverlayRemovalQueued.delete(overlayId);
+        }
+        if (this._wmsOverlayRemovalMeta) {
+          this._wmsOverlayRemovalMeta.delete(overlayId);
+        }
+        this._wmsOverlayRemoving = false;
+        this.processWmsOverlayRemovalQueue();
+      },
+      fail: (err) => {
+        console.warn("removeGroundOverlay failed", overlayId, err);
+        if (this.isWmsOverlayNotFound(err)) {
+          if (this._wmsOverlayRemovalQueued) {
+            this._wmsOverlayRemovalQueued.delete(overlayId);
           }
-        },
-        fail: (err) => {
-          if (this.isWmsOverlayNotFound(err) && this._wmsOverlayRemovals) {
-            this._wmsOverlayRemovals.delete(overlayId);
+          this._wmsOverlayRemoving = false;
+          this.processWmsOverlayRemovalQueue();
+          return;
+        }
+        if (this._wmsOverlayRemovalQueue) {
+          this._wmsOverlayRemovalQueue.push(overlayId);
+          if (this._wmsOverlayRemovalQueued) {
+            this._wmsOverlayRemovalQueued.add(overlayId);
           }
         }
-      });
+        this._wmsOverlayRemoving = false;
+        if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
+        if (WMS_OVERLAY_REMOVE_RETRY_MS > 0) {
+          this._wmsOverlayRemovalTimer = setTimeout(() => {
+            this._wmsOverlayRemovalTimer = null;
+            this.processWmsOverlayRemovalQueue();
+          }, WMS_OVERLAY_REMOVE_RETRY_MS);
+        } else {
+          this._wmsOverlayRemovalTimer = null;
+          this.processWmsOverlayRemovalQueue();
+        }
+      }
     });
   },
 
-  applyWmsOverlays(tiles) {
+  flushWmsOverlayClearCallbacks() {
+    if (this._wmsOverlayRemoving) return;
+    if (this._wmsOverlayRemovalQueue && this._wmsOverlayRemovalQueue.length) return;
+    if (!this._wmsOverlayClearCallbacks || !this._wmsOverlayClearCallbacks.length) return;
+    const callbacks = this._wmsOverlayClearCallbacks.slice();
+    this._wmsOverlayClearCallbacks = [];
+    callbacks.forEach((fn) => {
+      try {
+        fn();
+      } catch (err) {
+        console.warn("WMS clear callback failed", err);
+      }
+    });
+  },
+
+  sweepWmsOverlayRemovals() {
+    if (!this._wmsOverlayRemovalMeta || !this._wmsOverlayRemovals) return;
+    const now = Date.now();
+    for (const [overlayId, startedAt] of this._wmsOverlayRemovalMeta.entries()) {
+      if (now - startedAt < WMS_OVERLAY_REMOVE_STALE_MS) continue;
+      if (this._wmsOverlayRemovalQueued && this._wmsOverlayRemovalQueued.has(overlayId)) continue;
+      this._wmsOverlayRemovalMeta.delete(overlayId);
+      this._wmsOverlayRemovals.delete(overlayId);
+    }
+  },
+
+  applyWmsOverlays(tiles, options = {}) {
     if (!this.mapCtx) return;
-    this.flushWmsOverlayRemovals();
+    this.processWmsOverlayRemovalQueue();
     const ctx = this.mapCtx;
+    const epoch = Number.isFinite(options.epoch) ? options.epoch : this._wmsOverlayEpoch;
     this._wmsOverlayMap = this._wmsOverlayMap || new Map();
     this._wmsOverlaySeed = this._wmsOverlaySeed || 0;
     const nextIds = new Set();
@@ -6886,6 +6974,15 @@ Page({
         src: tile.src,
         bounds: tile.bounds,
         alpha,
+        success: () => {
+          if (this._wmsOverlayRemovals && this._wmsOverlayRemovals.has(overlayId)) {
+            this.queueWmsOverlayRemoval(overlayId);
+            return;
+          }
+          if (epoch !== this._wmsOverlayEpoch) {
+            this.queueWmsOverlayRemoval(overlayId);
+          }
+        },
         fail: (err) => {
           console.error("addGroundOverlay failed", tile.id, err);
           this._uomOverlayFailed = true;
@@ -6895,9 +6992,9 @@ Page({
           this._wmsOverlayMap.delete(tile.id);
         }
       });
-      this._wmsOverlayMap.set(tile.id, { overlayId, signature });
+      this._wmsOverlayMap.set(tile.id, { overlayId, signature, epoch });
     });
-    this.flushWmsOverlayRemovals();
+    this.processWmsOverlayRemovalQueue();
   },
 
   tileSignature(tile) {
@@ -6916,15 +7013,21 @@ Page({
     return values.join("|");
   },
 
-  clearMapOverlays() {
+  clearMapOverlays(options = {}) {
+    this.bumpWmsOverlayEpoch();
     this._wmsOverlayMap = this._wmsOverlayMap || new Map();
+    if (options && typeof options.onCleared === "function") {
+      if (!this._wmsOverlayClearCallbacks) this._wmsOverlayClearCallbacks = [];
+      this._wmsOverlayClearCallbacks.push(options.onCleared);
+    }
     if (this.mapCtx) {
       for (const [, handle] of this._wmsOverlayMap.entries()) {
         this.queueWmsOverlayRemoval(handle.overlayId);
       }
     }
     this._wmsOverlayMap.clear();
-    this.flushWmsOverlayRemovals();
+    this.processWmsOverlayRemovalQueue();
+    this._wmsOverlayZoom = null;
     if (this._uomTileMasks) {
       this._uomTileMasks.clear();
     }
@@ -7285,7 +7388,7 @@ Page({
         }
       };
       img.onerror = (err) => {
-        console.error("加载 UOM 瓦片失败", err);
+        console.error("加载 UOM 瓦片失败11111111", err);
         const entry = this._uomTileMasks.get(tile.id);
         if (entry) entry.status = "error";
         this._uomOverlayFailed = true;
