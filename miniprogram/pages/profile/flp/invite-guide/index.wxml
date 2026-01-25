@@ -1,0 +1,44 @@
+<view class="invite-guide-page">
+  <scroll-view scroll-y="true" class="invite-guide-scroll">
+    <block wx:if="{{loading}}">
+      <view class="invite-guide-loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="invite-guide-error">
+        <text>{{error}}</text>
+        <button class="invite-guide-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <block wx:if="{{contentSegments.length}}">
+        <block wx:for="{{contentSegments}}" wx:key="index">
+          <rich-text
+            wx:if="{{item.type === 'rich'}}"
+            class="invite-guide-content"
+            nodes="{{item.nodes}}"
+            space="nbsp"
+            selectable="true"
+            bindtap="onRichTextTap"
+          />
+          <image
+            wx:elif="{{item.type === 'image'}}"
+            class="invite-guide-image"
+            src="{{item.src}}"
+            mode="widthFix"
+            show-menu-by-longpress="true"
+            data-index="{{item.index}}"
+            bindtap="onImageTap"
+          />
+        </block>
+      </block>
+      <rich-text
+        wx:else
+        class="invite-guide-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </scroll-view>
+</view>

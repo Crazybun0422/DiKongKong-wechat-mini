@@ -1,16 +1,20 @@
-<view class="invite-page">
+﻿<view class="invite-page">
   <view class="invite-body">
     <view class="invite-card">
       <view class="invite-card-info">
         <!-- <text class="invite-card-title">邀请好友</text>
         <text class="invite-card-desc">用户专属带参数的小程序二维码</text> -->
       </view>
-      <view class="invite-qr-wrapper">
+      <view class="invite-qr-wrapper {{qrImageReady && qrImagePath ? 'is-ready' : ''}}">
         <image
+          wx:if="{{qrImageReady && qrImagePath}}"
           class="invite-qr-image"
-          src="{{qrImagePath || '/assets/qrcode.png'}}"
+          src="{{qrImagePath}}"
           mode="aspectFit"
         />
+        <view wx:else class="invite-qr-loading">
+          <image class="invite-qr-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
+        </view>
       </view>
     </view>
 
@@ -20,8 +24,14 @@
     </view> -->
 
     <view class="invite-actions">
-      <button class="invite-action" open-type="share" hover-class="invite-action-hover">
-        <image class="invite-action-icon" src="/assets/share-wechat.png" mode="aspectFit" />
+      <button
+        class="invite-action"
+        id="invite-share-btn"
+        open-type="share"
+        hover-class="invite-action-hover"
+        bindtap="onInviteShareTap"
+      >
+        <image class="invite-action-icon" src="/pages/profile/assets/share-wechat.png" mode="aspectFit" />
         <text class="invite-action-text">发给好友</text>
       </button>
       <button
@@ -30,7 +40,7 @@
         bindtap="onSaveImageTap"
         data-action="save"
       >
-        <image class="invite-action-icon" src="/assets/image-copy.png" mode="aspectFit" />
+        <image class="invite-action-icon" src="/pages/profile/assets/image-copy.png" mode="aspectFit" />
         <text class="invite-action-text">保存图片</text>
       </button>
       <button
@@ -39,13 +49,23 @@
         bindtap="onCopyLinkTap"
         data-action="copy"
       >
-        <image class="invite-action-icon" src="/assets/link-copy.png" mode="aspectFit" />
+        <image class="invite-action-icon" src="/pages/profile/assets/link-copy.png" mode="aspectFit" />
         <text class="invite-action-text">复制路径</text>
       </button>
     </view>
 
+    <button
+      class="invite-guide-button"
+      hover-class="invite-guide-button-hover"
+      bindtap="onGuideTap"
+    >
+      <text class="invite-guide-emoji">🔥</text>
+      <text class="invite-guide-text">查看邀请攻略和规则</text>
+      <image class="invite-guide-arrow" src="/assets/arrow-right.png" mode="widthFix" />
+    </button>
+
     <view class="invite-status" wx:if="{{loading}}">
-      <text class="invite-status-text">二维码生成中...</text>
+      <text class="invite-status-text">邀请海报生成中...</text>
     </view>
 
     <view class="invite-error" wx:if="{{error}}">
@@ -53,6 +73,26 @@
       <button class="invite-error-btn" bindtap="onRetryTap">重试</button>
     </view>
   </view>
+
+  <block wx:if="{{showInviteGuideInvite}}">
+    <view class="invite-guide-overlay" style="{{inviteGuideOverlayStyle}}"></view>
+    <view class="invite-guide-mask invite-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-left"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; width: {{inviteGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-right"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; left: {{inviteGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-bottom"
+      style="top: {{inviteGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+  </block>
 
   <canvas
     canvas-id="invite-qrcode"
@@ -62,3 +102,4 @@
     height="520"
   />
 </view>
+

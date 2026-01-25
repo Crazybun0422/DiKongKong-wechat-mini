@@ -1,4 +1,4 @@
-const {
+﻿const {
   listMarkers,
   createMarker,
   updateMarker,
@@ -40,25 +40,26 @@ const {
   exitWorkGroup,
   addWorkGroupMembers,
   uploadWorkGroupImage,
-  fetchWorkGroupById
+  fetchWorkGroupById,
+  joinWorkGroup
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
 
 const STATIC_ASSETS = {
-  add: "/assets/add.png",
-  exposure: "/assets/exposure.png",
-  telephone: "/assets/telephone.png",
-  defaultCover: "/assets/no-image.png",
-  emptyPin: "/assets/empty-pin.png",
-  workGroup: "/assets/work-group.png",
+  add: "/pages/markers/assets/add.png",
+  exposure: "/pages/markers/assets/exposure.png",
+  telephone: "/pages/markers/assets/telephone.png",
+  defaultCover: "/pages/markers/assets/no-image.png",
+  emptyPin: "/pages/markers/assets/empty-pin.png",
+  workGroup: "/pages/markers/assets/work-group.png",
   arrowRight: "/assets/arrow-right.png",
-  plus: "/assets/plus-circle-fill.png",
+  plus: "/pages/markers/assets/plus-circle-fill.png",
   defaultAvatar: "/assets/default-avatar.png",
-  publish: "/assets/publish.png",
-  revoke: "/assets/revoke.png",
+  publish: "/pages/markers/assets/publish.png",
+  revoke: "/pages/markers/assets/revoke.png",
   home: "/assets/home.png",
-  modify: "/assets/modify.png",
-  delete: "/assets/delete.png"
+  modify: "/pages/markers/assets/modify.png",
+  delete: "/pages/markers/assets/delete.png"
 };
 
 const CENTER_TABS = [
@@ -112,11 +113,37 @@ const PIN_CATEGORY_LABELS = {
   LINE: "线",
   AREA: "面"
 };
+const PIN_TYPE_ICONS = {
+  POINT_DEFAULT: "/assets/default.png",
+  POINT_WARNING: "/assets/drone-warning.png",
+  POINT_AERIAL: "/assets/aerial.png",
+  POINT_DOCK: "/assets/dock.png",
+  POINT_ELEVATION: "/assets/elevation.png",
+  LINE_PATH_BUFFER: "/assets/path.png",
+  AREA_CIRCLE: "/assets/circle.png",
+  AREA_RECTANGLE: "/assets/rectangle.png",
+  AREA_POLYGON: "/assets/polygon.png"
+};
 const PIN_REVIEW_STATUS_META = {
   PENDING: { label: "审核中", tone: "pending" },
   APPROVED_A: { label: "通过", tone: "online" },
   APPROVED_B: { label: "通过", tone: "online" },
   REJECTED: { label: "被驳回", tone: "danger" }
+};
+
+const decodeMaybeURI = (text = "") => {
+  const raw = `${text || ""}`;
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch (err) {
+    return raw;
+  }
+};
+
+const normalizeInviteCode = (value) => {
+  if (value === undefined || value === null) return "";
+  return `${value}`.trim();
 };
 
 function createEmptyForm() {
@@ -142,6 +169,8 @@ function createEmptyPinForm() {
   return {
     geometryType: "POINT_DEFAULT",
     geometryLabel: "点-通用",
+    geometryName: "通用",
+    geometryIcon: PIN_TYPE_ICONS.POINT_DEFAULT,
     geometryCategory: "POINT",
     latitude: null,
     longitude: null,
@@ -152,7 +181,6 @@ function createEmptyPinForm() {
     activeCoordIndex: 0,
     bufferWidth: null,
     radius: null,
-    wgs84Coordinates: [],
     images: [],
     name: "",
     description: "",
@@ -192,11 +220,6 @@ function isPinLocationConfigured(form = {}) {
   if (hasValidCoordinate(form.latitude, form.longitude)) return true;
   if (Array.isArray(form.coordinateList)) {
     return form.coordinateList.some((item = {}) => hasValidCoordinate(item.latitude, item.longitude));
-  }
-  if (Array.isArray(form.wgs84Coordinates)) {
-    return form.wgs84Coordinates.some((item = {}) =>
-      hasValidCoordinate(normalizePinCoordValue(item.latitude), normalizePinCoordValue(item.longitude))
-    );
   }
   return false;
 }
@@ -263,6 +286,9 @@ Page({
     pinConfirmTargetId: "",
     pinConfirmMessage: "",
     pinConfirmBusy: false,
+    publishPlatformDialogVisible: false,
+    publishPlatformDialogSource: "",
+    publishPlatformPendingMarker: null,
     deletingId: "",
     hasLoaded: false,
     editingMarkerId: "",
@@ -307,7 +333,10 @@ Page({
     deleteDialogInput: "",
     deleteDialogMarkerId: "",
     deleteDialogMarkerName: "",
-    deleteDialogError: ""
+    deleteDialogError: "",
+    joinInvitePrompt: null,
+    joinInviting: false,
+    customerServiceSessionFrom: "marker-create-support"
   },
 
   onLoad(options = {}) {
@@ -326,8 +355,16 @@ Page({
     }
   },
 
+  onCustomerServiceContact(event) {
+    console.log("Marker create customer service contact", event);
+  },
+
   onShow() {
     this.consumePendingCenterTab();
+    const pendingInvite = this.consumePendingWorkGroupInvite();
+    if (pendingInvite) {
+      this.promptJoinWorkGroup(pendingInvite);
+    }
     const needMarkers = !this.data.hasLoaded && !this.data.loading;
     const needPins = this.data.activeCenterTab === "MY_MARKERS" && !this.data.pinsLoaded && !this.data.pinsLoading;
     const needWorkGroups =
@@ -363,6 +400,54 @@ Page({
     } catch (err) {
       console.warn("consumePendingCenterTab failed", err);
     }
+  },
+
+  consumePendingWorkGroupInvite() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const invite = app?.globalData?.pendingWorkGroupInvite;
+      if (invite && invite.invitationCode && invite.groupId) {
+        app.globalData.pendingWorkGroupInvite = null;
+        const normalized = {
+          invitationCode: normalizeInviteCode(invite.invitationCode),
+          groupId: invite.groupId,
+          groupName: decodeMaybeURI(invite.groupName || invite.groupId || "")
+        };
+        if (this.isSelfWorkGroupInvite(normalized.invitationCode)) {
+          return null;
+        }
+        return normalized;
+      }
+    } catch (err) {
+      console.warn("consumePendingWorkGroupInvite failed", err);
+    }
+    return null;
+  },
+
+  isSelfWorkGroupInvite(invitationCode = "") {
+    const code = normalizeInviteCode(invitationCode);
+    if (!code) return false;
+    try {
+      const fromShare = normalizeInviteCode(getShareInviteCode());
+      if (fromShare && fromShare === code) return true;
+    } catch (err) {
+      console.warn("compare invite code with share invite failed", err);
+    }
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const fromGlobal = normalizeInviteCode(app?.globalData?.userInviteCode);
+      if (fromGlobal && fromGlobal === code) return true;
+    } catch (err) {
+      console.warn("compare invite code with global profile failed", err);
+    }
+    try {
+      const stored = loadStoredProfile();
+      const storedCode = normalizeInviteCode(stored?.inviteCode);
+      if (storedCode && storedCode === code) return true;
+    } catch (err) {
+      console.warn("compare invite code with stored profile failed", err);
+    }
+    return false;
   },
 
   fetchSettlementConfig() {
@@ -451,10 +536,25 @@ Page({
         : null;
     const featureCode = ensureFeatureCode(profile.featureCode || this.data.currentFeatureCode || "");
     this.setData({
-      currentFeatureCode: featureCode
+      currentFeatureCode: featureCode,
+      customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(profile)
     });
     this.refreshWorkGroupOwnerFlags(featureCode);
     this.updateFlpPaymentState(balance);
+  },
+
+  composeCustomerServiceSessionFrom(profile = {}) {
+    const payload = {
+      source: "marker-create-support",
+      featureCode: profile.featureCode || "",
+      nickname: profile.nickname || ""
+    };
+    try {
+      return JSON.stringify(payload);
+    } catch (err) {
+      console.warn("Failed to stringify marker create session-from payload", err);
+      return "marker-create-support";
+    }
   },
 
   refreshWorkGroupOwnerFlags(featureCode) {
@@ -879,11 +979,16 @@ Page({
       wx.showToast({ title: "请填写名称", icon: "none" });
       return;
     }
+    const images = Array.isArray(this.data.workGroupForm.images) ? this.data.workGroupForm.images : [];
+    if (!images.length) {
+      wx.showToast({ title: "请上传工作组头像", icon: "none" });
+      return;
+    }
     const selfCode = ensureFeatureCode(this.data.currentFeatureCode || "");
     const payload = {
       name,
       description: (this.data.workGroupForm.description || "").trim(),
-      images: (this.data.workGroupForm.images || []).map((i) => i.fileName),
+      images: images.map((i) => i.fileName),
       memberFeatureCodes: selfCode ? [selfCode] : []
     };
     this.setData({ workGroupSubmitting: true });
@@ -965,10 +1070,17 @@ Page({
       wx.showToast({ title: "请填写名称", icon: "none" });
       return;
     }
+    const images = Array.isArray(this.data.workGroupDetailForm.images)
+      ? this.data.workGroupDetailForm.images
+      : [];
+    if (!images.length) {
+      wx.showToast({ title: "请先上传封面", icon: "none" });
+      return;
+    }
     const payload = {
       name,
       description: (this.data.workGroupDetailForm.description || "").trim(),
-      images: (this.data.workGroupDetailForm.images || []).map((i) => i.fileName)
+      images: images.map((i) => i.fileName)
     };
     this.setData({ workGroupDetailSaving: true });
     updateWorkGroup(group.id, payload, { apiBase: this.apiBase })
@@ -1109,6 +1221,57 @@ Page({
 
   onCloseDissolveDialog() {
     this.setData({ showDissolveDialog: false, workGroupDissolveInput: "", workGroupDissolving: false });
+  },
+
+  promptJoinWorkGroup(promptPayload) {
+    const prompt = promptPayload || this.data.joinInvitePrompt;
+    if (!prompt?.invitationCode || !prompt?.groupId) return;
+    if (this.isSelfWorkGroupInvite(prompt.invitationCode)) {
+      this.setData({ joinInvitePrompt: null, joinInviting: false });
+      return;
+    }
+    const name = decodeMaybeURI(prompt.groupName || prompt.groupId || "");
+    this.setData({
+      activeCenterTab: "WORKGROUP",
+      joinInvitePrompt: { invitationCode: prompt.invitationCode, groupId: prompt.groupId, groupName: name },
+      joinInviting: false
+    });
+  },
+
+  confirmJoinWorkGroup(evt) {
+    const ds = (evt && evt.currentTarget && evt.currentTarget.dataset) || {};
+    const prompt =
+      (ds.invitationCode && ds.groupId && {
+        invitationCode: ds.invitationCode,
+        groupId: ds.groupId,
+        groupName: ds.groupName
+      }) ||
+      this.data.joinInvitePrompt ||
+      null;
+    if (!prompt?.invitationCode || !prompt?.groupId || this.data.joinInviting) return;
+    this.setData({ joinInviting: true, activeCenterTab: "WORKGROUP" });
+    joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
+      .then(() => {
+        wx.showToast({ title: "已加入工作组", icon: "success" });
+        this.setData({ joinInvitePrompt: null });
+        this.refreshWorkGroups({ silent: true });
+      })
+      .catch((err) => {
+        console.error("加入工作组失败", err);
+        const message = err?.message || "";
+        if (/已加入/.test(message) || /already/i.test(message)) {
+          wx.showToast({ title: "已在工作组中", icon: "success" });
+          this.setData({ joinInvitePrompt: null });
+          this.refreshWorkGroups({ silent: true });
+          return;
+        }
+        wx.showToast({ title: message || "加入失败", icon: "none" });
+      })
+      .finally(() => this.setData({ joinInviting: false }));
+  },
+
+  cancelJoinWorkGroup() {
+    this.setData({ joinInvitePrompt: null, joinInviting: false });
   },
 
   onShareAppMessage() {
@@ -1461,7 +1624,7 @@ Page({
         const list = this.extractWorkGroupList(payload).map((item) => this.normalizeWorkGroup(item));
         const merged = reset ? list : (this.data.workGroupPickerList || []).concat(list);
         const hasMore = Array.isArray(list) && list.length === size;
-        console.log("this.data.workGroupPickerList->",this.data.workGroupPickerList);
+        console.log("this.data.workGroupPickerList->", this.data.workGroupPickerList);
         this.setData({
           workGroupPickerList: merged,
           workGroupPickerPage: page,
@@ -1538,7 +1701,9 @@ Page({
 
     const proceed = () => {
       this.setData({ workGroupPickerSaving: true });
-      const payload = selectedIds.length ? { groupIds: selectedIds } : { groupIds: [] };
+      const payload = selectedIds.length
+        ? { groupIds: selectedIds, groups: selectedIds.map((id) => ({ id })) }
+        : { groupIds: [], groups: [] };
       const fetch = () =>
         updatePinGroups(pinId, payload, { apiBase: this.apiBase }).catch((err) => {
           if (err?.message === "missing-token") {
@@ -1680,6 +1845,8 @@ Page({
     form.geometryCategory = geometry.category;
     form.geometryType = typeId;
     form.geometryLabel = pin.geometryLabel || this.computePinGeometryLabel(form.geometryCategory, form.geometryType);
+    form.geometryName = this.getPinTypeLabel(form.geometryType) || "通用";
+    form.geometryIcon = this.getPinTypeIcon(form.geometryType);
     form.latitude = first.latitude ?? null;
     form.longitude = first.longitude ?? null;
     form.coordinateList = coordinateList;
@@ -1912,7 +2079,7 @@ Page({
       item.nickname ||
       item.title ||
       "";
-    
+
     const memberCount =
       item.memberCount ??
       (Array.isArray(item.memberFeatureCodes) ? item.memberFeatureCodes.length : null);
@@ -1926,7 +2093,7 @@ Page({
         apiBase: this.apiBase,
         fallback: this.data.assetPaths.workGroup
       }) || this.data.assetPaths.workGroup;
-    console.log("memberCount",memberCount);
+    console.log("memberCount", memberCount);
     return {
       id: item.id || item.groupId || "",
       name: name || "工作组",
@@ -1949,6 +2116,10 @@ Page({
     };
     return map[typeId] || "";
   },
+  getPinTypeIcon(typeId) {
+    return PIN_TYPE_ICONS[typeId] || PIN_TYPE_ICONS.POINT_DEFAULT;
+  },
+
 
   computePinGeometryLabel(category, typeId) {
     const cat = `${category || ""}`.toUpperCase();
@@ -1961,20 +2132,8 @@ Page({
   },
 
   buildPinCoordinates(form, shapeType) {
-    const preferWgs = Array.isArray(form.wgs84Coordinates) ? form.wgs84Coordinates : [];
     const coordList = Array.isArray(form.coordinateList) ? form.coordinateList : [];
-    const sourceList = preferWgs.length
-      ? preferWgs.map((item, index) =>
-        Object.assign({}, item, {
-          altitude:
-            item.altitude ??
-            item.height ??
-            item.alt ??
-            (coordList[index]?.altitude ?? coordList[index]?.height ?? coordList[index]?.alt)
-        })
-      )
-      : coordList;
-    const coords = sourceList
+    const coords = coordList
       .map((item) => this.normalizePinCoordinateForPayload(item))
       .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
     if (!coords.length && hasValidCoordinate(form.latitude, form.longitude)) {
@@ -2058,12 +2217,26 @@ Page({
       throw new Error("请先选择标记类型");
     }
     const shape = this.buildPinShapePayload(form);
+    const groupIds = Array.isArray(form.groupIds)
+      ? form.groupIds.map((id) => `${id}`.trim()).filter(Boolean)
+      : [];
+    const hasGroups = groupIds.length > 0;
+    const visibility = hasGroups
+      ? "GROUP"
+      : form.publishToPlatform
+        ? "PUBLIC"
+        : "PRIVATE";
+    const images = this.extractPinImagesForPayload(form.images);
+    if (!images.length) {
+      throw new Error("请至少上传一张图片");
+    }
     const payload = {
       name,
       description: (form.description || "").trim(),
-      visibility: form.publishToPlatform ? "PUBLIC" : "PRIVATE",
-      groupIds: Array.isArray(form.groupIds) ? form.groupIds.filter(Boolean) : [],
-      images: this.extractPinImagesForPayload(form.images),
+      visibility,
+      groupIds,
+      groups: groupIds.map((id) => ({ id })),
+      images,
       shape
     };
     return payload;
@@ -2330,13 +2503,7 @@ Page({
     const firstActionEnabled = isPublic
       ? !disableModify && !isPending
       : isPrivate && !disableModify;
-    const firstActionNote = !firstActionEnabled
-      ? disableModify
-        ? `审核中暂不可${firstActionLabel}`
-        : isPending
-          ? "（审核中不可撤回）"
-          : "（当前状态无法发布）"
-      : "";
+    const firstActionNote = "";
     const options = [
       {
         action: firstActionType,
@@ -2356,14 +2523,14 @@ Page({
         label: "编辑",
         icon: "",
         enabled: !disableModify && !isPending,
-        note: disableModify || isPending ? "（审核中暂不可编辑）" : ""
+        note: ""
       },
       {
         action: "delete",
         label: "删除",
         icon: assetPaths.delete,
         enabled: !disableModify && !isPending,
-        note: disableModify || isPending ? "（审核中暂不可删除）" : ""
+        note: ""
       }
     ];
     return options;
@@ -2441,7 +2608,7 @@ Page({
       return;
     }
     if (action === "publish") {
-      this.showPinConfirm("publish", marker);
+      this.openPublishPlatformDialog("pin-action", marker);
       return;
     }
     if (action === "revoke") {
@@ -2463,9 +2630,13 @@ Page({
     }
   },
 
-  handlePinPublish(marker = {}) {
+  handlePinPublish(marker = {}, options = {}) {
+    const skipConfirm = options?.skipConfirm === true;
     if (!marker?.id) return;
-    if (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "publish") {
+    if (
+      !skipConfirm &&
+      (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "publish")
+    ) {
       this.showPinConfirm("publish", marker);
       return;
     }
@@ -2568,6 +2739,43 @@ Page({
       pinConfirmMessage: message,
       pinConfirmBusy: false
     });
+  },
+
+  openPublishPlatformDialog(source = "", marker = null) {
+    this.setData({
+      publishPlatformDialogVisible: true,
+      publishPlatformDialogSource: source,
+      publishPlatformPendingMarker: marker || null
+    });
+  },
+
+  onPublishPlatformCancel() {
+    const source = this.data.publishPlatformDialogSource;
+    this.setData({
+      publishPlatformDialogVisible: false,
+      publishPlatformDialogSource: "",
+      publishPlatformPendingMarker: null
+    });
+    if (source === "pin-toggle") {
+      this.setData({ "myPinForm.publishToPlatform": false });
+    }
+  },
+
+  onPublishPlatformConfirm() {
+    const source = this.data.publishPlatformDialogSource;
+    const marker = this.data.publishPlatformPendingMarker;
+    this.setData({
+      publishPlatformDialogVisible: false,
+      publishPlatformDialogSource: "",
+      publishPlatformPendingMarker: null
+    });
+    if (source === "pin-toggle") {
+      this.setData({ "myPinForm.publishToPlatform": true });
+      return;
+    }
+    if (source === "pin-action" && marker) {
+      this.handlePinPublish(marker, { skipConfirm: true });
+    }
   },
 
   onPinConfirmCancel() {
@@ -2764,6 +2972,16 @@ Page({
         payload.coordinateList.length - 1
       );
     }
+    const width = Number(this.data.myPinForm.bufferWidth);
+    if (Number.isFinite(width) && width > 0) {
+      payload.bufferWidth = width;
+      payload.pathBufferWidth = width;
+      payload.bufferWidthMeters = width;
+    }
+    const radius = Number(this.data.myPinForm.radius);
+    if (Number.isFinite(radius) && radius > 0) {
+      payload.radius = radius;
+    }
     wx.navigateTo({
       url: "/pages/markers/pin-picker/index",
       events: {
@@ -2783,6 +3001,7 @@ Page({
     const label = detail.typeLabel || detail.typeId || "通用";
     const prefix = PIN_CATEGORY_LABELS[cat] || "";
     const combinedLabel = prefix ? `${prefix}-${label}` : label;
+    const geometryIcon = this.getPinTypeIcon(detail.typeId || detail.type);
     const coordinateList = normalizePinCoordinateList(detail.coordinates || detail.coordinateList || []);
     const activeCoordIndex = Math.min(
       Math.max(Number(detail.activeCoordIndex || 0), 0),
@@ -2794,40 +3013,6 @@ Page({
     const bufferWidthRaw =
       detail.bufferWidth ?? detail.pathBufferWidth ?? detail.bufferWidthMeters ?? null;
     const radiusRaw = detail.radius ?? null;
-    const wgsList = Array.isArray(detail.wgs84Coordinates)
-      ? detail.wgs84Coordinates
-        .map((item, index) => ({
-          latitude: normalizePinCoordValue(item.latitude),
-          longitude: normalizePinCoordValue(item.longitude),
-          altitude: normalizePinAltitude(
-            item.altitude ??
-            item.height ??
-            item.alt ??
-            coordinateList[index]?.altitude ??
-            coordinateList[index]?.height ??
-            coordinateList[index]?.alt
-          )
-        }))
-        .filter((item) => hasValidCoordinate(item.latitude, item.longitude))
-      : [];
-    const wgsFromPoint = detail.wgs84 || {};
-    if (
-      hasValidCoordinate(
-        normalizePinCoordValue(wgsFromPoint.latitude),
-        normalizePinCoordValue(wgsFromPoint.longitude)
-      )
-    ) {
-      const activeAltitude =
-        coordinateList[activeCoordIndex]?.altitude ??
-        coordinateList[activeCoordIndex]?.height ??
-        coordinateList[activeCoordIndex]?.alt ??
-        null;
-      wgsList.push({
-        latitude: normalizePinCoordValue(wgsFromPoint.latitude),
-        longitude: normalizePinCoordValue(wgsFromPoint.longitude),
-        altitude: normalizePinAltitude(activeAltitude)
-      });
-    }
     this.setData({
       "myPinForm.latitude": lat,
       "myPinForm.longitude": lng,
@@ -2837,17 +3022,17 @@ Page({
       "myPinForm.geometryType": detail.typeId || detail.type || "POINT_DEFAULT",
       "myPinForm.geometryCategory": cat || "POINT",
       "myPinForm.geometryLabel": combinedLabel,
+      "myPinForm.geometryName": label || "通用",
+      "myPinForm.geometryIcon": geometryIcon,
       "myPinForm.coordinateList": coordinateList,
       "myPinForm.activeCoordIndex": activeCoordIndex,
       "myPinForm.bufferWidth": Number.isFinite(Number(bufferWidthRaw)) ? Number(bufferWidthRaw) : null,
       "myPinForm.radius": Number.isFinite(Number(radiusRaw)) ? Number(radiusRaw) : null,
-      "myPinForm.wgs84Coordinates": wgsList,
       myPinFormConfigured: isPinLocationConfigured(
         Object.assign({}, this.data.myPinForm, {
           latitude: lat,
           longitude: lng,
-          coordinateList,
-          wgs84Coordinates: wgsList
+          coordinateList
         })
       ),
       pinLocationDisplay: ""
@@ -2872,7 +3057,15 @@ Page({
 
   onPinPublishToggle(e) {
     const publish = !!e?.detail?.value;
-    this.setData({ "myPinForm.publishToPlatform": publish });
+    if (publish) {
+      // require confirmation before enabling publish to platform in creation flow
+      this.setData({
+        "myPinForm.publishToPlatform": false
+      });
+      this.openPublishPlatformDialog("pin-toggle");
+      return;
+    }
+    this.setData({ "myPinForm.publishToPlatform": false });
   },
 
   onAddPinMediaTap() {
@@ -2945,9 +3138,9 @@ Page({
       .catch((err) => {
         console.error(editingId ? "更新 Pin 失败" : "创建 Pin 失败", err);
         const message = err?.message || "保存失败";
-      this.setData({ pinSubmitting: false, pinError: message });
-      wx.showToast({ title: message, icon: "none" });
-    });
+        this.setData({ pinSubmitting: false, pinError: message });
+        wx.showToast({ title: message, icon: "none" });
+      });
   },
 
   updatePinLocationDisplay() {
@@ -3281,7 +3474,6 @@ Page({
       return;
     }
     if (this.isModifyActionLocked(marker)) {
-      wx.showToast({ title: "审核中暂不可编辑", icon: "none" });
       return;
     }
     const form = this.buildFormFromMarker(marker);
@@ -4243,7 +4435,6 @@ Page({
       return;
     }
     if (this.isModifyActionLocked(marker)) {
-      wx.showToast({ title: "审核中暂不可删除", icon: "none" });
       return;
     }
     const confirmName = markerName || (marker.name || "").trim();

@@ -40,7 +40,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 更新图层显示参数
-      description: 用户更新自身的图层显示参数，管理员可指定 featureCode 更新对应用户配置。
+      description: 用户更新自身的图层显示参数，管理员可指定 featureCode 更新对应用户配置。仅更新请求中出现的字段。
       parameters:
         - in: query
           name: featureCode
@@ -105,15 +105,6 @@ components:
           description: 错误响应时为空。
     MapLayerSettingRequest:
       type: object
-      required:
-        - mapType
-        - airspaceBoardEnabled
-        - uomDivisionEnabled
-        - djiNoFlyZoneEnabled
-        - merchantMarkersEnabled
-        - privateMarkersEnabled
-        - groupSharingEnabled
-        - platformCoConstructionEnabled
       properties:
         mapType:
           type: string
@@ -140,6 +131,9 @@ components:
         platformCoConstructionEnabled:
           type: boolean
           description: 是否显示平台共建标记，默认 true。
+        aircraftModel:
+          type: string
+          description: 执飞机型，未设置时返回空字符串。
     MapLayerSettingResponse:
       type: object
       properties:
@@ -162,3 +156,6 @@ components:
           type: boolean
         platformCoConstructionEnabled:
           type: boolean
+        aircraftModel:
+          type: string
+          description: 执飞机型，未设置时返回空字符串。

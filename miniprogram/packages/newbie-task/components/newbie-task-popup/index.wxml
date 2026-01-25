@@ -1,0 +1,59 @@
+<block wx:if="{{visible}}">
+  <view class="newbie-task-overlay" catchtouchmove="noop" catchtap="onPopupHoldTap">
+    <view class="newbie-task-mask"></view>
+    <view class="newbie-task-card" catchtap="onPopupHoldTap">
+      <image class="newbie-task-bg" src="/assets/newbie-task-svg.svg" mode="widthFix" />
+      <view class="newbie-task-header">
+        <view class="newbie-task-title">
+          <text class="newbie-task-title-only">30秒领取新人大礼包</text>
+        </view>
+      </view>
+      <image class="newbie-task-header-icon" src="/assets/af-task.png" mode="aspectFit" />
+      <view class="newbie-task-list-wrap" wx:if="{{tasks.length}}">
+        <scroll-view scroll-y class="newbie-task-list" bindscroll="onTaskListScroll">
+          <block wx:for="{{tasks}}" wx:key="index">
+            <view class="newbie-task-item">
+              <view class="newbie-task-item-text">
+                <text class="newbie-task-item-name">{{item.name}}</text>
+                <text class="newbie-task-item-desc" wx:if="{{item.description}}">{{item.description}}</text>
+              </view>
+              <view class="newbie-task-item-action">
+                <view class="newbie-task-item-done" wx:if="{{item.completed}}">
+                  <view class="newbie-task-item-done-box">✓</view>
+                </view>
+                <view
+                  class="newbie-task-item-btn"
+                  wx:else
+                  data-index="{{item.index}}"
+                  catchtap="onTaskActionTap"
+                >
+                  {{item.buttonText}}
+                </view>
+              </view>
+            </view>
+          </block>
+        </scroll-view>
+        <view class="newbie-task-scroll-hint" wx:if="{{showScrollHint}}"></view>
+      </view>
+      <view class="newbie-task-footer">
+        <view class="newbie-task-claim-btn {{rewardAvailable ? '' : 'is-disabled'}}" catchtap="onRewardTap">立即领取</view>
+      </view>
+      <view class="newbie-task-close" catchtap="onCloseTap">
+        <image class="newbie-task-close-icon" src="/assets/newbie-git-close.png" mode="aspectFit" />
+      </view>
+    </view>
+  </view>
+</block>
+<block wx:if="{{showRewardSuccess}}">
+  <view class="newbie-reward-overlay" catchtouchmove="noop" catchtap="noop">
+    <view class="newbie-reward-container" catchtap="noop">
+      <image class="newbie-reward-hero" src="/assets/af-complete.png" mode="widthFix" />
+      <view class="newbie-reward-card" catchtap="noop">
+      <text class="newbie-reward-title">领取成功</text>
+      <text class="newbie-reward-sub">链接已复制</text>
+      <text class="newbie-reward-sub">请在微信粘贴并打开</text>
+      <view class="newbie-reward-btn" catchtap="onRewardSuccessClose">我知道了</view>
+      </view>
+    </view>
+  </view>
+</block>

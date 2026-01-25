@@ -38,6 +38,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
   /api/pins/{id}:
+    get:
+      summary: 获取已审核通过的公开 Pin 标记详情
+      description: 不要求登录。仅当目标 Pin 为公开可见、审核通过且存活时返回详情，否则返回 404。
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinResponse'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 更新 Pin 标记
       description: 需登录。仅创建者可更新自身 Pin 标记。
@@ -171,7 +196,7 @@ paths:
   /api/pins/{id}/publish:
     post:
       summary: 发布 Pin 标记为公开
-      description: 需登录。仅创建者可将自身 Pin 标记发布为公开（visibility=PUBLIC）。发布时会清空群组列表并重置审核状态为 PENDING。
+      description: 需登录。仅创建者可将自身 Pin 标记发布为公开（visibility=PUBLIC）。发布时会清空群组列表、重置审核状态为 PENDING，并清除此前的审核通过时间。
       parameters:
         - in: path
           name: id
@@ -212,7 +237,7 @@ paths:
   /api/pins/{id}/revoke:
     post:
       summary: 撤销发布（公开改为私有）
-      description: 需登录。仅创建者可将公开的 Pin 标记撤回为私有（visibility=PRIVATE）。
+      description: 需登录。仅创建者可将公开的 Pin 标记撤回为私有（visibility=PRIVATE）。发布审核通过 30 天内不可撤销；撤销成功会清空发布时间。
       parameters:
         - in: path
           name: id
@@ -337,7 +362,7 @@ paths:
           schema:
             type: number
             format: double
-            minimum: 0
+          minimum: 0
           description: 查询半径，单位公里。
       responses:
         '200':
@@ -348,6 +373,44 @@ paths:
                 $ref: '#/components/schemas/ApiResponsePinList'
         '400':
           description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/search:
+    get:
+      summary: 搜索已审核通过的 Pin 标记
+      description: 根据关键字模糊搜索公开且存活、审核通过的 Pin 标记，需登录后使用。
+      parameters:
+        - in: query
+          name: keyword
+          required: true
+          schema:
+            type: string
+          description: 搜索关键字，不能为空。
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: 返回结果条数上限，默认 20，最大 50。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinList'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
           content:
             application/json:
               schema:
@@ -391,7 +454,7 @@ paths:
   /api/admin/pins/{id}/review:
     post:
       summary: 审核公开 Pin 标记
-      description: 需管理员身份。仅对公开可见的 Pin 更新审核状态。
+      description: 需管理员身份。仅对公开可见的 Pin 更新审核状态。审核通过（APPROVED_A/APPROVED_B）时会记录发布时间，其他状态下发布时间为空。
       parameters:
         - in: path
           name: id
@@ -635,6 +698,9 @@ components:
           $ref: '#/components/schemas/PinShapeResponse'
         featureCode:
           type: string
+        creatorName:
+          type: string
+          description: 创建者用户名。
         status:
           $ref: '#/components/schemas/PinStatus'
         exposureCount:
@@ -647,6 +713,10 @@ components:
         updatedAt:
           type: string
           format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+          description: 审核通过的发布时间，仅审核通过的公开标记会返回。
     WorkGroupResponse:
       type: object
       properties:

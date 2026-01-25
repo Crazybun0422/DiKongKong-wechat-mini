@@ -1,0 +1,317 @@
+.newbie-task-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  box-sizing: border-box;
+}
+
+.newbie-task-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.newbie-task-card {
+  position: relative;
+  width: 620rpx;
+  max-width: 90vw;
+  z-index: 1;
+}
+
+.newbie-task-header {
+  position: absolute;
+  left: 86rpx;
+  top: 120rpx;
+  pointer-events: none;
+  font-family: "ZhSubset", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif;
+  max-width: 360rpx;
+}
+
+.newbie-task-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6rpx;
+}
+
+.newbie-task-title-number {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  position: relative;
+  left: -20rpx;
+  top: 50rpx;
+  width: 72rpx;
+  font-size: 52rpx;
+  font-weight: 800;
+  color: #f1e20a;
+  line-height: 1;
+}
+
+.newbie-task-title-text {
+  position: relative;
+  left: -30rpx;
+  top: 50rpx;
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #000000;
+  line-height: 1.1;
+}
+
+.newbie-task-title-only {
+  position: relative;
+  left: -5rpx;
+  top: 50rpx;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #000000;
+  line-height: 1.1;
+}
+
+.newbie-task-header-icon {
+  position: absolute;
+  right: -51rpx;
+  top: 60rpx;
+  width: 270rpx;
+  height: 160rpx;
+}
+
+.newbie-task-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.newbie-task-list-wrap {
+  position: absolute;
+  left: 72rpx;
+  right: 72rpx;
+  top: 300rpx;
+  bottom: 260rpx;
+  font-family: "ZhSubset", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif;
+  color: #000000;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.newbie-task-list {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 26rpx;
+}
+
+.newbie-task-scroll-hint {
+  position: absolute;
+  left: 50%;
+  bottom: -14rpx;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 14rpx solid transparent;
+  border-right: 14rpx solid transparent;
+  border-top: 18rpx solid #111111;
+  opacity: 0.7;
+}
+
+.newbie-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 15rpx 0;
+}
+
+.newbie-task-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  min-width: 0;
+  flex: 1;
+  transform: translateX(10rpx);
+}
+
+.newbie-task-item-name {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #000000;
+  line-height: 1.2;
+}
+
+.newbie-task-item-desc {
+  font-size: 20rpx;
+  font-weight: 500;
+  color: #6b6b6b;
+  line-height: 1.2;
+}
+
+.newbie-task-item-action {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transform: translateX(-5rpx);
+}
+
+.newbie-task-item-btn,
+.newbie-task-item-done {
+  width: 140rpx;
+  height: 56rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid #5a5a5a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #000000;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.newbie-task-item-done {
+  padding: 0;
+  background: #ffffff;
+  border-color: #7a7a7a;
+}
+
+.newbie-task-item-done-box {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 6rpx;
+  background: #000000;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.newbie-task-footer {
+  position: absolute;
+  left: 72rpx;
+  right: 72rpx;
+  bottom: 180rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.newbie-task-claim-btn {
+  width: calc(100% - 100rpx);
+  height: 71rpx;
+  border-radius: 999rpx;
+  background: #000000;
+  color: #ffffff;
+  font-size: 26rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+  font-family: "ZhSubset", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.newbie-task-claim-btn.is-disabled {
+  background: #e6e6e6;
+  color: #8a8a8a;
+  pointer-events: none;
+}
+
+.newbie-task-close {
+  position: absolute;
+  right: 4rpx;
+  top: -18rpx;
+  width: 76rpx;
+  height: 76rpx;
+  z-index: 2;
+}
+
+.newbie-task-close-canvas {
+  width: 76rpx;
+  height: 76rpx;
+  display: block;
+}
+
+.newbie-task-close-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44rpx;
+  height: 44rpx;
+  transform: translate(-50%, -50%);
+}
+
+.newbie-reward-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.newbie-reward-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.newbie-reward-hero {
+  position: absolute;
+  top: -120rpx;
+  left: 50%;
+  width: 220rpx;
+  height: auto;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.newbie-reward-card {
+  width: 320rpx;
+  padding: 76rpx 48rpx 60rpx;
+  border-radius: 36rpx;
+  background: linear-gradient(180deg, #86b5ff 0%, #b5d1ff 30%, #eef4ff 60%, #f5f5f7 100%);
+  box-shadow: 0 24rpx 60rpx rgba(0, 0, 0, 0.18);
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14rpx;
+  text-align: center;
+  font-family: "ZhSubset", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif;
+}
+
+.newbie-reward-title {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #111111;
+}
+
+.newbie-reward-sub {
+  font-size: 28rpx;
+  color: #333333;
+  opacity: 0.95;
+}
+
+.newbie-reward-btn {
+  margin-top: 24rpx;
+  width: 100%;
+  height: 72rpx;
+  border-radius: 999rpx;
+  background: #1c1c1c;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

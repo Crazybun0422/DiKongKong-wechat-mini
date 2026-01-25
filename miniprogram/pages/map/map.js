@@ -1,4 +1,4 @@
-﻿const { DRONES } = require("../../utils/drones");
+﻿const { DRONES, fetchDrones } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const {
@@ -7,66 +7,55 @@ const {
   incrementMarkerExposure,
   incrementMarkerPhoneCall,
   searchMarkers,
+  buildFileDownloadUrl
 } = require("../../utils/markers");
+const { fetchNearbyPins, searchPins, incrementPinExposure, fetchPinDetail } = require("../../utils/pins");
 const {
   normalizeMarkerDetail: normalizeMarkerDetailUtil
 } = require("../../utils/marker-detail");
+const { reverseGeocode } = require("../../utils/geocoder");
 const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
 } = require("../../utils/no-fly-zones");
-const {
-  buildWmsOverlay,
-  WMS_MIN_ZOOM,
-  WMS_MAX_ZOOM
-} = require("../../utils/wms");
 const { haversineMeters, clampRadius, gcj02ToWgs84, wgs84ToGcj02 } = require("../../utils/coords");
 const {
   formatDistanceText,
   computeGreatCircleDistance
 } = require("../../utils/distance");
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
-const { loadStoredProfile: loadStoredProfileUtil } = require("../../utils/profile");
+const {
+  loadStoredProfile: loadStoredProfileUtil,
+  prepareAvatarForUpload
+} = require("../../utils/profile");
 const {
   appendInviteCodeToPath,
   appendInviteCodeToQuery,
   getShareInviteCode: getShareInviteCodeUtil
 } = require("../../utils/share");
+const { like, unlike, fetchLikeCount, fetchLikeStatus } = require("../../utils/likes");
 const { joinWorkGroup } = require("../../utils/workGroups");
 const {
   fetchMapLayerSettings,
   updateMapLayerSettings
 } = require("../../utils/map-layer-settings");
+const {
+  fetchTemplateSettings,
+  fetchSubscriptions,
+  requestSubscribeMessageForTemplateIds,
+  updateSubscriptions,
+  fetchLatestSubscriptionPush,
+  SUBSCRIPTION_TEMPLATE_ID,
+  normalizeTemplateIds,
+  extractAcceptedTemplateIdsFromWxSetting
+} = require("../../utils/subscriptions");
+const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
+const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
+const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
   longitude: 116.39747
-};
-
-const isWeChatRuntime = () => {
-  try {
-    if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
-      const info = wx.getSystemInfoSync() || {};
-      const val = `${info.appName || info.AppPlatform || info.app || info.host || info.hostName || ""}`.toLowerCase();
-      if (val.includes("wechat") || val.includes("weixin")) return true;
-    }
-  } catch (err) {
-    // ignore
-  }
-  return false;
-};
-
-const compareVersion = (v1, v2) => {
-  const s1 = `${v1 || ""}`.split(".");
-  const s2 = `${v2 || ""}`.split(".");
-  const len = Math.max(s1.length, s2.length);
-  for (let i = 0; i < len; i += 1) {
-    const n1 = Number(s1[i] || 0);
-    const n2 = Number(s2[i] || 0);
-    if (n1 > n2) return 1;
-    if (n1 < n2) return -1;
-  }
-  return 0;
 };
 
 const DEFAULT_DRONE_INDEX = (() => {
@@ -81,8 +70,8 @@ const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
-const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
-const MIN_GROUND_OVERLAY_SDK = "2.21.2";
+const PANORAMA_DEMO_FILE = "ex.jpg";
+const PANORAMA_FALLBACK_ASSET = "/assets/ex.jpg";
 // 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
 const NFZ_CENTER_COLORS = {
   1: "#000000",
@@ -96,7 +85,7 @@ const NFZ_CENTER_COLORS = {
 };
 
 const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 16;
+const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
 const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
 
@@ -118,7 +107,7 @@ const CSS_PIXELS_PER_CM = 96 / 2.54;
 const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
-const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
+const MIN_CENTER_SYNC_METERS = 6;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -135,19 +124,31 @@ const formatNearbyMarkerLabel = (value) => {
   if (!trimmed) {
     return "";
   }
-  if (trimmed.length <= 5) {
-    return trimmed;
+  const chars = Array.from(trimmed);
+  if (chars.length <= 7) {
+    return chars.join("");
   }
-  const firstLine = trimmed.slice(0, 5);
-  const remaining = trimmed.slice(5);
-  if (!remaining) {
-    return firstLine;
+  return `${chars.slice(0, 6).join("")}…`;
+};
+
+const buildMarkerNameCallout = (content, overrides = {}) => {
+  if (!content) {
+    return null;
   }
-  let secondLine = remaining.slice(0, 5);
-  if (remaining.length > 5) {
-    secondLine = `${secondLine}...`;
-  }
-  return `${firstLine}\n${secondLine}`;
+  return Object.assign(
+    {
+      content,
+      color: "#111827",
+      fontSize: 12,
+      fontWeight: "bold",
+      display: "ALWAYS",
+      borderRadius: 5,
+      padding: 6,
+      borderColor: "#111827",
+      borderWidth: 0.4
+    },
+    overrides
+  );
 };
 
 const formatTemporaryZoneLabel = (value, maxLength = 9) => {
@@ -233,6 +234,65 @@ const decodeMaybeURI = (text = "") => {
     break;
   }
   return current;
+};
+
+const hasAllRequiredSubscriptions = (ids = []) => {
+  const normalized = normalizeTemplateIds(ids);
+  return REQUIRED_SUBSCRIPTION_TEMPLATE_IDS.every((id) => normalized.includes(id));
+};
+
+const resolvePanoramaSource = (apiBase) => {
+  const candidate = buildFileDownloadUrl(PANORAMA_DEMO_FILE, { apiBase });
+  if (!candidate) return PANORAMA_FALLBACK_ASSET;
+  if (/^https?:\/\//.test(candidate) || candidate.startsWith("wxfile://")) {
+    return candidate;
+  }
+  if (candidate.startsWith("/")) {
+    return candidate;
+  }
+  return PANORAMA_FALLBACK_ASSET;
+};
+
+const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
+
+const downloadPanoramaWithRetry = (url, options = {}) =>
+  new Promise((resolve, reject) => {
+    let attempts = 0;
+    const retryDelay = Number.isFinite(options.retryDelayMs) ? options.retryDelayMs : 1200;
+    const attempt = () => {
+      attempts += 1;
+      wx.downloadFile({
+        url,
+        success: (res) => {
+          const statusCode = Number(res?.statusCode);
+          const filePath = res?.tempFilePath;
+          if (statusCode === 200 && filePath) {
+            resolve(filePath);
+            return;
+          }
+          const err = new Error(`download-panorama-status-${statusCode || "unknown"}`);
+          reject(err);
+        },
+        fail: (err) => {
+          const msg = `${err?.errMsg || ""}`.toLowerCase();
+          if (msg.includes("timeout") || msg.includes("time out")) {
+            console.warn("panorama download timeout, retrying", { attempts, url });
+            setTimeout(attempt, retryDelay);
+            return;
+          }
+          reject(err || new Error("download-panorama-failed"));
+        }
+      });
+    };
+    attempt();
+  });
+
+const resolvePanoramaFilePath = (source) => {
+  if (!source) return Promise.reject(new Error("missing-panorama-source"));
+  if (isHttpUrl(source)) {
+    return downloadPanoramaWithRetry(source);
+  }
+  return prepareAvatarForUpload(source);
 };
 
 const settleWithValue = (promise, options = {}) => {
@@ -332,6 +392,15 @@ const parseSceneParams = (scene) => {
 const hasValidCoordinate = (lat, lng) =>
   Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 
+const formatCoordinateParts = (lat, lng) => {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+  const latText = latNum.toFixed(6);
+  const lngText = lngNum.toFixed(6);
+  return { lngText, latText };
+};
+
 const normalizeLaunchMarkerOptions = (options = {}) => {
   const normalized = {
     markerId: "",
@@ -380,6 +449,54 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
   return normalized;
 };
 
+const normalizeLaunchPinOptions = (options = {}) => {
+  const normalized = {
+    pinId: "",
+    delayUntilPermission: false
+  };
+  if (!options || typeof options !== "object") {
+    return normalized;
+  }
+  const candidateKeys = ["pinId", "pinID", "id"];
+  for (const key of candidateKeys) {
+    if (options[key] !== undefined && options[key] !== null) {
+      const decoded = decodeParamValue(options[key]);
+      if (decoded) {
+        normalized.pinId = decoded;
+        break;
+      }
+    }
+  }
+  const shareFlag = options.fromShare ?? options.share ?? options.source;
+  if (isTruthyFlag(shareFlag)) {
+    normalized.delayUntilPermission = true;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  if (!normalized.pinId && sceneParams.pinId) {
+    normalized.pinId = decodeParamValue(sceneParams.pinId);
+  }
+  if (!normalized.delayUntilPermission && sceneParams.fromShare) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
+  } else if (!normalized.delayUntilPermission && sceneParams.share) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
+  }
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    if (!normalized.pinId && qParams.pinId) {
+      normalized.pinId = decodeParamValue(qParams.pinId);
+    }
+    if (!normalized.delayUntilPermission && qParams.fromShare) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
+    } else if (!normalized.delayUntilPermission && qParams.share) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.share);
+    }
+  }
+  return normalized;
+};
+
 const extractInviteCodeFromOptions = (options = {}) => {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
@@ -408,6 +525,16 @@ const extractInviteCodeFromOptions = (options = {}) => {
     if (fromQ) return fromQ;
   }
   return "";
+};
+
+const formatLikeCountDisplay = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return "0";
+  if (num >= 1000) {
+    const k = num / 1000;
+    return `${Math.round(k * 10) / 10}k`;
+  }
+  return `${Math.floor(num)}`;
 };
 
 const extractWorkGroupInvite = (options = {}) => {
@@ -454,6 +581,9 @@ Page({
     polygons: [],
     circles: [],
     droneNames: DRONES.map((d) => d.name),
+    loadingDrones: false,
+    droneListAvailable: true,
+    dronePickerLabel: DEFAULT_DRONE.name,
     selectedDroneIndex: DEFAULT_DRONE_INDEX,
     selectedDrone: DEFAULT_DRONE.slug,
     selectedDroneName: DEFAULT_DRONE.name,
@@ -470,6 +600,10 @@ Page({
     temporaryNoFlyTone: "neutral",
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
+    centerPinTitle: "",
+    centerCoordinateLatText: "",
+    centerCoordinateLngText: "",
+    coordinateSystem: "gcj02",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -477,14 +611,64 @@ Page({
     pendingDroneIndex: null,
     showDashboardPanel: true,
     activeTab: "home",
+    showProfileRedDot: false,
+    showNewbieGiftEntry: false,
+    newbieTaskBlockerVisible: false,
+    showCheckinGuideMap: false,
+    checkinGuideOverlayStyle: "",
+    checkinGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    },
+    showInviteGuideMap: false,
+    inviteGuideOverlayStyle: "",
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    },
+    showSubscriptionBanner: false,
+    subscriptionBannerLoading: false,
+    showSubscribeWaitOverlay: false,
+    subscriptionBannerTopRpx: 90,
+    subscriptionBannerHeightRpx: 70,
+    preflightBaseTopRpx: 120,
+    preflightTopRpx: 120,
     markerDetailVisible: false,
-    markerDetail: null,
+    detailCard: null,
     markerDetailClosing: false,
     markerDetailExpanding: false,
+    markerDetailAllowExpand: true,
+    markerDetailCurrentImage: 0,
+    markerLikeAnimating: false,
+    markerLikeHoldLabel: "",
+    markerLikeLabelType: "",
+    markerLikeCount: 0,
+    markerLiked: false,
+    markerLikeTargetType: "",
+    markerLikeTargetId: "",
+    markerLikeCountDisplay: "",
     markerPageVisible: false,
     markerPageClosing: false,
     markerPageDetail: null,
     markerPageCurrentImage: 0,
+    markerPageLikeCount: 0,
+    markerPageLiked: false,
+    markerPageLikeTargetType: "",
+    markerPageLikeTargetId: "",
+    markerPageLikeCountDisplay: "",
+    markerPageLikeAnimating: false,
+    markerPageLikeHoldLabel: "",
+    markerPageLikeLabelType: "",
+    markerPageLikeCount: 0,
+    markerPageLiked: false,
+    markerPageLikeTargetType: "",
+    markerPageLikeTargetId: "",
     markerPageShareEnabled: true,
     markerPageDistanceText: "",
     callSheetVisible: false,
@@ -505,7 +689,7 @@ Page({
     merchantMarkersEnabled: true,
     privateMarkersEnabled: false,
     groupSharingEnabled: false,
-    platformCoConstructionEnabled: false,
+    platformCoConstructionEnabled: true,
     mapElementOptions: [
       { id: "uom", label: "uom划分", enabled: true },
       { id: "dji", label: "大疆划分", enabled: true },
@@ -513,7 +697,7 @@ Page({
       { id: "service", label: "商户服务", enabled: true },
       { id: "private", label: "私有标记", enabled: false },
       { id: "group", label: "小组共享", enabled: false },
-      { id: "platform", label: "平台共建", enabled: false }
+      { id: "platform", label: "平台共建", enabled: true }
     ],
     mapLayerSettingsLoading: false,
     joinInvitePrompt: null,
@@ -526,43 +710,33 @@ Page({
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
+    this._mapMarkerIdMap = new Map();
+    this._mapMarkerIdSeq = 100000;
     this._fetchTimer = null;
     this._mapLayerSettingsLoaded = false;
+    this._mapLayerAircraftModelWritten = false;
     this._markersFetchTimer = null;
+    this._pinsFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
     this._currentBounds = null;
     this._pendingRegionUpdates = 0;
+    this._mapSkew = 0;
+    this._mapRotate = 0;
+    this._overlookSyncAvoidUntil = 0;
+    this._isIOS = false;
     this._centerOverride = this.data.center;
-    this._currentWmsTiles = [];
-    this._wmsOverlayMap = new Map();
-    this._wmsOverlayHealth = new Map();
-    this._wmsOverlaySeed = 0;
-    this._uomEnvReported = false;
-    this._uomModalShown = false;
-    this._uomFallbackTimer = null;
     this._layerPanelCloseTimer = null;
+    this._uomPluginInitTimer = null;
+    this._uomPluginInitialized = false;
+    this._uomPluginInitLogged = false;
     this._djiPolygons = [];
     this._djiCircles = [];
     this._djiZonesReady = false;
     this._mapLayerSettingsInitPromise = null;
     this._nfzPolygons = [];
     this._nfzCircles = [];
-    this._uomTileMasks = new Map();
-    this._uomMaskSupported = typeof wx !== "undefined" && typeof wx.createOffscreenCanvas === "function";
-    this._uomOverlayFailed = false;
-    this._uomOverlayUnsupported = false;
-    this._uomOverlayTimeouts = new Map();
-    this._uomOverlayPending = 0;
-    this._uomOverlayBatchId = 0;
-    this._uomOverlayTimeout = null;
     this._suggestTimer = null;
-    const storedUomDismissed = this.readStoredUomWarningDismissed();
-    if (storedUomDismissed) {
-      this.setData({ uomTileWarningDismissed: true });
-      this.data.uomTileWarningDismissed = true;
-    }
-    this.detectUomOverlaySupport();
-    this.updateUomTileWarning();
+    this.prefetchSubscriptionLatest();
     this.setData({
       mapElementOptions: this.composeMapElementOptions({
         uomDivisionEnabled: this.data.uomDivisionEnabled,
@@ -574,16 +748,15 @@ Page({
         platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
       })
     });
-    if (!this.data.uomTileWarningDismissed) {
-      if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
-      this._uomFallbackTimer = setTimeout(() => {
-        this.forceShowUomWarningFallback();
-      }, 1500);
-    }
+    this._droneList = DRONES;
+    this.loadDronesFromApi();
     this.bootstrapMapLayerSettings(true);
     this._markerExposureCache = new Map();
+    this._pinExposureCache = new Map();
     this._activeMarkersRequest = null;
     this._lastNearbyFetch = null;
+    this._activePinsRequest = null;
+    this._lastNearbyPinFetch = null;
     this._activeNoFlyRequest = null;
     this._lastNoFlyFetch = null;
     this._noFlyZonesReady = false;
@@ -592,6 +765,10 @@ Page({
     this._noFlyZoneShapes = [];
     this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
+    this._nearbyPinsRaw = [];
+    this._nearbyPinMarkers = [];
+    this._nearbyPinPolygons = [];
+    this._nearbyPinCircles = [];
     this._searchMarkers = [];
     this._lastMarkerDetail = null;
     this._markerDetailCloseTimer = null;
@@ -606,14 +783,23 @@ Page({
     this._previewPolygons = [];
     this._previewCircles = [];
     this._previewMarker = null;
+    this._previewPinId = null;
     this._lastKnownLocation = null;
+    this._likeHoldTimers = { marker: null, markerPage: null };
+    this._likeHoldFired = { marker: false, markerPage: false };
+    this.requestInitialLocation();
     this.captureInviteCode(options);
     this.handleWorkGroupInviteOptions(options);
     this.initializeShareLaunch(options);
+    this.initializePinShareLaunch(options);
     this.consumePendingMarkerFocus({ immediate: true });
-    this.refreshWmsOverlay();
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
+      center: this.data.center,
+      scale: this.data.scale,
+      force: true
+    });
+    this.scheduleFetchPins(0, {
       center: this.data.center,
       scale: this.data.scale,
       force: true
@@ -625,19 +811,103 @@ Page({
     });
     this.updateScaleBar();
     this.updateStatusPanel();
+    this.updateCenterPinIndicator();
     this.autoLoginOnLaunch();
-    this.requestInitialLocation();
+    this.initSubscriptionBanner();
+
+  },
+
+  onReady() {
+    this.ensureUomPluginReady();
+  },
+
+  ensureUomPluginReady(retry = 0) {
+    if (this._uomPlugin && this._uomPluginInitialized) return;
+    if (!this._uomPluginInitLogged) {
+      console.log("[uom-plugin] init check");
+      this._uomPluginInitLogged = true;
+    }
+    const plugin = this.selectComponent("#uom-plugin");
+    if (plugin && typeof plugin.init === "function") {
+      console.log("[uom-plugin] instance ready, init");
+      plugin.init({
+        mapCtx: this.mapCtx,
+        center: this._centerOverride || this.data.center,
+        centerPin: this._centerOverride || this.data.center,
+        scale: this.data.scale,
+        region: this._lastRegion,
+        enabled: this.data.uomDivisionEnabled
+      });
+      this._uomPlugin = plugin;
+      this._uomPluginInitialized = true;
+      return;
+    }
+    if (retry === 0) {
+      console.warn("[uom-plugin] instance not ready, retrying");
+    }
+    if (retry >= 10) {
+      console.warn("[uom-plugin] init retries exhausted");
+      return;
+    }
+    if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._uomPluginInitTimer = setTimeout(() => {
+      this._uomPluginInitTimer = null;
+      this.ensureUomPluginReady(retry + 1);
+    }, delay);
+  },
+
+  ensureMapMarkerId(value) {
+    if (Number.isFinite(value)) return Number(value);
+    const text = value === undefined || value === null ? "" : `${value}`.trim();
+    if (!text) {
+      this._mapMarkerIdSeq += 1;
+      return this._mapMarkerIdSeq;
+    }
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) return numeric;
+    if (!this._mapMarkerIdMap) {
+      this._mapMarkerIdMap = new Map();
+      this._mapMarkerIdSeq = 100000;
+    }
+    if (this._mapMarkerIdMap.has(text)) {
+      return this._mapMarkerIdMap.get(text);
+    }
+    this._mapMarkerIdSeq += 1;
+    const mapped = this._mapMarkerIdSeq;
+    this._mapMarkerIdMap.set(text, mapped);
+    return mapped;
+  },
+
+  normalizeMapMarkerId(marker) {
+    if (!marker || typeof marker !== "object") return marker;
+    const rawId =
+      marker.id !== undefined && marker.id !== null
+        ? marker.id
+        : marker.markerId ?? marker.markerID;
+    const mappedId = this.ensureMapMarkerId(rawId);
+    marker.id = mappedId;
+    return marker;
+  },
+
+  normalizeMapMarkerList(list) {
+    if (!Array.isArray(list)) return list;
+    list.forEach((marker) => this.normalizeMapMarkerId(marker));
+    return list;
   },
 
   findMarkerById(markerId) {
     if (markerId === undefined || markerId === null) return null;
-    const markerIdStr = `${markerId}`;
+    const targetId = this.ensureMapMarkerId(markerId);
     const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
+    const nearbyPins = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const preview = this._previewMarker ? [this._previewMarker] : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const combined = manual.concat(nearby, search);
+    const combined = manual.concat(nearbyPins, nearby, search, preview);
     for (const marker of combined) {
-      if ((marker?.id || marker?.id === 0) && `${marker.id}` === markerIdStr) {
+      const currentId = this.ensureMapMarkerId(marker?.id ?? marker?.markerId ?? marker?.markerID);
+      if (currentId === targetId) {
         return marker;
       }
     }
@@ -677,41 +947,123 @@ Page({
   applyPinPreview(payload = {}) {
     if (!payload || !payload.shape) return;
     this.clearPinPreview();
-    const shape = payload.shape;
-    if (shape.type === "POINT") {
-      this._previewMarker = this.buildPinPreviewMarker(payload);
-    } else {
-      const zone = this.buildPinPreviewZone(shape);
-      if (zone) {
-        const graphics = buildNoFlyZoneGraphics([zone]);
-        this._previewPolygons = graphics.polygons || [];
-        this._previewCircles = graphics.circles || [];
+    this._previewPinId = payload.id || "";
+    const center = this.computePinPreviewCenter(payload.shape, payload);
+    const zone = this.buildPinPreviewZone(payload.shape);
+    if (zone) {
+      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
+      this._previewPolygons = Array.isArray(graphics.polygons) ? graphics.polygons : [];
+      this._previewCircles = Array.isArray(graphics.circles) ? graphics.circles : [];
+    }
+    const marker = this.buildPinPreviewMarker(payload);
+    if (marker) {
+      marker.extData = Object.assign({}, marker.extData, {
+        source: "pin-preview",
+        raw: payload
+      });
+      this._previewMarker = marker;
+      if (!this._previewPinId) {
+        this._previewPinId = marker.id || "";
       }
     }
     this.updateOverlayGraphics();
-    if (this._previewMarker) {
-      this.syncAllMarkers();
-    }
-    const center = this.computePinPreviewCenter(shape, payload);
+    this.syncAllMarkers();
+    this.updateCenterPinIndicator();
     if (center) {
       this.centerOnPoint(center, clampMapScale(payload.zoom || 16));
     }
+  },
+
+  buildPinDetailFromPin(pin = {}) {
+    const rawPin = pin.raw || pin;
+    const coords = Array.isArray(rawPin.shape?.coordinates) ? rawPin.shape.coordinates : [];
+    const normalizedCoords = coords
+      .map((coord) => this.normalizePreviewCoordinate(coord))
+      .filter(Boolean);
+    const primary =
+      normalizedCoords[0] ||
+      this.normalizePreviewCoordinate(rawPin.location) ||
+      this.normalizePreviewCoordinate({ latitude: rawPin.latitude, longitude: rawPin.longitude }) ||
+      {};
+    const apiBase = this.getApiBase();
+    const normalized = this.normalizeMarkerDetail(rawPin);
+    const rawImages = Array.isArray(rawPin.images)
+      ? rawPin.images
+      : [];
+    const images = rawImages
+      .map((img, idx) => ({
+        url: buildFileDownloadUrl(img, { apiBase }),
+        id: `${rawPin.id || "pin"}-image-${idx}`
+      }))
+      .filter((img) => !!img.url);
+    const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
+    const heightDisplay =
+      Number.isFinite(normalized.height) && normalized.height > 0 ? `${Math.round(normalized.height)}m` : "";
+    const nameBase = normalized.name || rawPin.name || rawPin.title || "自定义标记";
+    const name =
+      pointCategory === "TALL_BUILDING" && heightDisplay ? `${nameBase}·${heightDisplay}` : nameBase;
+    const latCandidates = [primary.latitude, rawPin.location?.latitude, rawPin.latitude, normalized.latitude];
+    const lngCandidates = [primary.longitude, rawPin.location?.longitude, rawPin.longitude, normalized.longitude];
+    const latitude = latCandidates.find((v) => Number.isFinite(Number(v)));
+    const longitude = lngCandidates.find((v) => Number.isFinite(Number(v)));
+    const detail = {
+      id: rawPin.id || "",
+      markerId: rawPin.id || "",
+      name,
+      locationText: normalized.locationText || rawPin.location?.text || rawPin.address || "",
+      latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : undefined,
+      longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : undefined,
+      description: normalized.description || rawPin.description || "",
+      images: images.length ? images : normalized.images || [],
+      creatorName: normalized.creatorName || rawPin.creatorName || "",
+      raw: rawPin,
+      source: "pin"
+    };
+
+    if (
+      !detail.locationText &&
+      Number.isFinite(Number(detail.latitude)) &&
+      Number.isFinite(Number(detail.longitude))
+    ) {
+      this.lookupPinAddress(detail);
+    }
+    console.log("Built pin detail ->>", detail.latitude, detail.longitude);
+    return detail;
+  },
+
+  ensurePinAddress(detail) {
+    if (!detail || detail.source !== "pin") return;
+    if (detail.locationText) return;
+    const lat = Number(detail.latitude);
+    const lng = Number(detail.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    this.requestPinAddress(lat, lng)
+      .then((address) => {
+        if (address) {
+          this.applyPinAddress(detail.markerId || detail.id, address);
+        }
+      })
+      .catch((err) => {
+        console.warn("reverse geocode pin failed", err);
+      });
   },
 
   clearPinPreview() {
     this._previewPolygons = [];
     this._previewCircles = [];
     this._previewMarker = null;
+    this._previewPinId = null;
     this.updateOverlayGraphics();
     this.syncAllMarkers();
+    this.updateCenterPinIndicator();
   },
 
   buildPinPreviewZone(shape = {}) {
     const type = `${shape.type || ""}`.toUpperCase();
     const coordinates = Array.isArray(shape.coordinates)
       ? shape.coordinates
-          .map((coord) => this.normalizePreviewCoordinate(coord))
-          .filter(Boolean)
+        .map((coord) => this.normalizePreviewCoordinate(coord))
+        .filter(Boolean)
       : [];
     if (!coordinates.length) return null;
     if (type === "CIRCLE") {
@@ -749,9 +1101,8 @@ Page({
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return null;
     }
-    const converted = wgs84ToGcj02(lng, lat);
-    const latitude = Number.isFinite(converted?.lat) ? converted.lat : lat;
-    const longitude = Number.isFinite(converted?.lng) ? converted.lng : lng;
+    const latitude = lat;
+    const longitude = lng;
     const category = `${payload.shape?.pointCategory || ""}`.toUpperCase();
     const ICON_MAP = {
       GENERAL: "/assets/default.png",
@@ -765,7 +1116,10 @@ Page({
     const hasName = !!payload.name;
     const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
     if (hasName) {
-      contentParts.push(payload.name);
+      const formattedName = formatNearbyMarkerLabel(payload.name);
+      if (formattedName) {
+        contentParts.push(formattedName);
+      }
     }
     if (hasHeight) {
       const hText = `${Math.round(payload.height)}米`;
@@ -776,6 +1130,10 @@ Page({
       }
     }
     const content = contentParts.join(" ") || "标记位置";
+    const callout = buildMarkerNameCallout(content, {
+      fontSize: 10,
+      fontWeight: "normal"
+    });
     return {
       id: payload.id || `pin-preview-${Date.now()}`,
       latitude,
@@ -783,16 +1141,7 @@ Page({
       iconPath,
       width: 32,
       height: 32,
-      callout: {
-        content,
-        color: "#111827",
-        fontSize: 12,
-        padding: 6,
-        display: "ALWAYS",
-        borderRadius: 4,
-        borderColor: "#111827",
-        borderWidth: 1
-      }
+      callout
     };
   },
 
@@ -803,9 +1152,8 @@ Page({
       ? location
       : coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude));
     if (target && hasValidCoordinate(target.latitude, target.longitude)) {
-      const converted = wgs84ToGcj02(Number(target.longitude), Number(target.latitude));
-      const latitude = Number.isFinite(converted?.lat) ? converted.lat : Number(target.latitude);
-      const longitude = Number.isFinite(converted?.lng) ? converted.lng : Number(target.longitude);
+      const latitude = Number(target.latitude);
+      const longitude = Number(target.longitude);
       if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
         return { latitude, longitude };
       }
@@ -817,9 +1165,8 @@ Page({
       if (!normalized.length) return null;
       const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
       const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
-      const conv = wgs84ToGcj02(avgLng, avgLat);
-      const latitude = Number.isFinite(conv?.lat) ? conv.lat : avgLat;
-      const longitude = Number.isFinite(conv?.lng) ? conv.lng : avgLng;
+      const latitude = avgLat;
+      const longitude = avgLng;
       if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
         return { latitude, longitude };
       }
@@ -832,19 +1179,215 @@ Page({
     if (Array.isArray(entry) && entry.length >= 2) {
       const lng = Number(entry[0]);
       const lat = Number(entry[1]);
+      const alt = Number(entry[2]);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      return { latitude: lat, longitude: lng };
+      const coord = { latitude: lat, longitude: lng };
+      if (Number.isFinite(alt)) coord.altitude = alt;
+      return coord;
     }
     const lat = Number(entry.latitude ?? entry.lat);
     const lng = Number(entry.longitude ?? entry.lng);
+    const alt = Number(entry.altitude ?? entry.height ?? entry.alt);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    return { latitude: lat, longitude: lng };
+    const coord = { latitude: lat, longitude: lng };
+    if (Number.isFinite(alt)) coord.altitude = alt;
+    return coord;
+  },
+
+  lookupPinAddress(detail) {
+    const lat = Number(detail?.latitude);
+    const lng = Number(detail?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    this.requestPinAddress(lat, lng)
+      .then((address) => {
+        if (address) {
+          this.applyPinAddress(detail.markerId || detail.id, address);
+        }
+      })
+      .catch((err) => console.warn("lookupPinAddress failed", err));
+  },
+
+  extractAddressFromGeocode(res = {}) {
+    return (
+      res.recommend ||
+      res.formatted_addresses?.recommend ||
+      res.address ||
+      res.formatted_address ||
+      res.title ||
+      ""
+    );
+  },
+
+  requestPinAddress(lat, lng) {
+    const attemptReverse = (latitude, longitude) =>
+      reverseGeocode(latitude, longitude).then((res = {}) => this.extractAddressFromGeocode(res) || "");
+
+    const wgs = gcj02ToWgs84(lng, lat);
+    const hasWgs = Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng);
+
+    if (hasWgs) {
+      return attemptReverse(wgs.lat, wgs.lng).then((addr) => {
+        if (addr) return addr;
+        return attemptReverse(lat, lng);
+      });
+    }
+    return attemptReverse(lat, lng);
+  },
+
+  applyPinAddress(markerId, address) {
+    if (!address) return;
+    if (
+      markerId &&
+      this.data.detailCard &&
+      (this.data.detailCard.markerId === markerId || this.data.detailCard.id === markerId)
+    ) {
+      this.setData({
+        "detailCard.locationText": address
+      });
+    }
+    if (
+      markerId &&
+      this.data.markerPageDetail &&
+      (this.data.markerPageDetail.markerId === markerId || this.data.markerPageDetail.id === markerId)
+    ) {
+      this.setData({
+        "markerPageDetail.locationText": address
+      });
+    }
+  },
+
+  fillPinSuggestionAddresses(suggestions = [], keywordSnapshot = "") {
+    const list = Array.isArray(suggestions) ? suggestions : [];
+    list.forEach((item, idx) => {
+      if (item.source !== "pin") return;
+      if (item.address) return;
+      const lat = Number(item.latitude);
+      const lng = Number(item.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      this.requestPinAddress(lat, lng)
+        .then((addr) => {
+          if (!addr) return;
+          if (keywordSnapshot !== this.data.keyword.trim()) return;
+          const patch = {};
+          patch[`searchSuggestions[${idx}].address`] = addr;
+          this.setData(patch);
+        })
+        .catch((err) => console.warn("pin suggest reverse geocode failed", err));
+    });
   },
 
   autoLoginOnLaunch() {
-    this.ensureAccessToken().catch((err) => {
-      console.warn("自动登录失败", err);
+    this.ensureAccessToken()
+      .then(() => {
+        wx.nextTick(() => {
+          const popup = this.selectComponent("#newbie-task-popup");
+          if (popup && typeof popup.loadTasks === "function") {
+            popup.loadTasks();
+          }
+        });
+      })
+      .catch((err) => {
+        console.warn("自动登录失败", err);
+      });
+  },
+
+  initSubscriptionBanner() {
+    this.evaluateSubscriptionBannerVisibility().catch((err) => {
+      console.warn("initSubscriptionBanner failed", err);
     });
+  },
+
+  waitForSubscriptionSettingsReady() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && typeof app.syncSubscriptionsFromWxSetting === "function") {
+      try {
+        const promise = app.syncSubscriptionsFromWxSetting();
+        if (promise && typeof promise.then === "function") {
+          return promise.catch((err) => {
+            console.warn("waitForSubscriptionSettingsReady failed", err);
+            return { ids: [], mainSwitch: true };
+          });
+        }
+      } catch (err) {
+        console.warn("syncSubscriptionsFromWxSetting threw", err);
+      }
+    }
+    if (app && app.globalData && Array.isArray(app.globalData.subscriptionAcceptedTemplateIds)) {
+      return Promise.resolve({
+        ids: app.globalData.subscriptionAcceptedTemplateIds,
+        mainSwitch: app.globalData.subscriptionMainSwitch !== false
+      });
+    }
+    return Promise.resolve({ ids: [], mainSwitch: true });
+  },
+
+  setGlobalSubscriptionIds(list = [], mainSwitch = true) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const normalized = normalizeTemplateIds(list);
+    if (app && app.globalData) {
+      app.globalData.subscriptionAcceptedTemplateIds = normalized;
+      app.globalData.subscriptionSettingsReady = true;
+      app.globalData.subscriptionMainSwitch = mainSwitch !== false;
+    }
+    return normalized;
+  },
+
+  setSubscriptionBannerVisibility(show) {
+    const visible = !!show;
+    this.setData({ showSubscriptionBanner: visible });
+    this.updatePreflightOverlayTop(visible);
+  },
+
+  updatePreflightOverlayTop(showBanner = this.data.showSubscriptionBanner) {
+    const bannerTop = Number(this.data.subscriptionBannerTopRpx) || 0;
+    const bannerHeight = Number(this.data.subscriptionBannerHeightRpx) || 0;
+    const baseTop = Number(this.data.preflightBaseTopRpx) || 120;
+    const top = showBanner ? bannerTop + bannerHeight + 15 : baseTop;
+    this.setData({ preflightTopRpx: top });
+  },
+
+  getSubscriptionMainSwitch() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      return app.globalData.subscriptionMainSwitch !== false;
+    }
+    return true;
+  },
+
+  evaluateSubscriptionBannerVisibility() {
+    return this.waitForSubscriptionSettingsReady()
+      .then((payload = {}) => {
+        const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
+        const mainSwitch = payload.mainSwitch !== false;
+        const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
+        console.log("mainSwitch =", mainSwitch, "clientIds =", normalizedClient);
+        if (!mainSwitch) {
+          this.setSubscriptionBannerVisibility(true);
+          return normalizedClient;
+        }
+        const apiBase = this.getApiBase();
+        const token = this.getAuthToken();
+        if (!apiBase || !token) {
+          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
+          return normalizedClient;
+        }
+        return fetchSubscriptions({ apiBase, token })
+          .then((serverIds) => {
+            const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized));
+            return normalized;
+          })
+          .catch((err) => {
+            console.warn("evaluateSubscriptionBannerVisibility failed", err);
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
+            return normalizedClient;
+          });
+      })
+      .catch((err) => {
+        console.warn("evaluateSubscriptionBannerVisibility outer failed", err);
+        this.setSubscriptionBannerVisibility(false);
+        return [];
+      });
   },
 
   captureInviteCode(options = {}) {
@@ -932,15 +1475,22 @@ Page({
   },
 
   markSharePermissionAttempted() {
-    if (!this._shareLaunchMarkerId) return;
-    if (!this._shareLaunchWaitForPermission) return;
-    if (this._shareLaunchPermissionSettled) return;
-    this._shareLaunchPermissionSettled = true;
-    if (this._shareLaunchNeedAuthRetry) {
-      this.retryShareMarkerDetailAfterAuth();
-      return;
+    if (this._shareLaunchMarkerId && this._shareLaunchWaitForPermission && !this._shareLaunchPermissionSettled) {
+      this._shareLaunchPermissionSettled = true;
+      if (this._shareLaunchNeedAuthRetry) {
+        this.retryShareMarkerDetailAfterAuth();
+      } else {
+        this.tryActivateShareMarker();
+      }
     }
-    this.tryActivateShareMarker();
+    if (this._sharePinLaunchId && this._sharePinWaitForPermission && !this._sharePinPermissionSettled) {
+      this._sharePinPermissionSettled = true;
+      if (this._sharePinNeedAuthRetry) {
+        this.retrySharePinDetailAfterAuth();
+      } else {
+        this.tryActivateSharePin();
+      }
+    }
   },
 
   retryShareMarkerDetailAfterAuth() {
@@ -1016,7 +1566,7 @@ Page({
       return false;
     }
     const detail = marker?.extData?.detail || {};
-    const isApproved = this.getDetailReviewStatus(detail) === "APPROVED";
+    const isApproved = this.isDetailApproved(detail);
     if (!isApproved) {
       this._manualMarkers = [marker];
       this.syncAllMarkers();
@@ -1075,16 +1625,209 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(markerName);
     if (calloutContent) {
-      marker.callout = {
-        content: calloutContent,
-        color: "rgba(0, 0, 0, 0.95)",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+      marker.callout = buildMarkerNameCallout(calloutContent);
     }
+    return marker;
+  },
+
+  initializePinShareLaunch(options = {}) {
+    this._sharePinLaunchId = "";
+    this._sharePinWaitForPermission = false;
+    this._sharePinPermissionSettled = true;
+    this._sharePinHandled = false;
+    this._sharePinDetail = null;
+    this._sharePinError = null;
+    this._sharePinFetchPromise = null;
+    this._sharePinFetchSeq = 0;
+    this._sharePinNeedAuthRetry = false;
+    this._sharePinAuthPromise = null;
+    const normalized = normalizeLaunchPinOptions(options);
+    if (!normalized.pinId) {
+      return;
+    }
+    this._sharePinLaunchId = normalized.pinId;
+    this._sharePinWaitForPermission = !!normalized.delayUntilPermission;
+    this._sharePinPermissionSettled = !this._sharePinWaitForPermission;
+    this.fetchSharePinDetailById(normalized.pinId);
+  },
+
+  fetchSharePinDetailById(pinId, options = {}) {
+    const id = `${pinId || ""}`.trim();
+    if (!id) {
+      return;
+    }
+    const allowRetry = options.allowRetry !== false;
+    this._sharePinFetchSeq = (this._sharePinFetchSeq || 0) + 1;
+    const seq = this._sharePinFetchSeq;
+    const request = fetchPinDetail(id, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    });
+    this._sharePinFetchPromise = request;
+    request
+      .then((detail) => {
+        if (this._sharePinFetchPromise !== request || this._sharePinFetchSeq !== seq) {
+          return;
+        }
+        this._sharePinFetchPromise = null;
+        this._sharePinDetail = detail;
+        this._sharePinError = null;
+        this._sharePinNeedAuthRetry = false;
+        this.tryActivateSharePin();
+      })
+      .catch((err) => {
+        if (this._sharePinFetchPromise !== request || this._sharePinFetchSeq !== seq) {
+          return;
+        }
+        this._sharePinFetchPromise = null;
+        if (allowRetry && err && err.message === "missing-token") {
+          this._sharePinNeedAuthRetry = true;
+          this._sharePinDetail = null;
+          this._sharePinError = null;
+          if (this._sharePinPermissionSettled) {
+            this.retrySharePinDetailAfterAuth();
+          }
+          return;
+        }
+        this._sharePinDetail = null;
+        this._sharePinError = err || new Error("pin-detail-failed");
+        this.tryActivateSharePin();
+      });
+  },
+
+  retrySharePinDetailAfterAuth() {
+    if (!this._sharePinLaunchId) {
+      this.tryActivateSharePin();
+      return;
+    }
+    const fetchAfterAuth = () => {
+      if (!this._sharePinLaunchId || this._sharePinHandled) {
+        this.tryActivateSharePin();
+        return;
+      }
+      this._sharePinNeedAuthRetry = false;
+      this.fetchSharePinDetailById(this._sharePinLaunchId, { allowRetry: false });
+    };
+    if (this.hasAccessToken()) {
+      fetchAfterAuth();
+      return;
+    }
+    if (this._sharePinAuthPromise) {
+      return;
+    }
+    this._sharePinAuthPromise = this.ensureProfileAuthenticated()
+      .then(() => {
+        fetchAfterAuth();
+      })
+      .catch((err) => {
+        this._sharePinError = err || new Error("login-failed");
+        this.tryActivateSharePin();
+      })
+      .finally(() => {
+        this._sharePinAuthPromise = null;
+      });
+  },
+
+  tryActivateSharePin() {
+    if (!this._sharePinLaunchId || this._sharePinHandled) {
+      return;
+    }
+    if (!this._sharePinPermissionSettled) {
+      return;
+    }
+    if (this._sharePinDetail) {
+      const success = this.activateSharePinDetail(this._sharePinDetail);
+      this._sharePinHandled = true;
+      this._sharePinDetail = null;
+      this._sharePinLaunchId = "";
+      if (!success) {
+        return;
+      }
+      return;
+    }
+    if (this._sharePinError) {
+      this.handleSharePinError(this._sharePinError);
+      this._sharePinHandled = true;
+      this._sharePinLaunchId = "";
+      this._sharePinError = null;
+    }
+  },
+
+  handleSharePinError(err) {
+    const message =
+      err && err.message === "missing-token"
+        ? "请先登录后查看标记信息"
+        : "加载标记信息失败，请稍后再试";
+    wx.showToast({ title: message, icon: "none" });
+  },
+
+  activateSharePinDetail(rawDetail) {
+    const marker = this.buildSharePinFromDetail(rawDetail);
+    if (!marker) {
+      wx.showToast({ title: "标记信息异常", icon: "none" });
+      return false;
+    }
+    const detail = marker?.extData?.detail || {};
+    const isApproved = this.isDetailSharable(detail);
+    // 分享只需要定位并打开详情，不强行重绘标记或覆盖列表
+    this._previewPolygons = [];
+    this._previewCircles = [];
+    this.updateOverlayGraphics();
+    this.centerOnPoint(
+      { latitude: marker.latitude, longitude: marker.longitude },
+      clampMapScale(16)
+    );
+    this.openMarkerPage(detail);
+    return true;
+  },
+
+  buildSharePinFromDetail(rawDetail = {}) {
+    if (!rawDetail) {
+      return null;
+    }
+    const detail = this.buildPinDetailFromPin(rawDetail);
+    if (!detail) {
+      return null;
+    }
+    const latitude = Number(detail.latitude);
+    const longitude = Number(detail.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const markerName = detail.name || "空标记";
+    const markerId = detail.markerId || detail.id || rawDetail.id || `pin-share-${Date.now()}`;
+    const previewMarker =
+      this.buildPinPreviewMarker({
+        id: markerId,
+        name: markerName,
+        location: { latitude, longitude },
+        shape: rawDetail.shape || detail.raw?.shape,
+        height: rawDetail.height || rawDetail.altitude || detail.height
+      }) || {};
+    const marker = Object.assign(
+      {
+        id: markerId,
+        latitude,
+        longitude,
+        iconPath: "/assets/default.png",
+        width: 32,
+        height: 32
+      },
+      previewMarker
+    );
+    marker.latitude = Number.isFinite(marker.latitude) ? marker.latitude : latitude;
+    marker.longitude = Number.isFinite(marker.longitude) ? marker.longitude : longitude;
+    if (!marker.callout || !marker.callout.content) {
+      const calloutContent = formatNearbyMarkerLabel(markerName);
+      if (calloutContent) {
+        marker.callout = buildMarkerNameCallout(calloutContent);
+      }
+    }
+    marker.extData = Object.assign({}, marker.extData, {
+      source: "pin-share",
+      raw: rawDetail,
+      detail: cloneMarkerDetail(detail)
+    });
     return marker;
   },
 
@@ -1148,15 +1891,7 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(markerName);
     if (calloutContent) {
-      marker.callout = {
-        content: calloutContent,
-        color: "rgba(0, 0, 0, 0.95)",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+      marker.callout = buildMarkerNameCallout(calloutContent);
     }
     this._manualMarkers = [marker];
     this.syncAllMarkers();
@@ -1254,7 +1989,11 @@ Page({
 
   openMarkerDetail(marker) {
     if (!marker) return;
-    const detail = this.resolveMarkerDetail(marker);
+    const isPin = (marker?.extData?.source || marker?.source || "").toLowerCase().includes("pin");
+    const pinRaw = marker?.extData?.raw || marker?.raw || null;
+    const pinDetail = isPin ? this.buildPinDetailFromPin(pinRaw || marker) : null;
+    const detail = pinDetail || this.resolveMarkerDetail(marker);
+    console.log("openMarkerDetail", marker, detail);
     if (!detail) {
       wx.showToast({ title: "未找到商户信息", icon: "none" });
       return;
@@ -1271,28 +2010,43 @@ Page({
       this._markerDetailExpandTimer = null;
     }
     this._markerDetailExpandLock = false;
+    console.log("Displaying marker detail", viewDetail);
     this.setData({
       markerDetailVisible: true,
       markerDetailClosing: false,
       markerDetailExpanding: false,
-      markerDetail: viewDetail
+      detailCard: viewDetail,
+      markerDetailAllowExpand: true,
+      markerDetailCurrentImage: 0
     });
+    this.loadMarkerLikeInfo({ detail: viewDetail, target: marker });
+    if (isPin) {
+      this.ensurePinAddress(viewDetail);
+    }
   },
 
   onMarkerTap(event) {
     const markerId = event?.detail?.markerId;
     const marker = this.findMarkerById(markerId);
-    if (marker) {
-      this.openMarkerDetail(marker);
+    if (!marker) return;
+    const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
+    if (src.includes("pin")) {
+      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+      if (shapeType && shapeType !== "POINT") return;
     }
+    this.openMarkerDetail(marker);
   },
 
   onMarkerCalloutTap(event) {
     const markerId = event?.detail?.markerId;
     const marker = this.findMarkerById(markerId);
-    if (marker) {
-      this.openMarkerDetail(marker);
+    if (!marker) return;
+    const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
+    if (src.includes("pin")) {
+      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+      if (shapeType && shapeType !== "POINT") return;
     }
+    this.openMarkerDetail(marker);
   },
 
   closeMarkerDetail(immediate = false) {
@@ -1311,7 +2065,7 @@ Page({
         markerDetailVisible: false,
         markerDetailClosing: false,
         markerDetailExpanding: false,
-        markerDetail: null
+        detailCard: null
       });
       return;
     }
@@ -1322,13 +2076,17 @@ Page({
         markerDetailVisible: false,
         markerDetailClosing: false,
         markerDetailExpanding: false,
-        markerDetail: null
+        detailCard: null
       });
     }, 200);
   },
 
   onMarkerDetailMaskTap() {
     this.closeMarkerDetail();
+  },
+
+  onMarkerDetailMaskTouchMove() {
+    // Stop marker detail gestures from reaching the map beneath
   },
 
   onMarkerDetailCloseTap() {
@@ -1340,7 +2098,7 @@ Page({
   },
 
   triggerMarkerDetailExpand() {
-    const detail = this.data.markerDetail;
+    const detail = this.data.detailCard;
     if (!detail) return;
     if (this.data.markerDetailExpanding) return;
     if (this._markerDetailExpandLock) return;
@@ -1353,7 +2111,7 @@ Page({
     this._markerDetailExpandTimer = setTimeout(() => {
       this._markerDetailExpandTimer = null;
       this._markerDetailExpandLock = false;
-      const currentDetail = this.data.markerDetail || detail;
+      const currentDetail = this.data.detailCard || detail;
       if (!currentDetail) {
         this.setData({ markerDetailExpanding: false });
         return;
@@ -1366,6 +2124,7 @@ Page({
   },
 
   onMarkerDetailTouchStart(event) {
+    if (!this.data.markerDetailAllowExpand) return;
     const touch = event?.touches?.[0];
     if (!touch) return;
     this._markerDetailTouch = {
@@ -1377,6 +2136,7 @@ Page({
   },
 
   onMarkerDetailTouchMove(event) {
+    if (!this.data.markerDetailAllowExpand) return;
     if (!this._markerDetailTouch) return;
     const touch = event?.touches?.[0];
     if (!touch) return;
@@ -1386,6 +2146,7 @@ Page({
   },
 
   onMarkerDetailTouchEnd() {
+    if (!this.data.markerDetailAllowExpand) return;
     const info = this._markerDetailTouch;
     this._markerDetailTouch = null;
     if (!info) return;
@@ -1397,7 +2158,15 @@ Page({
   },
 
   onMarkerDetailTouchCancel() {
+    if (!this.data.markerDetailAllowExpand) return;
     this._markerDetailTouch = null;
+  },
+
+  onMarkerDetailSwiperChange(e) {
+    const idx = Number(e?.detail?.current);
+    if (Number.isFinite(idx)) {
+      this.setData({ markerDetailCurrentImage: idx });
+    }
   },
 
   makePhoneCall(phone, options = {}) {
@@ -1504,6 +2273,18 @@ Page({
     });
   },
 
+  incrementPinExposureCount(pinId) {
+    if (!pinId) {
+      return;
+    }
+    incrementPinExposure(pinId, {
+      apiBase: this.getApiBase(),
+      token: this.getAuthToken()
+    }).catch((err) => {
+      console.warn("Increment pin exposure failed", err);
+    });
+  },
+
   pruneMarkerExposureCache(now = Date.now()) {
     if (!this._markerExposureCache || typeof this._markerExposureCache.forEach !== "function") {
       return;
@@ -1516,6 +2297,20 @@ Page({
       }
     });
     staleKeys.forEach((key) => this._markerExposureCache.delete(key));
+  },
+
+  prunePinExposureCache(now = Date.now()) {
+    if (!this._pinExposureCache || typeof this._pinExposureCache.forEach !== "function") {
+      return;
+    }
+    const threshold = now - MARKER_EXPOSURE_CACHE_TTL;
+    const staleKeys = [];
+    this._pinExposureCache.forEach((timestamp, key) => {
+      if (!Number.isFinite(timestamp) || timestamp < threshold) {
+        staleKeys.push(key);
+      }
+    });
+    staleKeys.forEach((key) => this._pinExposureCache.delete(key));
   },
 
   trackMarkerExposure(markers) {
@@ -1574,18 +2369,18 @@ Page({
 
   onMarkerDetailCallTap(event) {
     const dataset = event?.currentTarget?.dataset || {};
-    const phone = dataset.phone || this.data.markerDetail?.phone || "";
+    const phone = dataset.phone || this.data.detailCard?.phone || "";
     const markerId =
       dataset.markerId ||
-      this.data.markerDetail?.markerId ||
-      this.data.markerDetail?.id ||
+      this.data.detailCard?.markerId ||
+      this.data.detailCard?.id ||
       "";
-    const name = this.data.markerDetail?.name || "";
+    const name = this.data.detailCard?.name || "";
     this.openCallSheet({ phone, markerId, name });
   },
 
   onMarkerDetailNavigateTap(event) {
-    const detail = this.data.markerDetail;
+    const detail = this.data.detailCard;
     if (!detail) return;
     const dataset = event?.currentTarget?.dataset || {};
     this.openMarkerLocation(detail, dataset);
@@ -1602,6 +2397,7 @@ Page({
       this._restoreMarkerDetailTimer = null;
     }
     const pageDetail = cloneMarkerDetail(detail);
+    console.log("pageDetail->>", pageDetail)
     this.normalizeMarkerPageDetail(pageDetail);
     this._lastMarkerDetail = pageDetail;
     const distanceText = this.buildMarkerDistanceText(pageDetail);
@@ -1613,6 +2409,7 @@ Page({
       markerPageShareEnabled: this.isDetailSharable(pageDetail),
       markerPageDistanceText: distanceText
     });
+    this.loadMarkerLikeInfo({ detail: pageDetail, target: detail, forPage: true });
     this._markerPageScrollTop = 0;
     this._markerPageTouch = null;
     this.closeMarkerDetail(true);
@@ -1899,14 +2696,28 @@ Page({
 
   getDetailReviewStatus(detail) {
     if (!detail) return "";
-    return `${detail.reviewStatus || detail.raw?.reviewStatus || ""}`.trim().toUpperCase();
+    return `${detail.reviewStatus || detail.raw?.reviewStatus || detail.raw?.status || ""}`.trim().toUpperCase();
+  },
+
+  isDetailApproved(detail) {
+    const status = this.getDetailReviewStatus(detail);
+    if (!status) return false;
+    if (status === "APPROVED") return true;
+    return status.startsWith("APPROVED");
+  },
+
+  isPinDetail(detail) {
+    const source = `${detail?.source || detail?.raw?.source || ""}`.toLowerCase();
+    if (source.includes("pin")) return true;
+    if (detail?.raw && typeof detail.raw === "object" && detail.raw.shape) return true;
+    return false;
   },
 
   isDetailSharable(detail) {
     if (!detail || detail.shareDisabled) {
       return false;
     }
-    return this.getDetailReviewStatus(detail) === "APPROVED";
+    return this.isDetailApproved(detail);
   },
 
   showShareBlockedToast() {
@@ -1935,6 +2746,7 @@ Page({
 
     const detail = this._lastMarkerDetail;
     const inviteCode = this.getShareInviteCodeValue();
+    const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: this.getApiBase() });
     const fallback = {
       title: "与uom、大疆100%同步的低空地图，来一起探索~",
       path: appendInviteCodeToPath("/pages/map/map", { inviteCode }),
@@ -1947,15 +2759,25 @@ Page({
       this.showShareBlockedToast();
       return fallback;
     }
-    const markerId = detail.markerId || detail.id || "";
-    if (!markerId) {
+    const targetId = detail.markerId || detail.id || "";
+    if (!targetId) {
       return fallback;
+    }
+    if (this.isPinDetail(detail)) {
+      const shareTitle = detail.name;
+      return {
+        title: shareTitle,
+        path: appendInviteCodeToPath(
+          `/pages/map/map?fromShare=1&pinId=${encodeURIComponent(targetId)}`,
+          { inviteCode }
+        )
+      };
     }
     const shareTitle = detail.name;
     return {
       title: shareTitle,
       path: appendInviteCodeToPath(
-        `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(markerId)}`,
+        `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(targetId)}`,
         { inviteCode }
       )
     };
@@ -1975,14 +2797,14 @@ Page({
       this.showShareBlockedToast();
       return fallback;
     }
-    const markerId = detail.markerId || detail.id || "";
-    if (!markerId) {
+    const targetId = detail.markerId || detail.id || "";
+    if (!targetId) {
       return fallback;
     }
-    const query = appendInviteCodeToQuery(
-      `markerId=${encodeURIComponent(markerId)}&fromShare=1`,
-      { inviteCode }
-    );
+    const queryBase = this.isPinDetail(detail)
+      ? `pinId=${encodeURIComponent(targetId)}&fromShare=1`
+      : `markerId=${encodeURIComponent(targetId)}&fromShare=1`;
+    const query = appendInviteCodeToQuery(queryBase, { inviteCode });
     return {
       title: fallback.title,
       query
@@ -2008,46 +2830,285 @@ Page({
       this.setData({ activeTab: "home", showDashboardPanel: true });
       this.showDashboardPanel = true;
     }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
+      this.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
+    }
+    this.evaluateSubscriptionBannerVisibility();
     if (this.data.joinInvitePrompt && !this.data.joinInviting) {
       this.promptJoinWorkGroup(this.data.joinInvitePrompt);
     }
     this.consumePendingMarkerFocus({ source: "show" });
     this.consumePendingPinPreview();
+    this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
+    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "map") {
+      this.showCheckinGuideOnMap();
+    } else if (this.data.showCheckinGuideMap) {
+      this.setData({ showCheckinGuideMap: false });
+    }
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "map") {
+      this.showInviteGuideOnMap();
+    } else if (this.data.showInviteGuideMap) {
+      this.setData({ showInviteGuideMap: false });
+    }
   },
 
   onHide() {
     this.clearPinPreview();
   },
 
+  noop() { },
+
+  onUomStatusChange(event = {}) {
+    const detail = event?.detail || {};
+    const updates = {};
+    if (Object.prototype.hasOwnProperty.call(detail, "uomStatus")) {
+      updates.uomStatus = detail.uomStatus;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "uomTone")) {
+      updates.uomTone = detail.uomTone;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "uomTileWarningVisible")) {
+      updates.uomTileWarningVisible = detail.uomTileWarningVisible;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "uomTileWarningDismissed")) {
+      updates.uomTileWarningDismissed = detail.uomTileWarningDismissed;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+  },
+
+  onCheckinGuideStart() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.checkinGuide = { active: true, step: "map" };
+    }
+    this.showCheckinGuideOnMap();
+  },
+
+  onInviteGuideStart() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.inviteGuide = { active: true, step: "map" };
+    }
+    this.showInviteGuideOnMap();
+  },
+
+  onGuideMaskTap() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      if (app.globalData.checkinGuide?.active) {
+        app.globalData.checkinGuide = { active: false, step: "" };
+      }
+      if (app.globalData.inviteGuide?.active) {
+        app.globalData.inviteGuide = { active: false, step: "" };
+      }
+    }
+    if (this.data.showCheckinGuideMap || this.data.showInviteGuideMap) {
+      this.setData({
+        showCheckinGuideMap: false,
+        showInviteGuideMap: false,
+        checkinGuideOverlayStyle: "",
+        inviteGuideOverlayStyle: ""
+      });
+    }
+  },
+
+  showCheckinGuideOnMap() {
+    if (this.data.showCheckinGuideMap) return;
+    this.measureCheckinGuideTarget()
+      .then((mask) => {
+        if (!mask) return;
+        const overlayStyle = this.buildGuideOverlayStyle(mask);
+        this.setData({ showCheckinGuideMap: true, checkinGuideMask: mask, checkinGuideOverlayStyle: overlayStyle });
+      })
+      .catch((err) => {
+        console.warn("measure checkin guide target failed", err);
+      });
+  },
+
+  showInviteGuideOnMap() {
+    if (this.data.showInviteGuideMap) return;
+    this.measureInviteGuideTarget()
+      .then((mask) => {
+        if (!mask) return;
+        const overlayStyle = this.buildGuideOverlayStyle(mask);
+        this.setData({ showInviteGuideMap: true, inviteGuideMask: mask, inviteGuideOverlayStyle: overlayStyle });
+      })
+      .catch((err) => {
+        console.warn("measure invite guide target failed", err);
+      });
+  },
+
+  measureCheckinGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#menu-profile-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  measureInviteGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#menu-profile-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = Math.max(0, mask.size / 2 - 30);
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
+  },
+
+  onNewbieTaskStateChange(event) {
+    const detail = event?.detail || {};
+    this.setData({
+      showNewbieGiftEntry: !!detail.showGiftEntry,
+      newbieTaskBlockerVisible: !!detail.blockMap
+    });
+  },
+
+  onNewbieGiftTap() {
+    const popup = this.selectComponent("#newbie-task-popup");
+    if (popup && typeof popup.openFromEntry === "function") {
+      popup.openFromEntry();
+    }
+  },
+
   onUnload() {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
-    if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+    if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
+    setSubscribeWaitOverlay(false);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
+    if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
-    this.clearMapOverlays();
+    if (this._uomPlugin && typeof this._uomPlugin.destroy === "function") {
+      this._uomPlugin.destroy();
+    }
   },
 
-  handleWorkGroupInviteOptions(options = {}) {
 
-    const invitationCode = options.invitationCode || options.inviteCode || "";
-    const groupId = options.groupId || options.workGroupId || "";
-    const groupName = decodeMaybeURI(options.groupName || "");
-    console.log("handleWorkGroupInviteOptions", { invitationCode, groupId, groupName });
-    if (!invitationCode || !groupId) return;
-    const payload = { invitationCode, groupId, groupName };
-    this.setData({
-      joinInvitePrompt: payload,
-      joinInviting: false,
-      joinInviteLoginPending: false
-    });
-    this.promptJoinWorkGroup(payload);
+  handleWorkGroupInviteOptions(options = {}) {
+    const payload = extractWorkGroupInvite(options);
+    if (!payload) return;
+    const normalized = {
+      invitationCode: payload.invitationCode,
+      groupId: payload.groupId,
+      groupName: decodeMaybeURI(payload.groupName || payload.groupId || "")
+    };
+    if (this.isSelfWorkGroupInvite(normalized.invitationCode)) {
+      this.setData({ joinInvitePrompt: null, joinInviting: false, joinInviteLoginPending: false });
+      this.clearWorkGroupInviteParams();
+      this.navigateToWorkGroupCenter();
+      return;
+    }
+    this.setPendingWorkGroupInvite(normalized);
+    this.clearWorkGroupInviteParams();
+    this.navigateToWorkGroupCenter();
+  },
+
+  clearWorkGroupInviteParams() {
+    try {
+      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+      const currentPage = Array.isArray(pages) && pages.length ? pages[pages.length - 1] : null;
+      if (currentPage && currentPage.options) {
+        ["invitationCode", "inviteCode", "groupId", "workGroupId", "groupName"].forEach((key) => {
+          if (key in currentPage.options) {
+            delete currentPage.options[key];
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("clearWorkGroupInviteParams failed", err);
+    }
+  },
+
+  setPendingWorkGroupInvite(payload = null) {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.pendingWorkGroupInvite = payload;
+      }
+    } catch (err) {
+      console.warn("setPendingWorkGroupInvite failed", err);
+    }
+  },
+
+  isSelfWorkGroupInvite(invitationCode = "") {
+    const code = `${invitationCode || ""}`.trim();
+    if (!code) return false;
+    try {
+      const shareCode = this.getShareInviteCodeValue ? this.getShareInviteCodeValue() : "";
+      if (shareCode && `${shareCode}`.trim() === code) {
+        return true;
+      }
+    } catch (err) {
+      console.warn("compare invite code with share code failed", err);
+    }
+    try {
+      const stored = typeof loadStoredProfileUtil === "function" ? loadStoredProfileUtil() : null;
+      const storedCode = `${stored?.inviteCode || ""}`.trim();
+      if (storedCode && storedCode === code) {
+        return true;
+      }
+    } catch (err) {
+      console.warn("compare invite code with stored profile failed", err);
+    }
+    return false;
   },
 
   promptJoinWorkGroup(promptPayload) {
@@ -2079,16 +3140,30 @@ Page({
       joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
         .then(() => {
           wx.showToast({ title: "已加入工作组", icon: "success" });
+          this.clearWorkGroupInviteParams();
           this.setData({ joinInvitePrompt: null });
           this.navigateToWorkGroupCenter();
         })
         .catch((err) => {
           console.error("加入工作组失败", err);
-          wx.showToast({ title: err?.message || "加入失败", icon: "none" });
+          const message = err?.message || "";
+          if (/已加入/.test(message) || /already/i.test(message)) {
+            wx.showToast({ title: "已在工作组中", icon: "success" });
+            this.clearWorkGroupInviteParams();
+            this.setData({ joinInvitePrompt: null });
+            this.navigateToWorkGroupCenter();
+            return;
+          }
+          wx.showToast({ title: message || "加入失败", icon: "none" });
         })
         .finally(() => this.setData({ joinInviting: false }));
     };
     run();
+  },
+
+  cancelJoinWorkGroup() {
+    this.clearWorkGroupInviteParams();
+    this.setData({ joinInvitePrompt: null, joinInviting: false, joinInviteLoginPending: false });
   },
 
   navigateToWorkGroupCenter() {
@@ -2162,6 +3237,127 @@ Page({
     this.performSearch();
   },
 
+  computeDronePickerLabel(state = {}) {
+    const loading =
+      Object.prototype.hasOwnProperty.call(state, "loadingDrones")
+        ? state.loadingDrones
+        : this.data.loadingDrones;
+    const available =
+      Object.prototype.hasOwnProperty.call(state, "droneListAvailable")
+        ? state.droneListAvailable
+        : this.data.droneListAvailable;
+    const name =
+      Object.prototype.hasOwnProperty.call(state, "selectedDroneName")
+        ? state.selectedDroneName
+        : this.data.selectedDroneName;
+    if (loading) return "加载中";
+    if (!available) return "未提供";
+    return name || "未提供";
+  },
+
+  normalizeAircraftModel(value) {
+    if (typeof value !== "string") return "";
+    return value.trim();
+  },
+
+  resolveDroneIndexByModel(model) {
+    const normalized = this.normalizeAircraftModel(model);
+    if (!normalized) return -1;
+    const list = this.getDroneList();
+    if (!Array.isArray(list) || !list.length) return -1;
+    let index = list.findIndex((item) => item.slug === normalized);
+    if (index >= 0) return index;
+    const lower = normalized.toLowerCase();
+    return list.findIndex((item) => (item.name || "").toLowerCase() === lower);
+  },
+
+  applyAircraftModelSetting(model, options = {}) {
+    const normalized = this.normalizeAircraftModel(model);
+    if (!normalized) return false;
+    const index = this.resolveDroneIndexByModel(normalized);
+    if (index < 0) return false;
+    this.applyDroneByIndex(index, { persist: options.persist !== false });
+    return true;
+  },
+
+  getDroneList() {
+    if (Array.isArray(this._droneList) && this._droneList.length) {
+      return this._droneList;
+    }
+    return DRONES;
+  },
+
+  applyDroneList(list = []) {
+    if (!Array.isArray(list) || !list.length) return;
+    this._droneList = list;
+    const names = list.map((item) => item.name);
+    const currentSlug = this.data.selectedDrone;
+    let nextIndex = list.findIndex((item) => item.slug === currentSlug);
+    if (nextIndex < 0) {
+      nextIndex = 0;
+    }
+    const next = list[nextIndex];
+    if (!next) return;
+    const changed = next.slug !== currentSlug;
+    const dronePickerLabel = this.computeDronePickerLabel({
+      loadingDrones: false,
+      droneListAvailable: true,
+      selectedDroneName: next.name
+    });
+    this.setData({
+      droneNames: names,
+      selectedDroneIndex: nextIndex,
+      selectedDrone: next.slug,
+      selectedDroneName: next.name,
+      loadingDrones: false,
+      droneListAvailable: true,
+      dronePickerLabel
+    });
+    if (changed) {
+      this.scheduleFetchDji(0, true);
+    }
+  },
+
+  loadDronesFromApi() {
+    const dronePickerLabel = this.computeDronePickerLabel({
+      loadingDrones: true,
+      droneListAvailable: this.data.droneListAvailable
+    });
+    this.setData({ loadingDrones: true, dronePickerLabel });
+    return fetchDrones()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) {
+          this.applyDroneList(list);
+          return;
+        }
+        this._droneList = [];
+        const fallbackLabel = this.computeDronePickerLabel({
+          loadingDrones: false,
+          droneListAvailable: false
+        });
+        this.setData({
+          droneNames: [],
+          loadingDrones: false,
+          droneListAvailable: false,
+          dronePickerLabel: fallbackLabel
+        });
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch drone list", err);
+        this._droneList = [];
+        const fallbackLabel = this.computeDronePickerLabel({
+          loadingDrones: false,
+          droneListAvailable: false
+        });
+        this.setData({
+          droneNames: [],
+          loadingDrones: false,
+          droneListAvailable: false,
+          dronePickerLabel: fallbackLabel
+        });
+      });
+  },
+
   onSearchTap() {
     this.performSearch();
   },
@@ -2210,13 +3406,47 @@ Page({
     if (this.data.activeTab !== "profile") {
       this.setData({ activeTab: "profile" });
     }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.checkinGuide?.active) {
+      app.globalData.checkinGuide = { active: true, step: "profile" };
+      if (this.data.showCheckinGuideMap) {
+        this.setData({ showCheckinGuideMap: false });
+      }
+    }
+    if (app && app.globalData && app.globalData.inviteGuide?.active) {
+      app.globalData.inviteGuide = { active: true, step: "profile" };
+      if (this.data.showInviteGuideMap) {
+        this.setData({ showInviteGuideMap: false });
+      }
+    }
+    const loadingShown = typeof wx !== "undefined" && typeof wx.showLoading === "function";
+    const hideLoading = typeof wx !== "undefined" && typeof wx.hideLoading === "function"
+      ? () => wx.hideLoading()
+      : () => { };
+    if (loadingShown) {
+      wx.showLoading({ title: "加载中...", mask: true });
+    }
     this.ensureProfileAuthenticated()
       .then(() => {
+        // Fire-and-forget subscription request so navigation is not blocked
+        this.requestProfileSubscriptions().catch((err) => {
+          console.warn("订阅模板流程失败", err);
+        });
         if (typeof wx.navigateTo === "function") {
-          wx.navigateTo({ url: "/pages/profile/profile" });
+          wx.navigateTo({
+            url: "/pages/profile/profile",
+            success: () => hideLoading(),
+            fail: (err) => {
+              hideLoading();
+              console.warn("navigate to profile failed", err);
+            }
+          });
+        } else {
+          hideLoading();
         }
       })
       .catch((err) => {
+        hideLoading();
         this.setData({ activeTab: "home" });
         if (err && err.message === "user-cancel") {
           return;
@@ -2234,6 +3464,107 @@ Page({
     }
     this.setData({ layerPanelVisible: true, layerPanelClosing: false });
     this.loadMapLayerSettings(false);
+  },
+
+  onPanoramaDemoTap() {
+    if (typeof wx.chooseMessageFile !== "function") {
+      wx.showToast({ title: "当前版本不支持从聊天记录选图", icon: "none" });
+      return;
+    }
+    wx.chooseMessageFile({
+      count: 1,
+      type: "image",
+      success: (res) => {
+        const filePath = res?.tempFiles?.[0]?.path;
+        console.log("panorama file chosen", { filePath });
+        if (!filePath) {
+          wx.showToast({ title: "未选择图片", icon: "none" });
+          return;
+        }
+        const saveIfNeeded = typeof wx.saveFile === "function"
+          ? new Promise((resolve) => {
+            wx.saveFile({
+              tempFilePath: filePath,
+              success: (saveRes) => {
+                const saved = saveRes?.savedFilePath;
+                if (saved) {
+                  console.log("panorama file saved", { savedFilePath: saved });
+                  resolve(saved);
+                  return;
+                }
+                resolve(filePath);
+              },
+              fail: (err) => {
+                console.warn("panorama save file failed", err);
+                resolve(filePath);
+              }
+            });
+          })
+          : Promise.resolve(filePath);
+        const getInfo = (path) => (typeof wx.getImageInfo === "function"
+          ? new Promise((resolve, reject) => {
+            wx.getImageInfo({
+              src: path,
+              success: (info) => resolve({ path, info }),
+              fail: (err) => reject(err || new Error("invalid-panorama-image"))
+            });
+          })
+          : Promise.resolve({ path, info: null }));
+        const buildPlanetSrc = (path, info) => {
+          const width = Number(info?.width || 0);
+          const height = Number(info?.height || 0);
+          const maxSide = Math.max(width, height);
+          if (!Number.isFinite(maxSide) || maxSide <= 8192 || typeof wx.compressImage !== "function") {
+            return Promise.resolve(path);
+          }
+          const scale = 8192 / maxSide;
+          const targetW = Math.max(1, Math.round(width * scale));
+          const targetH = Math.max(1, Math.round(height * scale));
+          return new Promise((resolve) => {
+            wx.compressImage({
+              src: path,
+              quality: 85,
+              compressedWidth: targetW,
+              compressedHeight: targetH,
+              success: (compressRes) => {
+                const temp = compressRes?.tempFilePath || path;
+                console.log("panorama compressed for planet", { temp, targetW, targetH });
+                resolve(temp);
+              },
+              fail: (err) => {
+                console.warn("panorama compress failed", err);
+                resolve(path);
+              }
+            });
+          });
+        };
+        saveIfNeeded
+          .then((path) => getInfo(path))
+          .then(({ path, info }) => buildPlanetSrc(path, info).then((planetPath) => ({
+            originalPath: path,
+            planetPath
+          })))
+          .then(({ originalPath, planetPath }) => {
+            const encoded = encodeURIComponent(originalPath);
+            const planetEncoded = encodeURIComponent(planetPath || originalPath);
+            wx.navigateTo({
+              url: `/pages/dji-360/index?src=${encoded}&planetSrc=${planetEncoded}`,
+              fail: (err) => {
+                console.warn("navigate to panorama failed", err);
+                wx.showToast({ title: "打开失败", icon: "none" });
+              }
+            });
+          })
+          .catch((err) => {
+            console.warn("panorama image invalid", err);
+            wx.showToast({ title: "图片不可用", icon: "none" });
+          });
+      },
+      fail: (err) => {
+        console.warn("panorama choose file failed", err);
+        wx.showToast({ title: "取消选择", icon: "none" });
+      }
+    });
   },
 
   onLayerPanelMaskTap() {
@@ -2297,6 +3628,10 @@ Page({
     const flagKey = flagMap[id];
     if (!flagKey) return;
     const nextValue = !this.data[flagKey];
+    const pinToggle =
+      flagKey === "privateMarkersEnabled" ||
+      flagKey === "groupSharingEnabled" ||
+      flagKey === "platformCoConstructionEnabled";
     const updates = { [flagKey]: nextValue };
     updates.mapElementOptions = this.composeMapElementOptions({
       uomDivisionEnabled: flagKey === "uomDivisionEnabled" ? nextValue : this.data.uomDivisionEnabled,
@@ -2312,7 +3647,9 @@ Page({
     });
     this.setData(updates, () => {
       if (flagKey === "uomDivisionEnabled") {
-        this.applyUomOverlayToggle(nextValue);
+        if (this._uomPlugin && typeof this._uomPlugin.setEnabled === "function") {
+          this._uomPlugin.setEnabled(nextValue);
+        }
       }
       if (flagKey === "djiNoFlyZoneEnabled") {
         this.applyNoFlyOverlayToggle({
@@ -2329,6 +3666,9 @@ Page({
       if (flagKey === "merchantMarkersEnabled") {
         this.applyMerchantMarkersToggle(nextValue);
       }
+      if (pinToggle) {
+        this.applyPinLayerToggle(nextValue);
+      }
       this.persistMapLayerSettings();
     });
   },
@@ -2342,7 +3682,7 @@ Page({
         merchantMarkersEnabled: true,
         privateMarkersEnabled: false,
         groupSharingEnabled: false,
-        platformCoConstructionEnabled: false
+        platformCoConstructionEnabled: true
       },
       flags
     );
@@ -2361,16 +3701,6 @@ Page({
 
   applyAirBoardToggle(enabled) {
     this.setData({ showDashboardPanel: !!enabled });
-  },
-
-  applyUomOverlayToggle(enabled) {
-    if (!enabled) {
-      this.clearMapOverlays();
-      this.updateStatusPanel(this._lastAreas);
-      return;
-    }
-    this.refreshWmsOverlay();
-    this.updateStatusPanel(this._lastAreas);
   },
 
   applyNoFlyOverlayToggle(options = {}) {
@@ -2410,6 +3740,21 @@ Page({
     this.scheduleFetchMarkers(0, { force: true });
   },
 
+  applyPinLayerToggle(forceFetch = false) {
+    this.rebuildNearbyPinGraphics();
+    if (!this.isPinLayerEnabled()) {
+      if (this._pinsFetchTimer) {
+        clearTimeout(this._pinsFetchTimer);
+        this._pinsFetchTimer = null;
+      }
+      this._lastNearbyPinFetch = null;
+      return;
+    }
+    if (forceFetch && this.isPinLayerEnabled()) {
+      this.scheduleFetchPins(0, { force: true });
+    }
+  },
+
   buildMapLayerSettingsPayload() {
     return {
       mapType: this.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
@@ -2420,11 +3765,12 @@ Page({
       merchantMarkersEnabled: !!this.data.merchantMarkersEnabled,
       privateMarkersEnabled: !!this.data.privateMarkersEnabled,
       groupSharingEnabled: !!this.data.groupSharingEnabled,
-      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled
+      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled,
+      aircraftModel: this.data.selectedDrone || ""
     };
   },
 
-  applyLayerSettings(settings = {}) {
+  applyLayerSettings(settings = {}, options = {}) {
     const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
     const airspace = settings.airspaceBoardEnabled !== false;
     const uom = settings.uomDivisionEnabled !== false;
@@ -2462,9 +3808,15 @@ Page({
       },
       () => {
         this.applyAirBoardToggle(airspace);
-        this.applyUomOverlayToggle(uom);
+        if (this._uomPlugin && typeof this._uomPlugin.setEnabled === "function") {
+          this._uomPlugin.setEnabled(uom);
+        }
         this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
         this.applyMerchantMarkersToggle(merchant);
+        this.applyPinLayerToggle(true);
+        if (typeof options.onApplied === "function") {
+          options.onApplied();
+        }
       }
     );
   },
@@ -2482,7 +3834,17 @@ Page({
     })
       .then((settings) => {
         if (settings) {
-          this.applyLayerSettings(settings);
+          this.applyLayerSettings(settings, {
+            onApplied: () => {
+              const aircraftModel = this.normalizeAircraftModel(settings.aircraftModel);
+              if (aircraftModel) {
+                this.applyAircraftModelSetting(aircraftModel, { persist: false });
+              } else if (!this._mapLayerAircraftModelWritten) {
+                this._mapLayerAircraftModelWritten = true;
+                this.persistMapLayerSettings();
+              }
+            }
+          });
           this._mapLayerSettingsLoaded = true;
         }
       })
@@ -2600,6 +3962,70 @@ Page({
     this.syncAllMarkers();
   },
 
+  applyNearbyPins(list) {
+    this._nearbyPinsRaw = Array.isArray(list) ? list : [];
+    this.rebuildNearbyPinGraphics();
+    this.updateCenterPinIndicator();
+    this.trackPinExposure(this._nearbyPinMarkers);
+  },
+
+  rebuildNearbyPinGraphics() {
+    if (!this.isPinLayerEnabled()) {
+      this._nearbyPinMarkers = [];
+      this._nearbyPinPolygons = [];
+      this._nearbyPinCircles = [];
+      this._lastNearbyPinFetch = null;
+      this.updateOverlayGraphics();
+      this.syncAllMarkers();
+      this.updateCenterPinIndicator();
+      return;
+    }
+    const previewId = this._previewPinId ? `${this._previewPinId}` : "";
+    const markers = [];
+    const polygons = [];
+    const circles = [];
+    const rawList = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
+    rawList.forEach((item, index) => {
+      const pin = this.normalizeNearbyPin(item);
+      if (!pin || !this.isPinVisibilityEnabled(pin.visibility)) return;
+      // Avoid duplicating the pin currently in preview
+      if (previewId && `${pin.id || ""}` === previewId) return;
+      if (pin.shape.type === "POINT") {
+        const marker = this.buildPinPreviewMarker({
+          id: pin.id || `pin-${index}`,
+          name: pin.name,
+          location: pin.location,
+          shape: pin.shape,
+          height: pin.height,
+          coordsAreGcj: true
+        });
+        if (marker) {
+          marker.extData = Object.assign({}, marker.extData, {
+            source: "pin-nearby",
+            raw: item
+          });
+          markers.push(marker);
+        }
+        return;
+      }
+      const zone = this.buildPinPreviewZone(pin.shape);
+      if (!zone) return;
+      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
+      if (Array.isArray(graphics.polygons)) {
+        polygons.push(...graphics.polygons);
+      }
+      if (Array.isArray(graphics.circles)) {
+        circles.push(...graphics.circles);
+      }
+    });
+    this._nearbyPinMarkers = markers;
+    this._nearbyPinPolygons = polygons;
+    this._nearbyPinCircles = circles;
+    this.updateOverlayGraphics();
+    this.syncAllMarkers();
+    this.updateCenterPinIndicator();
+  },
+
   applySearchMarkers(markers) {
     this._searchMarkers = Array.isArray(markers)
       ? markers.map((marker) => {
@@ -2619,11 +4045,416 @@ Page({
       this.data.merchantMarkersEnabled !== false && Array.isArray(this._nearbyMarkers)
         ? this._nearbyMarkers
         : [];
+    const pinMarkers = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
-    const combined = manual.concat(nearby, search, preview);
+    this.normalizeMapMarkerList(nearby);
+    this.normalizeMapMarkerList(pinMarkers);
+    this.normalizeMapMarkerList(search);
+    this.normalizeMapMarkerList(manual);
+    this.normalizeMapMarkerList(preview);
+    const combined = manual.concat(pinMarkers, nearby, search, preview);
     this.setData({ markers: combined });
+  },
+
+  updateCenterPinIndicator(centerOverride) {
+    const center = centerOverride || this._centerOverride || this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      this.setData({
+        centerPinTitle: "",
+        centerCoordinateLatText: "",
+        centerCoordinateLngText: ""
+      });
+      return;
+    }
+    let displayLat = center.latitude;
+    let displayLng = center.longitude;
+    if (this.data.coordinateSystem === "wgs84") {
+      const wgs = gcj02ToWgs84(center.longitude, center.latitude);
+      if (Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng)) {
+        displayLat = wgs.lat;
+        displayLng = wgs.lng;
+      }
+    }
+    const pin = this.findPinContainingPoint(center);
+    const coord = formatCoordinateParts(displayLat, displayLng);
+    this.setData({
+      centerPinTitle: pin ? pin.name || "" : "",
+      centerCoordinateLngText: coord ? coord.lngText : "",
+      centerCoordinateLatText: coord ? coord.latText : ""
+    });
+  },
+
+  onCenterCoordinateTap() {
+    const lngText = this.data.centerCoordinateLngText;
+    const latText = this.data.centerCoordinateLatText;
+    if (!latText || !lngText) return;
+    const text = `${lngText},${latText}`;
+    wx.setClipboardData({
+      data: text,
+      success: () => {
+        wx.showToast({ title: "经纬度已复制", icon: "success" });
+      },
+      fail: (err) => {
+        console.error("复制经纬度失败", err);
+        wx.showToast({ title: "复制失败", icon: "none" });
+      }
+    });
+  },
+
+  onCoordinateSystemToggle() {
+    const next = this.data.coordinateSystem === "wgs84" ? "gcj02" : "wgs84";
+    this.setData({ coordinateSystem: next }, () => {
+      this.updateCenterPinIndicator();
+    });
+  },
+
+  findPinContainingPoint(point = {}) {
+    if (!point || !hasValidCoordinate(point.latitude, point.longitude)) return null;
+    const pins = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
+    for (const raw of pins) {
+      const pin = this.normalizeNearbyPin(raw);
+      if (!pin) continue;
+      if (this.pinContainsPoint(pin, point)) return pin;
+    }
+    return null;
+  },
+
+  onCenterPinIndicatorTap() {
+    const center = this._centerOverride || this.data.center;
+    const pin = this.findPinContainingPoint(center);
+    if (!pin) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    const detail = this.buildPinDetailFromPin(pin);
+    const marker = {
+      id: detail.id || `pin-${Date.now()}`,
+      latitude: detail.latitude,
+      longitude: detail.longitude,
+      extData: {
+        source: "pin",
+        raw: pin,
+        detail: cloneMarkerDetail(detail)
+      }
+    };
+    this.openMarkerDetail(marker);
+  },
+
+  pinContainsPoint(pin = {}, point = {}) {
+    if (!pin || !pin.shape || !Array.isArray(pin.shape.coordinates)) return false;
+    const type = `${pin.shape.type || ""}`.toUpperCase();
+    const coords = pin.shape.coordinates;
+    if (!coords.length) return false;
+    const targetLat = Number(point.latitude);
+    const targetLng = Number(point.longitude);
+    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return false;
+    if (type === "POINT") {
+      const dist = haversineMeters(targetLat, targetLng, coords[0].latitude, coords[0].longitude);
+      return Number.isFinite(dist) && dist <= 30;
+    }
+    if (type === "CIRCLE") {
+      const center = coords[0];
+      const radiusKm = Number(pin.shape.radius);
+      const radiusMeters = Number.isFinite(radiusKm) ? radiusKm * 1000 : 0;
+      const dist = haversineMeters(targetLat, targetLng, center.latitude, center.longitude);
+      const threshold = radiusMeters > 0 ? radiusMeters : 30;
+      return Number.isFinite(dist) && dist <= threshold;
+    }
+    if (type === "LINE" || type === "PATH") {
+      const widthMeters = Number(pin.shape.width);
+      const allowed = Number.isFinite(widthMeters) && widthMeters > 0 ? widthMeters : 30;
+      const distance = this.distanceToPolylineMeters({ latitude: targetLat, longitude: targetLng }, coords);
+      return Number.isFinite(distance) && distance <= allowed;
+    }
+    const ring = coords.map((c) => [c.longitude, c.latitude]);
+    return this.ringContains(ring, targetLng, targetLat);
+  },
+
+  distanceToPolylineMeters(point, coords = []) {
+    if (!Array.isArray(coords) || coords.length === 0) return Infinity;
+    const lat0 = Number(point.latitude);
+    const lng0 = Number(point.longitude);
+    if (!Number.isFinite(lat0) || !Number.isFinite(lng0)) return Infinity;
+    const factors = this._distanceFactors(lat0);
+    let min = Infinity;
+    for (let i = 0; i < coords.length - 1; i += 1) {
+      const a = coords[i];
+      const b = coords[i + 1];
+      const d = this.distancePointToSegmentMeters(lat0, lng0, a, b, factors);
+      if (d < min) min = d;
+    }
+    return min;
+  },
+
+  _distanceFactors(lat) {
+    const kLat = 111320;
+    const kLng = kLat * Math.max(Math.cos((Number(lat) * Math.PI) / 180), 0.0001);
+    return { kLat, kLng };
+  },
+
+  distancePointToSegmentMeters(lat, lng, a = {}, b = {}, factors = null) {
+    const { kLat, kLng } = factors || this._distanceFactors(lat);
+    const ax = (Number(a.longitude) - lng) * kLng;
+    const ay = (Number(a.latitude) - lat) * kLat;
+    const bx = (Number(b.longitude) - lng) * kLng;
+    const by = (Number(b.latitude) - lat) * kLat;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.sqrt(ax * ax + ay * ay);
+    let t = -(ax * dx + ay * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    return Math.sqrt(px * px + py * py);
+  },
+
+  resolveLikeTargetType(target = {}) {
+    const source = (target?.extData?.source || target?.source || "").toLowerCase();
+    const raw = target?.extData?.raw || target.raw || {};
+    if (source.includes("pin") || raw.shape || (target?.shape && target.shape.coordinates)) {
+      return "PIN";
+    }
+    return "MARKER";
+  },
+
+  resolveLikeTargetId(detail = {}, marker = {}) {
+    return (
+      detail.markerId ||
+      detail.id ||
+      marker?.id ||
+      detail.raw?.id ||
+      marker?.extData?.raw?.id ||
+      marker?.extData?.detail?.markerId ||
+      marker?.extData?.detail?.id ||
+      ""
+    );
+  },
+
+  applyLikeState(prefix, payload = {}) {
+    const count = Number(payload.count);
+    const liked = !!payload.liked;
+    const type = payload.type || "";
+    const id = payload.id || "";
+    const updates = {};
+    updates[`${prefix}LikeCount`] = Number.isFinite(count) && count >= 0 ? count : 0;
+    updates[`${prefix}Liked`] = liked;
+    updates[`${prefix}LikeTargetType`] = type;
+    updates[`${prefix}LikeTargetId`] = id;
+    updates[`${prefix}LikeCountDisplay`] = formatLikeCountDisplay(updates[`${prefix}LikeCount`]);
+    this.setData(updates);
+  },
+
+  loadMarkerLikeInfo(options = {}) {
+    const detail = options.detail || {};
+    const marker = options.target || {};
+    const forPage = !!options.forPage;
+    const prefix = forPage ? "markerPage" : "marker";
+    const type = this.resolveLikeTargetType(marker || detail);
+    const id = this.resolveLikeTargetId(detail, marker);
+    if (!type || !id) {
+      this.applyLikeState(prefix, { count: 0, liked: false, type: "", id: "" });
+      return;
+    }
+    this.applyLikeState(prefix, { count: 0, liked: false, type, id });
+    const apiBase = this.getApiBase();
+    fetchLikeCount(type, id, { apiBase })
+      .then((data) => {
+        this.applyLikeState(prefix, {
+          count: data.likeCount || 0,
+          liked: this.data[`${prefix}Liked`],
+          type,
+          id
+        });
+      })
+      .catch((err) => {
+        console.warn("fetchLikeCount failed", err);
+      });
+    fetchLikeStatus(type, id, { apiBase, token: this.getAuthToken() })
+      .then((data) => {
+        this.applyLikeState(prefix, {
+          count: this.data[`${prefix}LikeCount`],
+          liked: !!data.liked,
+          type,
+          id
+        });
+      })
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          this.applyLikeState(prefix, {
+            count: this.data[`${prefix}LikeCount`],
+            liked: false,
+            type,
+            id
+          });
+          return;
+        }
+        console.warn("fetchLikeStatus failed", err);
+      });
+  },
+
+  cancelLikeHold(prefix, resetAnim = true) {
+    if (this._likeHoldTimers && this._likeHoldTimers[prefix]) {
+      clearTimeout(this._likeHoldTimers[prefix]);
+      this._likeHoldTimers[prefix] = null;
+    }
+    if (this._likeHoldFired) {
+      this._likeHoldFired[prefix] = false;
+    }
+    if (resetAnim) {
+      const updates = {};
+      updates[`${prefix}LikeAnimating`] = false;
+      updates[`${prefix}LikeHoldLabel`] = "";
+      updates[`${prefix}LikeLabelType`] = "";
+      this.setData(updates);
+    }
+  },
+
+  onMarkerLikeTouchStart(e) {
+    const pageFlag = e?.currentTarget?.dataset?.page;
+    const forPage = pageFlag === true || pageFlag === "true";
+    const prefix = forPage ? "markerPage" : "marker";
+    const type = this.data[`${prefix}LikeTargetType`];
+    const id = this.data[`${prefix}LikeTargetId`];
+    if (!type || !id) {
+      wx.showToast({ title: "无法点赞", icon: "none" });
+      return;
+    }
+    this.cancelLikeHold(prefix, false);
+    this.setData({
+      [`${prefix}LikeAnimating`]: true,
+      // [`${prefix}LikeHintLabel`]: "长按点赞/取消赞",
+      [`${prefix}LikeResultLabel`]: ""
+    });
+    this._likeHoldFired[prefix] = false;
+    const liked = this.data[`${prefix}Liked`];
+    const currentCount = Number(this.data[`${prefix}LikeCount`]) || 0;
+    const apiBase = this.getApiBase();
+    const doToggle = () =>
+      liked
+        ? unlike(type, id, { apiBase, token: this.getAuthToken() })
+        : like(type, id, { apiBase, token: this.getAuthToken() });
+    this._likeHoldTimers[prefix] = setTimeout(() => {
+      this._likeHoldFired[prefix] = true;
+      doToggle()
+        .catch((err) => {
+          if (err?.message === "missing-token") {
+            return this.ensureAccessToken().then(() => doToggle());
+          }
+          throw err;
+        })
+        .then(() => {
+          const delta = liked ? -1 : 1;
+          const nextCount = Math.max(0, currentCount + delta);
+          this.applyLikeState(prefix, {
+            count: nextCount,
+            liked: !liked,
+            type,
+            id
+          });
+          const label = liked ? "取消赞" : "点赞+1";
+          this.setData({
+            [`${prefix}LikeResultLabel`]: label,
+            // [`${prefix}LikeHintLabel`]: ""
+          });
+          setTimeout(() => {
+            this.setData({
+              [`${prefix}LikeResultLabel`]: ""
+            });
+          }, 3000);
+        })
+        .catch((err) => {
+          console.warn("like toggle failed", err);
+        })
+        .finally(() => {
+          const done = {};
+          done[`${prefix}LikeAnimating`] = false;
+          this.setData(done);
+          this._likeHoldTimers[prefix] = null;
+        });
+    }, 10);
+  },
+
+  onMarkerLikeTouchEnd(e) {
+    const pageFlag = e?.currentTarget?.dataset?.page;
+    const forPage = pageFlag === true || pageFlag === "true";
+    const prefix = forPage ? "markerPage" : "marker";
+    if (!this._likeHoldFired[prefix]) {
+      this.cancelLikeHold(prefix, true);
+    }
+  },
+
+  onLikeCountTap(e) {
+    const count = Number(e?.currentTarget?.dataset?.count);
+    if (!Number.isFinite(count)) return;
+  },
+
+
+  isPinLayerEnabled() {
+    return (
+      this.data.privateMarkersEnabled !== false ||
+      this.data.groupSharingEnabled !== false ||
+      this.data.platformCoConstructionEnabled !== false
+    );
+  },
+
+  isPinVisibilityEnabled(visibility) {
+    const vis = `${visibility || ""}`.toUpperCase();
+    if (vis === "PRIVATE") {
+      return this.data.privateMarkersEnabled !== false;
+    }
+    if (vis === "WORKGROUP" || vis === "GROUP" || vis === "TEAM") {
+      return this.data.groupSharingEnabled !== false;
+    }
+    return this.data.platformCoConstructionEnabled !== false;
+  },
+
+  normalizeNearbyPin(raw = {}) {
+    const shape = raw.shape || {};
+    const type = `${shape.type || ""}`.toUpperCase() || "POINT";
+    const coordinates = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+    const normalizedCoords = coordinates
+      .map((coord) => this.normalizePreviewCoordinate(coord))
+      .filter(Boolean);
+    if (!normalizedCoords.length) return null;
+    const name =
+      (typeof raw.name === "string" && raw.name) ||
+      (typeof raw.title === "string" && raw.title) ||
+      "";
+    const visibility = `${raw.visibility || raw.scope || ""}`.toUpperCase();
+    const heightCandidates = [
+      raw.height,
+      raw.altitude,
+      raw.shape?.height,
+      raw.shape?.altitude,
+      normalizedCoords[0]?.altitude
+    ];
+    let height = null;
+    for (const candidate of heightCandidates) {
+      const num = Number(candidate);
+      if (Number.isFinite(num)) {
+        height = num;
+        break;
+      }
+    }
+    const normalizedShape = {
+      type,
+      coordinates: normalizedCoords,
+      radius: Number(shape.radius ?? shape.radiusKm ?? shape.radiusInKilometers),
+      width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
+      pointCategory: shape.pointCategory || shape.pointcategory
+    };
+    return {
+      id: raw.id,
+      name,
+      visibility,
+      shape: normalizedShape,
+      location: normalizedCoords[0],
+      height,
+      raw
+    };
   },
 
   performSearch() {
@@ -2640,11 +4471,11 @@ Page({
     }
     wx.showLoading({ title: "Searching...", mask: true });
     let locationArgs = null;
+    const center = this._centerOverride || this.data.center;
     try {
-      const centerWgs = gcj02ToWgs84(
-        this.data.center.longitude,
-        this.data.center.latitude
-      );
+      const centerWgs = center
+        ? gcj02ToWgs84(center.longitude, center.latitude)
+        : null;
       if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
         locationArgs = {
           latitude: centerWgs.lat,
@@ -2664,6 +4495,16 @@ Page({
         onError: (err) => console.warn("Marker search failed", err)
       }
     );
+    const pinPromise = settleWithValue(
+      searchPins(keyword, {
+        apiBase: this.getApiBase(),
+        limit: MAX_SEARCH_RESULTS
+      }),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Pin search failed", err)
+      }
+    );
     const placePromise = settleWithValue(
       locationArgs
         ? searchPlaces(keyword, locationArgs)
@@ -2673,8 +4514,8 @@ Page({
         onError: (err) => console.warn("Search failed", err)
       }
     );
-    Promise.all([markerPromise, placePromise])
-      .then(([markerResult, placeResult]) => {
+    Promise.all([markerPromise, pinPromise, placePromise])
+      .then(([markerResult, pinResult, placeResult]) => {
         const markerPayloads = (markerResult.value || [])
           .map((item, index) =>
             this.createMarkerSearchPayload(item, {
@@ -2689,15 +4530,34 @@ Page({
             })
           )
           .filter(Boolean);
+        const pinPayloads = (pinResult.value || [])
+          .map((item, index) =>
+            this.createPinSearchPayload(item, {
+              fallbackId: `pin-search-${index}`
+            })
+          )
+          .filter(Boolean);
+        const pinMarkers = pinPayloads
+          .map((payload) =>
+            this.buildPinSearchMarker(payload, {
+              source: "pin-search"
+            })
+          )
+          .filter(Boolean);
+        const pinLimited = pinMarkers.slice(
+          0,
+          Math.max(0, MAX_SEARCH_RESULTS - markerMarkers.length)
+        );
+        const combined = markerMarkers.concat(pinLimited);
         const remainingSlots = Math.max(
           0,
-          MAX_SEARCH_RESULTS - markerMarkers.length
+          MAX_SEARCH_RESULTS - combined.length
         );
         const qqMarkers = (placeResult.value || [])
           .map((poi, index) => this.buildQqSearchMarker(poi, index))
           .filter(Boolean)
           .slice(0, remainingSlots);
-        const markers = markerMarkers.concat(qqMarkers);
+        const markers = combined.concat(qqMarkers);
         if (markers.length) {
           this.applySearchMarkers(markers);
           const points = markers.map((m) => ({
@@ -2747,11 +4607,11 @@ Page({
     }
     const snapshot = keyword;
     let locationArgs = null;
+    const center = this._centerOverride || this.data.center;
     try {
-      const centerWgs = gcj02ToWgs84(
-        this.data.center.longitude,
-        this.data.center.latitude
-      );
+      const centerWgs = center
+        ? gcj02ToWgs84(center.longitude, center.latitude)
+        : null;
       if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
         locationArgs = {
           latitude: centerWgs.lat,
@@ -2771,6 +4631,16 @@ Page({
         onError: (err) => console.warn("Marker suggest search failed", err)
       }
     );
+    const pinPromise = settleWithValue(
+      searchPins(keyword, {
+        apiBase: this.getApiBase(),
+        limit: MAX_SEARCH_SUGGESTIONS
+      }),
+      {
+        defaultValue: [],
+        onError: (err) => console.warn("Pin suggest search failed", err)
+      }
+    );
     const placePromise = settleWithValue(
       locationArgs
         ? searchPlaces(keyword, locationArgs)
@@ -2780,8 +4650,8 @@ Page({
         onError: (err) => console.warn("Suggest failed", err)
       }
     );
-    Promise.all([markerPromise, placePromise]).then(
-      ([markerResult, placeResult]) => {
+    Promise.all([markerPromise, pinPromise, placePromise]).then(
+      ([markerResult, pinResult, placeResult]) => {
         if (snapshot !== this.data.keyword.trim()) return;
         const markerPayloads = (markerResult.value || [])
           .map((item, index) =>
@@ -2794,15 +4664,26 @@ Page({
           .map((payload) => this.buildMarkerSuggestionFromPayload(payload))
           .filter(Boolean)
           .slice(0, MAX_SEARCH_SUGGESTIONS);
+        const pinPayloads = (pinResult.value || [])
+          .map((item, index) =>
+            this.createPinSearchPayload(item, {
+              fallbackId: `pin-suggest-${index}`
+            })
+          )
+          .filter(Boolean);
+        const pinSuggestions = pinPayloads
+          .map((payload) => this.buildPinSuggestionFromPayload(payload))
+          .filter(Boolean)
+          .slice(0, Math.max(0, MAX_SEARCH_SUGGESTIONS - markerSuggestions.length));
         const remainingSlots = Math.max(
           0,
-          MAX_SEARCH_SUGGESTIONS - markerSuggestions.length
+          MAX_SEARCH_SUGGESTIONS - markerSuggestions.length - pinSuggestions.length
         );
         const qqSuggestions = (placeResult.value || [])
           .map((poi, index) => this.buildQqSuggestion(poi, index))
           .filter(Boolean)
           .slice(0, remainingSlots);
-        const suggestions = markerSuggestions.concat(qqSuggestions);
+        const suggestions = markerSuggestions.concat(pinSuggestions, qqSuggestions);
         const noResults = !suggestions.length;
         const nextError = noResults
           ? markerResult.ok && placeResult.ok
@@ -2814,6 +4695,7 @@ Page({
           searchSuggestLoading: false,
           searchSuggestError: nextError
         });
+        this.fillPinSuggestionAddresses(suggestions, snapshot);
       }
     );
   },
@@ -2823,11 +4705,25 @@ Page({
     const suggestion = this.data.searchSuggestions?.[idx];
     if (!suggestion) return;
     let marker = null;
-    if (suggestion.source === "marker" && suggestion.markerPayload) {
-      marker = this.buildMarkerFromSearchPayload(suggestion.markerPayload, {
-        source: "marker-search"
-      });
-    } else if (suggestion.source === "qqmap" && suggestion.rawPoi) {
+    if (suggestion.source === "marker" || suggestion.source === "pin") {
+      if (
+        Number.isFinite(suggestion.latitude) &&
+        Number.isFinite(suggestion.longitude)
+      ) {
+        this.setData({
+          keyword: suggestion.title,
+          searchSuggestions: [],
+          searchSuggestLoading: false,
+          searchSuggestError: ""
+        });
+        this.centerOnPoint(
+          { latitude: suggestion.latitude, longitude: suggestion.longitude },
+          15
+        );
+      }
+      return;
+    }
+    if (suggestion.source === "qqmap" && suggestion.rawPoi) {
       marker = this.buildQqSearchMarker(suggestion.rawPoi, idx);
     }
     if (!marker) {
@@ -2871,6 +4767,14 @@ Page({
   },
 
   openDronePicker() {
+    if (this.data.loadingDrones) {
+      wx.showToast({ title: "机型加载中", icon: "none" });
+      return;
+    }
+    if (!this.data.droneListAvailable) {
+      wx.showToast({ title: "机型未提供", icon: "none" });
+      return;
+    }
     this.setData({
       dronePickerVisible: true,
       pendingDroneIndex: this.data.selectedDroneIndex
@@ -2898,15 +4802,32 @@ Page({
     this.closeDronePicker();
   },
 
-  applyDroneByIndex(idx) {
-    const bounded = Math.max(0, Math.min(DRONES.length - 1, idx));
-    const drone = DRONES[bounded] || DRONES[0];
+  applyDroneByIndex(idx, options = {}) {
+    const list = this.getDroneList();
+    if (!Array.isArray(list) || !list.length) return;
+    const bounded = Math.max(0, Math.min(list.length - 1, idx));
+    const drone = list[bounded] || list[0];
+    const dronePickerLabel = this.computeDronePickerLabel({
+      loadingDrones: false,
+      droneListAvailable: true,
+      selectedDroneName: drone.name
+    });
+    const previousSlug = this.data.selectedDrone;
+    const changed = drone.slug !== previousSlug;
+    const shouldPersist = options.persist !== false;
     this.setData({
       selectedDroneIndex: bounded,
       selectedDrone: drone.slug,
-      selectedDroneName: drone.name
+      selectedDroneName: drone.name,
+      dronePickerLabel
+    }, () => {
+      if (changed) {
+        this.scheduleFetchDji(200, true);
+        if (shouldPersist) {
+          this.persistMapLayerSettings();
+        }
+      }
     });
-    this.scheduleFetchDji(200, true);
   },
 
   onLocateTap() {
@@ -2931,7 +4852,7 @@ Page({
   pullAndCenterLocation(options = {}) {
     wx.getLocation({
       type: "gcj02",
-      isHighAccuracy: true,
+      isHighAccuracy: false,
       highAccuracyExpireTime: 8000,
       success: (res) => {
         this._lastKnownLocation = {
@@ -3048,11 +4969,35 @@ Page({
     if (!detail.markerId) {
       detail.markerId = detail.id || "";
     }
+    if (!detail.creatorName) {
+      detail.creatorName =
+        overrides.creatorName ||
+        raw?.creatorName ||
+        marker?.creatorName ||
+        normalized.creatorName ||
+        "";
+    }
     if (source) {
       detail.source = source;
     }
     if (!detail.raw) {
       detail.raw = raw;
+    }
+    if (!detail.reviewStatus) {
+      const reviewStatus =
+        raw?.reviewStatus ??
+        raw?.raw?.reviewStatus ??
+        raw?.status ??
+        raw?.raw?.status;
+      if (reviewStatus !== undefined && reviewStatus !== null && `${reviewStatus}`.trim()) {
+        detail.reviewStatus = reviewStatus;
+      }
+    }
+    if (detail.shareDisabled === undefined) {
+      const shareDisabled = raw?.shareDisabled ?? raw?.raw?.shareDisabled;
+      if (shareDisabled !== undefined) {
+        detail.shareDisabled = shareDisabled;
+      }
     }
     return detail;
   },
@@ -3117,6 +5062,26 @@ Page({
     };
   },
 
+  buildPinSuggestionFromPayload(payload) {
+    if (!payload) return null;
+    if (
+      !Number.isFinite(payload.latitude) ||
+      !Number.isFinite(payload.longitude)
+    ) {
+      return null;
+    }
+    const title = payload.name || payload.locationText || "低空星球标记";
+    return {
+      id: payload.id || `pin-result-${Date.now()}`,
+      title,
+      address: payload.locationText || "",
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      source: "pin",
+      pinPayload: payload
+    };
+  },
+
   buildMarkerFromSearchPayload(payload, options = {}) {
     if (
       !payload ||
@@ -3146,15 +5111,7 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(markerTitle);
     if (calloutContent) {
-      marker.callout = {
-        content: calloutContent,
-        color: "rgba(0, 0, 0, 0.95)",
-        fontSize: 14,
-        fontWeight: "bold",
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
+      marker.callout = buildMarkerNameCallout(calloutContent);
     }
     return marker;
   },
@@ -3238,9 +5195,266 @@ Page({
     });
   },
 
+  trackPinExposure(markers) {
+    if (!Array.isArray(markers) || !markers.length) {
+      return;
+    }
+    if (!this._pinExposureCache) {
+      this._pinExposureCache = new Map();
+    }
+    const now = Date.now();
+    this.prunePinExposureCache(now);
+    markers.forEach((marker) => {
+      const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
+      if (!src.includes("pin")) return;
+      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+      if (shapeType && shapeType !== "POINT") return;
+      const candidateId =
+        marker?.extData?.raw?.id ||
+        marker?.id ||
+        marker?.markerId ||
+        marker?.markerID ||
+        "";
+      const pinId = typeof candidateId === "string" ? candidateId.trim() : `${candidateId || ""}`.trim();
+      if (!pinId) return;
+      if (pinId.startsWith("nearby-")) return;
+      const last = this._pinExposureCache.get(pinId);
+      if (Number.isFinite(last) && now - last < MARKER_EXPOSURE_CACHE_TTL) {
+        return;
+      }
+      this._pinExposureCache.set(pinId, now);
+      this.incrementPinExposureCount(pinId);
+    });
+  },
+
+  createPinSearchPayload(raw = {}, options = {}) {
+    if (!raw || typeof raw !== "object") {
+      return null;
+    }
+    const detail = this.composeMarkerDetail(raw, {}, {
+      source: options.source || "pin-search",
+      id: raw.id,
+      name: raw.name || raw.title,
+      locationText: raw.location?.text || raw.address
+    });
+    const coords = Array.isArray(raw?.shape?.coordinates) ? raw.shape.coordinates : [];
+    const primary =
+      coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
+      detail ||
+      {};
+    const latitude = Number(primary.latitude);
+    const longitude = Number(primary.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const markerId =
+      detail.markerId ||
+      detail.id ||
+      options.fallbackId ||
+      `pin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      id: markerId,
+      latitude,
+      longitude,
+      name: detail.name || "",
+      locationText: detail.locationText || "",
+      detail: detail,
+      raw
+    };
+  },
+
+  buildPinSearchMarker(payload = {}, options = {}) {
+    if (!payload) return null;
+    console.log("buildPinSearchMarker", payload);
+    const marker = {
+      id: payload.id || `pin-${Date.now()}`,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+      title: payload.name,
+      iconPath: "/assets/default.png",
+      width: 32,
+      height: 32
+    };
+    const calloutContent = formatNearbyMarkerLabel(payload.name || "");
+    if (calloutContent) {
+      marker.callout = buildMarkerNameCallout(`${calloutContent}（低空星球）`, {
+        color: "#14532d",
+        borderColor: "#14532d"
+      });
+    }
+    marker.extData = {
+      source: options.source || "pin-search",
+      raw: payload.raw || {},
+      detail: cloneMarkerDetail(payload.detail || {})
+    };
+    return marker;
+  },
+
   getAuthToken() {
     const app = getApp ? getApp() : null;
     return (app && app.globalData && app.globalData.token) || "";
+  },
+
+  requestProfileSubscriptions() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return Promise.resolve();
+    const clearSubscribeWait = () => {
+      setSubscribeWaitOverlay(false);
+    };
+    const checkSubscriptionsNotFound = () =>
+      new Promise((resolve) => {
+        wx.request({
+          url: `${apiBase}/api/weapp/subscriptions`,
+          method: "GET",
+          header: {
+            "content-type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          success: (res) => {
+            if (res && res.statusCode === 404) {
+              setSubscribeWaitOverlay(true);
+            }
+            resolve();
+          },
+          fail: () => resolve()
+        });
+      });
+    return checkSubscriptionsNotFound()
+      .then(() => fetchTemplateSettings({ apiBase, token }))
+      .then(() => {
+        const templateIds = normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS);
+        if (!templateIds.length) return null;
+        return requestSubscribeMessageForTemplateIds(templateIds)
+          .then(({ acceptedIds }) => {
+            if (acceptedIds && acceptedIds.length) {
+              return updateSubscriptions(acceptedIds, { apiBase, token }).catch((err) => {
+                console.warn("updateSubscriptions after consent failed", err);
+                return null;
+              });
+            }
+            return null;
+          })
+      })
+      .catch((err) => {
+        console.warn("requestProfileSubscriptions failed", err);
+        return null;
+      })
+      .finally(() => {
+        clearSubscribeWait();
+        this.evaluateSubscriptionBannerVisibility().catch(() => { });
+      });
+  },
+
+  onSubscriptionBannerTap() {
+    if (this.data.subscriptionBannerLoading) return;
+    this.setData({ subscriptionBannerLoading: true });
+    this.ensureProfileAuthenticated()
+      .then(() => this.openSubscriptionSettingPicker())
+      .catch((err) => {
+        console.warn("subscription banner auth failed", err);
+        wx.showToast({ title: "请先登录后再试", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ subscriptionBannerLoading: false });
+      });
+  },
+
+  openSubscriptionSettingPicker(options = {}) {
+    const prefAccepted = Array.isArray(options.prefAccepted) ? options.prefAccepted : [];
+    return new Promise((resolve) => {
+      if (typeof wx.openSetting !== "function") {
+        resolve([]);
+        return;
+      }
+      wx.openSetting({
+        withSubscriptions: true,
+        success: (res = {}) => {
+          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
+          const enabled = mainSwitch !== false;
+          if (!enabled) {
+            this.setGlobalSubscriptionIds([], enabled);
+            this.setSubscriptionBannerVisibility(true);
+            wx.showToast({ title: "请先开启订阅消息总开关", icon: "none" });
+            resolve([]);
+            return;
+          }
+          console.log("res.subscriptionsSetting", res.subscriptionsSetting);
+          const ids = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || [];
+          const merged = normalizeTemplateIds([...(prefAccepted || []), ...(ids || [])]);
+          console.log("openSubscriptionSettingPicker got ids", ids.length, "merged", merged.length);
+          const normalized = this.setGlobalSubscriptionIds(merged, enabled);
+          const apiBase = this.getApiBase();
+          const token = this.getAuthToken();
+          const syncPromise =
+            normalized.length && apiBase && token
+              ? updateSubscriptions(normalized, { apiBase, token }).catch((err) => {
+                console.warn("updateSubscriptions after openSetting failed", err);
+              })
+              : Promise.resolve();
+          const finalize = () => {
+            const shouldShow = !enabled || !hasAllRequiredSubscriptions(normalized);
+            console.log("openSubscriptionSettingPicker accepted ids", normalized.length, "mainSwitch", enabled, "show", shouldShow);
+            this.setSubscriptionBannerVisibility(shouldShow);
+            if (normalized.length === 0) {
+              wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
+            }
+            resolve(normalized);
+            // Double-check with backend/state to avoid偶发悬挂
+            this.evaluateSubscriptionBannerVisibility().catch(() => { });
+          };
+          syncPromise.then(finalize).catch(finalize);
+        },
+        fail: (err) => {
+          console.warn("openSubscriptionSettingPicker failed", err);
+          wx.showToast({ title: "请在设置里开启订阅消息", icon: "none" });
+          this.setSubscriptionBannerVisibility(true);
+          resolve([]);
+        }
+      });
+    });
+  },
+
+  prefetchSubscriptionLatest() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    fetchLatestSubscriptionPush({ apiBase, token })
+      .then((payload = {}) => {
+        const latestVersion = normalizeVersion(payload.version || "");
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData) {
+          app.globalData.subscriptionLatestVersion = latestVersion;
+        }
+        if (!latestVersion) return null;
+        return fetchLatestItemVersion({
+          apiBase,
+          token,
+          itemId: SUBSCRIPTION_TEMPLATE_ID,
+          version: latestVersion
+        }).then((result) => {
+          const serverVersion = normalizeVersion(result.version || "");
+          const hasUpdate = serverVersion !== latestVersion;
+          this.updateSubscriptionBadge(hasUpdate);
+          if (app && app.globalData) {
+            app.globalData.subscriptionFeedHasUpdate = hasUpdate;
+          }
+          return { latestVersion, serverVersion, hasUpdate };
+        });
+      })
+      .catch((err) => {
+        console.warn("prefetchSubscriptionLatest failed", err);
+      });
+  },
+
+  updateSubscriptionBadge(show) {
+    if (typeof show !== "boolean") return;
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.showProfileRedDot = show;
+      app.globalData.subscriptionFeedHasUpdate = show;
+    }
+    this.setData({ showProfileRedDot: show });
   },
 
   ensureProfileAuthenticated() {
@@ -3301,6 +5515,15 @@ Page({
     this._pxPerRpx = width / 750;
     const pxPerRpx = this._pxPerRpx || 1;
     this._scaleBarBaseRpx = Math.max(30, Math.round(CSS_PIXELS_PER_CM / pxPerRpx));
+    try {
+      if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
+        const info = wx.getSystemInfoSync() || {};
+        const platform = `${info.platform || ""}`.toLowerCase();
+        this._isIOS = platform === "ios";
+      }
+    } catch (err) {
+      console.warn("getSystemInfoSync failed", err);
+    }
   },
 
   updateScaleBar(context = {}) {
@@ -3371,6 +5594,47 @@ Page({
     this._pendingRegionUpdates = pending + inc;
   },
 
+  updateMapGestureState(detail = {}) {
+    const now = Date.now();
+    const skew = Number(detail?.skew);
+    if (Number.isFinite(skew)) {
+      const prevSkew = this._mapSkew;
+      this._mapSkew = skew;
+      if ((Number.isFinite(prevSkew) && prevSkew !== skew) || skew > 0) {
+        this._overlookSyncAvoidUntil = now + 400;
+      }
+    }
+    const rotate = Number(detail?.rotate);
+    if (Number.isFinite(rotate)) {
+      const prevRotate = this._mapRotate;
+      this._mapRotate = rotate;
+      if (Number.isFinite(prevRotate) && prevRotate !== rotate) {
+        this._overlookSyncAvoidUntil = now + 400;
+      }
+    }
+  },
+
+  shouldAvoidCenterSync(options = {}) {
+    const cause = typeof options?.cause === "string" ? options.cause.toLowerCase() : "";
+    if (cause === "skew" || cause === "rotate" || cause === "overlook") {
+      return true;
+    }
+    if (
+      Number.isFinite(this._overlookSyncAvoidUntil) &&
+      this._overlookSyncAvoidUntil > Date.now()
+    ) {
+      return true;
+    }
+    // iOS map can snap back when syncing center/scale during overlooking or max-zoom gestures.
+    if (!this._isIOS) return false;
+    if (Number.isFinite(this._mapSkew) && this._mapSkew > 0) return true;
+    const rawScale = Number(options?.rawScale);
+    const scale = Number(options?.scale);
+    if (Number.isFinite(rawScale) && Math.round(rawScale) >= MAP_MAX_SCALE) return true;
+    if (Number.isFinite(scale) && Math.round(scale) >= MAP_MAX_SCALE) return true;
+    return false;
+  },
+
   scaleForMeters(targetMeters, latitude) {
     if (!Number.isFinite(targetMeters) || targetMeters <= 0) return null;
     if (!this._pxPerRpx || this._pxPerRpx <= 0) {
@@ -3409,8 +5673,16 @@ Page({
       },
       () => {
         this._currentBounds = null;
-        this.refreshWmsOverlay(this.data.center, this.data.scale, this._lastRegion);
+        if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+          this._uomPlugin.handleRegionChange({
+            center: point,
+            centerPin: point,
+            scale: targetScale,
+            region: this._lastRegion
+          });
+        }
         this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
+        this.updateCenterPinIndicator();
         if (this._markersFetchTimer) {
           clearTimeout(this._markersFetchTimer);
           this._markersFetchTimer = null;
@@ -3500,34 +5772,59 @@ Page({
     }
     if (e.type === "end") {
       const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
+      const detail = e?.detail || {};
+      this.updateMapGestureState(detail);
       if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
         this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
         return;
       }
       // 使用事件内的中心与范围，仅用于刷新覆盖物，避免 setData 改 center 造成回环抖动
-      const region = e.detail && (e.detail.region || {
-        northeast: e.detail.northeast,
-        southwest: e.detail.southwest
+      const rawScale = Number(detail.scale);
+      const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
+      const region = detail && (detail.region || {
+        northeast: detail.northeast,
+        southwest: detail.southwest
       });
-      const cl = e.detail && (e.detail.centerLocation || null);
+      const cl = detail && (detail.centerLocation || null);
       if (region && region.northeast && region.southwest && cl) {
         const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
         this._centerOverride = newCenter;
         const prevScale = this.data.scale;
-        const scale = clampMapScale(e.detail.scale || prevScale);
+        const scale = clampMapScale(detail.scale || prevScale);
         const scaleChanged = scale !== prevScale;
         console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
         this._currentRadius = clampRadius(radius);
         this._currentBounds = this.buildBoundsRect(region, newCenter, this._currentRadius);
-        const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
-        const diffLng = Math.abs((this.data.center?.longitude || 0) - newCenter.longitude);
-        const shouldSync = diffLat > 1e-5 || diffLng > 1e-5 || scale !== this.data.scale;
+        const prevCenter = this.data.center;
+        const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+          ? haversineMeters(
+            prevCenter.latitude,
+            prevCenter.longitude,
+            newCenter.latitude,
+            newCenter.longitude
+          )
+          : Number.POSITIVE_INFINITY;
+        const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
+        const shouldSync = centerMoved || scale !== this.data.scale;
+        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
+        if (avoidCenterSync) {
+          this.data.center = newCenter;
+          this.data.scale = scale;
+        }
         const run = (forceRefresh) => {
-          this.refreshWmsOverlay(newCenter, scale, region);
+          if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+            this._uomPlugin.handleRegionChange({ center: newCenter, centerPin: newCenter, scale, region });
+          }
           this.requestDjiZones(forceRefresh, newCenter, region, scale);
           this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
+            center: newCenter,
+            region,
+            scale,
+            force: !!forceRefresh
+          });
+          this.scheduleFetchPins(forceRefresh ? 0 : 200, {
             center: newCenter,
             region,
             scale,
@@ -3544,23 +5841,38 @@ Page({
         const afterSync = () => {
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
           run(scaleChanged);
+          this.updateCenterPinIndicator();
         };
-        if (shouldSync) {
-          this.queueRegionUpdateSkip(1);
-          this.setData({ center: newCenter, scale }, afterSync);
+        if (shouldSync || forceScaleSync) {
+          if (avoidCenterSync) {
+            afterSync();
+          } else {
+            this.queueRegionUpdateSkip(1);
+            this.setData({ center: newCenter, scale }, afterSync);
+          }
         } else {
           afterSync();
+        }
+        if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
+          this._uomPlugin.scheduleFinalRefresh();
         }
         return;
       }
       // 兜底：取中心再刷新（少量机型可能无 centerLocation）
-      this.updateCenterAndRadius(e.detail);
+      this.updateCenterAndRadius(detail);
+      if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
+        this._uomPlugin.scheduleFinalRefresh();
+      }
     }
   },
 
   onMapUpdated() { },
 
   updateCenterAndRadius(detail) {
+    this.updateMapGestureState(detail);
+    const rawScale = Number(detail?.scale);
+    const cause = detail?.causedBy || detail?.cause || "";
+    const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
     this.mapCtx.getCenterLocation({
       type: "gcj02",
       success: (res) => {
@@ -3570,11 +5882,24 @@ Page({
         };
         this._centerOverride = newCenter;
         const scale = clampMapScale(detail?.scale || this.data.scale);
+        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
         // cache region for WMS tiling
         this._lastRegion = detail?.region || null;
-        const diffLat = Math.abs((this.data.center?.latitude || 0) - newCenter.latitude);
-        const diffLng = Math.abs((this.data.center?.longitude || 0) - newCenter.longitude);
-        const needSync = diffLat > 1e-5 || diffLng > 1e-5 || scale !== this.data.scale;
+        const prevCenter = this.data.center;
+        const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+          ? haversineMeters(
+            prevCenter.latitude,
+            prevCenter.longitude,
+            newCenter.latitude,
+            newCenter.longitude
+          )
+          : Number.POSITIVE_INFINITY;
+        const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
+        const needSync = centerMoved || scale !== this.data.scale;
+        if (avoidCenterSync) {
+          this.data.center = newCenter;
+          this.data.scale = scale;
+        }
         const run = () => {
           const radius = this.computeRadius(detail);
           this._currentRadius = clampRadius(radius);
@@ -3583,8 +5908,21 @@ Page({
             newCenter,
             this._currentRadius
           );
-          this.refreshWmsOverlay(newCenter, scale, detail?.region);
+          if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+            this._uomPlugin.handleRegionChange({
+              center: newCenter,
+              centerPin: newCenter,
+              scale,
+              region: detail?.region
+            });
+          }
           this.scheduleFetchMarkers(0, {
+            center: newCenter,
+            region: detail?.region,
+            scale,
+            force: true
+          });
+          this.scheduleFetchPins(0, {
             center: newCenter,
             region: detail?.region,
             scale,
@@ -3602,10 +5940,15 @@ Page({
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
           run();
           this.updateStatusPanel(this._lastAreas);
+          this.updateCenterPinIndicator();
         };
-        if (needSync) {
-          this.queueRegionUpdateSkip(1);
-          this.setData({ center: newCenter, scale }, afterUpdate);
+        if (needSync || forceScaleSync) {
+          if (avoidCenterSync) {
+            afterUpdate();
+          } else {
+            this.queueRegionUpdateSkip(1);
+            this.setData({ center: newCenter, scale }, afterUpdate);
+          }
         } else {
           afterUpdate();
         }
@@ -3649,6 +5992,19 @@ Page({
     return Math.max(0.1, Math.min(200, zoomFactor * 0.8));
   },
 
+  scheduleFetchPins(delay = 0, options = {}) {
+    if (!this.isPinLayerEnabled()) {
+      return;
+    }
+    if (this._pinsFetchTimer) clearTimeout(this._pinsFetchTimer);
+    const ms = Math.max(0, Number(delay) || 0);
+    const merged = Object.assign({}, options, { force: options.force === true });
+    this._pinsFetchTimer = setTimeout(() => {
+      this._pinsFetchTimer = null;
+      this.requestNearbyPins(merged);
+    }, ms);
+  },
+
   scheduleFetchMarkers(delay = 0, options = {}) {
     if (this.data.merchantMarkersEnabled === false) return;
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
@@ -3676,6 +6032,96 @@ Page({
       this._fetchTimer = null;
       this.requestDjiZones(force);
     }, delay);
+  },
+
+  requestNearbyPins(options = {}) {
+    if (!this.isPinLayerEnabled()) {
+      if (this._pinsFetchTimer) {
+        clearTimeout(this._pinsFetchTimer);
+        this._pinsFetchTimer = null;
+      }
+      this._nearbyPinsRaw = [];
+      this._nearbyPinMarkers = [];
+      this._nearbyPinPolygons = [];
+      this._nearbyPinCircles = [];
+      this._lastNearbyPinFetch = null;
+      this.updateOverlayGraphics();
+      this.syncAllMarkers();
+      this.updateCenterPinIndicator();
+      return;
+    }
+    const center = options?.center || this._centerOverride || this.data.center;
+    if (!center) return;
+    const scale = options?.scale || this.data.scale;
+    const region = options?.region || this._lastRegion;
+    const force = options.force === true;
+    if (!force && !this.shouldFetchNearbyMarkers(scale, center.latitude)) {
+      if (Array.isArray(this._nearbyPinsRaw) && this._nearbyPinsRaw.length) {
+        this._nearbyPinsRaw = [];
+        this._nearbyPinMarkers = [];
+        this._nearbyPinPolygons = [];
+        this._nearbyPinCircles = [];
+        this.updateOverlayGraphics();
+        this.syncAllMarkers();
+      }
+      this._lastNearbyPinFetch = null;
+      return;
+    }
+    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
+
+    const latitude = Number(center.latitude);
+    const longitude = Number(center.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const prev = this._lastNearbyPinFetch || {};
+    const moveMeters = haversineMeters(
+      center.latitude,
+      center.longitude,
+      prev.latitude || 0,
+      prev.longitude || 0
+    );
+    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
+    const now = Date.now();
+    const prevTimestamp = Number(prev.timestamp) || 0;
+    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
+    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+      return;
+    }
+
+    const requestId = now;
+    this._activePinsRequest = requestId;
+
+    fetchNearbyPins(
+      {
+        latitude,
+        longitude,
+        radiusInKilometers: radiusKm
+      },
+      {
+        apiBase: this.getApiBase(),
+        token: this.getAuthToken()
+      }
+    )
+      .then((items = []) => {
+        if (this._activePinsRequest !== requestId) return;
+        this.applyNearbyPins(Array.isArray(items) ? items : []);
+        this._lastNearbyPinFetch = {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radiusKm,
+          scale: clampMapScale(scale),
+          timestamp: now
+        };
+      })
+      .catch((err) => {
+        console.warn("Fetch nearby pins failed", err);
+      })
+      .finally(() => {
+        if (this._activePinsRequest === requestId) {
+          this._activePinsRequest = null;
+        }
+      });
   },
 
   requestNearbyMarkers(options = {}) {
@@ -3776,16 +6222,7 @@ Page({
             };
             const calloutContent = formatNearbyMarkerLabel(name);
             if (calloutContent) {
-              marker.callout = {
-                content: calloutContent,
-                color: "rgba(0, 0, 0, 0.95)",
-                fontSize: 14,
-                fontWeight: "bold",
-                display: "ALWAYS",
-                borderRadius: 4,
-                padding: 4,
-                // bgColor: "rgba(255, 255, 255, 0)"
-              };
+              marker.callout = buildMarkerNameCallout(calloutContent);
             }
             const detail = this.composeMarkerDetail(item, marker, {
               source: "nearby",
@@ -3930,6 +6367,12 @@ Page({
     if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
       circles.push(...this._nfzCircles);
     }
+    if (Array.isArray(this._nearbyPinPolygons)) {
+      polygons.push(...this._nearbyPinPolygons);
+    }
+    if (Array.isArray(this._nearbyPinCircles)) {
+      circles.push(...this._nearbyPinCircles);
+    }
     if (Array.isArray(this._previewPolygons)) {
       polygons.push(...this._previewPolygons);
     }
@@ -3995,7 +6438,7 @@ Page({
       drone: this.data.selectedDrone
     })
       .then((areas) => {
-        console.log("areas", areas);
+        // console.log("areas", areas);
         const graphics = buildAreaGraphics(areas);
         this._lastAreas = areas;
         this.updateStatusPanel(areas);
@@ -4030,152 +6473,16 @@ Page({
   updateStatusPanel(areas) {
     const resolved = typeof areas === "undefined" ? this._lastAreas : areas;
     const dji = this.describeDjiStatus(resolved);
-    const uom = this.describeUomStatus();
     const temporary = this.describeTemporaryNoFlyStatus();
-    const shouldShowWarning = this.shouldShowUomTileWarning();
-    const dismissed = !!this.data.uomTileWarningDismissed;
-    const uomWarningVisible = shouldShowWarning && !dismissed;
     this.setData({
       djiStatus: dji.status,
       djiStatusExtra: dji.extra,
       djiTone: dji.tone,
       djiColor: dji.color || "",
-      uomStatus: uom.status,
-      uomTone: uom.tone,
       temporaryNoFlyZoneInfo: temporary.zoneInfo,
       temporaryNoFlyText: temporary.text,
-      temporaryNoFlyTone: temporary.tone,
-      uomTileWarningVisible: uomWarningVisible,
-      uomTileWarningDismissed: dismissed
+      temporaryNoFlyTone: temporary.tone
     });
-  },
-
-  shouldShowUomTileWarning() {
-    const dismissed = !!this.data.uomTileWarningDismissed;
-    if (this._uomOverlayUnsupported || this._uomOverlayFailed) {
-      return true;
-    }
-    const tiles = Array.isArray(this._currentWmsTiles) ? this._currentWmsTiles : [];
-    const scale = clampMapScale(this.data?.scale);
-    if (!tiles.length || scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
-      return false;
-    }
-    const center = this._centerOverride || this.data.center;
-    if (!center) return false;
-    const tile = this.findUomTileForPoint(center);
-    if (!tile) return false;
-    const maskEntry = this._uomTileMasks?.get(tile.id);
-    if (maskEntry && maskEntry.status === "error") return true;
-    return false;
-  },
-
-  updateUomTileWarning() {
-    const shouldShow = this.shouldShowUomTileWarning();
-    const dismissed = !!this.data.uomTileWarningDismissed;
-    const visible = shouldShow && !dismissed;
-    if (
-      this.data &&
-      this.data.uomTileWarningVisible === visible &&
-      this.data.uomTileWarningDismissed === dismissed
-    ) {
-      return;
-    }
-    this.setData({
-      uomTileWarningVisible: visible,
-      uomTileWarningDismissed: dismissed
-    });
-  },
-
-  detectUomOverlaySupport() {
-    try {
-      const info = typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function"
-        ? wx.getSystemInfoSync()
-        : {};
-      this._sdkVersion = info.SDKVersion || "";
-      const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
-      const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
-      const platform = (info.platform || "").toLowerCase();
-      this.reportUomEnv({
-        appName,
-        appPlatform,
-        platform,
-        host: info.host || "",
-        hostName: info.hostName || "",
-        sdk: this._sdkVersion,
-        isQQ: false,
-        hasGlobalQQ: typeof qq !== "undefined"
-      });
-      const hasApi = !!(this.mapCtx && typeof this.mapCtx.addGroundOverlay === "function");
-      const sdkOk = this._sdkVersion ? compareVersion(this._sdkVersion, MIN_GROUND_OVERLAY_SDK) >= 0 : true;
-      const isDesktopEnv = platform && platform !== "ios" && platform !== "android";
-      if (!hasApi || !sdkOk || isDesktopEnv) {
-        this._uomOverlayUnsupported = true;
-        this._uomOverlayFailed = true;
-      }
-    } catch (err) {
-      console.warn("detectUomOverlaySupport failed", err);
-    }
-  },
-
-  showUomWarningModal() {
-    const modalApi =
-      (typeof wx !== "undefined" && wx && typeof wx.showModal === "function" && wx.showModal) ||
-      (typeof qq !== "undefined" && qq && typeof qq.showModal === "function" && qq.showModal);
-    if (!modalApi) return;
-    modalApi({
-      title: "提示",
-      content: "受地图组件能力限制，本页部分地图功能暂不可用。完整功能已在微信小程序「低空星球」上线，欢迎前往使用。",
-      confirmText: "知道了",
-      cancelText: "不再提示",
-      success: (res) => {
-        if (res && res.cancel) {
-          this.onUomTileWarningNever();
-        }
-      }
-    });
-  },
-
-  reportUomEnv(info = {}) {
-    // no-op: was used for debugging environment detection
-    this._uomEnvReported = true;
-  },
-
-  forceShowUomWarningFallback() {
-    if (isWeChatRuntime()) return;
-    if (this.data.uomTileWarningDismissed) return;
-    if (!this.data.uomTileWarningVisible) {
-      this.setData({ uomTileWarningVisible: true });
-      if (!this._uomModalShown) {
-        this._uomModalShown = true;
-        this.showUomWarningModal();
-      }
-    }
-  },
-
-  onUomTileWarningNever() {
-    this.persistUomWarningDismissed();
-    this.setData({
-      uomTileWarningVisible: false,
-      uomTileWarningDismissed: true
-    });
-  },
-
-  readStoredUomWarningDismissed() {
-    try {
-      const val = wx.getStorageSync(UOM_WARNING_DISMISS_STORAGE_KEY);
-      return !!val;
-    } catch (err) {
-      console.warn("failed to read UOM warning dismissal flag", err);
-      return false;
-    }
-  },
-
-  persistUomWarningDismissed() {
-    try {
-      wx.setStorageSync(UOM_WARNING_DISMISS_STORAGE_KEY, 1);
-    } catch (err) {
-      console.warn("failed to persist UOM warning dismissal flag", err);
-    }
   },
 
   describeDjiStatus(areas) {
@@ -4239,12 +6546,6 @@ Page({
     if (this.data.temporaryNoFlyZoneEnabled === false) {
       return { zoneInfo: null, text: "已禁用", tone: "warn" };
     }
-    if (!this._noFlyZonesReady) {
-      return { zoneInfo: null, text: "评估中", tone: "neutral" };
-    }
-    if (this._noFlyZonesError) {
-      return { zoneInfo: null, text: "临时禁飞数据不可用", tone: "warn" };
-    }
     const center = this._centerOverride || this.data.center;
     if (!center) {
       return { zoneInfo: null, text: "评估中", tone: "neutral" };
@@ -4254,7 +6555,7 @@ Page({
     }
     const hit = this.findNoFlyZoneAtPoint(center.longitude, center.latitude);
     if (!hit) {
-      return { zoneInfo: null, text: "无", tone: "safe" };
+      return { zoneInfo: null, text: "", tone: "safe" };
     }
     const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
     const name = rawName || "临时禁飞区";
@@ -4273,61 +6574,6 @@ Page({
     return { zoneInfo, text: displayName, tone: "alert" };
   },
 
-  describeUomStatus() {
-    if (this.data.uomDivisionEnabled === false) {
-      return { status: "已禁用", tone: "warn" };
-    }
-    const currentScale = Number(this.data?.scale);
-    // if (Number.isFinite(currentScale) && currentScale > 16) {
-    //   return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
-    // }
-    const center = this._centerOverride || this.data.center;
-    if (!center) {
-      return { status: "评估中", tone: "neutral" };
-    }
-    const tile = this.findUomTileForPoint(center);
-    if (!tile) {
-      return { status: "非适飞空域", tone: "alert" };
-    }
-    const maskEntry = this._uomTileMasks?.get(tile.id);
-    if (!maskEntry) {
-      this.ensureUomMask(tile);
-      return { status: "评估中", tone: "neutral" };
-    }
-    if (maskEntry.status === "pending") {
-      return { status: "评估中", tone: "neutral" };
-    }
-    if (maskEntry.status === "unsupported") {
-      const withinBounds = this.pointInBounds(center, tile.bounds);
-      return withinBounds
-        ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
-        : { status: "非适飞空域", tone: "alert" };
-    }
-    if (maskEntry.status !== "ready" || !maskEntry.data) {
-      return { status: "非适飞空域", tone: "alert" };
-    }
-    const covered = this.pointCoveredByUomMask(center, tile.bounds, maskEntry);
-    return covered
-      ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
-      : { status: "非适飞空域", tone: "alert" };
-  },
-
-  pointInBounds(point, bounds) {
-    if (!point || !bounds) return false;
-    const sw = bounds.southwest || {};
-    const ne = bounds.northeast || {};
-    const swLat = typeof sw.latitude === "number" ? sw.latitude : -90;
-    const neLat = typeof ne.latitude === "number" ? ne.latitude : 90;
-    const swLng = typeof sw.longitude === "number" ? sw.longitude : -180;
-    const neLng = typeof ne.longitude === "number" ? ne.longitude : 180;
-    return (
-      point.latitude >= swLat &&
-      point.latitude <= neLat &&
-      point.longitude >= swLng &&
-      point.longitude <= neLng
-    );
-  },
-
   toneForLevel(level) {
     const normalized = Number(level);
     if (normalized === 2 || normalized === 1) return "alert";
@@ -4344,117 +6590,6 @@ Page({
     return cleaned.length ? cleaned.join(",") : DEFAULT_LEVELS_PARAM;
   },
 
-  refreshWmsOverlay(centerOverride, scaleOverride, regionOverride) {
-    if (this.data.uomDivisionEnabled === false) {
-      this.clearMapOverlays();
-      return;
-    }
-    const center = centerOverride || this.data.center;
-    const scale = clampMapScale(scaleOverride || this.data.scale);
-    this._uomOverlayFailed = false;
-    if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
-      this.clearMapOverlays();
-      this._currentWmsTiles = [];
-      this.updateStatusPanel(this._lastAreas);
-      return;
-    }
-    const overlays = buildWmsOverlay(
-      { longitude: center.longitude, latitude: center.latitude },
-      scale,
-      regionOverride || this._lastRegion || null
-    );
-    this._currentWmsTiles = overlays;
-    this.updateStatusPanel(this._lastAreas);
-    overlays.forEach((tile) => this.ensureUomMask(tile));
-    this.applyWmsOverlays(overlays);
-  },
-
-  applyWmsOverlays(tiles) {
-    if (!this.mapCtx) return;
-    const ctx = this.mapCtx;
-    this._wmsOverlayMap = this._wmsOverlayMap || new Map();
-    this._wmsOverlaySeed = this._wmsOverlaySeed || 0;
-    const nextIds = new Set();
-    (tiles || []).forEach((tile) => {
-      if (tile && tile.id) nextIds.add(tile.id);
-    });
-    if (this._wmsOverlayMap.size) {
-      for (const [tileId, handle] of Array.from(this._wmsOverlayMap.entries())) {
-        if (!nextIds.has(tileId)) {
-          ctx.removeGroundOverlay({
-            id: handle.overlayId,
-            fail: () => { }
-          });
-          this._wmsOverlayMap.delete(tileId);
-        }
-      }
-    }
-    (tiles || []).forEach((tile) => {
-      if (!tile || !tile.id || !tile.bounds) return;
-      const signature = this.tileSignature(tile);
-      const existing = this._wmsOverlayMap.get(tile.id);
-      if (existing && existing.signature === signature) {
-        return;
-      }
-
-      if (existing) {
-        ctx.removeGroundOverlay({
-          id: existing.overlayId,
-          fail: () => { }
-        });
-        this._wmsOverlayMap.delete(tile.id);
-      }
-      this._wmsOverlaySeed += 1;
-      const overlayId = this._wmsOverlaySeed;
-
-      const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
-      ctx.addGroundOverlay({
-        id: overlayId,
-        src: tile.src,
-        bounds: tile.bounds,
-        alpha,
-        fail: (err) => {
-          console.error("addGroundOverlay failed", tile.id, err);
-          this._uomOverlayFailed = true;
-          this.updateUomTileWarning();
-
-          this._wmsOverlayMap.delete(tile.id);
-        }
-      });
-      this._wmsOverlayMap.set(tile.id, { overlayId, signature });
-    });
-  },
-
-  tileSignature(tile) {
-    if (!tile) return "";
-    const bounds = tile.bounds || {};
-    const ne = bounds.northeast || {};
-    const sw = bounds.southwest || {};
-    const values = [
-      tile.src || "",
-      tile.alpha != null ? tile.alpha : tile.opacity,
-      Number.isFinite(ne.latitude) ? ne.latitude.toFixed(6) : "",
-      Number.isFinite(ne.longitude) ? ne.longitude.toFixed(6) : "",
-      Number.isFinite(sw.latitude) ? sw.latitude.toFixed(6) : "",
-      Number.isFinite(sw.longitude) ? sw.longitude.toFixed(6) : ""
-    ];
-    return values.join("|");
-  },
-
-  clearMapOverlays() {
-    this._wmsOverlayMap = this._wmsOverlayMap || new Map();
-    if (this.mapCtx) {
-      for (const [, handle] of this._wmsOverlayMap.entries()) {
-        this.mapCtx.removeGroundOverlay({
-          id: handle.overlayId,
-          fail: () => { }
-        });
-      }
-    }
-    this._wmsOverlayMap.clear();
-    this._currentWmsTiles = [];
-    this.updateStatusPanel(this._lastAreas);
-  },
 
   buildBoundsRect(region, center, radius) {
     if (typeof radius === "number" && Number.isFinite(radius)) {
@@ -4698,80 +6833,7 @@ Page({
     return NFZ_CENTER_COLORS[level] || "#DE4329";
   },
 
-  findUomTileForPoint(point) {
-    if (!point || !Array.isArray(this._currentWmsTiles)) return null;
-    for (const tile of this._currentWmsTiles) {
-      if (this.pointInBounds(point, tile.bounds)) return tile;
-    }
-    return null;
-  },
 
-  ensureUomMask(tile) {
-    if (!tile || !tile.id) return;
-    if (!this._uomTileMasks) this._uomTileMasks = new Map();
-    const cached = this._uomTileMasks.get(tile.id);
-    if (cached && (cached.status === "ready" || cached.status === "pending")) return;
-    if (!this._uomMaskSupported) {
-      this._uomTileMasks.set(tile.id, { status: "unsupported" });
-      return;
-    }
-    try {
-      const canvas = wx.createOffscreenCanvas({ type: "2d", width: 256, height: 256 });
-      const ctx = canvas.getContext("2d");
-      const img = canvas.createImage();
-      const entry = { status: "pending" };
-      this._uomTileMasks.set(tile.id, entry);
-      img.onload = () => {
-        try {
-          const w = img.width || 256;
-          const h = img.height || 256;
-          canvas.width = w;
-          canvas.height = h;
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(img, 0, 0, w, h);
-          const imageData = ctx.getImageData(0, 0, w, h);
-          entry.status = "ready";
-          entry.width = imageData.width;
-          entry.height = imageData.height;
-          entry.data = imageData.data;
-          this.updateStatusPanel(this._lastAreas);
-        } catch (err) {
-          console.error("解析 UOM 瓦片失败", err);
-          entry.status = "error";
-        }
-      };
-      img.onerror = (err) => {
-        console.error("加载 UOM 瓦片失败", err);
-        const entry = this._uomTileMasks.get(tile.id);
-        if (entry) entry.status = "error";
-        this._uomOverlayFailed = true;
-        this.updateUomTileWarning();
-      };
-      img.src = tile.src;
-    } catch (err) {
-      console.error("创建 UOM 蒙版失败", err);
-      this._uomTileMasks.set(tile.id, { status: "error" });
-      this._uomOverlayFailed = true;
-      this.updateUomTileWarning();
-    }
-  },
-
-  pointCoveredByUomMask(point, bounds, mask) {
-    if (!point || !bounds || !mask || mask.status !== "ready" || !mask.data) return false;
-    const sw = bounds.southwest || {};
-    const ne = bounds.northeast || {};
-    const lngSpan = (ne.longitude ?? sw.longitude) - (sw.longitude ?? 0);
-    const latSpan = (ne.latitude ?? sw.latitude) - (sw.latitude ?? 0);
-    if (!lngSpan || !latSpan) return false;
-    const u = (point.longitude - sw.longitude) / lngSpan;
-    const v = (ne.latitude - point.latitude) / latSpan;
-    if (u < 0 || u > 1 || v < 0 || v > 1) return false;
-    const width = mask.width || 256;
-    const height = mask.height || 256;
-    const px = Math.min(width - 1, Math.max(0, Math.round(u * (width - 1))));
-    const py = Math.min(height - 1, Math.max(0, Math.round(v * (height - 1))));
-    const idx = (py * width + px) * 4;
-    const alpha = mask.data[idx + 3];
-    return alpha > 16;
-  }
 });
+
+

@@ -9,10 +9,29 @@ const {
   uploadAvatarFile
 } = require("../../../utils/profile");
 
+const NICKNAME_MAX_UNITS = 16;
+const NICKNAME_CJK_RE = /[\u4e00-\u9fff]/;
+
+function truncateNicknameByUnits(value, maxUnits = NICKNAME_MAX_UNITS) {
+  let total = 0;
+  let output = "";
+  for (const char of Array.from(value || "")) {
+    const nextTotal = total + (NICKNAME_CJK_RE.test(char) ? 2 : 1);
+    if (nextTotal > maxUnits) break;
+    total = nextTotal;
+    output += char;
+  }
+  return output;
+}
+
+function normalizeNicknameInput(value) {
+  return truncateNicknameByUnits((value || "").trimStart());
+}
+
 Page({
   data: {
     nickname: "",
-    maxLength: 20,
+    maxLength: 16,
     saving: false,
     avatarPreview: DEFAULT_AVATAR_PATH,
     defaultAvatar: DEFAULT_AVATAR_PATH
@@ -29,7 +48,7 @@ Page({
         if (payload && payload.profile) {
           this._profileFromParent = payload.profile;
           if (!this._hasInitialNickname) {
-            this.setData({ nickname: payload.profile.nickname || "" });
+            this.setData({ nickname: normalizeNicknameInput(payload.profile.nickname || "") });
             this._hasInitialNickname = true;
           }
           if (payload.profile.avatarUrl) {
@@ -43,7 +62,7 @@ Page({
     const fallbackNickname =
       passedNickname || this._storedProfile.nickname || this._profileFromParent?.nickname || "";
     if (fallbackNickname) {
-      this.setData({ nickname: fallbackNickname });
+      this.setData({ nickname: normalizeNicknameInput(fallbackNickname) });
       this._hasInitialNickname = true;
     }
     const initialAvatar =
@@ -54,7 +73,7 @@ Page({
   },
 
   onNicknameInput(e) {
-    this.setData({ nickname: (e.detail?.value || "").trimStart() });
+    this.setData({ nickname: normalizeNicknameInput(e.detail?.value || "") });
   },
 
   onChooseAvatar(e) {
@@ -71,7 +90,7 @@ Page({
 
   saveProfile(submittedNickname) {
     if (this.data.saving) return;
-    const nickname = (submittedNickname || this.data.nickname || "").trim();
+    const nickname = truncateNicknameByUnits((submittedNickname || this.data.nickname || "").trim());
     if (!nickname) {
       wx.showToast({ title: "请填写昵称", icon: "none" });
       return;

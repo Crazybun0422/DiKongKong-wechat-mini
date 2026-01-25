@@ -2,107 +2,150 @@ const {
   tileXYToBBOX3857,
   mercatorToLonLat,
   lonLatToMercator,
-  wgs84ToGcj02,
   gcj02ToWgs84
 } = require("./coords");
 const { CAAC_TOKEN } = require("./config");
 
-const WMS_MIN_ZOOM = 5;
+const WMS_MIN_ZOOM = 6;
 const WMS_MAX_ZOOM = 18;
+const DEFAULT_WMS_TILE_SIZE = 256;
+const WEB_TILE_SIZE = 256;
+const DEFAULT_VIEWPORT_WIDTH = 375;
+const DEFAULT_VIEWPORT_HEIGHT = 667;
+const MAX_WMS_TILE_SIZE = 256;
+const DEFAULT_WMS_FORMAT = "image/png";
 
-function lonLatToTile(lng, lat, zoom) {
+function normalizeTileSize(value, fallback) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return fallback;
+  const rounded = Math.round(num);
+  return Math.min(MAX_WMS_TILE_SIZE, Math.max(64, rounded));
+}
+
+function lonLatToTileFloat(lng, lat, zoom) {
   const scale = Math.pow(2, zoom);
-  const x = Math.floor(((lng + 180) / 360) * scale);
+  const x = ((lng + 180) / 360) * scale;
   const sinLat = Math.sin((lat * Math.PI) / 180);
-  const y = Math.floor(
+  const y =
     (0.5 -
       Math.log((1 + sinLat) / (1 - sinLat)) /
       (4 * Math.PI)) *
-    scale
-  );
+    scale;
   return { x, y };
 }
 
-// Build WMS overlays covering region bounds (GCJ-02), aligning CAAC (WGS84/3857) to GCJ with bbox shift
-function buildWmsOverlay(center, zoom, region) {
+// Build WMS overlays centered on GCJ center, covering the viewport.
+function buildWmsOverlay(center, zoom, region, options = {}) {
   if (!center || zoom < WMS_MIN_ZOOM || zoom > WMS_MAX_ZOOM) {
     return [];
   }
-  // compute tile range: if region provided, use it; else build a 3x3 grid around center
+  const centerLng = Number(center.longitude);
+  const centerLat = Number(center.latitude);
+  if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat)) {
+    return [];
+  }
   const base = "https://uom.caac.gov.cn/map/airspace/wms";
   const { layers, styles } = buildProvinceLayers();
+  const tileSize = normalizeTileSize(options.tileSize, DEFAULT_WMS_TILE_SIZE);
+  const maskSize = normalizeTileSize(options.maskSize, DEFAULT_WMS_TILE_SIZE);
+  const format = options.format || DEFAULT_WMS_FORMAT;
   const tiles = [];
-  let xMin, xMax, yMin, yMax;
-  if (region && region.northeast && region.southwest) {
-    const ne = region.northeast;
-    const sw = region.southwest;
-    const wgsNE = gcj02ToWgs84(ne.longitude, ne.latitude);
-    const wgsSW = gcj02ToWgs84(sw.longitude, sw.latitude);
-    const tNE = lonLatToTile(wgsNE.lng, wgsNE.lat, zoom);
-    const tSW = lonLatToTile(wgsSW.lng, wgsSW.lat, zoom);
-    xMin = Math.min(tNE.x, tSW.x);
-    xMax = Math.max(tNE.x, tSW.x);
-    yMin = Math.min(tNE.y, tSW.y);
-    yMax = Math.max(tNE.y, tSW.y);
-    // hard cap to avoid too many overlays
-    if (xMax - xMin > 6) xMax = xMin + 6;
-    if (yMax - yMin > 6) yMax = yMin + 6;
-  } else {
-    const { longitude: lng, latitude: lat } = center;
-    const wgsCenter = gcj02ToWgs84(lng, lat);
-    const t = lonLatToTile(wgsCenter.lng, wgsCenter.lat, zoom);
-    xMin = t.x - 1; xMax = t.x + 1;
-    yMin = t.y - 1; yMax = t.y + 1;
+  const maxIndex = Math.pow(2, zoom) - 1;
+  const centerTileFloat = lonLatToTileFloat(centerLng, centerLat, zoom);
+  const centerTile = {
+    x: Math.floor(centerTileFloat.x),
+    y: Math.floor(centerTileFloat.y)
+  };
+  const viewportWidth = Number.isFinite(options.viewportWidth)
+    ? options.viewportWidth
+    : DEFAULT_VIEWPORT_WIDTH;
+  const viewportHeight = Number.isFinite(options.viewportHeight)
+    ? options.viewportHeight
+    : DEFAULT_VIEWPORT_HEIGHT;
+  const viewportPaddingPx = Number.isFinite(options.viewportPaddingPx)
+    ? options.viewportPaddingPx
+    : 0;
+  const effectiveWidth = viewportWidth + viewportPaddingPx * 2;
+  const effectiveHeight = viewportHeight + viewportPaddingPx * 2;
+  let tilesX = Math.ceil(effectiveWidth / WEB_TILE_SIZE);
+  let tilesY = Math.ceil(effectiveHeight / WEB_TILE_SIZE);
+  if (tilesX % 2 === 0) tilesX += 1;
+  if (tilesY % 2 === 0) tilesY += 1;
+  let xMin = Math.round(centerTileFloat.x - tilesX / 2);
+  let xMax = xMin + tilesX - 1;
+  let yMin = Math.round(centerTileFloat.y - tilesY / 2);
+  let yMax = yMin + tilesY - 1;
+  xMin = Math.max(0, xMin);
+  yMin = Math.max(0, yMin);
+  xMax = Math.min(maxIndex, xMax);
+  yMax = Math.min(maxIndex, yMax);
+  if (xMin > xMax || yMin > yMax) {
+    return [];
   }
 
+  const tileCoords = [];
   for (let x = xMin; x <= xMax; x++) {
     for (let y = yMin; y <= yMax; y++) {
-      const bbox = tileXYToBBOX3857(x, y, zoom);
-      // GCJ alignment: compute dx/dy in meters in 3857 at tile center
-      const cx = (bbox[0] + bbox[2]) / 2;
-      const cy = (bbox[1] + bbox[3]) / 2;
-      const cWgs = mercatorToLonLat(cx, cy);
-      const cGcj = wgs84ToGcj02(cWgs.lng, cWgs.lat);
-      const mWgs = lonLatToMercator(cWgs.lng, cWgs.lat);
-      const mGcj = lonLatToMercator(cGcj.lng, cGcj.lat);
-      const dx = mGcj.x - mWgs.x;
-      const dy = mGcj.y - mWgs.y;
-      const reqBBox = [bbox[0] - dx, bbox[1] - dy, bbox[2] - dx, bbox[3] - dy];
-
-      const q = toQuery({
-        token: CAAC_TOKEN,
-        service: "WMS",
-        request: "GetMap",
-        layers,
-        styles,
-        format: "image/png8",
-        transparent: "true",
-        version: "1.1.0",
-        srs: "EPSG:3857",
-        width: "256",
-        height: "256",
-        bbox: reqBBox.join(",")
-      });
-
-      // Bounds for overlay must be in GCJ-02
-      const wgsSW = mercatorToLonLat(reqBBox[0], reqBBox[1]);
-      const wgsNE = mercatorToLonLat(reqBBox[2], reqBBox[3]);
-      const gcjSW = wgs84ToGcj02(wgsSW.lng, wgsSW.lat);
-      const gcjNE = wgs84ToGcj02(wgsNE.lng, wgsNE.lat);
-
-      tiles.push({
-        id: `${zoom}-${x}-${y}`,
-        src: `${base}?${q}`,
-        bounds: {
-          southwest: { longitude: gcjSW.lng, latitude: gcjSW.lat },
-          northeast: { longitude: gcjNE.lng, latitude: gcjNE.lat }
-        },
-        alpha: 0.65,
-        opacity: 0.65,
-        zIndex: 1
-      });
+      tileCoords.push({ x, y });
     }
   }
+
+  if (centerTile && tileCoords.length > 1) {
+    tileCoords.sort((a, b) => {
+      const dxA = a.x - centerTile.x;
+      const dyA = a.y - centerTile.y;
+      const dxB = b.x - centerTile.x;
+      const dyB = b.y - centerTile.y;
+      return dxA * dxA + dyA * dyA - (dxB * dxB + dyB * dyB);
+    });
+  }
+
+  tileCoords.forEach(({ x, y }) => {
+    const bbox = tileXYToBBOX3857(x, y, zoom);
+    const gcjSW = mercatorToLonLat(bbox[0], bbox[1]);
+    const gcjNE = mercatorToLonLat(bbox[2], bbox[3]);
+    if (!gcjSW || !gcjNE) return;
+    const wgsSW = gcj02ToWgs84(gcjSW.lng, gcjSW.lat);
+    const wgsNE = gcj02ToWgs84(gcjNE.lng, gcjNE.lat);
+    if (!wgsSW || !wgsNE) return;
+    const mSW = lonLatToMercator(wgsSW.lng, wgsSW.lat);
+    const mNE = lonLatToMercator(wgsNE.lng, wgsNE.lat);
+    const reqBBox = [
+      Math.min(mSW.x, mNE.x),
+      Math.min(mSW.y, mNE.y),
+      Math.max(mSW.x, mNE.x),
+      Math.max(mSW.y, mNE.y)
+    ];
+
+    const queryParams = {
+      token: CAAC_TOKEN,
+      service: "WMS",
+      request: "GetMap",
+      layers,
+      styles,
+      format,
+      transparent: "true",
+      version: "1.1.0",
+      srs: "EPSG:3857",
+      width: `${tileSize}`,
+      height: `${tileSize}`,
+      bbox: reqBBox.join(",")
+    };
+    const q = toQuery(queryParams);
+
+    tiles.push({
+      id: `${zoom}-${x}-${y}`,
+      src: `${base}?${q}`,
+      bounds: {
+        southwest: { longitude: gcjSW.lng, latitude: gcjSW.lat },
+        northeast: { longitude: gcjNE.lng, latitude: gcjNE.lat }
+      },
+      alpha: 0.65,
+      opacity: 0.65,
+      zIndex: 1,
+      maskSize
+    });
+  });
   return tiles;
 }
 

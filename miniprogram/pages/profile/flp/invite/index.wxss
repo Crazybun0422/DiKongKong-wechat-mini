@@ -1,7 +1,7 @@
 .invite-page {
-  min-height: 100vh;
+  min-height: 100%;
   background: #f6f7fb;
-  padding: 32rpx;
+  
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -10,23 +10,25 @@
 
 .invite-body {
   width: 100%;
-  max-width: 600rpx;
+  max-width: 680rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32rpx;
+  gap: 20rpx;
 }
 
 .invite-card {
   width: 100%;
   background: #ffffff;
   border-radius: 32rpx;
-  padding: 48rpx 32rpx;
+  padding: 12rpx 16rpx 16rpx;
   box-shadow: 0 16rpx 48rpx rgba(18, 23, 40, 0.06);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32rpx;
+  gap: 12rpx;
+  margin-top: 32rpx;
+  margin-bottom: 50rpx;
 }
 
 .invite-card-info {
@@ -48,18 +50,55 @@
 }
 
 .invite-qr-wrapper {
-  width: 420rpx;
-  height: 420rpx;
+  width: 100%;
+  position: relative;
   border-radius: 24rpx;
-  background: #f9fafc;
+  margin-top: 0;
+  overflow: hidden;
+  padding-top: calc(90% + 100rpx);
+  background: linear-gradient(140deg, #0f3aff 0%, #1d6bff 38%, #2ea7ff 70%, #54e0ff 100%);
+}
+
+.invite-qr-wrapper.is-ready {
+  background: #ffffff;
+}
+
+.invite-qr-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-position: top center;
+}
+
+.invite-qr-loading {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.invite-qr-image {
-  width: 320rpx;
-  height: 320rpx;
+.invite-qr-loading-image {
+  width: 180rpx;
+  height: 180rpx;
+  animation: invite-loading-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes invite-loading-breathe {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
 }
 
 .invite-code {
@@ -125,6 +164,51 @@
   opacity: 0.8;
 }
 
+.invite-guide-button {
+  width: 100%;
+  max-width: 680rpx;
+  min-width: 460rpx;
+  margin-top: 40rpx;
+  background: #ffffff;
+  border: 2rpx solid #1d4dff;
+  border-radius: 999rpx;
+  padding: 22rpx 34rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  white-space: nowrap;
+  color: #1d1d1f;
+  font-size: 28rpx;
+  box-shadow: 0 12rpx 32rpx rgba(18, 23, 40, 0.04);
+}
+
+.invite-guide-button::after {
+  display: none;
+}
+
+.invite-guide-button-hover {
+  opacity: 0.88;
+}
+
+.invite-guide-emoji {
+  font-size: 30rpx;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.invite-guide-text {
+  text-align: center;
+  color: #1d1d1f;
+  white-space: nowrap;
+}
+
+.invite-guide-arrow {
+  width: 22rpx;
+  height: 22rpx;
+  flex-shrink: 0;
+}
+
 .invite-status {
   font-size: 24rpx;
   color: #7a7f99;
@@ -162,4 +246,36 @@
   left: -9999px;
   top: -9999px;
   opacity: 0;
+}
+
+.invite-guide-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: transparent;
+  z-index: 240;
+}
+
+.invite-guide-mask-top {
+  top: 0;
+}
+
+.invite-guide-mask-left {
+  left: 0;
+  right: auto;
+}
+
+.invite-guide-mask-right {
+  right: 0;
+}
+
+.invite-guide-mask-bottom {
+  bottom: 0;
+}
+
+.invite-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 239;
+  pointer-events: none;
 }

@@ -1,0 +1,176 @@
+﻿<view class="checkin-page {{showLotteryModal ? 'checkin-page--locked' : ''}}">
+  <view wx:if="{{pageLoading}}" class="checkin-loading-mask">
+    <view class="checkin-loading-card">
+      <image class="checkin-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
+    </view>
+  </view>
+  <view wx:if="{{!pageLoading}}">
+  <view class="checkin-header">
+    <view class="checkin-topbar">
+      <button class="checkin-back" bindtap="onBackTap">
+        <text class="checkin-back-icon">←</text>
+      </button>
+      <text class="checkin-title">每日签到</text>
+      <view class="checkin-topbar-spacer"></view>
+    </view>
+    <view class="checkin-hero">
+      <view class="checkin-hero-left">
+        <view class="checkin-flp-row">
+          <text class="checkin-flp-value">{{flpDisplay}}</text>
+          <text class="checkin-flp-unit">FLP</text>
+        </view>
+        <text class="checkin-flp-tip">每周签到满7天可抽大奖。</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="checkin-card {{showCheckinSubscriptionBanner ? '' : 'checkin-card--no-banner'}}">
+    <image class="checkin-card-bg" src="/pages/profile/assets/checkin-card-shape.svg" mode="scaleToFill" />
+    <view class="checkin-card-content">
+    <view class="checkin-card-top">
+      <view class="checkin-card-title">
+        <text class="checkin-card-title-text">已连续签到</text>
+        <view class="checkin-card-ribbon">
+          <image class="checkin-card-ribbon-bg" src="/pages/profile/assets/checkin-days-underline.svg" mode="scaleToFill" />
+          <text class="checkin-card-days">{{continuousDays}}</text>
+        </view>
+        <text class="checkin-card-title-text">天</text>
+      </view>
+      
+    </view>
+    <image class="checkin-card-hero" src="/pages/profile/assets/check-in-main.png" mode="widthFix" />
+    <view class="checkin-card-body {{showCheckinSubscriptionBanner ? '' : 'checkin-card-body--no-banner'}}">
+      <view class="checkin-week-grid">
+        <block wx:for="{{weekDays}}" wx:key="date">
+          <view
+            class="checkin-day-card {{item.isToday ? 'is-today' : ''}} {{item.isSigned ? 'is-signed' : ''}} {{item.canCheckin ? 'is-actionable' : ''}} {{item.isSunday ? 'is-sunday' : ''}}"
+            data-date="{{item.date}}"
+            bindtap="onCheckinDayTap"
+          >
+            <view
+              wx:if="{{item.isSunday}}"
+              class="checkin-turntable {{canLotteryToday && !showLotteryModal ? 'is-breathing' : ''}}"
+              catchtap="onTurntableTap"
+              hover-class="{{canLotteryToday ? 'checkin-turntable--active' : ''}}"
+            >
+              <image class="checkin-turntable-image" src="/pages/profile/assets/turntable.png" mode="aspectFit" />
+            </view>
+            <text class="checkin-reward">{{item.reward}}</text>
+            <view class="checkin-icon-wrap">
+              <image
+                wx:if="{{item.iconType === 'signed'}}"
+                class="checkin-day-image"
+                src="/pages/profile/assets/already-check-in.png"
+                mode="aspectFit"
+              />
+              <image
+                wx:elif="{{item.iconType === 'unsigned'}}"
+                class="checkin-day-image"
+                src="/pages/profile/assets/not-check-in.png"
+                mode="aspectFit"
+              />
+              <view wx:elif="{{item.iconType === 'today'}}" class="checkin-today-icon">
+                <image class="checkin-day-image" src="/pages/profile/assets/not-check-in.png" mode="aspectFit" />
+                <image class="checkin-day-check" src="/assets/check.png" mode="aspectFit" />
+              </view>
+            </view>
+            <text class="checkin-weekday">{{item.weekdayLabel}}</text>
+            <view wx:if="{{item.isBonus && !item.isSunday}}" class="checkin-bonus">翻倍</view>
+          </view>
+        </block>
+      </view>
+      <view class="checkin-action-wrap">
+        <view class="checkin-action-btn-wrap">
+          <button
+            class="checkin-action-btn {{canCheckinToday ? '' : 'is-disabled'}}"
+            bindtap="onCheckinTap"
+            disabled="{{!canCheckinToday}}"
+          >
+            {{todaySigned ? "已签到" : "签到领积分"}}
+          </button>
+        </view>
+        <view class="checkin-subscription-banner" wx:if="{{showCheckinSubscriptionBanner}}">
+          <view class="checkin-subscription-text">每日签到提醒</view>
+          <button
+            class="checkin-subscription-cta"
+            hover-class="checkin-subscription-cta--hover"
+            bindtap="onCheckinSubscriptionTap"
+            loading="{{checkinSubscriptionLoading}}"
+          >
+            立即开启
+          </button>
+        </view>
+      </view>
+    </view>
+    </view>
+  </view>
+
+  <view class="checkin-task-card {{showCheckinSubscriptionBanner ? '' : 'checkin-task-card--no-banner'}}">
+    <view class="checkin-task-title">每日任务</view>
+    <view class="checkin-task-item">
+      <view class="checkin-task-info">
+        <text class="checkin-task-name">邀请好友</text>
+        <text class="checkin-task-desc">邀请好友最高+80FLP</text>
+      </view>
+      <button class="checkin-task-action" bindtap="onInviteFriendTap">去邀请</button>
+    </view>
+    <view class="checkin-task-item">
+      <view class="checkin-task-info">
+        <text class="checkin-task-name">饿了么外卖大红包</text>
+      </view>
+      <button class="checkin-task-action" bindtap="onTakeoutTap">天天领</button>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
+  </view>
+
+  <view wx:if="{{showLotteryModal}}" class="checkin-lottery-mask" bindtap="onLotteryMaskTap" catchtouchmove="onLotteryMaskTouchMove">
+    <view class="checkin-lottery-card" catchtap="onLotteryCardTap">
+      <image class="checkin-lottery-bg" src="/pages/profile/assets/checkin-lottery.svg" mode="aspectFit" />
+      <image class="checkin-lottery-spray" src="/pages/profile/assets/spray.png" mode="widthFix" />
+      <image
+        class="checkin-lottery-title"
+        src="{{isLotteryFinished ? '/pages/profile/assets/congrats.png' : (isLotteryDrawing ? '/pages/profile/assets/af-pray.png' : '/pages/profile/assets/weekly-lottery.png')}}"
+        mode="widthFix"
+      />
+      <view class="checkin-lottery-grid">
+        <block wx:for="{{lotteryPrizes}}" wx:key="index">
+          <view wx:if="{{index === 4}}" class="checkin-lottery-cell">
+            <button
+              class="checkin-lottery-button"
+              bindtap="onLotteryButtonTap"
+            >
+              <text class="checkin-lottery-button-text {{lotteryButtonActive ? 'is-active' : ''}} {{isAndroid ? 'checkin-lottery-button-text--android' : (isIOS ? 'checkin-lottery-button-text--ios' : '')}}">抽奖</text>
+            </button>
+          </view>
+          <view wx:else class="checkin-lottery-cell">
+            <view class="checkin-lottery-prize-card {{lotteryActiveIndex === index ? 'is-active' : ''}}">
+              <image
+                wx:if="{{item && item.displayImageUrl}}"
+                class="checkin-lottery-coin {{item && !item.flp ? 'checkin-lottery-coin--non-flp' : ''}} {{item && !item.flp && item.isLowestProbability ? 'checkin-lottery-coin--non-flp-lowest' : (item && !item.flp && item.isLowProbability ? 'checkin-lottery-coin--non-flp-low' : '')}}"
+                src="{{item.displayImageUrl}}"
+                mode="aspectFit"
+              />
+              <text class="checkin-lottery-text {{item && item.isLowestProbability ? 'checkin-lottery-text--lowest' : (item && item.isLowProbability ? 'checkin-lottery-text--low' : '')}} {{item && !item.flp ? 'checkin-lottery-text--non-flp' : ''}}">{{item ? item.displayText : ''}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view wx:if="{{isLotteryFinished}}" class="checkin-lottery-result">
+        <view class="checkin-lottery-frost"></view>
+        <view class="checkin-lottery-result-content">
+          <image wx:if="{{lotteryResultImage}}" class="checkin-lottery-result-image" src="{{lotteryResultImage}}" mode="aspectFit" />
+          <text class="checkin-lottery-result-text">{{lotteryResultText}}</text>
+          <button class="checkin-lottery-claim" size="mini" bindtap="onLotteryClaimTap">领取</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
+
+
+
+
+
+

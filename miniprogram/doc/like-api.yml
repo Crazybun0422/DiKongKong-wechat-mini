@@ -131,6 +131,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/likes/{targetType}/{targetId}/me:
+    get:
+      summary: 查询我是否点赞
+      description: 需登录。查询当前用户对指定标记是否已点赞。
+      parameters:
+        - in: path
+          name: targetType
+          required: true
+          schema:
+            $ref: '#/components/schemas/LikeTargetType'
+          description: 标记类型，支持 MARKER 和 PIN。
+        - in: path
+          name: targetId
+          required: true
+          schema:
+            type: string
+          description: 标记 ID。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLikeStatusResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
 components:
   securitySchemes:
     bearerAuth:
@@ -172,6 +214,17 @@ components:
         data:
           nullable: true
           description: 错误响应时为空。
+    ApiResponseLikeStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/LikeStatusResponse'
     LikeRequest:
       type: object
       properties:
@@ -190,6 +243,15 @@ components:
         likeCount:
           type: integer
           format: int64
+    LikeStatusResponse:
+      type: object
+      properties:
+        targetType:
+          $ref: '#/components/schemas/LikeTargetType'
+        targetId:
+          type: string
+        liked:
+          type: boolean
     MyLikeSummaryResponse:
       type: object
       properties:

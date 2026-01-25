@@ -231,7 +231,7 @@ paths:
   /api/users/feature-code-profiles:
     post:
       summary: 根据 feature code 列表查询昵称和头像
-      description: 提供批量查询用户昵称与头像的能力，供工作组成员展示使用。
+      description: 提供批量查询用户昵称、头像与收到的点赞总数的能力，返回结果按 likeCount 降序排列，供工作组成员展示使用。
       requestBody:
         required: true
         content:
@@ -248,7 +248,7 @@ paths:
   /api/users/profiles:
     get:
       summary: 分页查询用户昵称和头像
-      description: 按分页获取全量用户的昵称与头像，适用于管理端或成员选择列表等场景。
+      description: 按分页获取全量用户的昵称、头像及点赞总数，按 likeCount 降序排序，适用于管理端或成员选择列表等场景。
       parameters:
         - in: query
           name: page
@@ -272,7 +272,7 @@ paths:
   /api/users/profiles/search:
     get:
       summary: 根据昵称或 feature code 模糊查询用户
-      description: 通过昵称或 feature code 模糊匹配，分页返回符合条件的用户昵称与头像。
+      description: 通过昵称或 feature code 模糊匹配，分页返回符合条件的用户昵称、头像及点赞总数，按 likeCount 降序排序。
       parameters:
         - in: query
           name: keyword
@@ -414,6 +414,10 @@ components:
           type: string
         avatarUrl:
           type: string
+        likeCount:
+          type: integer
+          format: int64
+          description: 用户收到的点赞总数（包含标记与图钉）。
     FeatureCodeProfilePage:
       type: object
       properties:

@@ -1,4 +1,25 @@
 ﻿<view class="profile-page" >
+  <view
+    class="subscribe-wait-overlay"
+    wx:if="{{showSubscribeWaitOverlay}}"
+  >
+    <view class="subscribe-wait-mask"></view>
+    <view class="subscribe-wait-image-wrap" style="top: calc(env(safe-area-inset-top) + 15vh);">
+      <image class="subscribe-wait-image" src="/pages/profile/assets/introduction_bg.png" mode="widthFix" />
+    </view>
+  </view>
+  <view
+    class="status-breath-button {{checkinTodaySigned ? '' : 'is-breathing'}}"
+    style="{{statusBadgeStyle}}"
+    bindtap="onCheckinEntryTap"
+    id="checkin-entry-btn"
+  >
+    <image
+      class="status-breath-image"
+      src="{{checkinTodaySigned ? '/pages/profile/assets/status-check-in.png' : '/pages/profile/assets/status-uncheck-in.png'}}"
+      mode="aspectFit"
+    />
+  </view>
   <view scroll-y="false" class="profile-scroll" bindtap="onBlankTap">
     <block wx:if="{{loading}}">
       <view class="profile-loading">加载中...</view>
@@ -27,11 +48,11 @@
             </view>
           </button>
           <view class="profile-header-body" catchtap="onEditing">
-            <view class="profile-name-row">
-              <block wx:if="{{nicknameEditing}}">
-                <input
-                  class="profile-name-input"
-                  type="nickname"
+          <view class="profile-name-row">
+            <block wx:if="{{nicknameEditing}}">
+              <input
+                class="profile-name-input"
+                type="nickname"
                   value="{{nicknameInput}}"
                   bindinput="onNicknameInputChange"
                   bindconfirm="onNicknameInputConfirm"
@@ -47,14 +68,19 @@
                 <text class="profile-name-edit" bindtap="startNicknameEdit">点击修改</text>
               </block>
             </view>
+
             <view class="profile-code-row">
               <text class="profile-code-label">低空号</text>
               <text class="profile-code-value">{{profile.featureCode}}</text>
             </view>
+            <view class="profile-like-row">
+              <text class="profile-like-label">获赞数</text>
+              <text class="profile-like-value">{{likeSummary.total}}</text>
+            </view>
           </view>
         </view>
 
-        <view class="profile-card" bindtap="onFlpCardTap">
+        <view class="profile-card" id="profile-flp-card" bindtap="onFlpCardTap">
           <view class="profile-card-left">
             <text class="profile-card-title">FLP</text>
             <text class="profile-card-value">{{profile.flpDisplay}}</text>
@@ -102,6 +128,31 @@
               </view>
               <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
             </view>
+            <view
+              class="profile-list-item"
+              hover-class="profile-list-item-hover"
+              data-action="subscription-feed"
+              bindtap="onListItemTap"
+            >
+              <view class="profile-list-left">
+                <text class="profile-list-text">运营动态</text>
+              </view>
+              <view class="profile-list-right">
+                <view class="subscription-badge" wx:if="{{showSubscriptionRedDot}}"></view>
+                <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
+              </view>
+            </view>
+            <view
+              class="profile-list-item"
+              hover-class="profile-list-item-hover"
+              data-action="community-interaction"
+              bindtap="onListItemTap"
+            >
+              <view class="profile-list-left">
+                <text class="profile-list-text">社区互动</text>
+              </view>
+              <image class="profile-list-arrow" src="/assets/arrow-right.png" mode="aspectFit" />
+            </view>
           </view>
         </view>
       </view>
@@ -128,5 +179,58 @@
       <image class="chat-fab-icon" src="/assets/ai-chat.png" mode="aspectFit" />
     </button>
   </view>
+
+  <block wx:if="{{showCheckinGuideProfile}}">
+    <view class="checkin-guide-overlay" style="{{checkinGuideOverlayStyle}}"></view>
+    <view class="checkin-guide-mask checkin-guide-mask-top" style="height: {{checkinGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-left"
+      style="top: {{checkinGuideMask.top}}px; height: {{checkinGuideMask.size}}px; width: {{checkinGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-right"
+      style="top: {{checkinGuideMask.top}}px; height: {{checkinGuideMask.size}}px; left: {{checkinGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-bottom"
+      style="top: {{checkinGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="checkin-guide-ring"
+      style="left: {{checkinGuideMask.left}}px; top: {{checkinGuideMask.top}}px; width: {{checkinGuideMask.size}}px; height: {{checkinGuideMask.size}}px;"
+    ></view>
+    <image
+      class="checkin-guide-introduce"
+      src="/assets/right_introduce.png"
+      mode="widthFix"
+      style="left: {{checkinGuideIntroduce.left}}px; top: {{checkinGuideIntroduce.top}}px;"
+    />
+  </block>
+  <block wx:if="{{showInviteGuideProfile}}">
+    <view class="invite-guide-mask invite-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-left"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.height}}px; width: {{inviteGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-right"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.height}}px; left: {{inviteGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-bottom"
+      style="top: {{inviteGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-rect"
+      style="left: {{inviteGuideMask.left}}px; top: {{inviteGuideMask.top}}px; width: {{inviteGuideMask.width}}px; height: {{inviteGuideMask.height}}px;"
+    ></view>
+  </block>
 </view>
+
 

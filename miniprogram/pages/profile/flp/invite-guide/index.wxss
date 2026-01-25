@@ -1,0 +1,222 @@
+.invite-guide-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f7f8fa;
+}
+
+.invite-guide-scroll {
+  flex: 1;
+  padding: 32rpx 32rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.invite-guide-loading,
+.invite-guide-error {
+  margin-top: 120rpx;
+  text-align: center;
+  color: #666;
+  font-size: 28rpx;
+}
+
+.invite-guide-retry {
+  margin-top: 24rpx;
+  min-width: 220rpx;
+  height: 72rpx;
+  padding: 0 48rpx;
+  line-height: 1;
+  background: linear-gradient(135deg, #000000 0%, #333333 100%);
+  color: #fff;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 24rpx rgba(15, 23, 42, 0.12);
+}
+
+.invite-guide-retry::after {
+  border: none;
+}
+
+.invite-guide-content {
+  font-size: 30rpx;
+  color: #1f1f1f;
+  line-height: 1.8;
+}
+.invite-guide-image {
+  display: block;
+  width: 100%;
+  margin: 24rpx auto;
+  border-radius: 24rpx;
+  background: #f5f6f7;
+}
+
+.invite-guide-content p {
+  margin: 20rpx 0;
+}
+
+.invite-guide-content h1,
+.invite-guide-content h2,
+.invite-guide-content h3,
+.invite-guide-content h4,
+.invite-guide-content h5,
+.invite-guide-content h6 {
+  margin: 32rpx 0 20rpx;
+  font-weight: 600;
+}
+
+.invite-guide-content h1 { font-size: 44rpx; }
+.invite-guide-content h2 { font-size: 38rpx; }
+.invite-guide-content h3 { font-size: 34rpx; }
+.invite-guide-content h4 { font-size: 32rpx; }
+.invite-guide-content h5 { font-size: 30rpx; }
+.invite-guide-content h6 { font-size: 28rpx; }
+
+.invite-guide-content .op-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40rpx;
+  height: 40rpx;
+  margin-right: 8rpx;
+  margin-left: 4rpx;
+  border-radius: 8rpx;
+  border: 2rpx solid #d9d9d9;
+  font-size: 28rpx;
+  color: #999;
+}
+
+.invite-guide-content .op-checkbox.is-checked {
+  color: #1677ff;
+  border-color: #1677ff;
+}
+
+.invite-guide-content ul,
+.invite-guide-content ol {
+  padding-left: 48rpx;
+  margin: 12rpx 0;
+}
+
+.invite-guide-content li {
+  margin-bottom: 8rpx;
+}
+
+.invite-guide-content .op-table {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 16rpx;
+  border: 2rpx solid #e5e6eb;
+  margin: 24rpx 0;
+}
+
+.invite-guide-content .op-table-head,
+.invite-guide-content .op-table-row {
+  display: flex;
+}
+
+.invite-guide-content .op-table-header-cell,
+.invite-guide-content .op-table-cell {
+  flex: 1;
+  padding: 20rpx 16rpx;
+  border-bottom: 2rpx solid #f0f0f0;
+  border-right: 2rpx solid #f0f0f0;
+  box-sizing: border-box;
+}
+
+.invite-guide-content .op-table-row .op-table-cell:last-child,
+.invite-guide-content .op-table-head .op-table-header-cell:last-child {
+  border-right: 0;
+}
+
+.invite-guide-content .op-table-row:last-child .op-table-cell {
+  border-bottom: 0;
+}
+
+.invite-guide-content .op-table-head {
+  background: #f5f7ff;
+  font-weight: 600;
+}
+
+.invite-guide-content .op-table-caption {
+  padding: 12rpx 0;
+  font-size: 26rpx;
+  text-align: center;
+  color: #888;
+}
+
+.invite-guide-content .op-figure {
+  margin: 24rpx 0;
+  text-align: center;
+}
+
+.invite-guide-content .op-figure image,
+.invite-guide-content .op-figure img {
+  display: block;
+  width: auto;
+  max-width: calc(100% - 100rpx);
+  height: auto;
+  margin: 50rpx auto;
+  border-radius: 16rpx;
+}
+
+.invite-guide-content .op-figcaption {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+
+.invite-guide-content .op-link {
+  color: #1677ff;
+  text-decoration: underline;
+}
+
+.invite-guide-content .op-image-container {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.invite-guide-content .op-image-container image,
+.invite-guide-content .op-image-container img {
+  display: block;
+  width: auto;
+  max-width: calc(100% - 100rpx);
+  height: auto;
+  margin: 50rpx auto;
+  border-radius: 12rpx;
+}
+
+.invite-guide-content image,
+.invite-guide-content img {
+  display: block;
+  width: auto;
+  max-width: calc(100% - 100rpx);
+  height: auto;
+  margin: 50rpx auto;
+  border-radius: 12rpx;
+}
+
+.invite-guide-content code {
+  padding: 4rpx 8rpx;
+  background: #f5f5f5;
+  border-radius: 8rpx;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 26rpx;
+}
+
+.invite-guide-content pre {
+  padding: 20rpx;
+  background: #f5f5f5;
+  border-radius: 12rpx;
+  overflow: auto;
+}
+
+.invite-guide-content blockquote {
+  margin: 20rpx 0;
+  padding: 20rpx 24rpx;
+  background: #f0f5ff;
+  border-left: 8rpx solid #1677ff;
+  color: #3b4a69;
+}

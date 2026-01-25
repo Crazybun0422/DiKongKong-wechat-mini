@@ -1,5 +1,5 @@
 ﻿<view class="markers-page">
-  <view wx:if="{{!showCreate && !showDetail}}" class="markers-shell">
+  <view wx:if="{{!showDetail && !showCreate && !showMyPinCreate && !showWorkGroupCreate &&!showWorkGroupDetail}}" class="markers-shell">
     <view class="center-tabs">
       <block wx:for="{{centerTabs}}" wx:key="id">
         <view class="center-tab {{activeCenterTab === item.id ? 'is-active' : ''}}" data-tab="{{item.id}}" bindtap="onCenterTabTap">
@@ -368,8 +368,9 @@
           </view>
           <view class="image-uploader">
             <block wx:if="{{workGroupForm.images && workGroupForm.images.length}}">
-              <view class="image-thumb">
+              <view class="image-thumb" bindtap="onWorkGroupChooseImage">
                 <image class="image-thumb-img" src="{{workGroupForm.images[0].url}}" mode="aspectFill" />
+                <text class="image-thumb-action">更换</text>
               </view>
             </block>
             <view class="image-add" wx:if="{{!workGroupForm.images || !workGroupForm.images.length}}" bindtap="onWorkGroupChooseImage">
@@ -458,7 +459,7 @@
 
         <view class="wg-block">
           <view class="wg-block-header">
-            <text class="wg-block-title">地图成员</text>
+            <text class="wg-block-title">工作组成员</text>
             <view class="wg-block-count" bindtap="onWorkGroupMemberListTap">
               <text>{{activeWorkGroup.memberCount || 0}}人</text>
               <image class="workgroup-arrow" src="{{assetPaths.arrowRight}}" mode="aspectFit" />
@@ -473,13 +474,13 @@
         </view>
 
         <view class="wg-block">
-          <text class="wg-block-title">工作组信息</text>
           <view class="wg-field">
             <text class="wg-field-label">图片</text>
             <view class="image-uploader">
               <block wx:if="{{workGroupDetailForm.images && workGroupDetailForm.images.length}}">
-                <view class="image-thumb">
+                <view class="image-thumb" bindtap="onWorkGroupDetailChooseImage">
                   <image class="image-thumb-img" src="{{workGroupDetailForm.images[0].url}}" mode="aspectFill" />
+                  <text wx:if="{{activeWorkGroup.isOwner}}" class="image-thumb-action">更换</text>
                 </view>
               </block>
               <view class="image-add" wx:if="{{activeWorkGroup.isOwner && (!workGroupDetailForm.images || !workGroupDetailForm.images.length)}}" bindtap="onWorkGroupDetailChooseImage">
@@ -800,15 +801,25 @@
       </scroll-view>
 
       <view class="drawer-footer" wx:if="{{createStep < 3}}">
-        <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
-        <block wx:if="{{createStep === 2}}">
-          <button class="footer-btn primary" bindtap="submitMarker" loading="{{creationSubmitting}}" disabled="{{creationSubmitting}}">
-            {{submitButtonText}}
-          </button>
-        </block>
-        <block wx:else>
-          <button class="footer-btn primary" bindtap="goToNextStep">下一步</button>
-        </block>
+        <button
+          class="support-btn"
+          open-type="contact"
+          bindcontact="onCustomerServiceContact"
+          session-from="{{customerServiceSessionFrom}}"
+        >
+          <image class="support-btn-icon" src="/pages/markers/assets/support.png" mode="aspectFit" />
+        </button>
+        <view class="footer-actions">
+          <button class="footer-btn secondary" wx:if="{{createStep > 0}}" bindtap="goToPrevStep">上一步</button>
+          <block wx:if="{{createStep === 2}}">
+            <button class="footer-btn primary" bindtap="submitMarker" loading="{{creationSubmitting}}" disabled="{{creationSubmitting}}">
+              {{submitButtonText}}
+            </button>
+          </block>
+          <block wx:else>
+            <button class="footer-btn primary" bindtap="goToNextStep">下一步</button>
+          </block>
+        </view>
       </view>
     </view>
   </view>
@@ -828,7 +839,10 @@
               <text wx:if="{{myPinFormConfigured}}" class="pin-configured-hint">(已配置)</text>
             </view>
             <view class="pin-selector" bindtap="onPinPickerTap">
-              <text class="pin-selector-text">{{myPinForm.geometryLabel || '点-通用'}}</text>
+              <view class="pin-selector-main">
+                <image class="pin-selector-icon" src="{{myPinForm.geometryIcon || '/assets/default.png'}}" mode="aspectFit" />
+                <text class="pin-selector-text">{{myPinForm.geometryName || '通用'}}</text>
+              </view>
               <image class="pin-selector-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
             </view>
             <view wx:if="{{myPinFormConfigured && pinLocationDisplay}}" class="pin-location-hint">
@@ -917,6 +931,38 @@
       </view>
     </view>
   </view>
+
+  <block wx:if="{{publishPlatformDialogVisible}}">
+    <view class="modal-overlay" catchtouchmove="noop">
+      <view class="modal-mask" bindtap="onPublishPlatformCancel"></view>
+      <view class="modal-card.share publish-platform-card">
+        <view class="modal-header">
+          <text class="modal-title-share">共享到平台</text>
+          <view class="modal-close.share" bindtap="onPublishPlatformCancel">×</view>
+        </view>
+        <view class="modal-body publish-platform-body share">
+          <text class="publish-platform-desc">
+            经审核收录，奖励FLP并同步展示在地图供所有人查看。
+          </text>
+          <text class="publish-platform-desc">
+            获赞数累计到作者账号，底部展示作者昵称（后续可跳转主页私信）
+          </text>
+          <view class="publish-platform-note top">
+          <text class="publish-platform-note.star">*</text>
+          <text class="publish-platform-note.text">违法违规/涉密等不收录；</text>
+          </view>
+          <view class="publish-platform-note">
+            <text class="publish-platform-note.star">*</text>
+            <text class="publish-platform-note.text">商业性内容请通过商户入驻；</text>
+          </view>
+        </view>
+        <view class="publish-platform-actions">
+          <button class="publish-platform-btn primary" bindtap="onPublishPlatformConfirm">确定</button>
+          <button class="publish-platform-btn secondary" bindtap="onPublishPlatformCancel">取消</button>
+        </view>
+      </view>
+    </view>
+  </block>
 
   <block wx:if="{{deleteDialogVisible}}">
     <view class="delete-dialog-overlay" catchtouchmove="noop">
@@ -1011,4 +1057,35 @@
       </view>
     </view>
   </block>
+
+  <view wx:if="{{joinInvitePrompt}}" class="invite-overlay" catchtouchmove="noop">
+    <view class="invite-mask"></view>
+    <view class="invite-card">
+      <view class="invite-title">加入工作组</view>
+      <view class="invite-body">
+        <text class="invite-text">是否加入工作组：{{joinInvitePrompt.groupName || joinInvitePrompt.groupId || '--'}}</text>
+        <text class="invite-tip">确认后将加入该工作组并同步标记协同</text>
+      </view>
+      <view class="invite-footer">
+        <button class="invite-btn secondary" bindtap="cancelJoinWorkGroup" disabled="{{joinInviting}}">
+          取消
+        </button>
+        <button
+          class="invite-btn primary"
+          disabled="{{joinInviting}}"
+          loading="{{joinInviting}}"
+          data-invitation-code="{{joinInvitePrompt.invitationCode}}"
+          data-group-id="{{joinInvitePrompt.groupId}}"
+          data-group-name="{{joinInvitePrompt.groupName}}"
+          bindtap="confirmJoinWorkGroup"
+        >
+          确认加入
+        </button>
+      </view>
+    </view>
+  </view>
 </view>
+
+
+
+

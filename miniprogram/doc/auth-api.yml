@@ -154,6 +154,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/users/checkins:
+    get:
+      summary: 分页获取用户本周签到统计
+      description: 仅管理员可调用，返回用户本周连签天数与本周签到时间列表。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量，默认 20。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 注册时间排序方向，默认 DESC。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinStatsPageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/users/newbie-tasks:
+    get:
+      summary: 分页获取用户新手任务完成情况
+      description: 仅管理员可调用，返回每位用户的新手任务完成状态。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量，默认 20。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 注册时间排序方向，默认 DESC。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskStatusPageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 修改管理员资料
       requestBody:
@@ -237,7 +321,7 @@ paths:
   /api/user/profile:
     get:
       summary: 获取用户资料
-      description: 返回用户基础信息以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
+      description: 返回用户基础信息、收到的点赞总数，以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
       responses:
         '200':
           description: OK
@@ -278,6 +362,106 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
+  /api/weapp/qrcode:
+    post:
+      summary: 获取小程序二维码
+      description: 返回当前用户的小程序二维码 Base64 数据。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappQrcodeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappQrcodeResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-invite:
+    post:
+      summary: 获取小程序海报
+      description: 返回当前用户的小程序海报 PNG 文件流。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappQrcodeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-invite/status:
+    get:
+      summary: 查询邀请海报状态
+      description: 判断当前用户是否需要重新生成邀请海报，并返回上次生成时的头像和昵称。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappPosterStatusResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
 components:
   securitySchemes:
     bearerAuth:
@@ -383,6 +567,10 @@ components:
         inviteCode:
           type: string
           description: 绑定的 8 位邀请码。
+        likeCount:
+          type: integer
+          format: int64
+          description: 用户收到的点赞总数（包含标记与图钉）。
     UserSummaryResponse:
       type: object
       properties:
@@ -416,6 +604,95 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/UserSummaryResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    CheckinStatsResponse:
+      type: object
+      properties:
+        featureCode:
+          type: string
+          description: 低空号。
+        username:
+          type: string
+          description: 用户昵称。
+        avatarUrl:
+          type: string
+          description: 用户头像。
+        registeredAt:
+          type: string
+          format: date-time
+          description: 注册时间。
+        weeklyContinuousDays:
+          type: integer
+          description: 本周连签天数。
+        checkinTimes:
+          type: array
+          description: 本周签到时间列表。
+          items:
+            type: string
+            format: date-time
+    CheckinStatsPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckinStatsResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    NewbieTaskCompletionResponse:
+      type: object
+      properties:
+        index:
+          type: integer
+          description: 任务序号。
+        name:
+          type: string
+          description: 任务名称。
+        completed:
+          type: boolean
+          description: 是否完成。
+    NewbieTaskStatusResponse:
+      type: object
+      properties:
+        featureCode:
+          type: string
+          description: 低空号。
+        username:
+          type: string
+          description: 用户昵称。
+        avatarUrl:
+          type: string
+          description: 用户头像。
+        registeredAt:
+          type: string
+          format: date-time
+          description: 注册时间。
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewbieTaskCompletionResponse'
+    NewbieTaskStatusPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewbieTaskStatusResponse'
         page:
           type: integer
         size:
@@ -469,6 +746,28 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/UserSummaryPageResponse'
+    ApiResponseCheckinStatsPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/CheckinStatsPageResponse'
+    ApiResponseNewbieTaskStatusPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NewbieTaskStatusPageResponse'
     ApiResponseWeappLoginResponse:
       type: object
       properties:
@@ -478,6 +777,28 @@ components:
           type: object
         data:
           $ref: '#/components/schemas/WeappLoginResponse'
+    ApiResponseWeappQrcodeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappQrcodeResponse'
+    ApiResponseWeappPosterStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappPosterStatusResponse'
     WeappLoginRequest:
       type: object
       properties:
@@ -523,6 +844,33 @@ components:
           type: string
         jwtSecret:
           type: string
+    WeappQrcodeRequest:
+      type: object
+      properties:
+        path:
+          type: string
+          description: 小程序页面路径（不含域名）。
+        inviteCode:
+          type: string
+          description: 邀请码。
+    WeappQrcodeResponse:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64 编码的小程序二维码。
+    WeappPosterStatusResponse:
+      type: object
+      properties:
+        needRegenerate:
+          type: boolean
+          description: 是否需要重新生成邀请海报。
+        lastUsername:
+          type: string
+          description: 上一次生成邀请海报时使用的昵称。
+        lastAvatarUrl:
+          type: string
+          description: 上一次生成邀请海报时使用的头像地址。
     ApiResponseWeappConfigResponse:
       type: object
       properties:

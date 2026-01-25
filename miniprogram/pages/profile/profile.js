@@ -5,10 +5,41 @@
   loadStoredProfile,
   persistProfileLocally,
   resolveApiBase,
+  getAuthToken,
   prepareAvatarForUpload,
   uploadAvatarFile,
   updateUserProfile
 } = require("../../utils/profile");
+const { fetchMyLikes } = require("../../utils/likes");
+const {
+  fetchLatestSubscriptionPush,
+  SUBSCRIPTION_TEMPLATE_ID,
+  fetchSubscriptions,
+  requestSubscribeMessageForTemplateIds,
+  normalizeTemplateIds
+} = require("../../utils/subscriptions");
+const { SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
+const {
+  updateLatestItemVersion,
+  fetchLatestItemVersion,
+  normalizeVersion
+} = require("../../utils/latest-items");
+const { fetchCheckinDetail } = require("../../utils/checkin");
+
+const NICKNAME_MAX_UNITS = 16;
+const NICKNAME_CJK_RE = /[\u4e00-\u9fff]/;
+
+function truncateNicknameByUnits(value, maxUnits = NICKNAME_MAX_UNITS) {
+  let total = 0;
+  let output = "";
+  for (const char of Array.from(value || "")) {
+    const nextTotal = total + (NICKNAME_CJK_RE.test(char) ? 2 : 1);
+    if (nextTotal > maxUnits) break;
+    total = nextTotal;
+    output += char;
+  }
+  return output;
+}
 
 Page({
   data: {
@@ -20,7 +51,71 @@ Page({
     customerServiceSessionFrom: "profile-customer-service",
     nicknameEditing: false,
     nicknameInput: "",
-    nicknameSaving: false
+    nicknameSaving: false,
+    likeSummary: { total: "--" },
+    showSubscriptionRedDot: false,
+    showSubscribeWaitOverlay: false,
+    checkinTodaySigned: false,
+    statusBadgeStyle: "",
+    showCheckinGuideProfile: false,
+    checkinGuideOverlayStyle: "",
+    checkinGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    },
+    checkinGuideIntroduce: {
+      left: 0,
+      top: 0
+    },
+    showInviteGuideProfile: false,
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      width: 0,
+      height: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    }
+  },
+
+  loadLikeSummary() {
+    const apiBase = resolveApiBase();
+    fetchMyLikes({ apiBase })
+      .then((summary = {}) => {
+        const total = Number(summary.totalLikes);
+        const display =
+          Number.isFinite(total) && total >= 0
+            ? (total >= 1000 ? `${Math.round((total / 1000) * 10) / 10}k` : `${total}`)
+            : "--";
+        this.setData({ likeSummary: { total: display } });
+      })
+      .catch((err) => {
+        console.warn("loadLikeSummary failed", err);
+        this.setData({ likeSummary: { total: "--" } });
+      });
+  },
+
+  loadCheckinStatus() {
+    const apiBase = resolveApiBase();
+    if (!apiBase) {
+      this.setData({ checkinTodaySigned: false });
+      return;
+    }
+    fetchCheckinDetail({ apiBase })
+      .then((detail = {}) => {
+        this.setData({ checkinTodaySigned: !!detail.todaySigned });
+      })
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          this.setData({ checkinTodaySigned: false });
+          return;
+        }
+        console.warn("loadCheckinStatus failed", err);
+        this.setData({ checkinTodaySigned: false });
+      });
   },
 
   onLoad() {
@@ -36,17 +131,61 @@ Page({
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
       nicknameInput: normalized.nickname
     });
+    this.updateStatusBadgeStyle();
     this.reloadProfile();
+    this.loadLikeSummary();
+    this.loadCheckinStatus();
   },
 
   onShow() {
     if (this.data.activeTab !== "profile") {
       this.setData({ activeTab: "profile" });
     }
+    this.updateStatusBadgeStyle();
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      this.setData({
+        showSubscriptionRedDot: !!app.globalData.subscriptionFeedHasUpdate,
+        showSubscribeWaitOverlay: !!app.globalData.showSubscribeWaitOverlay
+      });
+    }
+    this.refreshSubscriptionRedDot();
+    this.loadCheckinStatus();
+    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "profile") {
+      this.showCheckinGuideProfile();
+    } else if (this.data.showCheckinGuideProfile) {
+      this.setData({ showCheckinGuideProfile: false });
+    }
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "profile") {
+      this.showInviteGuideProfile();
+    } else if (this.data.showInviteGuideProfile) {
+      this.setData({ showInviteGuideProfile: false });
+    }
   },
 
   onPullDownRefresh() {
     this.reloadProfile({ fromPullDown: true });
+  },
+
+  updateStatusBadgeStyle() {
+    if (typeof wx.getMenuButtonBoundingClientRect !== "function") return;
+    const menuRect = wx.getMenuButtonBoundingClientRect();
+    if (!menuRect || !menuRect.left) return;
+    const systemInfo = typeof wx.getSystemInfoSync === "function" ? wx.getSystemInfoSync() : null;
+    const screenWidth = systemInfo?.screenWidth;
+    if (!screenWidth) return;
+    const rpx = screenWidth / 750;
+    const badgeWidth = 150 * rpx;
+    const badgeHeight = 50 * rpx;
+    const gap = 40 * rpx;
+    const badgeRight = menuRect.left - gap;
+    let left = badgeRight - badgeWidth;
+    const minLeft = 12 * rpx;
+    if (left < minLeft) left = minLeft;
+    const top = menuRect.top + (menuRect.height - badgeHeight) / 2;
+    this.setData({
+      statusBadgeStyle: `left:${left.toFixed(2)}px;top:${top.toFixed(2)}px;right:auto;`
+    });
   },
 
   reloadProfile(options = {}) {
@@ -90,11 +229,19 @@ Page({
         if (fromPullDown && typeof wx.stopPullDownRefresh === "function") {
           wx.stopPullDownRefresh();
         }
+        this.loadLikeSummary();
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "profile") {
+          wx.nextTick(() => {
+            this.showInviteGuideProfile();
+          });
+        }
       });
   },
 
   onRetryTap() {
     this.reloadProfile();
+    this.loadLikeSummary();
   },
 
   onCopyFeatureCode() {
@@ -164,20 +311,22 @@ Page({
   startNicknameEdit() {
     if (this.data.nicknameSaving) return;
     const nickname = this.data.profile?.nickname || "";
+    const limited = truncateNicknameByUnits(nickname);
     this.setData({
       nicknameEditing: true,
-      nicknameInput: nickname
+      nicknameInput: limited
     });
   },
 
   onNicknameInputChange(e) {
     const value = e?.detail?.value || "";
-    this.setData({ nicknameInput: value });
+    const limited = truncateNicknameByUnits(value);
+    this.setData({ nicknameInput: limited });
     const inputTypeRaw = e?.detail?.inputType || "";
     const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
     console.log("xxxxxxx", e)
     if (inputType === "nickname") {
-      this.saveNicknameInline(value);
+      this.saveNicknameInline(limited);
     }
   },
   onEditing(e) {
@@ -190,6 +339,7 @@ Page({
   },
   onNickReview(e) {
     const value = e?.detail?.value ?? this.data.nicknameInput;
+    const limited = truncateNicknameByUnits(value);
 
     if (!e.detail.pass) {
       wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
@@ -199,23 +349,23 @@ Page({
       });
       return
     }
-    this.saveNicknameInline(value);
+    this.saveNicknameInline(limited);
 
   },
 
   onNicknameInputConfirm(e) {
     const value = e?.detail?.value ?? this.data.nicknameInput;
-    this.saveNicknameInline(value);
+    const limited = truncateNicknameByUnits(value);
+    this.saveNicknameInline(limited);
   },
 
   onNicknameInputBlur() {
     if (this.data.nicknameSaving) return;
-    console.log("xxxxxxxxxxxxxxxxxxx")
     this.cancelNicknameEdit();
   },
 
   saveNicknameInline(nickname) {
-    const trimmed = (nickname || "").trim();
+    const trimmed = truncateNicknameByUnits((nickname || "").trim());
     if (!this.data.nicknameEditing) return;
     if (this.data.nicknameSaving) return;
     const current = this.data.profile?.nickname || "";
@@ -356,6 +506,13 @@ Page({
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
     }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.inviteGuide?.active) {
+      app.globalData.inviteGuide = { active: true, step: "flp" };
+      if (this.data.showInviteGuideProfile) {
+        this.setData({ showInviteGuideProfile: false });
+      }
+    }
     const balance = this.data.profile?.flpDisplay || "0.00";
     const query = encodeURIComponent(balance);
     wx.navigateTo({ url: `/pages/profile/flp/index?balance=${query}` });
@@ -379,6 +536,39 @@ Page({
       wx.navigateTo({ url: "/pages/profile/open-platform/index" });
       return;
     }
+    if (action === "subscription-feed") {
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/pages/profile/subscription-feed/index" });
+      return;
+    }
+    if (action === "community-interaction") {
+      const appId = "wxf6b0c0f50d040b4c";
+      const path =
+        "pages/guild/index/index?digestToken=CBUSQDIxXzBfQl8yZWI0NWY2OTIyNjIwOTAwMTQ0MTE1MjE5MDIzNzIxODM5MFg2MF8xNDQxMTUyMTkxNDEzMjQ4MjcY%2FPTP5YeCyzkg6bfnrgIoATABUKC6t4S6M1pAZWJjNTY5YmE1YjQxMGYxZDllNDc4OWY5NTVmMTAwNTNhNjU0ODgzOGRkMmUzN2I3Mjc2NzEwNjJhMDQ0NzZhOQ%3D%3D&guildFromSource=1&feedId=B_2eb45f69226209001441152190237218390X60&miniappJumpTarget=1&guildId=32418071644994172";
+      const options = { appId, path, envVersion: "release" };
+      if (typeof wx.openEmbeddedMiniProgram === "function") {
+        wx.openEmbeddedMiniProgram({
+          ...options,
+          fail: () => {
+            if (typeof wx.navigateToMiniProgram === "function") {
+              wx.navigateToMiniProgram(options);
+              return;
+            }
+            wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+          }
+        });
+        return;
+      }
+      if (typeof wx.navigateToMiniProgram === "function") {
+        wx.navigateToMiniProgram(options);
+        return;
+      }
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
 
     wx.showToast({ title: "敬请期待", icon: "none" });
 
@@ -392,8 +582,34 @@ Page({
     if (this.data.activeTab !== "home") {
       this.setData({ activeTab: "home" });
     }
-    if (typeof wx.navigateBack === "function") {
-      wx.navigateBack({ delta: 1 });
+    const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
+    const canGoBack = typeof wx.navigateBack === "function" && pages.length > 1;
+    if (canGoBack) {
+      const prevRoute = pages[pages.length - 2]?.route || "";
+      if (prevRoute === "pages/profile/checkin/index") {
+        if (typeof wx.reLaunch === "function") {
+          wx.reLaunch({ url: "/pages/map/map" });
+          return;
+        }
+        if (typeof wx.redirectTo === "function") {
+          wx.redirectTo({ url: "/pages/map/map" });
+          return;
+        }
+      } else {
+        wx.navigateBack({ delta: 1 });
+        return;
+      }
+    }
+    if (typeof wx.reLaunch === "function") {
+      wx.reLaunch({ url: "/pages/map/map" });
+      return;
+    }
+    if (typeof wx.redirectTo === "function") {
+      wx.redirectTo({ url: "/pages/map/map" });
+      return;
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: "/pages/map/map" });
     }
   },
 
@@ -402,5 +618,186 @@ Page({
       this.setData({ activeTab: "profile" });
     }
     wx.showToast({ title: "当前已在我的页面", icon: "none" });
+  },
+
+  refreshSubscriptionRedDot() {
+    const apiBase = resolveApiBase();
+    if (!apiBase) return;
+    fetchLatestSubscriptionPush({ apiBase })
+      .then((payload = {}) => {
+        const latestVersion = normalizeVersion(payload.version || "0");
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData) {
+          app.globalData.subscriptionLatestVersion = latestVersion;
+        }
+        if (!latestVersion) {
+          this.updateSubscriptionRedDot(false);
+          return null;
+        }
+        return fetchLatestItemVersion({
+          apiBase,
+          itemId: SUBSCRIPTION_TEMPLATE_ID,
+          version: latestVersion
+        }).then((result) => {
+          const serverVersion = normalizeVersion(result.version || "");
+          const hasUpdate = serverVersion !== latestVersion;
+          this.updateSubscriptionRedDot(hasUpdate);
+        });
+      })
+      .catch((err) => {
+        console.warn("refreshSubscriptionRedDot failed", err);
+      });
+  },
+
+  updateSubscriptionRedDot(show) {
+    if (typeof show !== "boolean") return;
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      app.globalData.subscriptionFeedHasUpdate = show;
+    }
+    this.setData({ showSubscriptionRedDot: show });
+  },
+
+  onCheckinEntryTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.checkinGuide?.active) {
+      app.globalData.checkinGuide = { active: true, step: "checkin" };
+      if (this.data.showCheckinGuideProfile) {
+        this.setData({ showCheckinGuideProfile: false });
+      }
+    }
+    wx.navigateTo({ url: "/pages/profile/checkin/index" });
+    this.ensureCheckinSubscriptionOnEntry().catch((err) => {
+      console.warn("ensureCheckinSubscriptionOnEntry failed", err);
+    });
+  },
+
+  noop() { },
+
+  showCheckinGuideProfile() {
+    this.measureCheckinEntryTarget()
+      .then((result) => {
+        if (!result) return;
+        this.setData({
+          showCheckinGuideProfile: true,
+          checkinGuideMask: result.mask,
+          checkinGuideIntroduce: result.introduce,
+          checkinGuideOverlayStyle: this.buildGuideOverlayStyle(result.mask)
+        });
+      })
+      .catch((err) => {
+        console.warn("showCheckinGuideProfile failed", err);
+      });
+  },
+
+  measureCheckinEntryTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#checkin-entry-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const rpx = system.windowWidth / 750;
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        const introduceLeft = Math.max(0, left - 14 - 150 * rpx);
+        const introduceTop = Math.min(system.windowHeight, top + size + 12);
+        resolve({
+          mask: { top, left, size, rightLeft, bottomTop },
+          introduce: { left: introduceLeft, top: introduceTop }
+        });
+      });
+    });
+  },
+
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = mask.size / 2;
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
+  },
+
+  showInviteGuideProfile() {
+    this.measureInviteGuideProfileTarget()
+      .then((mask) => {
+        if (!mask) {
+          if (!this._inviteGuideRetryTimer) {
+            this._inviteGuideRetryTimer = setTimeout(() => {
+              this._inviteGuideRetryTimer = null;
+              this.showInviteGuideProfile();
+            }, 200);
+          }
+          return;
+        }
+        this.setData({
+          showInviteGuideProfile: true,
+          inviteGuideMask: mask
+        });
+      })
+      .catch((err) => {
+        console.warn("show invite guide profile failed", err);
+      });
+  },
+
+  measureInviteGuideProfileTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#profile-flp-card").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const width = rect.width + padding * 2;
+        const height = rect.height + padding * 2;
+        const left = Math.max(0, rect.left - padding);
+        const top = Math.max(0, rect.top - padding);
+        const rightLeft = Math.min(system.windowWidth, left + width);
+        const bottomTop = Math.min(system.windowHeight, top + height);
+        resolve({
+          top,
+          left,
+          width,
+          height,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  ensureCheckinSubscriptionOnEntry() {
+    const apiBase = resolveApiBase();
+    const token = getAuthToken();
+    if (!apiBase || !token) return Promise.resolve();
+    const templateId = SUBSCRIPTION_TEMPLATE_IDS.checkinReminder;
+    return fetchSubscriptions({ apiBase, token })
+      .then((serverIds = []) => {
+        const normalized = normalizeTemplateIds(serverIds);
+        if (!normalized.includes(templateId)) return null;
+        console.log("Checkin subscription already exists on server");
+        return requestSubscribeMessageForTemplateIds([templateId]).catch(() => null);
+      })
+      .catch((err) => {
+        console.warn("ensureCheckinSubscriptionOnEntry fetch failed", err);
+      });
   }
 });

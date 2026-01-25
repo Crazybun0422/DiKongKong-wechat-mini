@@ -1,5 +1,5 @@
 const { reverseGeocode } = require("../../../utils/geocoder");
-const { gcj02ToWgs84, wgs84ToGcj02 } = require("../../../utils/coords");
+const { gcj02ToWgs84 } = require("../../../utils/coords");
 const { searchPlaces } = require("../../../utils/search");
 
 const DEFAULT_CENTER = {
@@ -32,7 +32,7 @@ const TYPE_SECTIONS = [
   {
     id: "LINE",
     label: "绘制线",
-    options: [{ id: "LINE_PATH_BUFFER", label: "临时禁飞区路径缓冲区", icon: "/assets/path.png" }]
+    options: [{ id: "LINE_PATH_BUFFER", label: "航线", icon: "/assets/path.png" }]
   },
   {
     id: "AREA",
@@ -46,6 +46,9 @@ const TYPE_SECTIONS = [
 ];
 
 const DEFAULT_TYPE = TYPE_SECTIONS[0].options[0];
+const PIN_SHAPE_COLOR = "#D3A05B";
+const PIN_SHAPE_STROKE = "#D3A05BF2";
+const PIN_SHAPE_FILL = "#D3A05B4D";
 
 function normalizeCoord(value) {
   const num = Number(value);
@@ -231,9 +234,9 @@ Page({
     polyline: [],
     bufferPolygons: [],
     circles: [],
-    lineBufferInput: "50",
+    lineBufferInput: "1",
     circleRadiusInput: "50",
-    lineActionHint: "",
+    lineActionHint: "点击开始绘制进行图形绘制",
     lineRewriteIndex: null,
     coordPanelCollapsed: true,
     lineDrawingStarted: false,
@@ -250,6 +253,7 @@ Page({
     this._ready = false;
     this._eventChannel = null;
     this._initialPayload = null;
+    this._initialPayloadApplied = false;
     this._reverseTimer = null;
     this._reverseToken = 0;
     this._currentGcj = null;
@@ -278,6 +282,8 @@ Page({
       }
     }
 
+    // 页面加载尽早跳转到当前位置，后续回填的标记不会被影响
+    this.requestCurrentLocation({ silent: true, initial: true });
     this.refreshDisplayCoordinateList();
   },
 
@@ -300,8 +306,13 @@ Page({
     return false;
   },
 
-  buildPointHint(label) {
-    const name = label || this.data.selectedType?.label || "通用";
+  buildPointHint(label, typeId) {
+    const resolvedLabel =
+      label ||
+      (typeId ? this.findTypeById(typeId)?.label : "") ||
+      this.data.selectedType?.label ||
+      "通用";
+    const name = resolvedLabel || "通用";
     return `选好位置，点击下方“确认${name}”完成标记`;
   },
 
@@ -468,7 +479,7 @@ Page({
     if (confirmedPoints.length >= 2) {
       lines.push({
         points: confirmedPoints,
-        color: "#0f172a",
+        color: PIN_SHAPE_COLOR,
         width: 6,
         arrowLine: false,
         dottedLine: false
@@ -477,7 +488,7 @@ Page({
     if (confirmedPoints.length >= 1 && preview) {
       lines.push({
         points: [confirmedPoints[confirmedPoints.length - 1], preview],
-        color: "#111827",
+        color: PIN_SHAPE_COLOR,
         width: 4,
         dottedLine: true
       });
@@ -487,13 +498,13 @@ Page({
       bufferWidth && workingPoints.length >= 2 ? buildLineBufferPolygon(workingPoints, bufferWidth) : [];
     const polygons = polygonPoints.length
       ? [
-          {
-            points: polygonPoints,
-            fillColor: "#DE43294D",
-            strokeColor: "#DE4329F2",
-            strokeWidth: 1
-          }
-        ]
+        {
+          points: polygonPoints,
+          fillColor: PIN_SHAPE_FILL,
+          strokeColor: PIN_SHAPE_STROKE,
+          strokeWidth: 1
+        }
+      ]
       : [];
     this.setData({ polyline: lines, bufferPolygons: polygons, circles: [], markers: [] });
   },
@@ -520,8 +531,8 @@ Page({
     let circles = [];
     let markers = [];
 
-    const fillColor = "#DE43294D";
-    const strokeColor = "#DE4329F2";
+    const fillColor = PIN_SHAPE_FILL;
+    const strokeColor = PIN_SHAPE_STROKE;
     const strokeWidth = 1;
 
     if (typeId === "AREA_POLYGON") {
@@ -646,7 +657,8 @@ Page({
 
   requestInitialLocation() {
     const moved = this.applyInitialPayload(this._initialPayload);
-    if (moved || hasSavedLocationPayload(this._initialPayload)) {
+    this._initialPayloadApplied = moved || hasSavedLocationPayload(this._initialPayload);
+    if (this._initialPayloadApplied) {
       return;
     }
     // 若无保存数据，则保持默认中心，不再自动跳转当前位置
@@ -708,7 +720,7 @@ Page({
   },
 
   requestCurrentLocation(options = {}) {
-    const { silent = false } = options;
+    const { silent = false, initial = false } = options;
     if (!silent) {
       this.setData({ addressLoading: true, addressError: "" });
     }
@@ -726,6 +738,10 @@ Page({
             reject(new Error("invalid-location"));
             return;
           }
+          if (initial && this._initialPayloadApplied && hasSavedLocationPayload(this._initialPayload)) {
+            resolve({ latitude, longitude, skipped: true });
+            return;
+          }
           this.queueMapMove(latitude, longitude);
           resolve({ latitude, longitude });
         },
@@ -740,10 +756,11 @@ Page({
   },
 
   applyInitialPayload(payload) {
+    console.log("Applying initial payload:", payload);
     const data = payload || {};
     const lat = normalizeCoord(data.latitude);
     const lng = normalizeCoord(data.longitude);
-    const typeId = data.typeId || data.type;
+    const typeId = data?.typeId;
     const sectionFromType = typeId ? this.findSectionByType(typeId) : "";
     const isLineType = sectionFromType === "LINE" || data.category === "LINE";
     const coordinateList = isLineType
@@ -758,29 +775,35 @@ Page({
       data.bufferWidth !== undefined && data.bufferWidth !== null
         ? `${data.bufferWidth}`
         : data.pathBufferWidth !== undefined && data.pathBufferWidth !== null
-        ? `${data.pathBufferWidth}`
-        : this.data.lineBufferInput;
+          ? `${data.pathBufferWidth}`
+          : data.bufferWidthMeters !== undefined && data.bufferWidthMeters !== null
+            ? `${data.bufferWidthMeters}`
+            : this.data.lineBufferInput;
+    const circleRadiusInput =
+      data.radius !== undefined && data.radius !== null ? `${data.radius}` : this.data.circleRadiusInput;
     const circleHasCenter =
       typeId === "AREA_CIRCLE" &&
       coordinateList.some((item) => hasValidCoordinate(normalizeCoord(item.latitude), normalizeCoord(item.longitude)));
+
     this.setData({
       coordinateList,
       activeCoordIndex,
       lineBufferInput: bufferWidthInput,
+      circleRadiusInput,
       lineDrawingStarted:
         sectionFromType === "AREA"
           ? typeId === "AREA_RECTANGLE"
             ? coordinateList.length >= 2
             : typeId === "AREA_POLYGON"
-            ? coordinateList.length >= 3
-            : typeId === "AREA_CIRCLE"
-            ? coordinateList.length >= 1
-            : false
+              ? coordinateList.length >= 3
+              : typeId === "AREA_CIRCLE"
+                ? coordinateList.length >= 1
+                : false
           : false,
       circleAnchorLocked: circleHasCenter,
       rectangleClosed: typeId === "AREA_RECTANGLE" && coordinateList.length >= 2,
       polygonClosed: typeId === "AREA_POLYGON" && coordinateList.length >= 3,
-      pointActionHint: isLineType ? "" : this.buildPointHint(this.data.selectedType?.label)
+      pointActionHint: !payload?.latitude && !payload?.longitude ? "👆请先选择标记类型" : (isLineType ? "" : this.buildPointHint(data?.typeLabel, typeId))
     });
     this.refreshDisplayCoordinateList();
     let effectiveLat = lat;
@@ -845,6 +868,7 @@ Page({
         }
       }
     }
+    this._initialPayloadApplied = moved || hasSavedLocationPayload(payload);
     return moved;
   },
 
@@ -878,7 +902,7 @@ Page({
         coordinateText: formatCoordinateText(latitude, longitude),
         addressLoading: true,
         addressError: "",
-        pointActionHint: this.isLineCategory() ? "" : this.buildPointHint(this.data.selectedType?.label)
+        pointActionHint: this.isLineCategory() ? "" : this.buildPointHint(this.data.selectedType?.label, this.data.selectedType?.id)
       },
       () => {
         if (this.isLineCategory()) {
@@ -1133,7 +1157,7 @@ Page({
       typeMenuVisible: false,
       coordPanelCollapsed: false,
       lineDrawingStarted: next.category === "LINE" ? false : this.data.lineDrawingStarted,
-      pointActionHint: next.category === "POINT" ? this.buildPointHint(next.label) : "",
+      pointActionHint: next.category === "POINT" ? this.buildPointHint(next.label, next.id) : "",
       polygonClosed: next.category === "AREA" ? false : this.data.polygonClosed,
       circleAnchorLocked: next.id === "AREA_CIRCLE" ? false : this.data.circleAnchorLocked
     };
@@ -1142,6 +1166,7 @@ Page({
       patch.activeCoordIndex = 0;
       patch.rectangleClosed = false;
       patch.polygonClosed = false;
+      patch.lineActionHint = "点击开始绘制进行图形绘制";
       if (preview) {
         patch.selectedLatitude = preview.latitude;
         patch.selectedLongitude = preview.longitude;
@@ -1155,6 +1180,7 @@ Page({
       patch.polyline = [];
       patch.bufferPolygons = [];
       patch.circles = [];
+      patch.lineActionHint = "点击开始绘制进行图形绘制";
       if (next.category === "AREA") {
         patch.coordinateList = [];
         patch.activeCoordIndex = 0;
@@ -1238,13 +1264,9 @@ Page({
         return;
       }
     }
-    const wgs = gcj02ToWgs84(this.data.selectedLongitude, this.data.selectedLatitude);
-    const wgsLat = normalizeCoord(wgs?.lat);
-    const wgsLng = normalizeCoord(wgs?.lng);
     const result = {
       latitude: this.data.selectedLatitude,
       longitude: this.data.selectedLongitude,
-      wgs84: hasValidCoordinate(wgsLat, wgsLng) ? { latitude: wgsLat, longitude: wgsLng } : null,
       addressMain: this.data.addressMain,
       addressDetail: this.data.addressDetail,
       coordinateText: this.data.coordinateText,
@@ -1598,10 +1620,10 @@ Page({
         }
       );
       return;
-    }    const rewriteIndex =
+    } const rewriteIndex =
       Number.isInteger(this.data.lineRewriteIndex) &&
-      this.data.lineRewriteIndex >= 0 &&
-      this.data.lineRewriteIndex < list.length
+        this.data.lineRewriteIndex >= 0 &&
+        this.data.lineRewriteIndex < list.length
         ? this.data.lineRewriteIndex
         : null;
     const nextIndex = rewriteIndex !== null ? rewriteIndex : list.length;
@@ -1645,20 +1667,20 @@ Page({
         }
       } else if (typeId === "AREA_RECTANGLE") {
         if (points.length < 2) {
-      this.showLineHint("请先确认左上角与右下角");
-      return;
-    }
-  } else if (typeId === "AREA_CIRCLE") {
-    if (!points.length) {
-      this.showLineHint("请确认圆心");
-      return;
-    }
-    const radius = this.parseCircleRadius();
-    if (!radius) {
-      this.showLineHint("请填写半径");
-      return;
-    }
-  }
+          this.showLineHint("请先确认左上角与右下角");
+          return;
+        }
+      } else if (typeId === "AREA_CIRCLE") {
+        if (!points.length) {
+          this.showLineHint("请确认圆心");
+          return;
+        }
+        const radius = this.parseCircleRadius();
+        if (!radius) {
+          this.showLineHint("请填写半径");
+          return;
+        }
+      }
       let polygonPoints = points;
       if (typeId === "AREA_RECTANGLE" && points.length >= 2) {
         polygonPoints = this.buildRectanglePoints(points);
@@ -1680,31 +1702,21 @@ Page({
       }
       wx.navigateBack({ delta: 1 });
       return;
-  }
-  if (!this.isLineCategory()) return;
-  const points = this.getConfirmedLinePoints();
-  if (points.length < 2) {
-    this.showLineHint("请绘制两个以上的点");
-    return;
-  }
-  const bufferWidth = this.parseBufferWidth();
-  if (!bufferWidth) {
-    this.showLineHint("沿边宽度请填写完整");
-    return;
-  }
-    const wgs84Coordinates = points
-      .map((pt) => {
-        const wgs = gcj02ToWgs84(pt.longitude, pt.latitude);
-        const lat = normalizeCoord(wgs?.lat);
-        const lng = normalizeCoord(wgs?.lng);
-        if (!hasValidCoordinate(lat, lng)) return null;
-        return { latitude: lat, longitude: lng };
-      })
-      .filter(Boolean);
+    }
+    if (!this.isLineCategory()) return;
+    const points = this.getConfirmedLinePoints();
+    if (points.length < 2) {
+      this.showLineHint("请绘制两个以上的点");
+      return;
+    }
+    const bufferWidth = this.parseBufferWidth();
+    if (!bufferWidth) {
+      this.showLineHint("沿边宽度请填写完整");
+      return;
+    }
     const result = {
       coordinates: points,
       coordinateList: points,
-      wgs84Coordinates,
       bufferWidth,
       pathBufferWidth: bufferWidth,
       bufferWidthMeters: bufferWidth,

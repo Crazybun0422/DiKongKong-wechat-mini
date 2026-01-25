@@ -157,6 +157,38 @@
   opacity: 0.7;
 }
 
+.invite-guide-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  background: transparent;
+  z-index: 240;
+}
+
+.invite-guide-mask-top {
+  top: 0;
+}
+
+.invite-guide-mask-left {
+  left: 0;
+  right: auto;
+}
+
+.invite-guide-mask-right {
+  right: 0;
+}
+
+.invite-guide-mask-bottom {
+  bottom: 0;
+}
+
+.invite-guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 239;
+  pointer-events: none;
+}
+
 @media (max-width: 750rpx) {
   .flp-scroll {
     padding: 48rpx 32rpx 96rpx;

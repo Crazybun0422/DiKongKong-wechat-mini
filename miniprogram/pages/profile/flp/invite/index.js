@@ -2,7 +2,8 @@ const drawQrcode = require("../../../../libs/weapp-qrcode");
 const { fetchUserProfile, resolveApiBase, loadStoredProfile } = require("../../../../utils/profile");
 const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../../../utils/share");
 const { buildFileDownloadUrl } = require("../../../../utils/markers");
-const { requestWeappQrcode } = require("../../../../utils/weapp");
+const { requestWeappQrcode, requestWeappPosterStatus } = require("../../../../utils/weapp");
+const { completeNewbieTask } = require("../../../../utils/newbie-tasks");
 
 const MAP_PAGE_PATH = "/pages/map/map";
 const SHARE_TITLE = "与uom、大疆100%同步且可视化，还有低空智能体~";
@@ -10,6 +11,7 @@ const APP_ID = "wx5ebbcb44d73c2f17";
 const POSTER_FILE_NAME = "main-page.png";
 const QR_CANVAS_ID = "invite-qrcode";
 const QR_IMAGE_SIZE = 520;
+const INVITE_POSTER_CACHE_KEY = "invitePosterCache";
 
 const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value);
 const isFilePath = (value) =>
@@ -25,7 +27,16 @@ Page({
     shareImageUrl: "",
     shareTitle: SHARE_TITLE,
     qrImageSource: "",
-    qrImageReady: false
+    qrImageReady: false,
+    showInviteGuideInvite: false,
+    inviteGuideOverlayStyle: "",
+    inviteGuideMask: {
+      top: 0,
+      left: 0,
+      size: 0,
+      rightLeft: 0,
+      bottomTop: 0
+    }
   },
 
   onLoad() {
@@ -40,8 +51,28 @@ Page({
     this.reloadInviteInfo();
   },
 
+  onShow() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "invite") {
+      this.showInviteGuideOnInvite();
+    } else if (this.data.showInviteGuideInvite) {
+      this.setData({ showInviteGuideInvite: false });
+    }
+  },
+
   onPullDownRefresh() {
     this.reloadInviteInfo({ fromPullDown: true });
+  },
+
+  onInviteShareTap() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData || !app.globalData.inviteGuide?.active) {
+      return;
+    }
+    app.globalData.inviteGuide = { active: false, step: "" };
+    if (this.data.showInviteGuideInvite) {
+      this.setData({ showInviteGuideInvite: false });
+    }
   },
 
   reloadInviteInfo(options = {}) {
@@ -60,12 +91,22 @@ Page({
         const shareLink = this.composeSharePath(inviteCode);
         this.setData({
           inviteCode,
-          shareLink,
-          qrImagePath: "",
-          qrImageSource: "",
-          qrImageReady: false
+          shareLink
         });
-        return this.prepareQrImage(inviteCode, shareLink);
+        return this.fetchPosterStatus()
+          .then((status = {}) => {
+            const needRegenerate = !!status.needRegenerate;
+            if (needRegenerate) {
+              this.clearPosterCache();
+            }
+            return this.loadInvitePoster(inviteCode, shareLink, {
+              skipCache: fromPullDown || needRegenerate
+            });
+          })
+          .catch((err) => {
+            console.warn("fetchPosterStatus failed", err);
+            return this.loadInvitePoster(inviteCode, shareLink, { skipCache: fromPullDown });
+          });
       })
       .then(() => {
         this.setData({ loading: false });
@@ -108,16 +149,157 @@ Page({
     return appendInviteCodeToQuery("", { inviteCode: code });
   },
 
+  fetchPosterStatus() {
+    return requestWeappPosterStatus({ apiBase: this.apiBase }).then((status = {}) => status || {});
+  },
+
+  getAuthToken() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      return (app && app.globalData && app.globalData.token) || "";
+    } catch (err) {
+      return "";
+    }
+  },
+
   prepareQrImage(inviteCode, shareLink) {
     if (inviteCode) {
       return this.requestOfficialQrCode(inviteCode)
         .catch((err) => {
           console.warn("requestOfficialQrCode failed, fallback to canvas", err);
-          return this.generateQrCode(shareLink);
+          return this.generateQrCode(shareLink, { cache: false });
         })
         .then(() => {});
     }
-    return this.generateQrCode(shareLink);
+    return this.generateQrCode(shareLink, { cache: false });
+  },
+
+  loadInvitePoster(inviteCode, shareLink, options = {}) {
+    if (!inviteCode) {
+      this.resetPosterState();
+      return this.prepareQrImage(inviteCode, shareLink);
+    }
+    if (options.skipCache) {
+      this.resetPosterState();
+      return this.prepareQrImage(inviteCode, shareLink);
+    }
+    return this.readCachedPoster(inviteCode)
+      .then((cached) => {
+        if (cached) {
+          this.setData({
+            qrImagePath: cached.path,
+            qrImageSource: cached.source,
+            qrImageReady: true
+          });
+          return;
+        }
+        this.resetPosterState();
+        return this.prepareQrImage(inviteCode, shareLink);
+      })
+      .catch((err) => {
+        console.warn("readCachedPoster failed", err);
+        this.resetPosterState();
+        return this.prepareQrImage(inviteCode, shareLink);
+      });
+  },
+
+  resetPosterState() {
+    this.setData({
+      qrImagePath: "",
+      qrImageSource: "",
+      qrImageReady: false
+    });
+  },
+
+  readCachedPoster(inviteCode) {
+    if (!inviteCode || typeof wx === "undefined" || typeof wx.getStorageSync !== "function") {
+      return Promise.resolve(null);
+    }
+    let cached = null;
+    try {
+      cached = wx.getStorageSync(INVITE_POSTER_CACHE_KEY);
+    } catch (err) {
+      console.warn("readCachedPoster storage failed", err);
+    }
+    if (!cached || typeof cached !== "object") return Promise.resolve(null);
+    if (cached.inviteCode !== inviteCode) return Promise.resolve(null);
+    const path = typeof cached.path === "string" ? cached.path.trim() : "";
+    if (!path) return Promise.resolve(null);
+    const source = cached.source || (isHttpUrl(path) ? "remote" : "file");
+    if (isHttpUrl(path)) {
+      return Promise.resolve({ path, source });
+    }
+    return this.checkFileExists(path).then((exists) => {
+      if (!exists) {
+        this.clearPosterCache();
+        return null;
+      }
+      return { path, source };
+    });
+  },
+
+  checkFileExists(path) {
+    const fs = this.fileSystemManager;
+    if (!fs || !path) return Promise.resolve(false);
+    if (typeof fs.access === "function") {
+      return new Promise((resolve) => {
+        fs.access({
+          path,
+          success: () => resolve(true),
+          fail: () => resolve(false)
+        });
+      });
+    }
+    if (typeof fs.accessSync === "function") {
+      try {
+        fs.accessSync(path);
+        return Promise.resolve(true);
+      } catch (err) {
+        return Promise.resolve(false);
+      }
+    }
+    return Promise.resolve(true);
+  },
+
+  cachePosterPath(inviteCode, path, source) {
+    if (!inviteCode || !path || typeof wx === "undefined" || typeof wx.setStorageSync !== "function") {
+      return;
+    }
+    const trimmed = typeof path === "string" ? path.trim() : "";
+    if (!trimmed || trimmed === "/pages/profile/assets/qrcode.png") {
+      return;
+    }
+    if (trimmed.startsWith("/pages/") || trimmed.startsWith("/assets/")) {
+      return;
+    }
+    const payload = {
+      inviteCode,
+      path: trimmed,
+      source: source || "",
+      updatedAt: Date.now()
+    };
+    try {
+      wx.setStorageSync(INVITE_POSTER_CACHE_KEY, payload);
+    } catch (err) {
+      console.warn("cachePosterPath failed", err);
+    }
+  },
+
+  clearPosterCache() {
+    if (typeof wx === "undefined") return;
+    if (typeof wx.removeStorageSync === "function") {
+      try {
+        wx.removeStorageSync(INVITE_POSTER_CACHE_KEY);
+      } catch (err) {
+        console.warn("clearPosterCache failed", err);
+      }
+    } else if (typeof wx.setStorageSync === "function") {
+      try {
+        wx.setStorageSync(INVITE_POSTER_CACHE_KEY, {});
+      } catch (err) {
+        console.warn("clearPosterCache failed", err);
+      }
+    }
   },
 
   requestOfficialQrCode(inviteCode) {
@@ -126,8 +308,7 @@ Page({
     }
     const payload = {
       path: MAP_PAGE_PATH,
-      inviteCode,
-      width: QR_IMAGE_SIZE
+      inviteCode
     };
     return requestWeappQrcode(payload, { apiBase: this.apiBase })
       .then((result) => this.applyQrCodeResult(result))
@@ -142,6 +323,7 @@ Page({
       return Promise.reject(new Error("empty-qrcode"));
     }
     if (normalized.type === "url") {
+      this.cachePosterPath(this.data.inviteCode, normalized.value, "remote");
       this.setData({
         qrImagePath: normalized.value,
         qrImageSource: "remote",
@@ -150,6 +332,7 @@ Page({
       return normalized.value;
     }
     if (normalized.type === "file") {
+      this.cachePosterPath(this.data.inviteCode, normalized.value, "file");
       this.setData({
         qrImagePath: normalized.value,
         qrImageSource: "file",
@@ -159,6 +342,7 @@ Page({
     }
     if (normalized.type === "base64") {
       return this.persistBase64Image(normalized.value).then((filePath) => {
+        this.cachePosterPath(this.data.inviteCode, filePath, "file");
         this.setData({
           qrImagePath: filePath,
           qrImageSource: "file",
@@ -285,8 +469,9 @@ Page({
     }
   },
 
-  generateQrCode(content) {
+  generateQrCode(content, options = {}) {
     const text = content || MAP_PAGE_PATH;
+    const shouldCache = options.cache !== false;
     return new Promise((resolve, reject) => {
       drawQrcode({
         width: QR_IMAGE_SIZE,
@@ -303,6 +488,9 @@ Page({
               destWidth: QR_IMAGE_SIZE,
               destHeight: QR_IMAGE_SIZE,
               success: (res) => {
+                if (shouldCache) {
+                  this.cachePosterPath(this.data.inviteCode, res.tempFilePath, "canvas");
+                }
                 this.setData({
                   qrImagePath: res.tempFilePath,
                   qrImageSource: "canvas",
@@ -353,7 +541,14 @@ Page({
     if (existing) {
       return Promise.resolve(existing);
     }
-    return this.generateQrCode(this.data.shareLink || MAP_PAGE_PATH).then(() => this.data.qrImagePath);
+    return this.generateQrCode(this.data.shareLink || MAP_PAGE_PATH, { cache: false })
+      .then(() => this.data.qrImagePath);
+  },
+
+  onGuideTap() {
+    wx.navigateTo({
+      url: "/pages/profile/flp/invite-guide/index"
+    });
   },
 
   onRetryTap() {
@@ -432,5 +627,58 @@ Page({
       title: SHARE_TITLE,
       query: this.composeQueryString(this.data.inviteCode)
     };
+  },
+
+  noop() {},
+
+  showInviteGuideOnInvite() {
+    if (this.data.showInviteGuideInvite) return;
+    this.measureInviteGuideTarget()
+      .then((mask) => {
+        if (!mask) return;
+        const overlayStyle = this.buildGuideOverlayStyle(mask);
+        this.setData({ showInviteGuideInvite: true, inviteGuideMask: mask, inviteGuideOverlayStyle: overlayStyle });
+      })
+      .catch((err) => {
+        console.warn("show invite guide invite failed", err);
+      });
+  },
+
+  measureInviteGuideTarget() {
+    return new Promise((resolve) => {
+      const query = wx.createSelectorQuery().in(this);
+      query.select("#invite-share-btn").boundingClientRect();
+      query.exec((res) => {
+        const rect = res && res[0];
+        if (!rect) {
+          resolve(null);
+          return;
+        }
+        const system = wx.getSystemInfoSync();
+        const padding = 10;
+        const size = Math.max(rect.width, rect.height) + padding * 2;
+        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+        const rightLeft = Math.min(system.windowWidth, left + size);
+        const bottomTop = Math.min(system.windowHeight, top + size);
+        resolve({
+          top,
+          left,
+          size,
+          rightLeft,
+          bottomTop
+        });
+      });
+    });
+  },
+
+  buildGuideOverlayStyle(mask) {
+    if (!mask) return "";
+    const centerX = mask.left + mask.size / 2;
+    const centerY = mask.top + mask.size / 2;
+    const radius = Math.max(0, mask.size / 2 - 4);
+    const edge = Math.max(2, Math.round(radius * 0.04));
+    const clearRadius = radius + 1;
+    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
   }
 });

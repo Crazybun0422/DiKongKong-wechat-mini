@@ -1,4 +1,4 @@
-<view class="flp-page">
+﻿<view class="flp-page">
   <scroll-view class="flp-scroll" scroll-y="true">
     <view class="flp-container">
       <view class="flp-header">
@@ -11,7 +11,7 @@
           bindtap="onDetailTap"
           hover-class="flp-detail-entry-hover"
         >
-          <image class="flp-detail-icon" src="/assets/details.png" mode="widthFix" />
+          <image class="flp-detail-icon" src="/pages/profile/assets/details.png" mode="widthFix" />
           <text class="flp-detail-text">明细</text>
         </view>
       </view>
@@ -29,6 +29,16 @@
               </block>
               <block wx:elif="{{item.type === 'link'}}">
                 <button
+                  wx:if="{{item.action === 'invite'}}"
+                  class="flp-action-btn flp-action-btn--invite"
+                  id="flp-invite-btn"
+                  data-action="{{item.action}}"
+                  bindtap="onBenefitActionTap"
+                >
+                  {{item.actionText}}
+                </button>
+                <button
+                  wx:else
                   class="flp-action-btn"
                   data-action="{{item.action}}"
                   bindtap="onBenefitActionTap"
@@ -54,4 +64,24 @@
       </view>
     </view>
   </scroll-view>
+  <block wx:if="{{showInviteGuideFlp}}">
+    <view class="invite-guide-overlay" style="{{inviteGuideOverlayStyle}}"></view>
+    <view class="invite-guide-mask invite-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-left"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; width: {{inviteGuideMask.left}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-right"
+      style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; left: {{inviteGuideMask.rightLeft}}px;"
+      catchtouchmove="noop"
+    ></view>
+    <view
+      class="invite-guide-mask invite-guide-mask-bottom"
+      style="top: {{inviteGuideMask.bottomTop}}px;"
+      catchtouchmove="noop"
+    ></view>
+  </block>
 </view>
+

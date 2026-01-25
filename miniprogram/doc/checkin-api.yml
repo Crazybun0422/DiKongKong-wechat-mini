@@ -1,0 +1,104 @@
+openapi: 3.0.1
+info:
+  title: Checkin APIs
+  description: User check-in APIs for weekly detail and check-in actions.
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/checkins/detail:
+    get:
+      summary: Get weekly check-in detail
+      description: Auth required. Returns weekly check-in detail (includes date and weekday).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinDetailResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/checkins:
+    post:
+      summary: Check in
+      description: Auth required. Returns weekly detail and consecutive days after check-in. Rewards are 0.01 FLP on Monday, Tuesday, Thursday, Friday and 0.02 FLP on Wednesday, Saturday, Sunday.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinDetailResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseCheckinDetailResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/CheckinDetailResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: Null when an error occurs.
+    CheckinDetailResponse:
+      type: object
+      properties:
+        todaySigned:
+          type: boolean
+        continuousDays:
+          type: integer
+        weekStart:
+          type: string
+          description: Monday of the current week, formatted as YYYY-MM-DD.
+        weekEnd:
+          type: string
+          description: Sunday of the current week, formatted as YYYY-MM-DD.
+        signedDays:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckinDayInfo'
+        unsignedDays:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckinDayInfo'
+    CheckinDayInfo:
+      type: object
+      properties:
+        date:
+          type: string
+          description: Date formatted as YYYY-MM-DD.
+        weekday:
+          type: string
+          description: Weekday label (e.g., Monday, Tuesday).

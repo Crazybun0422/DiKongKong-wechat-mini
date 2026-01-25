@@ -5,13 +5,20 @@ const USER_PROFILE_STORAGE_KEY = "userProfile";
 const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 
 const { fetchUserProfile } = require("./utils/profile");
+const {
+  fetchSubscriptions,
+  updateSubscriptions,
+  extractAcceptedTemplateIdsFromWxSetting,
+  areTemplateIdSetsEqual
+} = require("./utils/subscriptions");
+const { prefetchFontFileConfig } = require("./utils/font-config");
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
   develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
   //develop: "",
-  //trial: "https://skylane.cn",                   // uploaded “体验版”
-  trial: "https://kylee-suborbital-herta.ngrok-free.dev",                   // uploaded “体验版”
+  trial: "https://skylane.cn",                   // uploaded “体验版”
+  // trial: "https://kylee-suborbital-herta.ngrok-free.dev",                   // uploaded “体验版”
   release: "https://skylane.cn"                        // 审核 & 上线
 };
 
@@ -110,7 +117,11 @@ App({
     apiBase: API_BASE_URL,
     pendingMarkerFocus: null,
     pendingPinPreview: null,
-    pendingInviteCode: ""
+    pendingInviteCode: "",
+    subscriptionAcceptedTemplateIds: [],
+    subscriptionSettingsReady: false,
+    subscriptionMainSwitch: true,
+    showSubscribeWaitOverlay: false
   },
 
   onLaunch(options = {}) {
@@ -151,7 +162,14 @@ App({
       this.validateStoredToken(this.globalData.token).catch((err) => {
         console.warn("Failed to validate stored token, attempting re-login", err);
       });
+      this.syncSubscriptionsFromWxSetting();
     }
+
+    prefetchFontFileConfig({ apiBase: this.globalData.apiBase }).catch((err) => {
+      console.warn("prefetch font config failed", err);
+    });
+
+    this.initUpdateManager();
   },
 
   validateStoredToken(token) {
@@ -220,6 +238,96 @@ App({
             .catch(reject);
         },
         fail: (err) => reject(err)
+      });
+    });
+  },
+
+  syncSubscriptionsFromWxSetting() {
+    const apiBase = this.globalData.apiBase;
+    const token = this.globalData.token;
+    const canGetSetting = typeof wx !== "undefined" && typeof wx.getSetting === "function";
+    console.log("Syncing subscriptions from WeChat settings with", { apiBase, token, canGetSetting });
+    if (!canGetSetting) {
+      this.globalData.subscriptionSettingsReady = true;
+      this.globalData.subscriptionAcceptedTemplateIds = [];
+      this.globalData.subscriptionMainSwitch = false;
+      return Promise.resolve({ ids: [], mainSwitch: false });
+    }
+    return new Promise((resolve) => {
+      wx.getSetting({
+        withSubscriptions: true,
+        success: (res = {}) => {
+          console.log("wx.getSetting subscriptions success:", res);
+          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
+          const enabled = mainSwitch !== false;
+          const clientIds = enabled
+            ? extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || []
+            : [];
+          this.globalData.subscriptionAcceptedTemplateIds = clientIds;
+          this.globalData.subscriptionMainSwitch = enabled;
+          this.globalData.subscriptionSettingsReady = true;
+          console.log("Extracted accepted template IDs from WeChat settings:", { clientIds, mainSwitch: enabled });
+          const syncPromise =
+            apiBase && token && enabled
+              ? fetchSubscriptions({ apiBase, token })
+                .then((serverIds) => {
+                  if (!areTemplateIdSetsEqual(clientIds, serverIds)) {
+                    console.log("Syncing backend subscriptions to match WeChat settings:", { clientIds, serverIds });
+                    return updateSubscriptions(clientIds, { apiBase, token }).catch((err) => {
+                      console.warn("Failed to update backend subscriptions", err);
+                      return null;
+                    });
+                  }
+                  return null;
+                })
+                .catch((err) => {
+                  console.warn("Failed to fetch backend subscriptions", err);
+                })
+              : Promise.resolve();
+          syncPromise.finally(() => resolve({ ids: clientIds, mainSwitch: enabled }));
+        },
+        fail: (err) => {
+          console.warn("wx.getSetting subscriptions failed", err);
+          this.globalData.subscriptionSettingsReady = true;
+          this.globalData.subscriptionAcceptedTemplateIds = [];
+          this.globalData.subscriptionMainSwitch = false;
+          resolve({ ids: [], mainSwitch: false });
+        }
+      });
+    });
+  },
+
+  initUpdateManager() {
+    if (this._updateManagerInitialized) return;
+    this._updateManagerInitialized = true;
+    if (typeof wx.getUpdateManager !== "function") {
+      console.warn("UpdateManager is not available in this environment.");
+      return;
+    }
+    const updateManager = wx.getUpdateManager();
+    updateManager.onCheckForUpdate((res) => {
+      console.log("Check for update", res.hasUpdate);
+    });
+    updateManager.onUpdateReady(() => {
+      wx.showModal({
+        title: "发现新版本",
+        content: "已为你准备好新版，重启后即可使用最新功能。",
+        confirmText: "立即更新",
+        cancelText: "稍后",
+        success: (modalRes) => {
+          if (modalRes.confirm) {
+            updateManager.applyUpdate();
+          }
+        }
+      });
+    });
+    updateManager.onUpdateFailed((err) => {
+      console.warn("Update failed", err);
+      wx.showModal({
+        title: "更新未完成",
+        content: "下载新版本时遇到问题，请检查网络后重试。",
+        confirmText: "我知道了",
+        showCancel: false
       });
     });
   },
@@ -344,6 +452,7 @@ App({
               console.warn("Failed to persist access token", err);
             }
             console.log("Received auth token:", payload, token);
+            this.syncSubscriptionsFromWxSetting();
             resolve(token);
           } else {
             const reason = data?.message || data?.errMsg || resp?.errMsg || "Unknown error";

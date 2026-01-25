@@ -1,0 +1,146 @@
+openapi: 3.0.1
+info:
+  title: 最新记录接口
+  description: 维护用户维度的对象最新版本信息，可查询并在不存在时创建，也可显式更新。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/latest-items:
+    get:
+      summary: 查询或创建最新版本记录
+      description: 用户查询某个对象的最新版本，若不存在则使用传入版本创建。管理员需指定 featureCode 以查询对应用户。
+      parameters:
+        - in: query
+          name: itemId
+          required: true
+          schema:
+            type: string
+          description: 对应项唯一 ID。
+        - in: query
+          name: version
+          required: true
+          schema:
+            type: string
+          description: 对应项版本，若记录不存在将用该值新建。
+        - in: query
+          name: featureCode
+          required: false
+          schema:
+            type: string
+          description: 管理员查询指定用户时必填，普通用户忽略该参数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLatestItemVersionResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新或创建最新版本记录
+      description: 用户更新自身对象的最新版本记录，管理员可指定 featureCode 更新对应用户的记录；不存在时将自动创建。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LatestItemVersionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLatestItemVersionResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseLatestItemVersionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/LatestItemVersionResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    LatestItemVersionRequest:
+      type: object
+      required:
+        - itemId
+        - version
+      properties:
+        featureCode:
+          type: string
+          description: 管理员更新指定用户时必填，普通用户传入值需与自身 featureCode 一致或为空。
+        itemId:
+          type: string
+          description: 对应项唯一 ID。
+        version:
+          type: string
+          description: 对应项版本。
+    LatestItemVersionResponse:
+      type: object
+      properties:
+        featureCode:
+          type: string
+        itemId:
+          type: string
+        version:
+          type: string

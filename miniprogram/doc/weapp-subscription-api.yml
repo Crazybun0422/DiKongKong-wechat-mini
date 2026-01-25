@@ -1,0 +1,796 @@
+openapi: 3.0.1
+info:
+  title: Weapp Subscription Consent APIs
+  description: 小程序订阅消息授权接口，记录用户 openid 与模板 ID 列表，存储于 MongoDB。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/weapp/subscriptions:
+    get:
+      summary: 查询用户订阅列表
+      description: 根据当前登录用户的 openid 查询保存的订阅模板 ID 列表。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订阅记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新用户订阅模板列表
+      description: 根据当前登录用户的 openid 更新已保存的订阅模板 ID 列表。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionConsentRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订阅记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除指定的订阅模板
+      description: 根据当前登录用户的 openid 删除请求体中指定的订阅模板 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionConsentRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionConsentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到订阅记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/weapp/subscription-pushes:
+    post:
+      summary: 创建订阅推送任务并立即分发
+      description: |
+        仅管理员可调用，根据筛选条件选出符合条件且已授权对应模板的用户发送订阅消息。
+        调用成功后会异步创建推送任务，立即返回任务最新状态（包含 lastTaskId 与 lastTaskStatus），
+        实际推送过程在后台线程执行，可通过 WebSocket `/ws/subscription-push-task` 订阅进度。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionPushRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionPushResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    get:
+      summary: 分页查询订阅推送任务
+      description: 仅管理员可调用，按照创建时间倒序返回推送任务。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageWeappSubscriptionPushResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/weapp/subscription-pushes/{id}:
+    get:
+      summary: 查询订阅推送任务详情
+      description: 返回订阅推送配置及最近一次后台推送任务状态（lastTaskId、lastTaskStatus、统计字段）。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 推送任务的 MongoDB 主键。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionPushResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新订阅推送任务并重新发送
+      description: |
+        仅管理员可调用，修改筛选条件后再次向符合条件的用户发送订阅消息。
+        更新后同样会触发新的后台推送任务，并通过 lastTaskId/lastTaskStatus 以及 WebSocket 进度通知。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 推送任务的 MongoDB 主键。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionPushRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionPushResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除订阅推送任务
+      description: 仅管理员可调用。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: 推送任务的 MongoDB 主键。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/weapp/subscription-auto-tasks/{templateId}:
+    get:
+      summary: 查询订阅模板自动任务
+      description: 根据模板 ID 查询自动任务配置。
+      tags:
+        - Weapp Subscription Auto Task Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+          description: 订阅模板 ID。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionAutoTaskResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新订阅模板自动任务
+      description: 根据模板 ID 创建或更新自动任务配置。
+      tags:
+        - Weapp Subscription Auto Task Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: string
+          description: 订阅模板 ID。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappSubscriptionAutoTaskRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappSubscriptionAutoTaskResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/subscription-pushes/latest:
+    get:
+      summary: 获取最新推送内容与版本号
+      description: 用户登录后可查询 pushContent 的最新内容，模板 ID 固定为 WEAPP_PUSH_CONTENT，并返回自增版本号。
+      tags:
+        - Weapp Subscription Push
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappPushContentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到对应的推送内容
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新最新推送内容（管理员）
+      description: 仅管理员可调用，更新 pushContent 并自动递增版本号，模板 ID 固定为 WEAPP_PUSH_CONTENT。
+      tags:
+        - Weapp Subscription Push Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappPushContentUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappPushContentResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /ws/subscription-push-task:
+    get:
+      summary: WebSocket 订阅推送任务进度
+      description: |
+        管理端通过 WebSocket 连接 `/ws/subscription-push-task` 获取后台推送任务的实时状态。
+        连接建立后服务器会广播 `WeappSubscriptionPushTask` JSON，对应最近的任务进度或错误信息。
+      tags:
+        - Weapp Subscription Push Management
+      responses:
+        '101':
+          description: Switching Protocols
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseWeappSubscriptionConsentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappSubscriptionConsentResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误响应时为空。
+    ApiResponseWeappSubscriptionPushResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappSubscriptionPushResponse'
+    ApiResponsePageWeappSubscriptionPushResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PageWeappSubscriptionPushResponse'
+    ApiResponseWeappPushContentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappPushContentResponse'
+    ApiResponseWeappSubscriptionAutoTaskResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappSubscriptionAutoTaskResponse'
+    WeappPushContentUpdateRequest:
+      type: object
+      required:
+        - pushContent
+      properties:
+        pushContent:
+          type: string
+          description: 最新推送内容，非空字符串。
+    WeappPushContentResponse:
+      type: object
+      properties:
+        templateId:
+          type: string
+          description: 模板唯一 ID，固定为 WEAPP_PUSH_CONTENT。
+        version:
+          type: integer
+          format: int64
+          description: 推送内容自增版本号。
+        pushContent:
+          type: string
+          description: 最新一次推送的富文本内容。
+    PageWeappSubscriptionPushResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeappSubscriptionPushResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    WeappSubscriptionPushRequest:
+      type: object
+      required:
+        - templateId
+      properties:
+        templateId:
+          type: string
+          description: 要发送的微信订阅模版 ID。
+        templateData:
+          type: object
+          additionalProperties:
+            type: string
+          description: 模板字段的 key-value 对。
+        registrationRange:
+          $ref: '#/components/schemas/RegistrationFilterType'
+        registrationStart:
+          type: string
+          format: date
+          description: 注册开始日期，仅在 registrationRange=BETWEEN 时使用。
+        registrationEnd:
+          type: string
+          format: date
+          description: 注册结束日期，仅在 registrationRange=BETWEEN 时使用。
+        flpMin:
+          type: number
+          format: double
+          description: 用户拥有的 FLP 最小值，包含边界。
+        flpMax:
+          type: number
+          format: double
+          description: 用户拥有的 FLP 最大值，包含边界。
+        likeMin:
+          type: integer
+          format: int64
+          description: 用户获赞数下限，包含边界。
+        likeMax:
+          type: integer
+          format: int64
+          description: 用户获赞数上限，包含边界。
+        pushContent:
+          type: string
+          description: 富文本推送内容（仅运营动态类推送使用）。
+        page:
+          type: string
+          description: 订阅消息跳转的小程序页面路径，可选。
+    WeappSubscriptionPushResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB 主键。
+        templateId:
+          type: string
+        templateData:
+          type: object
+          additionalProperties:
+            type: string
+        registrationRange:
+          $ref: '#/components/schemas/RegistrationFilterType'
+        registrationStart:
+          type: string
+          format: date
+        registrationEnd:
+          type: string
+          format: date
+        flpMin:
+          type: number
+          format: double
+        flpMax:
+          type: number
+          format: double
+        likeMin:
+          type: integer
+          format: int64
+        likeMax:
+          type: integer
+          format: int64
+        pushContent:
+          type: string
+        page:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastSentAt:
+          type: string
+          format: date-time
+        lastSendSuccessCount:
+          type: integer
+        lastSendFailureCount:
+          type: integer
+        lastTaskId:
+          type: string
+          description: 最近一次后台推送任务的 ID，用于匹配 WebSocket 进度消息。
+        lastTaskStatus:
+          $ref: '#/components/schemas/WeappSubscriptionPushTaskStatus'
+          description: 最近一次后台推送任务的状态。
+    WeappSubscriptionPushTask:
+      type: object
+      description: 订阅推送后台任务的实时状态，WebSocket 会以该结构推送。
+      properties:
+        id:
+          type: string
+          description: 任务 ID，可与 lastTaskId 对应。
+        pushId:
+          type: string
+          description: 关联的订阅推送配置 ID。
+        status:
+          $ref: '#/components/schemas/WeappSubscriptionPushTaskStatus'
+        totalTargets:
+          type: integer
+          description: 计划发送的用户总数。
+        successCount:
+          type: integer
+          description: 已成功发送的数量。
+        failureCount:
+          type: integer
+          description: 发送失败的数量。
+        processedCount:
+          type: integer
+          description: getProcessedCount，等于 successCount + failureCount。
+        progressPercent:
+          type: integer
+          description: 已处理百分比（0-100），由 processedCount/totalTargets 计算。
+        message:
+          type: string
+          description: 状态附加信息，例如错误描述或完成提示。
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+    WeappSubscriptionPushTaskStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - COMPLETED
+        - FAILED
+    RegistrationFilterType:
+      type: string
+      description: 注册时间筛选方式。
+      enum:
+        - ALL
+        - TODAY
+        - LAST_7_DAYS
+        - BETWEEN
+    WeappSubscriptionConsentRequest:
+      type: object
+      required:
+        - templateIds
+      properties:
+        templateIds:
+          type: array
+          items:
+            type: string
+          description: 订阅消息模板 ID 列表。
+        autoTask:
+          type: boolean
+          description: 是否开启订阅模板自动任务，默认 false。
+    WeappSubscriptionConsentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB 主键。
+        openId:
+          type: string
+          description: 微信 openid。
+        templateIds:
+          type: array
+          items:
+            type: string
+          description: 去重后的订阅模板 ID 列表。
+        autoTask:
+          type: boolean
+          description: 是否开启订阅模板自动任务。
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间。
+    WeappSubscriptionAutoTaskRequest:
+      type: object
+      properties:
+        startTime:
+          type: string
+          format: time
+          description: 自动任务开始时间。
+        conditionKey:
+          type: string
+          description: 推送条件字符串，例如 USER_TODAY_NOT_CHECKIN。
+        templateFields:
+          type: array
+          description: 推送字段列表，每个元素为 {模板字段: 实际值}。
+          items:
+            type: object
+            additionalProperties:
+              type: string
+    WeappSubscriptionAutoTaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: MongoDB 主键。
+        templateId:
+          type: string
+          description: 关联的订阅模板 ID。
+        startTime:
+          type: string
+          format: time
+          description: 自动任务开始时间。
+        conditionKey:
+          type: string
+          description: 推送条件字符串，例如 USER_TODAY_NOT_CHECKIN。
+        templateFields:
+          type: array
+          description: 推送字段列表，每个元素为 {模板字段: 实际值}。
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间。

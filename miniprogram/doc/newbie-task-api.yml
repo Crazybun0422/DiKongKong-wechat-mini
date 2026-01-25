@@ -1,0 +1,454 @@
+openapi: 3.0.1
+info:
+  title: Newbie Task APIs
+  description: Admin and user APIs for newbie task templates, gift configs, and task progress.
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/admin/newbie-tasks/template:
+    get:
+      summary: Get newbie task template
+      description: Admin only. Returns current newbie task template.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskTemplateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: Upsert newbie task template
+      description: Admin only. Creates or updates the newbie task template.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewbieTaskTemplateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskTemplateResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: Delete newbie task template
+      description: Admin only. Deletes the template document.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/newbie-tasks/netdisk-gift:
+    get:
+      summary: Get netdisk gift config
+      description: Admin only. Returns the configured netdisk gift links.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNetdiskGiftConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: Upsert netdisk gift config
+      description: Admin only. Creates or updates the netdisk gift config.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetdiskGiftConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNetdiskGiftConfigResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: Delete netdisk gift config
+      description: Admin only. Deletes the netdisk gift config document.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/newbie-tasks:
+    get:
+      summary: Query newbie tasks
+      description: User only. Returns pending tasks; empty list if all completed and reward availability flag.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskQueryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/newbie-tasks/complete:
+    post:
+      summary: Complete a task
+      description: User only. Marks a task as completed and returns pending tasks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewbieTaskCompleteRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskQueryResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/newbie-tasks/popup/close:
+    post:
+      summary: Close the 30-second popup
+      description: User only. Persists the 30-second popup flag to false.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskPopupResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/newbie-tasks/reward:
+    post:
+      summary: Claim newbie task reward
+      description: User only. Requires all tasks completed and reward available.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskRewardResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseNewbieTaskTemplateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NewbieTaskTemplateResponse'
+    ApiResponseNetdiskGiftConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NetdiskGiftConfigResponse'
+    ApiResponseNewbieTaskQueryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NewbieTaskQueryResponse'
+    ApiResponseNewbieTaskRewardResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NewbieTaskRewardResponse'
+    ApiResponseNewbieTaskPopupResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NewbieTaskPopupResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: Null when an error occurs.
+    NewbieTaskTemplateRequest:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewbieTaskTemplateItemRequest'
+      required:
+        - tasks
+    NewbieTaskTemplateItemRequest:
+      type: object
+      properties:
+        index:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        buttonText:
+          type: string
+      required:
+        - index
+        - name
+    NewbieTaskTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewbieTaskTemplateItemResponse'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NewbieTaskTemplateItemResponse:
+      type: object
+      properties:
+        index:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        buttonText:
+          type: string
+    NetdiskGiftConfigRequest:
+      type: object
+      properties:
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetdiskLinkRequest'
+      required:
+        - links
+    NetdiskLinkRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+      required:
+        - name
+        - url
+    NetdiskGiftConfigResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetdiskLinkResponse'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NetdiskLinkResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+    NewbieTaskQueryResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/NewbieTaskItemResponse'
+        rewardAvailable:
+          type: boolean
+        showThirtySecondPopup:
+          type: boolean
+          description: True on first view; false after closing the popup.
+    NewbieTaskPopupResponse:
+      type: object
+      properties:
+        showThirtySecondPopup:
+          type: boolean
+    NewbieTaskItemResponse:
+      type: object
+      properties:
+        index:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        buttonText:
+          type: string
+        completed:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    NewbieTaskCompleteRequest:
+      type: object
+      properties:
+        index:
+          type: integer
+      required:
+        - index
+    NewbieTaskRewardResponse:
+      type: object
+      properties:
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetdiskLinkResponse'
