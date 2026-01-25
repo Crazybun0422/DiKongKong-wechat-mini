@@ -714,6 +714,7 @@ Page({
     this._mapMarkerIdSeq = 100000;
     this._fetchTimer = null;
     this._mapLayerSettingsLoaded = false;
+    this._mapLayerAircraftModelWritten = false;
     this._markersFetchTimer = null;
     this._pinsFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
@@ -721,6 +722,7 @@ Page({
     this._pendingRegionUpdates = 0;
     this._mapSkew = 0;
     this._mapRotate = 0;
+    this._overlookSyncAvoidUntil = 0;
     this._isIOS = false;
     this._centerOverride = this.data.center;
     this._layerPanelCloseTimer = null;
@@ -3233,6 +3235,31 @@ Page({
     return name || "未提供";
   },
 
+  normalizeAircraftModel(value) {
+    if (typeof value !== "string") return "";
+    return value.trim();
+  },
+
+  resolveDroneIndexByModel(model) {
+    const normalized = this.normalizeAircraftModel(model);
+    if (!normalized) return -1;
+    const list = this.getDroneList();
+    if (!Array.isArray(list) || !list.length) return -1;
+    let index = list.findIndex((item) => item.slug === normalized);
+    if (index >= 0) return index;
+    const lower = normalized.toLowerCase();
+    return list.findIndex((item) => (item.name || "").toLowerCase() === lower);
+  },
+
+  applyAircraftModelSetting(model, options = {}) {
+    const normalized = this.normalizeAircraftModel(model);
+    if (!normalized) return false;
+    const index = this.resolveDroneIndexByModel(normalized);
+    if (index < 0) return false;
+    this.applyDroneByIndex(index, { persist: options.persist !== false });
+    return true;
+  },
+
   getDroneList() {
     if (Array.isArray(this._droneList) && this._droneList.length) {
       return this._droneList;
@@ -3718,11 +3745,12 @@ Page({
       merchantMarkersEnabled: !!this.data.merchantMarkersEnabled,
       privateMarkersEnabled: !!this.data.privateMarkersEnabled,
       groupSharingEnabled: !!this.data.groupSharingEnabled,
-      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled
+      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled,
+      aircraftModel: this.data.selectedDrone || ""
     };
   },
 
-  applyLayerSettings(settings = {}) {
+  applyLayerSettings(settings = {}, options = {}) {
     const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
     const airspace = settings.airspaceBoardEnabled !== false;
     const uom = settings.uomDivisionEnabled !== false;
@@ -3766,6 +3794,9 @@ Page({
         this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
         this.applyMerchantMarkersToggle(merchant);
         this.applyPinLayerToggle(true);
+        if (typeof options.onApplied === "function") {
+          options.onApplied();
+        }
       }
     );
   },
@@ -3783,7 +3814,17 @@ Page({
     })
       .then((settings) => {
         if (settings) {
-          this.applyLayerSettings(settings);
+          this.applyLayerSettings(settings, {
+            onApplied: () => {
+              const aircraftModel = this.normalizeAircraftModel(settings.aircraftModel);
+              if (aircraftModel) {
+                this.applyAircraftModelSetting(aircraftModel, { persist: false });
+              } else if (!this._mapLayerAircraftModelWritten) {
+                this._mapLayerAircraftModelWritten = true;
+                this.persistMapLayerSettings();
+              }
+            }
+          });
           this._mapLayerSettingsLoaded = true;
         }
       })
@@ -4741,7 +4782,7 @@ Page({
     this.closeDronePicker();
   },
 
-  applyDroneByIndex(idx) {
+  applyDroneByIndex(idx, options = {}) {
     const list = this.getDroneList();
     if (!Array.isArray(list) || !list.length) return;
     const bounded = Math.max(0, Math.min(list.length - 1, idx));
@@ -4751,13 +4792,22 @@ Page({
       droneListAvailable: true,
       selectedDroneName: drone.name
     });
+    const previousSlug = this.data.selectedDrone;
+    const changed = drone.slug !== previousSlug;
+    const shouldPersist = options.persist !== false;
     this.setData({
       selectedDroneIndex: bounded,
       selectedDrone: drone.slug,
       selectedDroneName: drone.name,
       dronePickerLabel
+    }, () => {
+      if (changed) {
+        this.scheduleFetchDji(200, true);
+        if (shouldPersist) {
+          this.persistMapLayerSettings();
+        }
+      }
     });
-    this.scheduleFetchDji(200, true);
   },
 
   onLocateTap() {
@@ -5525,17 +5575,36 @@ Page({
   },
 
   updateMapGestureState(detail = {}) {
+    const now = Date.now();
     const skew = Number(detail?.skew);
     if (Number.isFinite(skew)) {
+      const prevSkew = this._mapSkew;
       this._mapSkew = skew;
+      if ((Number.isFinite(prevSkew) && prevSkew !== skew) || skew > 0) {
+        this._overlookSyncAvoidUntil = now + 400;
+      }
     }
     const rotate = Number(detail?.rotate);
     if (Number.isFinite(rotate)) {
+      const prevRotate = this._mapRotate;
       this._mapRotate = rotate;
+      if (Number.isFinite(prevRotate) && prevRotate !== rotate) {
+        this._overlookSyncAvoidUntil = now + 400;
+      }
     }
   },
 
   shouldAvoidCenterSync(options = {}) {
+    const cause = typeof options?.cause === "string" ? options.cause.toLowerCase() : "";
+    if (cause === "skew" || cause === "rotate" || cause === "overlook") {
+      return true;
+    }
+    if (
+      Number.isFinite(this._overlookSyncAvoidUntil) &&
+      this._overlookSyncAvoidUntil > Date.now()
+    ) {
+      return true;
+    }
     // iOS map can snap back when syncing center/scale during overlooking or max-zoom gestures.
     if (!this._isIOS) return false;
     if (Number.isFinite(this._mapSkew) && this._mapSkew > 0) return true;
@@ -5719,7 +5788,7 @@ Page({
           : Number.POSITIVE_INFINITY;
         const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
         const shouldSync = centerMoved || scale !== this.data.scale;
-        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale });
+        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
         if (avoidCenterSync) {
           this.data.center = newCenter;
           this.data.scale = scale;
@@ -5782,6 +5851,7 @@ Page({
   updateCenterAndRadius(detail) {
     this.updateMapGestureState(detail);
     const rawScale = Number(detail?.scale);
+    const cause = detail?.causedBy || detail?.cause || "";
     const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
     this.mapCtx.getCenterLocation({
       type: "gcj02",
@@ -5792,7 +5862,7 @@ Page({
         };
         this._centerOverride = newCenter;
         const scale = clampMapScale(detail?.scale || this.data.scale);
-        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale });
+        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
         // cache region for WMS tiling
         this._lastRegion = detail?.region || null;
         const prevCenter = this.data.center;
