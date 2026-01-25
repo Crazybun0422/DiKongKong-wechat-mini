@@ -176,10 +176,15 @@ Component({
       this.ensureInviteTaskCompleted(tasks);
     },
     hidePopup(options = {}) {
-      if (!this.data.visible) return;
+      const onHidden = typeof options.onHidden === "function" ? options.onHidden : null;
+      if (!this.data.visible) {
+        if (onHidden) onHidden();
+        return;
+      }
       this._popupAuto = false;
       this.setData({ visible: false }, () => {
         this.triggerStateChange();
+        if (onHidden) onHidden();
       });
       this.stopPopupTimer();
       this._progressCtx = null;
@@ -434,26 +439,25 @@ Component({
     onTaskActionTap(event) {
       const index = Number(event?.currentTarget?.dataset?.index);
       if (!Number.isFinite(index)) return;
-      if (index === 2) {
-        this.startCheckinGuide();
-        return;
-      }
-      if (index === 3) {
-        this.startVideoTask();
-        return;
-      }
-      if (index === 4) {
-        this.startInviteGuide();
-      }
+      const runAction = () => {
+        if (index === 2) {
+          this.startCheckinGuide();
+          return;
+        }
+        if (index === 3) {
+          this.startVideoTask();
+          return;
+        }
+        if (index === 4) {
+          this.startInviteGuide();
+        }
+      };
+      this.hidePopup({ persist: false, refresh: false, onHidden: runAction });
     },
     startCheckinGuide() {
-      if (!this.data.visible) return;
-      this.hidePopup({ persist: false, refresh: false });
       this.triggerEvent("checkinguide", { step: "map" });
     },
     startInviteGuide() {
-      if (!this.data.visible) return;
-      this.hidePopup({ persist: false, refresh: false });
       this.triggerEvent("inviteguide", { step: "map" });
     },
     startVideoTask() {

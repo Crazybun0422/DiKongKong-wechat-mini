@@ -654,21 +654,29 @@
 
   <block wx:if="{{showCheckinGuideMap}}">
     <view class="checkin-guide-overlay" style="{{checkinGuideOverlayStyle}}"></view>
-    <view class="checkin-guide-mask checkin-guide-mask-top" style="height: {{checkinGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-top"
+      style="height: {{checkinGuideMask.top}}px;"
+      catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
+    ></view>
     <view
       class="checkin-guide-mask checkin-guide-mask-left"
       style="top: {{checkinGuideMask.top}}px; height: {{checkinGuideMask.size}}px; width: {{checkinGuideMask.left}}px;"
       catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
     ></view>
     <view
       class="checkin-guide-mask checkin-guide-mask-right"
       style="top: {{checkinGuideMask.top}}px; height: {{checkinGuideMask.size}}px; left: {{checkinGuideMask.rightLeft}}px;"
       catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
     ></view>
     <view
       class="checkin-guide-mask checkin-guide-mask-bottom"
       style="top: {{checkinGuideMask.bottomTop}}px;"
       catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
     ></view>
     <view
       class="checkin-guide-ring"
@@ -677,21 +685,29 @@
   </block>
   <block wx:if="{{showInviteGuideMap}}">
     <view class="checkin-guide-overlay" style="{{inviteGuideOverlayStyle}}"></view>
-    <view class="checkin-guide-mask checkin-guide-mask-top" style="height: {{inviteGuideMask.top}}px;" catchtouchmove="noop"></view>
+    <view
+      class="checkin-guide-mask checkin-guide-mask-top"
+      style="height: {{inviteGuideMask.top}}px;"
+      catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
+    ></view>
     <view
       class="checkin-guide-mask checkin-guide-mask-left"
       style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; width: {{inviteGuideMask.left}}px;"
       catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
     ></view>
     <view
       class="checkin-guide-mask checkin-guide-mask-right"
       style="top: {{inviteGuideMask.top}}px; height: {{inviteGuideMask.size}}px; left: {{inviteGuideMask.rightLeft}}px;"
       catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
     ></view>
     <view
       class="checkin-guide-mask checkin-guide-mask-bottom"
       style="top: {{inviteGuideMask.bottomTop}}px;"
       catchtouchmove="noop"
+      catchtap="onGuideMaskTap"
     ></view>
   </block>
 </view>

@@ -2895,6 +2895,26 @@ Page({
     this.showInviteGuideOnMap();
   },
 
+  onGuideMaskTap() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData) {
+      if (app.globalData.checkinGuide?.active) {
+        app.globalData.checkinGuide = { active: false, step: "" };
+      }
+      if (app.globalData.inviteGuide?.active) {
+        app.globalData.inviteGuide = { active: false, step: "" };
+      }
+    }
+    if (this.data.showCheckinGuideMap || this.data.showInviteGuideMap) {
+      this.setData({
+        showCheckinGuideMap: false,
+        showInviteGuideMap: false,
+        checkinGuideOverlayStyle: "",
+        inviteGuideOverlayStyle: ""
+      });
+    }
+  },
+
   showCheckinGuideOnMap() {
     if (this.data.showCheckinGuideMap) return;
     this.measureCheckinGuideTarget()
