@@ -143,6 +143,7 @@ const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
 const MIN_CENTER_SYNC_METERS = 6;
 const UOM_MASK_SAMPLE_SIZE = 256;
+const UOM_MASK_LOAD_TIMEOUT_MS = 8000;
 const UOM_TILE_HIRES_SIZE = 512;
 const UOM_TILE_HIRES_MIN_ZOOM = 14;
 const UOM_TILE_MAX_TILES = 36;
@@ -150,8 +151,7 @@ const UOM_VIEWPORT_PADDING_PX = 120;
 const UOM_MASK_KEEP_RADIUS = 1;
 const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
-const WMS_OVERLAY_REMOVE_RETRY_MS = 0;
-const WMS_OVERLAY_REMOVE_STALE_MS = 60000;
+const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -777,7 +777,6 @@ Page({
     this._wmsOverlayRemovals = new Set();
     this._wmsOverlayRemovalQueue = [];
     this._wmsOverlayRemovalQueued = new Set();
-    this._wmsOverlayRemovalMeta = new Map();
     this._wmsOverlayRemoving = false;
     this._wmsOverlayClearCallbacks = [];
     this._wmsOverlayRemovalTimer = null;
@@ -5581,9 +5580,15 @@ Page({
     }
   },
 
-  shouldAvoidCenterSync() {
-    // iOS map can snap back when syncing center/scale during overlooking (skew) gestures.
-    return !!this._isIOS && Number.isFinite(this._mapSkew) && this._mapSkew > 0;
+  shouldAvoidCenterSync(options = {}) {
+    // iOS map can snap back when syncing center/scale during overlooking or max-zoom gestures.
+    if (!this._isIOS) return false;
+    if (Number.isFinite(this._mapSkew) && this._mapSkew > 0) return true;
+    const rawScale = Number(options?.rawScale);
+    const scale = Number(options?.scale);
+    if (Number.isFinite(rawScale) && Math.round(rawScale) >= MAP_MAX_SCALE) return true;
+    if (Number.isFinite(scale) && Math.round(scale) >= MAP_MAX_SCALE) return true;
+    return false;
   },
 
   scaleForMeters(targetMeters, latitude) {
@@ -5752,14 +5757,10 @@ Page({
           : Number.POSITIVE_INFINITY;
         const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
         const shouldSync = centerMoved || scale !== this.data.scale;
-        const avoidCenterSync = this.shouldAvoidCenterSync();
+        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale });
         if (avoidCenterSync) {
           this.data.center = newCenter;
           this.data.scale = scale;
-          if (forceScaleSync) {
-            this.queueRegionUpdateSkip(1);
-            this.setData({ scale: MAP_MAX_SCALE });
-          }
         }
         const run = (forceRefresh) => {
           this.refreshWmsOverlay(newCenter, scale, region);
@@ -5868,7 +5869,7 @@ Page({
         };
         this._centerOverride = newCenter;
         const scale = clampMapScale(detail?.scale || this.data.scale);
-        const avoidCenterSync = this.shouldAvoidCenterSync();
+        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale });
         // cache region for WMS tiling
         this._lastRegion = detail?.region || null;
         const prevCenter = this.data.center;
@@ -5885,10 +5886,6 @@ Page({
         if (avoidCenterSync) {
           this.data.center = newCenter;
           this.data.scale = scale;
-          if (forceScaleSync) {
-            this.queueRegionUpdateSkip(1);
-            this.setData({ scale: MAP_MAX_SCALE });
-          }
         }
         const run = () => {
           const radius = this.computeRadius(detail);
@@ -6721,6 +6718,9 @@ Page({
       console.log("mask pending for tile", tile.id);
       return { status: "评估中", tone: "neutral" };
     }
+    if (maskEntry.status === "error") {
+      return { status: "空域数据加载失败", tone: "warn" };
+    }
     if (maskEntry.status === "unsupported") {
       const withinBounds = this.pointInBounds(center, tile.bounds);
       return withinBounds
@@ -6833,8 +6833,7 @@ Page({
       this._wmsOverlayZoom = scale;
     };
     if (this._wmsOverlayZoom !== null && this._wmsOverlayZoom !== scale) {
-      this.clearMapOverlays({ onCleared: applyOverlays });
-      return;
+      this.bumpWmsOverlayEpoch();
     }
     applyOverlays();
   },
@@ -6849,6 +6848,8 @@ Page({
     if (keepIds.size) {
       for (const key of Array.from(this._uomTileMasks.keys())) {
         if (!keepIds.has(key)) {
+          const entry = this._uomTileMasks.get(key);
+          if (entry) this.clearUomMaskEntryTimeout(entry);
           this._uomTileMasks.delete(key);
         }
       }
@@ -6877,9 +6878,7 @@ Page({
     if (!this._wmsOverlayRemovals) this._wmsOverlayRemovals = new Set();
     if (!this._wmsOverlayRemovalQueue) this._wmsOverlayRemovalQueue = [];
     if (!this._wmsOverlayRemovalQueued) this._wmsOverlayRemovalQueued = new Set();
-    if (!this._wmsOverlayRemovalMeta) this._wmsOverlayRemovalMeta = new Map();
     this._wmsOverlayRemovals.add(overlayId);
-    this._wmsOverlayRemovalMeta.set(overlayId, Date.now());
     if (this._wmsOverlayRemovalQueued.has(overlayId)) return;
     this._wmsOverlayRemovalQueued.add(overlayId);
     this._wmsOverlayRemovalQueue.push(overlayId);
@@ -6890,11 +6889,17 @@ Page({
     if (!this.mapCtx) return;
     if (this._wmsOverlayRemoving) return;
     if (!this._wmsOverlayRemovalQueue || !this._wmsOverlayRemovalQueue.length) {
-      this.sweepWmsOverlayRemovals();
       this.flushWmsOverlayClearCallbacks();
       return;
     }
     const overlayId = this._wmsOverlayRemovalQueue.shift();
+    if (this._wmsOverlayRemovalQueued) {
+      this._wmsOverlayRemovalQueued.delete(overlayId);
+    }
+    if (!this._wmsOverlayRemovals || !this._wmsOverlayRemovals.has(overlayId)) {
+      this.processWmsOverlayRemovalQueue();
+      return;
+    }
     this._wmsOverlayRemoving = true;
     this.mapCtx.removeGroundOverlay({
       id: overlayId,
@@ -6905,15 +6910,15 @@ Page({
         if (this._wmsOverlayRemovalQueued) {
           this._wmsOverlayRemovalQueued.delete(overlayId);
         }
-        if (this._wmsOverlayRemovalMeta) {
-          this._wmsOverlayRemovalMeta.delete(overlayId);
-        }
         this._wmsOverlayRemoving = false;
         this.processWmsOverlayRemovalQueue();
       },
       fail: (err) => {
         console.warn("removeGroundOverlay failed", overlayId, err);
         if (this.isWmsOverlayNotFound(err)) {
+          if (this._wmsOverlayRemovals) {
+            this._wmsOverlayRemovals.delete(overlayId);
+          }
           if (this._wmsOverlayRemovalQueued) {
             this._wmsOverlayRemovalQueued.delete(overlayId);
           }
@@ -6955,17 +6960,6 @@ Page({
         console.warn("WMS clear callback failed", err);
       }
     });
-  },
-
-  sweepWmsOverlayRemovals() {
-    if (!this._wmsOverlayRemovalMeta || !this._wmsOverlayRemovals) return;
-    const now = Date.now();
-    for (const [overlayId, startedAt] of this._wmsOverlayRemovalMeta.entries()) {
-      if (now - startedAt < WMS_OVERLAY_REMOVE_STALE_MS) continue;
-      if (this._wmsOverlayRemovalQueued && this._wmsOverlayRemovalQueued.has(overlayId)) continue;
-      this._wmsOverlayRemovalMeta.delete(overlayId);
-      this._wmsOverlayRemovals.delete(overlayId);
-    }
   },
 
   applyWmsOverlays(tiles, options = {}) {
@@ -7063,6 +7057,9 @@ Page({
     this.processWmsOverlayRemovalQueue();
     this._wmsOverlayZoom = null;
     if (this._uomTileMasks) {
+      for (const entry of this._uomTileMasks.values()) {
+        this.clearUomMaskEntryTimeout(entry);
+      }
       this._uomTileMasks.clear();
     }
     this._currentWmsTiles = [];
@@ -7366,6 +7363,12 @@ Page({
     this._uomTileMasks.set(tileId, entry);
   },
 
+  clearUomMaskEntryTimeout(entry) {
+    if (!entry || !entry.timeoutId) return;
+    clearTimeout(entry.timeoutId);
+    entry.timeoutId = null;
+  },
+
   enforceUomMaskCacheLimit(keepIds) {
     if (!this._uomTileMasks || !this._uomTileMasks.size) return;
     const max = UOM_MASK_MAX_CACHE;
@@ -7375,11 +7378,15 @@ Page({
     for (const key of Array.from(this._uomTileMasks.keys())) {
       if (this._uomTileMasks.size <= max) break;
       if (!keepSet.has(key)) {
+        const entry = this._uomTileMasks.get(key);
+        if (entry) this.clearUomMaskEntryTimeout(entry);
         this._uomTileMasks.delete(key);
       }
     }
     for (const key of Array.from(this._uomTileMasks.keys())) {
       if (this._uomTileMasks.size <= max) break;
+      const entry = this._uomTileMasks.get(key);
+      if (entry) this.clearUomMaskEntryTimeout(entry);
       this._uomTileMasks.delete(key);
     }
   },
@@ -7392,6 +7399,9 @@ Page({
       this.touchUomMaskEntry(tile.id);
       return;
     }
+    if (cached) {
+      this.clearUomMaskEntryTimeout(cached);
+    }
     if (!this._uomMaskSupported) {
       this._uomTileMasks.set(tile.id, { status: "unsupported" });
       return;
@@ -7401,32 +7411,53 @@ Page({
       const canvas = wx.createOffscreenCanvas({ type: "2d", width: sampleSize, height: sampleSize });
       const ctx = canvas.getContext("2d");
       const img = canvas.createImage();
-      const entry = { status: "pending" };
+      const entry = { status: "pending", timeoutId: null };
       this._uomTileMasks.set(tile.id, entry);
       this.enforceUomMaskCacheLimit(this._uomMaskKeepIds);
+      if (UOM_MASK_LOAD_TIMEOUT_MS > 0) {
+        entry.timeoutId = setTimeout(() => {
+          const active = this._uomTileMasks.get(tile.id);
+          if (!active || active !== entry || active.status !== "pending") return;
+          this.clearUomMaskEntryTimeout(entry);
+          entry.status = "error";
+          this._uomOverlayFailed = true;
+          this.updateUomTileWarning();
+          this.updateStatusPanel(this._lastAreas);
+        }, UOM_MASK_LOAD_TIMEOUT_MS);
+      }
       img.onload = () => {
         try {
+          const active = this._uomTileMasks.get(tile.id);
+          if (!active || active !== entry) return;
+          this.clearUomMaskEntryTimeout(entry);
           canvas.width = sampleSize;
           canvas.height = sampleSize;
           ctx.clearRect(0, 0, sampleSize, sampleSize);
           ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
           const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
-          entry.status = "ready";
-          entry.width = imageData.width;
-          entry.height = imageData.height;
-          entry.data = imageData.data;
+          active.status = "ready";
+          active.width = imageData.width;
+          active.height = imageData.height;
+          active.data = imageData.data;
           this.updateStatusPanel(this._lastAreas);
         } catch (err) {
           console.error("解析 UOM 瓦片失败", err);
           entry.status = "error";
+          this.clearUomMaskEntryTimeout(entry);
+          this._uomOverlayFailed = true;
+          this.updateUomTileWarning();
+          this.updateStatusPanel(this._lastAreas);
         }
       };
       img.onerror = (err) => {
         console.error("加载 UOM 瓦片失败11111111", err);
-        const entry = this._uomTileMasks.get(tile.id);
-        if (entry) entry.status = "error";
+        const active = this._uomTileMasks.get(tile.id);
+        if (!active || active !== entry) return;
+        this.clearUomMaskEntryTimeout(entry);
+        active.status = "error";
         this._uomOverlayFailed = true;
         this.updateUomTileWarning();
+        this.updateStatusPanel(this._lastAreas);
       };
       img.src = tile.src;
     } catch (err) {
@@ -7434,6 +7465,7 @@ Page({
       this._uomTileMasks.set(tile.id, { status: "error" });
       this._uomOverlayFailed = true;
       this.updateUomTileWarning();
+      this.updateStatusPanel(this._lastAreas);
     }
   },
 
