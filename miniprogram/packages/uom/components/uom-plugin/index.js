@@ -15,8 +15,11 @@ const UOM_TILE_MAX_TILES = 36;
 const UOM_VIEWPORT_PADDING_PX = 120;
 const UOM_MASK_KEEP_RADIUS = 1;
 const UOM_MASK_MAX_CACHE = (UOM_MASK_KEEP_RADIUS * 2 + 1) * (UOM_MASK_KEEP_RADIUS * 2 + 1);
+const UOM_MASK_RETRY_LIMIT = 2;
+const UOM_MASK_RETRY_DELAY_MS = 1200;
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
 const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
+const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
 
 const isWeChatRuntime = () => {
   try {
@@ -90,10 +93,11 @@ Component({
   },
   methods: {
     init(options = {}) {
-      const { mapCtx, center, scale, region, enabled } = options;
+      const { mapCtx, center, centerPin, scale, region, enabled } = options;
       console.log("[uom-plugin] init", { hasMapCtx: !!mapCtx, scale, enabled });
       this.mapCtx = mapCtx || this.mapCtx || null;
       this._centerOverride = center || this.data.center || null;
+      this._centerPin = centerPin || center || this._centerPin || this.data.center || null;
       this._lastRegion = region || null;
       this._currentWmsTiles = [];
       this._wmsOverlayMap = new Map();
@@ -146,8 +150,9 @@ Component({
       this.detectUomOverlaySupport();
       this.updateUomTileWarning();
 
-      if (this.mapCtx && center && Number.isFinite(scale)) {
-        this.refreshWmsOverlay(center, scale, region || this._lastRegion);
+      const initialCenter = centerPin || center;
+      if (this.mapCtx && initialCenter && Number.isFinite(scale)) {
+        this.refreshWmsOverlay(initialCenter, scale, region || this._lastRegion);
       }
     },
     destroy() {
@@ -182,7 +187,12 @@ Component({
 
     handleRegionChange(options = {}) {
       if (this._destroyed) return;
-      const { center, scale, region, force } = options;
+      const { center, centerPin, scale, region, force } = options;
+      if (centerPin) {
+        this._centerPin = centerPin;
+      } else if (center) {
+        this._centerPin = center;
+      }
       if (center) {
         this._centerOverride = center;
         this.data.center = center;
@@ -200,9 +210,13 @@ Component({
         this.setData(updates);
       }
       if (!this.mapCtx) return;
-      if (force || center || Number.isFinite(scale)) {
-        this.refreshWmsOverlay(center || this._centerOverride, scale, region || this._lastRegion);
+      if (force || center || centerPin || Number.isFinite(scale)) {
+        this.refreshWmsOverlay(center || centerPin || this._centerOverride, scale, region || this._lastRegion);
       }
+    },
+
+    resolveUomCenter(centerOverride) {
+      return centerOverride || this._centerPin || this._centerOverride || this.data.center || null;
     },
 
     scheduleFinalRefresh() {
@@ -211,8 +225,11 @@ Component({
       this._wmsFinalRefreshTimer = setTimeout(() => {
         if (!this.mapCtx) return;
         const scale = clampMapScale(this.data?.scale);
+        const isMaxScale = Math.round(scale) >= MAP_MAX_SCALE;
+        const fallbackCenter = this.resolveUomCenter();
         const apply = (center, region) => {
-          const resolvedCenter = center || this._centerOverride || this.data.center;
+          const resolvedCenter = this.resolveUomCenter(center);
+          if (!resolvedCenter) return;
           if (region && region.northeast && region.southwest) {
             this._lastRegion = region;
           }
@@ -224,6 +241,17 @@ Component({
             : null);
           apply(center, region);
         };
+        if (isMaxScale) {
+          if (typeof this.mapCtx.getRegion === "function") {
+            this.mapCtx.getRegion({
+              success: (regionRes) => applyRegion(fallbackCenter, regionRes),
+              fail: () => apply(fallbackCenter, null)
+            });
+          } else {
+            apply(fallbackCenter, null);
+          }
+          return;
+        }
         if (typeof this.mapCtx.getCenterLocation === "function") {
           this.mapCtx.getCenterLocation({
             type: "gcj02",
@@ -233,6 +261,7 @@ Component({
                 longitude: res.longitude
               };
               this._centerOverride = center;
+              this._centerPin = center;
               if (typeof this.mapCtx.getRegion === "function") {
                 this.mapCtx.getRegion({
                   success: (regionRes) => applyRegion(center, regionRes),
@@ -242,10 +271,10 @@ Component({
                 apply(center, null);
               }
             },
-            fail: () => apply(null, null)
+            fail: () => apply(fallbackCenter, null)
           });
         } else {
-          apply(null, null);
+          apply(fallbackCenter, null);
         }
       }, WMS_FINAL_REFRESH_DELAY_MS);
     },
@@ -290,12 +319,14 @@ Component({
       if (!tiles.length || scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
         return false;
       }
-      const center = this._centerOverride || this.data.center;
+      const center = this.resolveUomCenter();
       if (!center) return false;
       const tile = this.findUomTileForPoint(center);
       if (!tile) return false;
       const maskEntry = this._uomTileMasks?.get(tile.id);
-      if (maskEntry && maskEntry.status === "error") return true;
+      if (maskEntry && maskEntry.status === "error") {
+        return (maskEntry.retryCount || 0) > UOM_MASK_RETRY_LIMIT;
+      }
       return false;
     },
 
@@ -425,7 +456,7 @@ Component({
       // if (Number.isFinite(currentScale) && currentScale > 16) {
       //   return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
       // }
-      const center = this._centerOverride || this.data.center;
+      const center = this.resolveUomCenter();
       if (!center) {
         return { status: "评估中", tone: "neutral" };
       }
@@ -444,6 +475,10 @@ Component({
         return { status: "评估中", tone: "neutral" };
       }
       if (maskEntry.status === "error") {
+        if ((maskEntry.retryCount || 0) <= UOM_MASK_RETRY_LIMIT) {
+          this.scheduleUomMaskRetry(tile, maskEntry);
+          return { status: "评估中", tone: "neutral" };
+        }
         return { status: "空域数据加载失败", tone: "warn" };
       }
       if (maskEntry.status === "unsupported") {
@@ -455,6 +490,7 @@ Component({
       if (maskEntry.status !== "ready" || !maskEntry.data) {
         return { status: "管制空域", tone: "alert" };
       }
+      console.log("checking point coverage for tile,center,tile.bounds", tile.id, center, tile.bounds);
       const covered = this.pointCoveredByUomMask(center, tile.bounds, maskEntry);
       return covered
         ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
@@ -505,9 +541,12 @@ Component({
         this.clearMapOverlays();
         return;
       }
-      const center = centerOverride || this.data.center;
+      const center = this.resolveUomCenter(centerOverride);
       const scale = clampMapScale(scaleOverride || this.data.scale);
       this._uomOverlayFailed = false;
+      if (!center || !Number.isFinite(center.latitude) || !Number.isFinite(center.longitude)) {
+        return;
+      }
       if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
         this.clearMapOverlays();
         this._currentWmsTiles = [];
@@ -697,6 +736,35 @@ Component({
       });
     },
 
+    clearWmsOverlayHandleTimer(handle) {
+      if (!handle) return;
+      if (handle.staleTimer) {
+        clearTimeout(handle.staleTimer);
+      }
+      handle.staleTimer = null;
+      handle.stale = false;
+    },
+
+    markWmsOverlayStale(tileId, handle) {
+      if (!handle || handle.staleTimer) return;
+      handle.stale = true;
+      handle.staleTimer = setTimeout(() => {
+        const current = this._wmsOverlayMap?.get(tileId);
+        if (!current || current !== handle || !current.stale) return;
+        this.clearWmsOverlayHandleTimer(current);
+        this.queueWmsOverlayRemoval(current.overlayId);
+        this._wmsOverlayMap.delete(tileId);
+        this.processWmsOverlayRemovalQueue();
+      }, WMS_OVERLAY_STALE_REMOVE_MS);
+    },
+
+    dropWmsOverlay(tileId, handle) {
+      if (!handle) return;
+      this.clearWmsOverlayHandleTimer(handle);
+      this.queueWmsOverlayRemoval(handle.overlayId);
+      this._wmsOverlayMap.delete(tileId);
+    },
+
     applyWmsOverlays(tiles, options = {}) {
       if (!this.mapCtx) return;
       this.processWmsOverlayRemovalQueue();
@@ -711,8 +779,11 @@ Component({
       if (this._wmsOverlayMap.size) {
         for (const [tileId, handle] of Array.from(this._wmsOverlayMap.entries())) {
           if (!nextIds.has(tileId)) {
-            this.queueWmsOverlayRemoval(handle.overlayId);
-            this._wmsOverlayMap.delete(tileId);
+            this.markWmsOverlayStale(tileId, handle);
+            continue;
+          }
+          if (handle && handle.stale) {
+            this.clearWmsOverlayHandleTimer(handle);
           }
         }
       }
@@ -721,12 +792,13 @@ Component({
         const signature = this.tileSignature(tile);
         const existing = this._wmsOverlayMap.get(tile.id);
         if (existing && existing.signature === signature) {
+          if (existing.stale) this.clearWmsOverlayHandleTimer(existing);
+          existing.epoch = epoch;
           return;
         }
 
         if (existing) {
-          this.queueWmsOverlayRemoval(existing.overlayId);
-          this._wmsOverlayMap.delete(tile.id);
+          this.dropWmsOverlay(tile.id, existing);
         }
         this._wmsOverlaySeed += 1;
         const overlayId = this._wmsOverlaySeed;
@@ -755,7 +827,7 @@ Component({
             this._wmsOverlayMap.delete(tile.id);
           }
         });
-        this._wmsOverlayMap.set(tile.id, { overlayId, signature, epoch });
+        this._wmsOverlayMap.set(tile.id, { overlayId, signature, epoch, stale: false, staleTimer: null });
       });
       this.processWmsOverlayRemovalQueue();
     },
@@ -782,8 +854,9 @@ Component({
         if (!this._wmsOverlayClearCallbacks) this._wmsOverlayClearCallbacks = [];
         this._wmsOverlayClearCallbacks.push(options.onCleared);
       }
-      if (this.mapCtx) {
-        for (const [, handle] of this._wmsOverlayMap.entries()) {
+      for (const [, handle] of this._wmsOverlayMap.entries()) {
+        this.clearWmsOverlayHandleTimer(handle);
+        if (this.mapCtx) {
           this.queueWmsOverlayRemoval(handle.overlayId);
         }
       }
@@ -856,9 +929,51 @@ Component({
     },
 
     clearUomMaskEntryTimeout(entry) {
-      if (!entry || !entry.timeoutId) return;
-      clearTimeout(entry.timeoutId);
-      entry.timeoutId = null;
+      if (!entry) return;
+      if (entry.timeoutId) {
+        clearTimeout(entry.timeoutId);
+        entry.timeoutId = null;
+      }
+      if (entry.retryTimer) {
+        clearTimeout(entry.retryTimer);
+        entry.retryTimer = null;
+      }
+    },
+
+    scheduleUomMaskRetry(tile, entry) {
+      if (!tile || !tile.id || !entry) return;
+      if (entry.retryTimer) return;
+      if (entry.status === "unsupported") return;
+      const retryCount = Number.isFinite(entry.retryCount) ? entry.retryCount : 0;
+      if (retryCount >= UOM_MASK_RETRY_LIMIT) return;
+      const delay = UOM_MASK_RETRY_DELAY_MS * Math.pow(2, Math.max(0, retryCount - 1));
+      entry.retryTimer = setTimeout(() => {
+        entry.retryTimer = null;
+        const active = this._uomTileMasks?.get(tile.id);
+        if (!active || active !== entry) return;
+        this.ensureUomMask(tile);
+      }, delay);
+    },
+
+    markUomMaskError(tile, entry) {
+      if (!tile || !tile.id) return;
+      if (!this._uomTileMasks) this._uomTileMasks = new Map();
+      const active = entry || this._uomTileMasks.get(tile.id) || { status: "error" };
+      if (!entry && !this._uomTileMasks.get(tile.id)) {
+        this._uomTileMasks.set(tile.id, active);
+      }
+      this.clearUomMaskEntryTimeout(active);
+      const nextRetry = (active.retryCount || 0) + 1;
+      active.retryCount = nextRetry;
+      if (nextRetry > UOM_MASK_RETRY_LIMIT) {
+        active.status = "unsupported";
+        this.updateStatusPanel();
+        this.updateUomTileWarning();
+        return;
+      }
+      active.status = "error";
+      this.scheduleUomMaskRetry(tile, active);
+      this.updateStatusPanel();
     },
 
     enforceUomMaskCacheLimit(keepIds) {
@@ -891,6 +1006,11 @@ Component({
         this.touchUomMaskEntry(tile.id);
         return;
       }
+      if (cached && cached.status === "unsupported") {
+        this.touchUomMaskEntry(tile.id);
+        return;
+      }
+      const retryCount = cached && Number.isFinite(cached.retryCount) ? cached.retryCount : 0;
       if (cached) {
         this.clearUomMaskEntryTimeout(cached);
       }
@@ -903,18 +1023,14 @@ Component({
         const canvas = wx.createOffscreenCanvas({ type: "2d", width: sampleSize, height: sampleSize });
         const ctx = canvas.getContext("2d");
         const img = canvas.createImage();
-        const entry = { status: "pending", timeoutId: null };
+        const entry = { status: "pending", timeoutId: null, retryCount, retryTimer: null };
         this._uomTileMasks.set(tile.id, entry);
         this.enforceUomMaskCacheLimit(this._uomMaskKeepIds);
         if (UOM_MASK_LOAD_TIMEOUT_MS > 0) {
           entry.timeoutId = setTimeout(() => {
             const active = this._uomTileMasks.get(tile.id);
             if (!active || active !== entry || active.status !== "pending") return;
-            this.clearUomMaskEntryTimeout(entry);
-            entry.status = "error";
-            this._uomOverlayFailed = true;
-            this.updateUomTileWarning();
-            this.updateStatusPanel();
+            this.markUomMaskError(tile, entry);
           }, UOM_MASK_LOAD_TIMEOUT_MS);
         }
         img.onload = () => {
@@ -931,33 +1047,23 @@ Component({
             active.width = imageData.width;
             active.height = imageData.height;
             active.data = imageData.data;
+            active.retryCount = 0;
             this.updateStatusPanel();
           } catch (err) {
             console.error("解析 UOM 瓦片失败", err);
-            entry.status = "error";
-            this.clearUomMaskEntryTimeout(entry);
-            this._uomOverlayFailed = true;
-            this.updateUomTileWarning();
-            this.updateStatusPanel();
+            this.markUomMaskError(tile, entry);
           }
         };
         img.onerror = (err) => {
           console.error("加载 UOM 瓦片失败11111111", err);
           const active = this._uomTileMasks.get(tile.id);
           if (!active || active !== entry) return;
-          this.clearUomMaskEntryTimeout(entry);
-          active.status = "error";
-          this._uomOverlayFailed = true;
-          this.updateUomTileWarning();
-          this.updateStatusPanel();
+          this.markUomMaskError(tile, entry);
         };
         img.src = tile.src;
       } catch (err) {
         console.error("创建 UOM 蒙版失败", err);
-        this._uomTileMasks.set(tile.id, { status: "error" });
-        this._uomOverlayFailed = true;
-        this.updateUomTileWarning();
-        this.updateStatusPanel();
+        this.markUomMaskError(tile);
       }
     },
 

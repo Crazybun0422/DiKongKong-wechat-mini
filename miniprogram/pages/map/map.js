@@ -831,6 +831,7 @@ Page({
       plugin.init({
         mapCtx: this.mapCtx,
         center: this._centerOverride || this.data.center,
+        centerPin: this._centerOverride || this.data.center,
         scale: this.data.scale,
         region: this._lastRegion,
         enabled: this.data.uomDivisionEnabled
@@ -5586,6 +5587,7 @@ Page({
         if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
           this._uomPlugin.handleRegionChange({
             center: point,
+            centerPin: point,
             scale: targetScale,
             region: this._lastRegion
           });
@@ -5724,7 +5726,7 @@ Page({
         }
         const run = (forceRefresh) => {
           if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-            this._uomPlugin.handleRegionChange({ center: newCenter, scale, region });
+            this._uomPlugin.handleRegionChange({ center: newCenter, centerPin: newCenter, scale, region });
           }
           this.requestDjiZones(forceRefresh, newCenter, region, scale);
           this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
@@ -5819,6 +5821,7 @@ Page({
           if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
             this._uomPlugin.handleRegionChange({
               center: newCenter,
+              centerPin: newCenter,
               scale,
               region: detail?.region
             });
