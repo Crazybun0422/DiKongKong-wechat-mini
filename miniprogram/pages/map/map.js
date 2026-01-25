@@ -6713,10 +6713,12 @@ Page({
     }
     const maskEntry = this._uomTileMasks?.get(tile.id);
     if (!maskEntry) {
+      console.log("no mask entry for tile", tile.id);
       this.ensureUomMask(tile);
       return { status: "评估中", tone: "neutral" };
     }
     if (maskEntry.status === "pending") {
+      console.log("mask pending for tile", tile.id);
       return { status: "评估中", tone: "neutral" };
     }
     if (maskEntry.status === "unsupported") {
