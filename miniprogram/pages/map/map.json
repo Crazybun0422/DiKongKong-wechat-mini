@@ -1,9 +1,11 @@
 {
   "usingComponents": {
-    "newbie-task-popup": "/packages/newbie-task/components/newbie-task-popup/index"
+    "newbie-task-popup": "/packages/newbie-task/components/newbie-task-popup/index",
+    "uom-plugin": "/packages/uom/components/uom-plugin/index"
   },
   "componentPlaceholder": {
-    "newbie-task-popup": "view"
+    "newbie-task-popup": "view",
+    "uom-plugin": "view"
   },
   "navigationStyle": "custom"
 }

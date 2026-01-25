@@ -36,6 +36,7 @@
       bind:checkinguide="onCheckinGuideStart"
       bind:inviteguide="onInviteGuideStart"
     />
+    <uom-plugin id="uom-plugin" bind:statuschange="onUomStatusChange" />
     <view
       class="subscription-banner"
       wx:if="{{activeTab === 'home' && showSubscriptionBanner}}"

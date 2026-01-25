@@ -34,6 +34,12 @@
       "pages": [
         "placeholder/index"
       ]
+    },
+    {
+      "root": "packages/uom",
+      "pages": [
+        "placeholder/index"
+      ]
     }
   ],
   "window": {
