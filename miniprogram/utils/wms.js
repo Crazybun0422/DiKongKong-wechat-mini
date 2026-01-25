@@ -12,7 +12,7 @@ const DEFAULT_WMS_TILE_SIZE = 256;
 const WEB_TILE_SIZE = 256;
 const DEFAULT_VIEWPORT_WIDTH = 375;
 const DEFAULT_VIEWPORT_HEIGHT = 667;
-const MAX_WMS_TILE_SIZE = 512;
+const MAX_WMS_TILE_SIZE = 256;
 const DEFAULT_WMS_FORMAT = "image/png";
 
 function normalizeTileSize(value, fallback) {
