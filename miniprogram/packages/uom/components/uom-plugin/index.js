@@ -20,6 +20,7 @@ const UOM_MASK_RETRY_DELAY_MS = 1200;
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
 const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
 const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
+const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 
 const isWeChatRuntime = () => {
   try {
@@ -938,6 +939,18 @@ Component({
         clearTimeout(entry.retryTimer);
         entry.retryTimer = null;
       }
+      if (entry.downloadTimer) {
+        clearTimeout(entry.downloadTimer);
+        entry.downloadTimer = null;
+      }
+      if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+        try {
+          entry.downloadTask.abort();
+        } catch (err) {
+          // ignore
+        }
+      }
+      entry.downloadTask = null;
     },
 
     scheduleUomMaskRetry(tile, entry) {
@@ -974,6 +987,72 @@ Component({
       active.status = "error";
       this.scheduleUomMaskRetry(tile, active);
       this.updateStatusPanel();
+    },
+
+    loadUomMaskImage(tile, entry, img) {
+      if (!tile || !tile.src || !entry || !img) {
+        this.markUomMaskError(tile, entry);
+        return;
+      }
+      const applySrc = (src) => {
+        try {
+          img.src = src;
+        } catch (err) {
+          this.markUomMaskError(tile, entry);
+        }
+      };
+      if (entry.localSrc) {
+        applySrc(entry.localSrc);
+        return;
+      }
+      if (!isHttpUrl(tile.src) || typeof wx === "undefined" || typeof wx.downloadFile !== "function") {
+        applySrc(tile.src);
+        return;
+      }
+      const activeEntry = () => this._uomTileMasks?.get(tile.id) === entry;
+      if (entry.downloadTimer) {
+        clearTimeout(entry.downloadTimer);
+        entry.downloadTimer = null;
+      }
+      if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+        try {
+          entry.downloadTask.abort();
+        } catch (err) {
+          // ignore
+        }
+      }
+      entry.downloadTask = wx.downloadFile({
+        url: tile.src,
+        success: (res) => {
+          if (!activeEntry()) return;
+          if (entry.downloadTimer) {
+            clearTimeout(entry.downloadTimer);
+            entry.downloadTimer = null;
+          }
+          const statusCode = Number(res?.statusCode);
+          const filePath = res?.tempFilePath;
+          if (statusCode === 200 && filePath) {
+            entry.localSrc = filePath;
+            applySrc(filePath);
+            return;
+          }
+          this.markUomMaskError(tile, entry);
+        },
+        fail: () => {
+          if (!activeEntry()) return;
+          if (entry.downloadTimer) {
+            clearTimeout(entry.downloadTimer);
+            entry.downloadTimer = null;
+          }
+          this.markUomMaskError(tile, entry);
+        }
+      });
+      if (UOM_MASK_LOAD_TIMEOUT_MS > 0) {
+        entry.downloadTimer = setTimeout(() => {
+          if (!activeEntry()) return;
+          this.markUomMaskError(tile, entry);
+        }, UOM_MASK_LOAD_TIMEOUT_MS);
+      }
     },
 
     enforceUomMaskCacheLimit(keepIds) {
@@ -1016,6 +1095,7 @@ Component({
       }
       if (!this._uomMaskSupported) {
         this._uomTileMasks.set(tile.id, { status: "unsupported" });
+        this.updateStatusPanel();
         return;
       }
       try {
@@ -1023,7 +1103,15 @@ Component({
         const canvas = wx.createOffscreenCanvas({ type: "2d", width: sampleSize, height: sampleSize });
         const ctx = canvas.getContext("2d");
         const img = canvas.createImage();
-        const entry = { status: "pending", timeoutId: null, retryCount, retryTimer: null };
+        const entry = {
+          status: "pending",
+          timeoutId: null,
+          retryCount,
+          retryTimer: null,
+          downloadTask: null,
+          downloadTimer: null,
+          localSrc: ""
+        };
         this._uomTileMasks.set(tile.id, entry);
         this.enforceUomMaskCacheLimit(this._uomMaskKeepIds);
         if (UOM_MASK_LOAD_TIMEOUT_MS > 0) {
@@ -1060,7 +1148,7 @@ Component({
           if (!active || active !== entry) return;
           this.markUomMaskError(tile, entry);
         };
-        img.src = tile.src;
+        this.loadUomMaskImage(tile, entry, img);
       } catch (err) {
         console.error("创建 UOM 蒙版失败", err);
         this.markUomMaskError(tile);
