@@ -1281,7 +1281,7 @@ Page({
     console.log("onShareAppMessage work group invite", { invitationCode, groupId: group.id });
     const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: this.apiBase });
     const title = `邀请你加入我的工作组 ${group.name || ""}`.trim() || "邀请你加入我的工作组";
-    const path = `/pages/map/map?invitationCode=${encodeURIComponent(invitationCode)}&groupId=${encodeURIComponent(
+    const path = `/pages/map/map?ic=${encodeURIComponent(invitationCode)}&groupId=${encodeURIComponent(
       group.id || ""
     )}&groupName=${encodeURIComponent(group.name || "")}`;
     return { title, path, imageUrl: posterUrl };
@@ -1340,12 +1340,14 @@ Page({
     const groups = Array.isArray(raw.groups) ? raw.groups.filter(Boolean) : [];
     const primaryGroup = groups[0] || {};
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
+    const pinIdValue = raw.pinIdNew ?? raw.pinId ?? raw.id ?? "";
+    const pinId = pinIdValue !== undefined && pinIdValue !== null ? `${pinIdValue}` : "";
     const images = Array.isArray(raw.images)
       ? raw.images
         .map((img, index) => ({
           fileName: img,
           url: download(img),
-          id: `${raw.id || "pin"}-image-${index}`
+          id: `${pinId || raw.id || "pin"}-image-${index}`
         }))
         .filter((item) => !!item.url)
       : [];
@@ -1428,7 +1430,7 @@ Page({
       statusTone = statusMeta.tone;
     }
     return {
-      id: raw.id || "",
+      id: pinId,
       name: raw.name || "",
       description: raw.description || "",
       images,
@@ -2326,19 +2328,21 @@ Page({
     const statusTone = isDraft ? "draft" : statusMeta.tone;
     const disableModifyActions = !!raw.paid && reviewStatus === "PENDING";
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
+    const markerIdValue = raw.markIdNew ?? raw.markId ?? raw.id ?? "";
+    const markerId = markerIdValue !== undefined && markerIdValue !== null ? `${markerIdValue}` : "";
     const images = Array.isArray(raw.images)
       ? raw.images
         .map((img, index) => ({
           fileName: img,
           url: download(img),
-          id: `${raw.id || "marker"}-image-${index}`
+          id: `${markerId || raw.id || "marker"}-image-${index}`
         }))
       : [];
     const qrCodes = Array.isArray(raw.qrCodeUrls)
       ? raw.qrCodeUrls.map((item, index) => ({
         fileName: item,
         url: download(item),
-        id: `${raw.id || "marker"}-qrcode-${index}`
+        id: `${markerId || raw.id || "marker"}-qrcode-${index}`
       }))
       : [];
     const attachments = Array.isArray(raw.attachmentUrls)
@@ -2346,7 +2350,7 @@ Page({
         .map((item, index) => ({
           fileName: item,
           url: download(item),
-          id: `${raw.id || "marker"}-attachment-${index}`,
+          id: `${markerId || raw.id || "marker"}-attachment-${index}`,
           label: ATTACHMENT_FIXED_LABEL
         }))
         .filter((item) => !!item.url)
@@ -2367,7 +2371,7 @@ Page({
         ? Number(raw.phoneCallCount)
         : 0;
     return {
-      id: raw.id || "",
+      id: markerId,
       name: raw.name || "",
       description: raw.description || "",
       location: raw.location || {},
@@ -4224,7 +4228,7 @@ Page({
 
   handlePaymentFailureAfterCreation(err, context = {}) {
     const editingId = context.editingId || "";
-    const markerId = context.marker?.id || context.normalized?.id || "";
+    const markerId = context.normalized?.id || context.marker?.id || "";
     const cleanupPromise = editingId
       ? Promise.resolve()
       : this.rollbackMarkerAfterPaymentFailure(markerId);
@@ -4245,7 +4249,7 @@ Page({
   },
 
   handleWechatPaymentFlow(marker = {}, normalizedMarker = {}) {
-    const markerId = marker.id || normalizedMarker.id;
+    const markerId = normalizedMarker.id || marker.id;
     if (!markerId) {
       const error = new Error("缺少标记标识，无法发起微信支付");
       error.displayMessage = "缺少标记标识，无法发起微信支付";
@@ -4293,7 +4297,7 @@ Page({
   },
 
   handleFlpPaymentFlow(marker = {}, normalizedMarker = {}) {
-    const markerId = marker.id || normalizedMarker.id;
+    const markerId = normalizedMarker.id || marker.id;
     if (!markerId) {
       const error = new Error("缺少标记标识，无法扣除 FLP 余额");
       error.displayMessage = "缺少标记标识，无法扣除 FLP 余额";

@@ -26,7 +26,8 @@
         "index",
         "location-picker/index",
         "pin-picker/index",
-        "workgroup-members/index"
+        "workgroup-members/index",
+        "merchant-poster/index"
       ]
     },
     {

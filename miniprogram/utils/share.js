@@ -6,9 +6,10 @@ const {
   resolveApiBase
 } = require("./profile");
 
-const INVITE_QUERY_KEY = "inviteCode";
-const PATH_PARAM_PATTERN = new RegExp(`(?:\\?|&)${INVITE_QUERY_KEY}=`);
-const QUERY_PARAM_PATTERN = new RegExp(`(?:^|&)${INVITE_QUERY_KEY}=`);
+const INVITE_QUERY_KEY = "ic";
+const INVITE_QUERY_KEYS = ["ic", "inviteCode", "invitationCode"];
+const PATH_PARAM_PATTERN = new RegExp(`(?:\\?|&)(?:${INVITE_QUERY_KEYS.join("|")})=`);
+const QUERY_PARAM_PATTERN = new RegExp(`(?:^|&)(?:${INVITE_QUERY_KEYS.join("|")})=`);
 let pendingInviteRefresh = null;
 
 const normalizeInviteCode = (value) => {

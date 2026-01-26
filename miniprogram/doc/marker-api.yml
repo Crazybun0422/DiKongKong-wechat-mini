@@ -192,6 +192,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -220,6 +221,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       requestBody:
         required: true
         content:
@@ -266,6 +268,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -302,6 +305,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       requestBody:
         required: true
         content:
@@ -351,6 +355,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -382,6 +387,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -467,6 +473,11 @@ components:
           properties:
             id:
               type: string
+              description: 旧的 Mongo _id，保持原样返回。
+            markIdNew:
+              type: integer
+              format: int64
+              description: 新的自增标记 ID（供新版本使用）。
             featureCode:
               type: string
             reviewStatus:

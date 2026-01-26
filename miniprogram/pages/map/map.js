@@ -409,7 +409,7 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
   if (!options || typeof options !== "object") {
     return normalized;
   }
-  const candidateKeys = ["markerId", "markerID", "id"];
+  const candidateKeys = ["mId", "markerId", "markerID", "markId", "markID", "id"];
   for (const key of candidateKeys) {
     if (options[key] !== undefined && options[key] !== null) {
       const decoded = decodeParamValue(options[key]);
@@ -419,15 +419,23 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
       }
     }
   }
-  const shareFlag = options.fromShare ?? options.share ?? options.source;
+  const shareFlag = options.fs ?? options.fromShare ?? options.share ?? options.source;
   if (isTruthyFlag(shareFlag)) {
     normalized.delayUntilPermission = true;
   }
   const sceneParams = parseSceneParams(options.scene);
-  if (!normalized.markerId && sceneParams.markerId) {
-    normalized.markerId = decodeParamValue(sceneParams.markerId);
+  const sceneMarkerId =
+    sceneParams.mId ||
+    sceneParams.markerId ||
+    sceneParams.markerID ||
+    sceneParams.markId ||
+    sceneParams.markID;
+  if (!normalized.markerId && sceneMarkerId) {
+    normalized.markerId = decodeParamValue(sceneMarkerId);
   }
-  if (!normalized.delayUntilPermission && sceneParams.fromShare) {
+  if (!normalized.delayUntilPermission && sceneParams.fs) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fs);
+  } else if (!normalized.delayUntilPermission && sceneParams.fromShare) {
     normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
   } else if (!normalized.delayUntilPermission && sceneParams.share) {
     normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
@@ -437,10 +445,18 @@ const normalizeLaunchMarkerOptions = (options = {}) => {
     const queryIndex = decoded.indexOf("?");
     const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
     const qParams = parseSceneParams(queryString);
-    if (!normalized.markerId && qParams.markerId) {
-      normalized.markerId = decodeParamValue(qParams.markerId);
+    const qMarkerId =
+      qParams.mId ||
+      qParams.markerId ||
+      qParams.markerID ||
+      qParams.markId ||
+      qParams.markID;
+    if (!normalized.markerId && qMarkerId) {
+      normalized.markerId = decodeParamValue(qMarkerId);
     }
-    if (!normalized.delayUntilPermission && qParams.fromShare) {
+    if (!normalized.delayUntilPermission && qParams.fs) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.fs);
+    } else if (!normalized.delayUntilPermission && qParams.fromShare) {
       normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
     } else if (!normalized.delayUntilPermission && qParams.share) {
       normalized.delayUntilPermission = isTruthyFlag(qParams.share);
@@ -457,7 +473,7 @@ const normalizeLaunchPinOptions = (options = {}) => {
   if (!options || typeof options !== "object") {
     return normalized;
   }
-  const candidateKeys = ["pinId", "pinID", "id"];
+  const candidateKeys = ["pId", "pinId", "pinID", "id"];
   for (const key of candidateKeys) {
     if (options[key] !== undefined && options[key] !== null) {
       const decoded = decodeParamValue(options[key]);
@@ -467,15 +483,18 @@ const normalizeLaunchPinOptions = (options = {}) => {
       }
     }
   }
-  const shareFlag = options.fromShare ?? options.share ?? options.source;
+  const shareFlag = options.fs ?? options.fromShare ?? options.share ?? options.source;
   if (isTruthyFlag(shareFlag)) {
     normalized.delayUntilPermission = true;
   }
   const sceneParams = parseSceneParams(options.scene);
-  if (!normalized.pinId && sceneParams.pinId) {
-    normalized.pinId = decodeParamValue(sceneParams.pinId);
+  const scenePinId = sceneParams.pId || sceneParams.pinId || sceneParams.pinID;
+  if (!normalized.pinId && scenePinId) {
+    normalized.pinId = decodeParamValue(scenePinId);
   }
-  if (!normalized.delayUntilPermission && sceneParams.fromShare) {
+  if (!normalized.delayUntilPermission && sceneParams.fs) {
+    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fs);
+  } else if (!normalized.delayUntilPermission && sceneParams.fromShare) {
     normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
   } else if (!normalized.delayUntilPermission && sceneParams.share) {
     normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
@@ -485,10 +504,13 @@ const normalizeLaunchPinOptions = (options = {}) => {
     const queryIndex = decoded.indexOf("?");
     const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
     const qParams = parseSceneParams(queryString);
-    if (!normalized.pinId && qParams.pinId) {
-      normalized.pinId = decodeParamValue(qParams.pinId);
+    const qPinId = qParams.pId || qParams.pinId || qParams.pinID;
+    if (!normalized.pinId && qPinId) {
+      normalized.pinId = decodeParamValue(qPinId);
     }
-    if (!normalized.delayUntilPermission && qParams.fromShare) {
+    if (!normalized.delayUntilPermission && qParams.fs) {
+      normalized.delayUntilPermission = isTruthyFlag(qParams.fs);
+    } else if (!normalized.delayUntilPermission && qParams.fromShare) {
       normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
     } else if (!normalized.delayUntilPermission && qParams.share) {
       normalized.delayUntilPermission = isTruthyFlag(qParams.share);
@@ -500,7 +522,7 @@ const normalizeLaunchPinOptions = (options = {}) => {
 const extractInviteCodeFromOptions = (options = {}) => {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
-    const candidate = source.inviteCode ?? source.invitationCode;
+    const candidate = source.ic ?? source.inviteCode ?? source.invitationCode;
     if (candidate === undefined || candidate === null) return "";
     return decodeParamValue(candidate);
   };
@@ -540,7 +562,7 @@ const formatLikeCountDisplay = (value) => {
 const extractWorkGroupInvite = (options = {}) => {
   const readFromObject = (obj) => {
     if (!obj || typeof obj !== "object") return null;
-    const invitationCode = decodeParamValue(obj.invitationCode || obj.inviteCode);
+    const invitationCode = decodeParamValue(obj.ic || obj.invitationCode || obj.inviteCode);
     const groupId = decodeParamValue(obj.groupId || obj.workGroupId);
     const groupName = decodeParamValue(obj.groupName);
     if (!invitationCode || !groupId) return null;
@@ -670,6 +692,7 @@ Page({
     markerPageLikeTargetType: "",
     markerPageLikeTargetId: "",
     markerPageShareEnabled: true,
+    markerPageIsPin: false,
     markerPageDistanceText: "",
     callSheetVisible: false,
     callSheetPhone: "",
@@ -987,13 +1010,15 @@ Page({
       {};
     const apiBase = this.getApiBase();
     const normalized = this.normalizeMarkerDetail(rawPin);
+    const pinIdValue = rawPin.pinIdNew ?? rawPin.pinId ?? rawPin.id ?? "";
+    const pinId = pinIdValue !== undefined && pinIdValue !== null ? `${pinIdValue}` : "";
     const rawImages = Array.isArray(rawPin.images)
       ? rawPin.images
       : [];
     const images = rawImages
       .map((img, idx) => ({
         url: buildFileDownloadUrl(img, { apiBase }),
-        id: `${rawPin.id || "pin"}-image-${idx}`
+        id: `${pinId || rawPin.id || "pin"}-image-${idx}`
       }))
       .filter((img) => !!img.url);
     const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
@@ -1007,8 +1032,8 @@ Page({
     const latitude = latCandidates.find((v) => Number.isFinite(Number(v)));
     const longitude = lngCandidates.find((v) => Number.isFinite(Number(v)));
     const detail = {
-      id: rawPin.id || "",
-      markerId: rawPin.id || "",
+      id: pinId,
+      markerId: pinId,
       name,
       locationText: normalized.locationText || rawPin.location?.text || rawPin.address || "",
       latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : undefined,
@@ -2400,6 +2425,7 @@ Page({
     console.log("pageDetail->>", pageDetail)
     this.normalizeMarkerPageDetail(pageDetail);
     this._lastMarkerDetail = pageDetail;
+    const isPin = this.isPinDetail(pageDetail);
     const distanceText = this.buildMarkerDistanceText(pageDetail);
     this.setData({
       markerPageVisible: true,
@@ -2407,12 +2433,28 @@ Page({
       markerPageDetail: pageDetail,
       markerPageCurrentImage: 0,
       markerPageShareEnabled: this.isDetailSharable(pageDetail),
+      markerPageIsPin: isPin,
       markerPageDistanceText: distanceText
     });
     this.loadMarkerLikeInfo({ detail: pageDetail, target: detail, forPage: true });
     this._markerPageScrollTop = 0;
     this._markerPageTouch = null;
     this.closeMarkerDetail(true);
+  },
+
+  onMarkerPosterTap() {
+    const detail = this.data.markerPageDetail || this._lastMarkerDetail;
+    if (!detail) return;
+    const raw = detail.raw || {};
+    const targetValue = raw.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? raw.id ?? "";
+    const markerId = targetValue !== undefined && targetValue !== null ? `${targetValue}`.trim() : "";
+    if (!markerId) {
+      wx.showToast({ title: "暂无可用商户", icon: "none" });
+      return;
+    }
+    wx.navigateTo({
+      url: `/pages/markers/merchant-poster/index?mId=${encodeURIComponent(markerId)}`
+    });
   },
 
   refreshMarkerPageDistance() {
@@ -2759,16 +2801,21 @@ Page({
       this.showShareBlockedToast();
       return fallback;
     }
-    const targetId = detail.markerId || detail.id || "";
+    const rawDetail = detail?.raw || {};
+    const isPinDetail = this.isPinDetail(detail);
+    const targetValue = isPinDetail
+      ? (rawDetail.pinIdNew ?? detail.pinIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "")
+      : (rawDetail.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "");
+    const targetId = targetValue !== undefined && targetValue !== null ? `${targetValue}` : "";
     if (!targetId) {
       return fallback;
     }
-    if (this.isPinDetail(detail)) {
+    if (isPinDetail) {
       const shareTitle = detail.name;
       return {
         title: shareTitle,
         path: appendInviteCodeToPath(
-          `/pages/map/map?fromShare=1&pinId=${encodeURIComponent(targetId)}`,
+          `/pages/map/map?fs=1&pId=${encodeURIComponent(targetId)}`,
           { inviteCode }
         )
       };
@@ -2777,7 +2824,7 @@ Page({
     return {
       title: shareTitle,
       path: appendInviteCodeToPath(
-        `/pages/map/map?fromShare=1&markerId=${encodeURIComponent(targetId)}`,
+        `/pages/map/map?fs=1&mId=${encodeURIComponent(targetId)}`,
         { inviteCode }
       )
     };
@@ -2797,13 +2844,18 @@ Page({
       this.showShareBlockedToast();
       return fallback;
     }
-    const targetId = detail.markerId || detail.id || "";
+    const rawDetail = detail?.raw || {};
+    const isPinDetail = this.isPinDetail(detail);
+    const targetValue = isPinDetail
+      ? (rawDetail.pinIdNew ?? detail.pinIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "")
+      : (rawDetail.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "");
+    const targetId = targetValue !== undefined && targetValue !== null ? `${targetValue}` : "";
     if (!targetId) {
       return fallback;
     }
-    const queryBase = this.isPinDetail(detail)
-      ? `pinId=${encodeURIComponent(targetId)}&fromShare=1`
-      : `markerId=${encodeURIComponent(targetId)}&fromShare=1`;
+    const queryBase = isPinDetail
+      ? `pId=${encodeURIComponent(targetId)}&fs=1`
+      : `mId=${encodeURIComponent(targetId)}&fs=1`;
     const query = appendInviteCodeToQuery(queryBase, { inviteCode });
     return {
       title: fallback.title,
@@ -4952,8 +5004,11 @@ Page({
       }
     }
     const idCandidates = [
+      raw?.markIdNew,
+      raw?.markId,
       overrides.id,
       raw?.id,
+      raw?.markerId,
       marker?.id,
       normalized.id
     ];

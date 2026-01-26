@@ -1,0 +1,69 @@
+<view class="merchant-poster-page">
+  <image class="merchant-poster-bg" src="{{activeBackground}}" mode="aspectFill" />
+  <view class="merchant-poster-bg-mask"></view>
+
+  <view class="merchant-poster-body">
+    <view class="merchant-poster-card-wrap">
+      <button class="merchant-poster-close" bindtap="onCloseTap" hover-class="none">
+        <image class="merchant-poster-close-icon" src="/pages/markers/assets/poster-close.png" mode="aspectFit" />
+      </button>
+      <view class="merchant-poster-card">
+        <view class="merchant-poster-swiper-wrap">
+          <swiper
+            class="merchant-poster-swiper"
+            circular="{{posters.length > 1}}"
+            current="{{currentIndex}}"
+            bindchange="onPosterChange"
+          >
+            <block wx:for="{{posters}}" wx:key="backgroundUrl">
+              <swiper-item>
+                <view class="merchant-poster-image-frame">
+                  <image
+                    class="merchant-poster-image"
+                    src="{{item.path || item.backgroundUrl}}"
+                    mode="aspectFit"
+                  />
+                </view>
+              </swiper-item>
+            </block>
+          </swiper>
+        </view>
+        <view class="merchant-poster-dots" wx:if="{{posters.length > 1}}">
+          <block wx:for="{{posters}}" wx:key="backgroundUrl">
+            <view class="merchant-poster-dot {{index === currentIndex ? 'is-active' : ''}}"></view>
+          </block>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="merchant-poster-actions">
+    <view class="merchant-poster-actions-inner">
+      <button class="merchant-poster-action" bindtap="onSavePosterTap" hover-class="merchant-poster-action-hover">
+        <image class="merchant-poster-action-icon" src="/pages/markers/assets/download-poster.png" mode="aspectFit" />
+        <text class="merchant-poster-action-text">保存海报</text>
+      </button>
+      <button class="merchant-poster-action" open-type="share" hover-class="merchant-poster-action-hover">
+        <image class="merchant-poster-action-icon" src="/pages/markers/assets/t-wechat.png" mode="aspectFit" />
+        <text class="merchant-poster-action-text">微信分享</text>
+      </button>
+      <button class="merchant-poster-action" open-type="share" hover-class="merchant-poster-action-hover">
+        <image class="merchant-poster-action-icon" src="/pages/markers/assets/t-moments.png" mode="aspectFit" />
+        <text class="merchant-poster-action-text">朋友圈</text>
+      </button>
+    </view>
+  </view>
+
+  <view class="merchant-poster-loading" wx:if="{{loading}}">
+    <view class="merchant-poster-loading-mask"></view>
+    <view class="merchant-poster-loading-content">
+      <image class="merchant-poster-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
+      <text class="merchant-poster-loading-text">{{loadingText}}</text>
+    </view>
+  </view>
+
+  <view class="merchant-poster-error" wx:if="{{error}}">
+    <text class="merchant-poster-error-text">{{error}}</text>
+    <button class="merchant-poster-error-btn" bindtap="onRetryTap">重试</button>
+  </view>
+</view>

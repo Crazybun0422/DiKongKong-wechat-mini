@@ -409,9 +409,16 @@
                     </text>
                   </view>
                   <block wx:if="{{markerPageShareEnabled}}">
-                    <button open-type="share" class="marker-page-share-header" hover-class="none">
-                      <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
-                    </button>
+                    <block wx:if="{{markerPageIsPin}}">
+                      <button open-type="share" class="marker-page-share-header" hover-class="none">
+                        <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+                      </button>
+                    </block>
+                    <block wx:else>
+                      <button class="marker-page-share-header" bindtap="onMarkerPosterTap" hover-class="none">
+                        <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+                      </button>
+                    </block>
                   </block>
                   <block wx:else>
                     <button class="marker-page-share-header marker-page-share-header--disabled" bindtap="onMarkerPageShareDisabledTap" hover-class="none">

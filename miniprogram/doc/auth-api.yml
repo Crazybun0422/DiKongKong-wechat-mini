@@ -462,6 +462,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-merchant:
+    post:
+      summary: 生成商户海报
+      description: 返回当前用户的商户海报 PNG 文件流。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappMerchantPosterRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-merchant/status:
+    post:
+      summary: 查询商户海报状态
+      description: 判断当前用户是否需要重新生成商户海报，并返回上次生成时的数据。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappMerchantPosterRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappMerchantPosterStatusResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
 components:
   securitySchemes:
     bearerAuth:
@@ -799,6 +870,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WeappPosterStatusResponse'
+    ApiResponseWeappMerchantPosterStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappMerchantPosterStatusResponse'
     WeappLoginRequest:
       type: object
       properties:
@@ -859,6 +941,27 @@ components:
         imageBase64:
           type: string
           description: Base64 编码的小程序二维码。
+    WeappMerchantPosterRequest:
+      type: object
+      properties:
+        merchantPath:
+          type: string
+          description: 商户详情页路径（包含参数）。
+        backgroundUrl:
+          type: string
+          description: 海报背景图地址。
+        username:
+          type: string
+          description: 昵称。
+        avatarUrl:
+          type: string
+          description: 头像地址。
+        title:
+          type: string
+          description: 海报标题。
+        desc:
+          type: string
+          description: 海报描述。
     WeappPosterStatusResponse:
       type: object
       properties:
@@ -871,6 +974,27 @@ components:
         lastAvatarUrl:
           type: string
           description: 上一次生成邀请海报时使用的头像地址。
+    WeappMerchantPosterStatusResponse:
+      type: object
+      properties:
+        needRegenerate:
+          type: boolean
+          description: 是否需要重新生成商户海报。
+        lastUsername:
+          type: string
+          description: 上一次生成商户海报时使用的昵称。
+        lastAvatarUrl:
+          type: string
+          description: 上一次生成商户海报时使用的头像地址。
+        lastTitle:
+          type: string
+          description: 上一次生成商户海报时使用的标题。
+        lastDesc:
+          type: string
+          description: 上一次生成商户海报时使用的描述。
+        lastMerchantPath:
+          type: string
+          description: 上一次生成商户海报时使用的路径。
     ApiResponseWeappConfigResponse:
       type: object
       properties:

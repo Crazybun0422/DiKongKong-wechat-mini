@@ -81,7 +81,7 @@ function parseSceneParams(scene) {
 function extractInviteCodeFromOptions(options = {}) {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
-    const candidate = source.inviteCode ?? source.invitationCode;
+    const candidate = source.ic ?? source.inviteCode ?? source.invitationCode;
     if (candidate === undefined || candidate === null) return "";
     return decodeParamValue(candidate);
   };

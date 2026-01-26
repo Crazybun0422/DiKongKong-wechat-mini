@@ -1,0 +1,275 @@
+.merchant-poster-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #0b1731;
+  display: flex;
+  flex-direction: column;
+}
+
+.merchant-poster-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: blur(48rpx);
+  transform: scale(1.12);
+}
+
+.merchant-poster-bg-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 12, 24, 0.62);
+}
+
+.merchant-poster-close {
+  position: absolute;
+  top: -80rpx;
+  left: -130rpx;
+  width: 56rpx;
+  height: 56rpx;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.merchant-poster-close::after {
+  display: none;
+}
+
+.merchant-poster-close-icon {
+  width: 50rpx;
+  height: 50rpx;
+}
+
+.merchant-poster-body {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 120rpx) 40rpx 40rpx;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+}
+
+.merchant-poster-card-wrap {
+  width: 100%;
+  max-width: 680rpx;
+  position: relative;
+  transform: translateY(-150rpx);
+}
+
+.merchant-poster-card {
+  width: 100%;
+  max-width: 680rpx;
+  background: transparent;
+  border-radius: 36rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  border: none;
+}
+
+.merchant-poster-swiper-wrap {
+  width: 100%;
+  position: relative;
+  padding-top: 134.4%;
+}
+
+.merchant-poster-swiper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.merchant-poster-image-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 28rpx;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.merchant-poster-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.merchant-poster-dots {
+  margin-top: 20rpx;
+  display: flex;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.merchant-poster-dot {
+  width: 16rpx;
+  height: 6rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.merchant-poster-dot.is-active {
+  width: 32rpx;
+  background: #ffffff;
+}
+
+.merchant-poster-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #ffffff;
+  border-radius: 32rpx 32rpx 0 0;
+  padding: 24rpx 40rpx calc(env(safe-area-inset-bottom) + 24rpx + 150rpx);
+  z-index: 4;
+  box-shadow: 0 -12rpx 36rpx rgba(10, 15, 30, 0.1);
+}
+
+.merchant-poster-actions-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
+  height: 180rpx;
+  margin-left: -120rpx;
+}
+
+.merchant-poster-action {
+  position: absolute;
+  top: 0;
+  left: 40rpx;
+  width: 140rpx;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.merchant-poster-action::after {
+  display: none;
+}
+
+.merchant-poster-action-icon {
+  width: 86rpx;
+  height: 86rpx;
+  margin-bottom: 10rpx;
+}
+
+.merchant-poster-action-text {
+  font-size: 24rpx;
+  color: #1c1c1e;
+}
+.merchant-poster-action:nth-child(3) .merchant-poster-action-icon {
+  width: 93rpx;
+  height: 93rpx;
+}
+
+.merchant-poster-action-hover {
+  opacity: 0.8;
+}
+
+.merchant-poster-action:nth-child(2) {
+  left: 190rpx;
+  top: 2rpx;
+}
+
+.merchant-poster-action:nth-child(3) {
+  left: 340rpx;
+  top: -4rpx;
+}
+
+
+
+.merchant-poster-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+}
+
+.merchant-poster-loading-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 12, 22, 0.58);
+}
+
+.merchant-poster-loading-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  color: #ffffff;
+}
+
+.merchant-poster-loading-image {
+  width: 180rpx;
+  height: 180rpx;
+  animation: merchant-poster-breathe 1.6s ease-in-out infinite;
+}
+
+.merchant-poster-loading-text {
+  font-size: 24rpx;
+  color: #ffffff;
+}
+
+.merchant-poster-error {
+  position: fixed;
+  left: 40rpx;
+  right: 40rpx;
+  top: 40%;
+  transform: translateY(-50%);
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.94);
+  text-align: center;
+  z-index: 13;
+}
+
+.merchant-poster-error-text {
+  font-size: 26rpx;
+  color: #d64545;
+}
+
+.merchant-poster-error-btn {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #fff;
+  background: #d64545;
+  border-radius: 999rpx;
+}
+
+.merchant-poster-error-btn::after {
+  display: none;
+}
+
+@keyframes merchant-poster-breathe {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+}

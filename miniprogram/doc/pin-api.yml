@@ -50,6 +50,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -72,6 +73,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       requestBody:
         required: true
         content:
@@ -118,6 +120,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -156,6 +159,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       requestBody:
         required: true
         content:
@@ -203,6 +207,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -244,6 +249,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -285,6 +291,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -677,6 +684,11 @@ components:
       properties:
         id:
           type: string
+          description: 旧的 Mongo _id，保持原样返回。
+        pinIdNew:
+          type: integer
+          format: int64
+          description: 新的自增 Pin ID（供新版本使用）。
         images:
           type: array
           items:
