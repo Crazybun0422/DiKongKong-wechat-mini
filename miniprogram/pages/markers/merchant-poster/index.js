@@ -32,7 +32,7 @@ const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(v
 Page({
   data: {
     loading: true,
-    loadingText: "海报生成中...",
+    loadingText: "海报加载中...",
     error: "",
     posters: [],
     currentIndex: 0,
@@ -84,7 +84,7 @@ Page({
       this.setData({ loading: false, error: "缺少商户信息" });
       return;
     }
-    this.setData({ error: "", loading: false, loadingText: "海报生成中..." });
+    this.setData({ error: "", loading: true, loadingText: "海报加载中..." });
     this.loadMerchantDetail()
       .then((detail) => {
         if (!detail) {
@@ -189,7 +189,7 @@ Page({
             }
             this.setData({
               loading: true,
-              loadingText: `海报生成中...(${index + 1}/${total})`
+              loadingText: `海报生成中...（第${index + 1}张/共${total}张）`
             });
             return requestWeappMerchantPoster(payload, { apiBase: this.apiBase, token: this.getAuthToken() })
               .then((result) => this.resolvePosterPath(result))
@@ -210,7 +210,7 @@ Page({
             }
             this.setData({
               loading: true,
-              loadingText: `海报生成中...(${index + 1}/${total})`
+              loadingText: `海报生成中...（第${index + 1}张/共${total}张）`
             });
             return requestWeappMerchantPoster(payload, { apiBase: this.apiBase, token: this.getAuthToken() })
               .then((result) => this.resolvePosterPath(result))
@@ -230,13 +230,48 @@ Page({
   applyPosterResult(posters = []) {
     const list = Array.isArray(posters) ? posters : [];
     const first = list[0] || {};
+    this.resetPosterLoadState(list);
     this.setData({
       posters: list,
       currentIndex: 0,
       activeBackground: first.path || first.backgroundUrl || "",
-      loading: false,
+      loading: list.length > 0,
+      loadingText: list.length ? "海报加载中..." : "",
       error: list.length ? "" : "暂无可用海报"
     });
+  },
+
+  resetPosterLoadState(list = []) {
+    this.posterLoadedMap = new Set();
+    this.posterLoadTotal = Array.isArray(list) ? list.length : 0;
+  },
+
+  handlePosterImageLoaded(index) {
+    if (!this.posterLoadedMap || this.posterLoadTotal <= 0) {
+      if (this.data.loading) {
+        this.setData({ loading: false });
+      }
+      return;
+    }
+    const safeIndex = Number(index);
+    if (Number.isNaN(safeIndex)) {
+      return;
+    }
+    if (this.posterLoadedMap.has(safeIndex)) {
+      return;
+    }
+    this.posterLoadedMap.add(safeIndex);
+    if (this.posterLoadedMap.size >= this.posterLoadTotal) {
+      this.setData({ loading: false });
+    }
+  },
+
+  onPosterImageLoad(e) {
+    this.handlePosterImageLoaded(e?.currentTarget?.dataset?.index);
+  },
+
+  onPosterImageError(e) {
+    this.handlePosterImageLoaded(e?.currentTarget?.dataset?.index);
   },
 
   getCacheKey(merchantId = "") {
@@ -267,7 +302,7 @@ Page({
               map[backgroundUrl] = saved;
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
       return this.checkFileExists(path).then((exists) => {
         if (exists) {

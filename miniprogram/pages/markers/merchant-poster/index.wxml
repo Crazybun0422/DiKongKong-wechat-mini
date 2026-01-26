@@ -13,20 +13,27 @@
             class="merchant-poster-swiper"
             circular="{{posters.length > 1}}"
             current="{{currentIndex}}"
+            previous-margin="50rpx"
+            next-margin="50rpx"
             bindchange="onPosterChange"
           >
             <block wx:for="{{posters}}" wx:key="backgroundUrl">
-              <swiper-item>
+              <swiper-item class="merchant-poster-swiper-item">
                 <view class="merchant-poster-image-frame">
                   <image
                     class="merchant-poster-image"
                     src="{{item.path || item.backgroundUrl}}"
                     mode="aspectFit"
+                    data-index="{{index}}"
+                    bindload="onPosterImageLoad"
+                    binderror="onPosterImageError"
                   />
                 </view>
               </swiper-item>
             </block>
           </swiper>
+          <view class="merchant-poster-peek-fog merchant-poster-peek-fog--left"></view>
+          <view class="merchant-poster-peek-fog merchant-poster-peek-fog--right"></view>
         </view>
         <view class="merchant-poster-dots" wx:if="{{posters.length > 1}}">
           <block wx:for="{{posters}}" wx:key="backgroundUrl">
@@ -58,7 +65,7 @@
     <view class="merchant-poster-loading-mask"></view>
     <view class="merchant-poster-loading-content">
       <image class="merchant-poster-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
-      <text class="merchant-poster-loading-text">{{loadingText}}</text>
+      <text class="merchant-poster-loading-text" wx:if="{{loadingText}}">{{loadingText}}</text>
     </view>
   </view>
 
