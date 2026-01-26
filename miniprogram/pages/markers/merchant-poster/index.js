@@ -1,4 +1,4 @@
-const { fetchMarkerDetail } = require("../../../utils/markers");
+﻿const { fetchMarkerDetail } = require("../../../utils/markers");
 const { normalizeMarkerDetail } = require("../../../utils/marker-detail");
 const {
   resolveApiBase,
@@ -491,7 +491,7 @@ Page({
     if (typeof wx.showShareMenu === "function") {
       wx.showShareMenu({ menus: ["shareTimeline"] });
     }
-    wx.showToast({ title: "请点击右上角分享到朋友圈", icon: "none" });
+        wx.showToast({ title: "请点击右上角发布到朋友圈", icon: "none" });
   },
 
   onRetryTap() {
@@ -500,7 +500,30 @@ Page({
   },
 
   onCloseTap() {
-    wx.navigateBack({ delta: 1 });
+    const fallback = "/pages/map/map";
+    const target = this.data.merchantPath || this.buildMerchantPath(this.merchantId) || fallback;
+    if (typeof wx.redirectTo === "function") {
+      wx.redirectTo({
+        url: target,
+        fail: () => {
+          if (typeof wx.reLaunch === "function") {
+            wx.reLaunch({ url: target });
+            return;
+          }
+          if (typeof wx.navigateTo === "function") {
+            wx.navigateTo({ url: target });
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx.reLaunch === "function") {
+      wx.reLaunch({ url: target });
+      return;
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: target });
+    }
   },
 
   onShareAppMessage() {
@@ -524,3 +547,4 @@ Page({
     };
   }
 });
+

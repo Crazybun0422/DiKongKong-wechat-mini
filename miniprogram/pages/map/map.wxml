@@ -3,6 +3,7 @@
     <map
       id="main-map"
       class="map-canvas"
+      style="height: calc(100vh + {{statusBarHeight}}px); margin-top: -{{statusBarHeight}}px;"
       hidden="{{newbieTaskBlockerVisible}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"

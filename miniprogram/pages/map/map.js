@@ -599,6 +599,7 @@ Page({
     maxScale: MAP_MAX_SCALE,
     mapSubKey: QQMAP_KEY || "",
     customMapStyleId: QQMAP_CUSTOM_STYLE_ID || "",
+    statusBarHeight: 0,
     markers: [],
     polygons: [],
     circles: [],
@@ -2349,13 +2350,7 @@ Page({
     this.pruneMarkerExposureCache(now);
     markers.forEach((marker) => {
       const detail = this.resolveMarkerDetail(marker);
-      const candidateId =
-        detail?.markerId ||
-        detail?.id ||
-        marker?.id ||
-        marker?.extData?.id ||
-        "";
-      const markerId = typeof candidateId === "string" ? candidateId.trim() : `${candidateId || ""}`.trim();
+      const markerId = this.resolveMarkerNewId(detail, marker);
       if (!markerId) {
         return;
       }
@@ -2395,12 +2390,9 @@ Page({
   onMarkerDetailCallTap(event) {
     const dataset = event?.currentTarget?.dataset || {};
     const phone = dataset.phone || this.data.detailCard?.phone || "";
-    const markerId =
-      dataset.markerId ||
-      this.data.detailCard?.markerId ||
-      this.data.detailCard?.id ||
-      "";
-    const name = this.data.detailCard?.name || "";
+    const detail = this.data.detailCard || {};
+    const markerId = this.resolveMarkerNewId(detail);
+    const name = detail?.name || "";
     this.openCallSheet({ phone, markerId, name });
   },
 
@@ -2720,12 +2712,9 @@ Page({
   onMarkerPageCallTap(event) {
     const dataset = event?.currentTarget?.dataset || {};
     const phone = dataset.phone || this.data.markerPageDetail?.phone || "";
-    const markerId =
-      dataset.markerId ||
-      this.data.markerPageDetail?.markerId ||
-      this.data.markerPageDetail?.id ||
-      "";
-    const name = this.data.markerPageDetail?.name || "";
+    const detail = this.data.markerPageDetail || {};
+    const markerId = this.resolveMarkerNewId(detail);
+    const name = detail?.name || "";
     this.openCallSheet({ phone, markerId, name });
   },
 
@@ -4272,20 +4261,58 @@ Page({
     return "MARKER";
   },
 
-  resolveLikeTargetId(detail = {}, marker = {}) {
-    return (
-      detail.markerId ||
-      detail.id ||
-      marker?.id ||
-      detail.raw?.id ||
-      marker?.extData?.raw?.id ||
-      marker?.extData?.detail?.markerId ||
-      marker?.extData?.detail?.id ||
-      ""
-    );
+  resolveDeepRaw(raw = {}) {
+    let current = raw;
+    const seen = new Set();
+    while (
+      current &&
+      typeof current === "object" &&
+      current.raw &&
+      typeof current.raw === "object" &&
+      !seen.has(current.raw)
+    ) {
+      seen.add(current.raw);
+      current = current.raw;
+    }
+    return current && typeof current === "object" ? current : {};
+  },
+
+  resolveMarkerNewId(detail = {}, marker = {}) {
+    const rawSource = this.resolveDeepRaw(detail.raw || marker?.extData?.raw || marker?.raw || {});
+    const extDetail = marker?.extData?.detail || {};
+    const value =
+      rawSource.markIdNew ??
+      detail.markIdNew ??
+      marker.markIdNew ??
+      extDetail.markIdNew ??
+      "";
+    return value ? `${value}`.trim() : "";
+  },
+
+  resolveLikeTargetId(detail = {}, marker = {}, type = "") {
+    const rawSource = this.resolveDeepRaw(detail.raw || marker?.extData?.raw || marker?.raw || {});
+    const extDetail = marker?.extData?.detail || {};
+    const isPin = type === "PIN";
+    console.log("resolveLikeTargetId", { isPin, raw: rawSource, detail, marker, extDetail });
+    const preferred = isPin
+      ? (
+        rawSource.pinIdNew ??
+        detail.pinIdNew ??
+        marker.pinIdNew ??
+        extDetail.pinIdNew
+      )
+      : (
+        rawSource.markIdNew ??
+        detail.markIdNew ??
+        marker.markIdNew ??
+        extDetail.markIdNew
+      );
+    const chosen = preferred !== undefined && preferred !== null ? preferred : "";
+    return chosen ? `${chosen}`.trim() : "";
   },
 
   applyLikeState(prefix, payload = {}) {
+    console.log("applyLikeState", { prefix, payload });
     const count = Number(payload.count);
     const liked = !!payload.liked;
     const type = payload.type || "";
@@ -4305,7 +4332,7 @@ Page({
     const forPage = !!options.forPage;
     const prefix = forPage ? "markerPage" : "marker";
     const type = this.resolveLikeTargetType(marker || detail);
-    const id = this.resolveLikeTargetId(detail, marker);
+    const id = this.resolveLikeTargetId(detail, marker, type);
     if (!type || !id) {
       this.applyLikeState(prefix, { count: 0, liked: false, type: "", id: "" });
       return;
@@ -4370,6 +4397,7 @@ Page({
     const prefix = forPage ? "markerPage" : "marker";
     const type = this.data[`${prefix}LikeTargetType`];
     const id = this.data[`${prefix}LikeTargetId`];
+    console.log("onMarkerLikeTouchStart", { prefix, type, id });
     if (!type || !id) {
       wx.showToast({ title: "无法点赞", icon: "none" });
       return;
@@ -4498,8 +4526,9 @@ Page({
       width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
       pointCategory: shape.pointCategory || shape.pointcategory
     };
+    console.log(raw)
     return {
-      id: raw.id,
+      id: raw.pinId ? raw.pinId : raw.markId ? raw.markId : raw.id,
       name,
       visibility,
       shape: normalizedShape,
@@ -5575,6 +5604,14 @@ Page({
         const info = wx.getSystemInfoSync() || {};
         const platform = `${info.platform || ""}`.toLowerCase();
         this._isIOS = platform === "ios";
+        const statusBarHeight = Number(info.statusBarHeight);
+        if (
+          Number.isFinite(statusBarHeight)
+          && statusBarHeight > 0
+          && this.data.statusBarHeight !== statusBarHeight
+        ) {
+          this.setData({ statusBarHeight });
+        }
       }
     } catch (err) {
       console.warn("getSystemInfoSync failed", err);

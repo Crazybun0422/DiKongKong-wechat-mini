@@ -45,19 +45,23 @@
   </view>
 
   <view class="merchant-poster-actions">
-    <view class="merchant-poster-actions-inner">
-      <button class="merchant-poster-action" bindtap="onSavePosterTap" hover-class="merchant-poster-action-hover">
-        <image class="merchant-poster-action-icon" src="/pages/markers/assets/download-poster.png" mode="aspectFit" />
-        <text class="merchant-poster-action-text">保存海报</text>
+    <view class="merchant-poster-action-save">
+      <button class="merchant-poster-save-btn" bindtap="onSavePosterTap" hover-class="merchant-poster-action-hover">
+        <image class="merchant-poster-save-icon" src="/pages/markers/assets/download-poster.png" mode="aspectFit" />
       </button>
-      <button class="merchant-poster-action" open-type="share" hover-class="merchant-poster-action-hover">
-        <image class="merchant-poster-action-icon" src="/pages/markers/assets/t-wechat.png" mode="aspectFit" />
-        <text class="merchant-poster-action-text">微信分享</text>
+      <text class="merchant-poster-save-text">保存海报</text>
+    </view>
+    <view class="merchant-poster-action-wechat">
+      <button class="merchant-poster-wechat-btn" open-type="share" hover-class="merchant-poster-action-hover">
+        <image class="merchant-poster-wechat-icon" src="/pages/markers/assets/t-wechat.png" mode="aspectFit" />
       </button>
-      <button class="merchant-poster-action" open-type="share" hover-class="merchant-poster-action-hover">
-        <image class="merchant-poster-action-icon" src="/pages/markers/assets/t-moments.png" mode="aspectFit" />
-        <text class="merchant-poster-action-text">朋友圈</text>
+      <text class="merchant-poster-wechat-text">微信好友</text>
+    </view>
+    <view class="merchant-poster-action-timeline">
+      <button class="merchant-poster-timeline-btn" bindtap="onShareTimelineTap" hover-class="merchant-poster-action-hover">
+        <image class="merchant-poster-timeline-icon" src="/pages/markers/assets/t-moments.png" mode="aspectFit" />
       </button>
+      <text class="merchant-poster-timeline-text">朋友圈</text>
     </view>
   </view>
 

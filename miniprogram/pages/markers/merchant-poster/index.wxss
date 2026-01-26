@@ -176,66 +176,88 @@
   background: #ffffff;
   border-radius: 32rpx 32rpx 0 0;
   padding: 24rpx 40rpx calc(env(safe-area-inset-bottom) + 24rpx + 150rpx);
+  min-height: 260rpx;
   z-index: 4;
   box-shadow: 0 -12rpx 36rpx rgba(10, 15, 30, 0.1);
-}
-
-.merchant-poster-actions-inner {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  position: relative;
-  height: 180rpx;
-  margin-left: -120rpx;
-}
-
-.merchant-poster-action {
-  position: absolute;
-  top: 0;
-  left: 40rpx;
-  width: 140rpx;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.merchant-poster-action::after {
-  display: none;
-}
-
-.merchant-poster-action-icon {
-  width: 86rpx;
-  height: 86rpx;
-  margin-bottom: 10rpx;
-}
-
-.merchant-poster-action-text {
-  font-size: 24rpx;
-  color: #1c1c1e;
-}
-.merchant-poster-action:nth-child(3) .merchant-poster-action-icon {
-  width: 93rpx;
-  height: 93rpx;
 }
 
 .merchant-poster-action-hover {
   opacity: 0.8;
 }
 
-.merchant-poster-action:nth-child(2) {
-  left: 190rpx;
-  top: 2rpx;
+.merchant-poster-action-save,
+.merchant-poster-action-wechat,
+.merchant-poster-action-timeline {
+  position: absolute;
+  top: 28rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  
 }
 
-.merchant-poster-action:nth-child(3) {
-  left: 340rpx;
-  top: -4rpx;
+.merchant-poster-action-save {
+  left: 23rpx;
+}
+
+.merchant-poster-action-wechat {
+  left: 183rpx;
+}
+
+.merchant-poster-action-timeline {
+  left: 343rpx;
+}
+
+.merchant-poster-save-btn,
+.merchant-poster-wechat-btn,
+.merchant-poster-timeline-btn {
+  position: relative;
+  width: 86rpx;
+  height: 86rpx;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  line-height: 0;
+  font-size: 0;
+  box-sizing: border-box;
+
+}
+
+.merchant-poster-save-btn::after,
+.merchant-poster-wechat-btn::after,
+.merchant-poster-timeline-btn::after {
+  display: none;
+}
+
+.merchant-poster-save-icon,
+.merchant-poster-wechat-icon,
+.merchant-poster-timeline-icon {
+  width: 86rpx;
+  height: 86rpx;
+  display: block;
+  margin: 0;
+  transform: translateX(-80%);
+}
+
+
+.merchant-poster-save-text,
+.merchant-poster-wechat-text,
+.merchant-poster-timeline-text {
+  margin-top: 12rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #1c1c1e;
+  white-space: nowrap;
+  transform: translateX(-75%);
+}
+.merchant-poster-timeline-text {
+  transform: translateX(-100%);
 }
 
 

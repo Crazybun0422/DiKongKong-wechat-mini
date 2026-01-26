@@ -16,7 +16,7 @@ const { prefetchFontFileConfig } = require("./utils/font-config");
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
   develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
-  //develop: "",
+  //develop: "https://skylane.cn",
   trial: "https://skylane.cn",                   // uploaded “体验版”
   // trial: "https://kylee-suborbital-herta.ngrok-free.dev",                   // uploaded “体验版”
   release: "https://skylane.cn"                        // 审核 & 上线
