@@ -22,8 +22,7 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode
 } = require("../../../utils/share");
-const { buildFileDownloadUrl } = require("../../../utils/markers");
-const { getLatestFontFileName } = require("../../../utils/font-config");
+const { getLatestFontFileSource } = require("../../../utils/font-config");
 
 const CHECKIN_PAGE_PATH = "/pages/profile/checkin/index";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
@@ -260,13 +259,12 @@ Page({
   loadCheckinFont() {
     if (typeof wx === "undefined" || typeof wx.loadFontFace !== "function") return;
     const apiBase = resolveApiBase();
-    getLatestFontFileName({ apiBase })
-      .then((fileName) => {
-        const fontUrl = buildFileDownloadUrl(fileName, { apiBase });
-        if (!fontUrl) return;
+    getLatestFontFileSource({ apiBase })
+      .then((source) => {
+        if (!source) return;
         wx.loadFontFace({
           family: "ZhSubset",
-          source: `url("${fontUrl}")`,
+          source: `url("${source}")`,
           global: false,
           success: () => { },
           fail: (err) => {

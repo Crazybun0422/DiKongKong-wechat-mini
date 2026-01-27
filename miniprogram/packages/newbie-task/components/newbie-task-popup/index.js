@@ -6,8 +6,7 @@ const {
 } = require("../../../../utils/newbie-tasks");
 const { fetchCheckinDetail } = require("../../../../utils/checkin");
 const { fetchFlpLogs } = require("../../../../utils/flp");
-const { buildFileDownloadUrl } = require("../../../../utils/markers");
-const { getLatestFontFileName } = require("../../../../utils/font-config");
+const { getLatestFontFileSource } = require("../../../../utils/font-config");
 
 const POPUP_DURATION_MS = 30 * 1000;
 const PROGRESS_INTERVAL_MS = 100;
@@ -120,17 +119,15 @@ Component({
       if (this._fontLoaded) return;
       const apiBase = getApiBase();
       this._fontLoaded = true;
-      getLatestFontFileName({ apiBase })
-        .then((fileName) => {
-          console.log("load font file name:", fileName);
-          const fontUrl = buildFileDownloadUrl(fileName, { apiBase });
-          if (!fontUrl) {
+      getLatestFontFileSource({ apiBase })
+        .then((source) => {
+          if (!source) {
             this._fontLoaded = false;
             return;
           }
           wx.loadFontFace({
             family: "ZhSubset",
-            source: `url("${fontUrl}")`,
+            source: `url("${source}")`,
             global: false,
             success: () => { },
             fail: (err) => {
