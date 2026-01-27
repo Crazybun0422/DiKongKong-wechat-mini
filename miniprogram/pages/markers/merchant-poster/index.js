@@ -412,11 +412,15 @@ Page({
             reject(new Error("download-empty"));
             return;
           }
-          if (typeof wx.saveFile !== "function") {
+          const fs = this.fileSystemManager ||
+            (typeof wx !== "undefined" && typeof wx.getFileSystemManager === "function"
+              ? wx.getFileSystemManager()
+              : null);
+          if (!fs || typeof fs.saveFile !== "function") {
             resolve(tempPath);
             return;
           }
-          wx.saveFile({
+          fs.saveFile({
             tempFilePath: tempPath,
             success: (saveRes) => resolve(saveRes.savedFilePath || tempPath),
             fail: () => resolve(tempPath)

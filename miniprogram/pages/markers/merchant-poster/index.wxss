@@ -25,10 +25,10 @@
 
 .merchant-poster-close {
   position: absolute;
-  top: -80rpx;
+  top: -90rpx;
   left: -130rpx;
-  width: 56rpx;
-  height: 56rpx;
+  width: 66rpx;
+  height: 66rpx;
   background: transparent;
   padding: 0;
   display: flex;
@@ -42,8 +42,8 @@
 }
 
 .merchant-poster-close-icon {
-  width: 50rpx;
-  height: 50rpx;
+  width: 60rpx;
+  height: 60rpx;
 }
 
 .merchant-poster-body {
@@ -60,20 +60,20 @@
 
 .merchant-poster-card-wrap {
   width: 100%;
-  max-width: 680rpx;
+  max-width: 720rpx;
   position: relative;
-  transform: translateY(-165rpx);
+  transform: translateY(-170rpx);
 }
 
 .merchant-poster-card {
   width: 100%;
-  max-width: 680rpx;
+  max-width: 720rpx;
   background: transparent;
   border-radius: 36rpx;
-  padding: 20rpx;
+  padding: 12rpx;
   box-sizing: border-box;
   border: none;
-  transform: scale(1.1);
+  transform: scale(1.12);
   transform-origin: center center;
 }
 
@@ -95,7 +95,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 38rpx;
+  width: 3rpx;
   pointer-events: none;
   z-index: 2;
   backdrop-filter: blur(10rpx);
@@ -104,7 +104,7 @@
 }
 
 .merchant-poster-peek-fog--left {
-  left: -10rpx;
+  left: -2rpx;
   background: linear-gradient(
     90deg,
     rgba(11, 23, 49, 0.01) 0%,
@@ -117,7 +117,8 @@
 }
 
 .merchant-poster-peek-fog--right {
-  right: -10rpx;
+  right: 0rpx;
+  width: 3rpx;
   background: linear-gradient(
     270deg,
     rgba(11, 23, 49, 0.01) 0%,
@@ -130,7 +131,7 @@
 }
 
 .merchant-poster-swiper-item {
-  padding: 0 25rpx;
+  padding: 0 32rpx 0 0;
   box-sizing: border-box;
 }
 
@@ -150,10 +151,12 @@
 }
 
 .merchant-poster-dots {
-  margin-top: 20rpx;
+  margin-top: 14rpx;
   display: flex;
   justify-content: center;
   gap: 10rpx;
+  position: relative;
+  z-index: 3;
 }
 
 .merchant-poster-dot {
@@ -175,8 +178,8 @@
   bottom: 0;
   background: #ffffff;
   border-radius: 32rpx 32rpx 0 0;
-  padding: 24rpx 40rpx calc(env(safe-area-inset-bottom) + 24rpx + 150rpx);
-  min-height: 260rpx;
+  padding: 16rpx 40rpx calc(env(safe-area-inset-bottom) + 16rpx + 90rpx);
+  min-height: 200rpx;
   z-index: 4;
   box-shadow: 0 -12rpx 36rpx rgba(10, 15, 30, 0.1);
 }
@@ -189,7 +192,7 @@
 .merchant-poster-action-wechat,
 .merchant-poster-action-timeline {
   position: absolute;
-  top: 28rpx;
+  top: 56rpx;
   display: flex;
   flex-direction: column;
   align-items: center;

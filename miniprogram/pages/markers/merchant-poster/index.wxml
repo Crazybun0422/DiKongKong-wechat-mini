@@ -13,8 +13,8 @@
             class="merchant-poster-swiper"
             circular="{{posters.length > 1}}"
             current="{{currentIndex}}"
-            previous-margin="50rpx"
-            next-margin="50rpx"
+            previous-margin="0rpx"
+            next-margin="10rpx"
             bindchange="onPosterChange"
           >
             <block wx:for="{{posters}}" wx:key="backgroundUrl">

@@ -469,12 +469,12 @@ Component({
       }
       const maskEntry = this._uomTileMasks?.get(tile.id);
       if (!maskEntry) {
-        console.log("no mask entry for tile", tile.id);
+        //console.log("no mask entry for tile", tile.id);
         this.ensureUomMask(tile);
         return { status: "评估中", tone: "neutral" };
       }
       if (maskEntry.status === "pending") {
-        console.log("mask pending for tile", tile.id);
+        //console.log("mask pending for tile", tile.id);
         return { status: "评估中", tone: "neutral" };
       }
       if (maskEntry.status === "error") {
@@ -493,7 +493,7 @@ Component({
       if (maskEntry.status !== "ready" || !maskEntry.data) {
         return { status: "管制空域", tone: "alert" };
       }
-      console.log("checking point coverage for tile,center,tile.bounds", tile.id, center, tile.bounds);
+      //console.log("checking point coverage for tile,center,tile.bounds", tile.id, center, tile.bounds);
       const covered = this.pointCoveredByUomMask(center, tile.bounds, maskEntry);
       return covered
         ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }

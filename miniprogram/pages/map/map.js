@@ -1386,7 +1386,7 @@ Page({
         const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
         const mainSwitch = payload.mainSwitch !== false;
         const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
-        console.log("mainSwitch =", mainSwitch, "clientIds =", normalizedClient);
+        // console.log("mainSwitch =", mainSwitch, "clientIds =", normalizedClient);
         if (!mainSwitch) {
           this.setSubscriptionBannerVisibility(true);
           return normalizedClient;
@@ -2414,7 +2414,7 @@ Page({
       this._restoreMarkerDetailTimer = null;
     }
     const pageDetail = cloneMarkerDetail(detail);
-    console.log("pageDetail->>", pageDetail)
+    // console.log("pageDetail->>", pageDetail)
     this.normalizeMarkerPageDetail(pageDetail);
     this._lastMarkerDetail = pageDetail;
     const isPin = this.isPinDetail(pageDetail);
@@ -3522,9 +3522,10 @@ Page({
           wx.showToast({ title: "未选择图片", icon: "none" });
           return;
         }
-        const saveIfNeeded = typeof wx.saveFile === "function"
+        const fs = typeof wx.getFileSystemManager === "function" ? wx.getFileSystemManager() : null;
+        const saveIfNeeded = fs && typeof fs.saveFile === "function"
           ? new Promise((resolve) => {
-            wx.saveFile({
+            fs.saveFile({
               tempFilePath: filePath,
               success: (saveRes) => {
                 const saved = saveRes?.savedFilePath;
@@ -4312,7 +4313,7 @@ Page({
   },
 
   applyLikeState(prefix, payload = {}) {
-    console.log("applyLikeState", { prefix, payload });
+    // console.log("applyLikeState", { prefix, payload });
     const count = Number(payload.count);
     const liked = !!payload.liked;
     const type = payload.type || "";
@@ -4526,7 +4527,7 @@ Page({
       width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
       pointCategory: shape.pointCategory || shape.pointcategory
     };
-    console.log(raw)
+    // console.log(raw)
     return {
       id: raw.pinId ? raw.pinId : raw.markId ? raw.markId : raw.id,
       name,
@@ -5884,7 +5885,7 @@ Page({
         const prevScale = this.data.scale;
         const scale = clampMapScale(detail.scale || prevScale);
         const scaleChanged = scale !== prevScale;
-        console.log("[map] regionchange scale", scale);
+        // console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
         const radius = this.computeRadius({ region });
         this._currentRadius = clampRadius(radius);
@@ -6302,7 +6303,7 @@ Page({
               (typeof item?.address === "string" && item.address) ||
               (typeof item?.locationText === "string" && item.locationText) ||
               "";
-            console.log("name,", name);
+            // console.log("name,", name);
             const marker = {
               id: item?.id || `nearby-${index}`,
               latitude: latitudeGcj,
