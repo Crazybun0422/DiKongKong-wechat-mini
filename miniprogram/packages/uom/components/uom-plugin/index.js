@@ -22,12 +22,14 @@ const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
 const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 
+const normalizeRuntimeField = (value) => `${value || ""}`.toLowerCase();
 const isWeChatRuntime = () => {
   try {
     if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
       const info = wx.getSystemInfoSync() || {};
-      const val = `${info.appName || info.AppPlatform || info.app || info.host || info.hostName || ""}`.toLowerCase();
-      if (val.includes("wechat") || val.includes("weixin")) return true;
+      const env = normalizeRuntimeField(info.environment || info.AppPlatform);
+      const appName = normalizeRuntimeField(info.appName || info.app);
+      return env === "wechat" && appName === "weixin";
     }
   } catch (err) {
     // ignore
