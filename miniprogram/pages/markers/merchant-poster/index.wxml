@@ -3,18 +3,18 @@
   <view class="merchant-poster-bg-mask"></view>
 
   <view class="merchant-poster-body">
-    <view class="merchant-poster-card-wrap">
+    <view class="merchant-poster-card-wrap {{posters.length === 1 ? 'is-single' : ''}}">
       <button class="merchant-poster-close" bindtap="onCloseTap" hover-class="none">
         <image class="merchant-poster-close-icon" src="/pages/markers/assets/poster-close.png" mode="aspectFit" />
       </button>
       <view class="merchant-poster-card">
-        <view class="merchant-poster-swiper-wrap">
+        <view class="merchant-poster-swiper-wrap {{posters.length === 1 ? 'is-single' : ''}}">
           <swiper
             class="merchant-poster-swiper"
             circular="{{posters.length > 1}}"
             current="{{currentIndex}}"
             previous-margin="0rpx"
-            next-margin="10rpx"
+            next-margin="{{posters.length > 1 ? '10rpx' : '0rpx'}}"
             bindchange="onPosterChange"
           >
             <block wx:for="{{posters}}" wx:key="backgroundUrl">

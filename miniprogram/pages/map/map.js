@@ -3458,6 +3458,12 @@ Page({
         });
       }
     });
+    categories.forEach((category) => {
+      if (!Array.isArray(category.items)) return;
+      category.items.sort((a, b) =>
+        `${a?.name || ""}`.toLowerCase().localeCompare(`${b?.name || ""}`.toLowerCase())
+      );
+    });
     return categories.filter((category) => category.items.length);
   },
 

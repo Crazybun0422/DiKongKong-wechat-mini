@@ -37,6 +37,10 @@
   z-index: 3;
 }
 
+.merchant-poster-card-wrap.is-single .merchant-poster-close {
+  top: -120rpx;
+}
+
 .merchant-poster-close::after {
   display: none;
 }
@@ -81,6 +85,14 @@
   width: 100%;
   position: relative;
   padding-top: 134.4%;
+}
+
+.merchant-poster-swiper-wrap.is-single .merchant-poster-peek-fog {
+  display: none;
+}
+
+.merchant-poster-swiper-wrap.is-single .merchant-poster-swiper-item {
+  padding: 0;
 }
 
 .merchant-poster-swiper {
