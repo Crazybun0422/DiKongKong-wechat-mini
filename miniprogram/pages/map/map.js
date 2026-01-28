@@ -166,6 +166,54 @@ const formatTemporaryZoneLabel = (value, maxLength = 9) => {
   return `${chars.slice(0, maxLength).join("")}...`;
 };
 
+const getWindowMetrics = () => {
+  let windowInfo = {};
+  let deviceInfo = {};
+  if (typeof wx !== "undefined") {
+    if (typeof wx.getWindowInfo === "function") {
+      try {
+        windowInfo = wx.getWindowInfo() || {};
+      } catch (err) {
+        windowInfo = {};
+      }
+    }
+    if (typeof wx.getDeviceInfo === "function") {
+      try {
+        deviceInfo = wx.getDeviceInfo() || {};
+      } catch (err) {
+        deviceInfo = {};
+      }
+    }
+  }
+  const windowWidth = Number(windowInfo.windowWidth) || 375;
+  const windowHeight = Number(windowInfo.windowHeight) || 667;
+  const screenWidth = Number(windowInfo.screenWidth || deviceInfo.screenWidth) || windowWidth;
+  const screenHeight = Number(windowInfo.screenHeight || deviceInfo.screenHeight) || windowHeight;
+  const statusBarHeight = Number(windowInfo.statusBarHeight || deviceInfo.statusBarHeight) || 0;
+  const platform = `${deviceInfo.platform || windowInfo.platform || ""}`.toLowerCase();
+  const pixelRatio = Number(windowInfo.pixelRatio || deviceInfo.pixelRatio) || 1;
+  return {
+    windowWidth,
+    windowHeight,
+    screenWidth,
+    screenHeight,
+    statusBarHeight,
+    platform,
+    pixelRatio
+  };
+};
+
+const applyMapStatusBarStyle = () => {
+  if (typeof wx === "undefined" || typeof wx.setNavigationBarColor !== "function") {
+    return;
+  }
+  wx.setNavigationBarColor({
+    frontColor: "#000000",
+    backgroundColor: "#ffffff",
+    animation: { duration: 0, timingFunc: "linear" }
+  });
+};
+
 const computeMetersPerPixel = (latitude, zoomLevel) => {
   if (!Number.isFinite(zoomLevel)) {
     return 0;
@@ -731,6 +779,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    applyMapStatusBarStyle();
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
@@ -2867,6 +2916,7 @@ Page({
   },
 
   onShow() {
+    applyMapStatusBarStyle();
     if (this.data.activeTab !== "home") {
       this.setData({ activeTab: "home", showDashboardPanel: true });
       this.showDashboardPanel = true;
@@ -2992,13 +3042,13 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
+        const { windowWidth, windowHeight } = getWindowMetrics();
         const padding = 10;
         const size = Math.max(rect.width, rect.height) + padding * 2;
         const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
         const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(system.windowWidth, left + size);
-        const bottomTop = Math.min(system.windowHeight, top + size);
+        const rightLeft = Math.min(windowWidth, left + size);
+        const bottomTop = Math.min(windowHeight, top + size);
         resolve({
           top,
           left,
@@ -3020,13 +3070,13 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
+        const { windowWidth, windowHeight } = getWindowMetrics();
         const padding = 10;
         const size = Math.max(rect.width, rect.height) + padding * 2;
         const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
         const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(system.windowWidth, left + size);
-        const bottomTop = Math.min(system.windowHeight, top + size);
+        const rightLeft = Math.min(windowWidth, left + size);
+        const bottomTop = Math.min(windowHeight, top + size);
         resolve({
           top,
           left,
@@ -5586,36 +5636,21 @@ Page({
     if (this._pxPerRpx && this._pxPerRpx > 0) {
       return;
     }
-    let width = 375;
-    try {
-      if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
-        const info = wx.getWindowInfo();
-        if (info && info.windowWidth) {
-          width = info.windowWidth;
-        }
-      }
-    } catch (err) {
-      console.warn("getWindowInfo failed", err);
-    }
+    const metrics = getWindowMetrics();
+    const width = metrics.windowWidth || 375;
     this._pxPerRpx = width / 750;
     const pxPerRpx = this._pxPerRpx || 1;
     this._scaleBarBaseRpx = Math.max(30, Math.round(CSS_PIXELS_PER_CM / pxPerRpx));
-    try {
-      if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-        const info = wx.getSystemInfoSync() || {};
-        const platform = `${info.platform || ""}`.toLowerCase();
-        this._isIOS = platform === "ios";
-        const statusBarHeight = Number(info.statusBarHeight);
-        if (
-          Number.isFinite(statusBarHeight)
-          && statusBarHeight > 0
-          && this.data.statusBarHeight !== statusBarHeight
-        ) {
-          this.setData({ statusBarHeight });
-        }
-      }
-    } catch (err) {
-      console.warn("getSystemInfoSync failed", err);
+    if (metrics.platform) {
+      this._isIOS = metrics.platform === "ios";
+    }
+    const statusBarHeight = Number(metrics.statusBarHeight);
+    if (
+      Number.isFinite(statusBarHeight)
+      && statusBarHeight > 0
+      && this.data.statusBarHeight !== statusBarHeight
+    ) {
+      this.setData({ statusBarHeight });
     }
   },
 

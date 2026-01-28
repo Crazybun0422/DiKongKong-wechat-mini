@@ -346,7 +346,20 @@ Component({
           const canvas = info && info.node;
           if (!canvas) return;
           const ctx = canvas.getContext("2d");
-          const dpr = wx.getSystemInfoSync().pixelRatio || 1;
+          let dpr = 1;
+          if (typeof wx.getWindowInfo === "function") {
+            try {
+              dpr = wx.getWindowInfo()?.pixelRatio || dpr;
+            } catch (err) {
+              dpr = dpr;
+            }
+          } else if (typeof wx.getDeviceInfo === "function") {
+            try {
+              dpr = wx.getDeviceInfo()?.pixelRatio || dpr;
+            } catch (err) {
+              dpr = dpr;
+            }
+          }
           const width = info.width || 0;
           const height = info.height || 0;
           if (!width || !height) return;

@@ -136,23 +136,30 @@ const downloadFontFile = (url, fileName, fs) =>
     });
   });
 
+const buildFontDownloadUrl = (fileName, apiBase) =>
+  buildFileDownloadUrl(fileName, { apiBase });
+
 const getLatestFontFileSource = (options = {}) => {
   const apiBase = options.apiBase;
   const forceRefresh = options.forceRefresh === true;
   return getLatestFontFileName({ apiBase, forceRefresh }).then((fileName) => {
     if (!fileName) return "";
-    const url = buildFileDownloadUrl(fileName, { apiBase });
+    const url = buildFontDownloadUrl(fileName, apiBase);
     if (!url) return "";
     const fs = getFileSystemManager();
-    if (!fs) return url;
-    const cached = forceRefresh ? null : readStoredFontLocalCache();
-    if (cached?.fileName === fileName && cached.path) {
-      return checkFileExists(fs, cached.path).then((exists) => {
-        if (exists) return cached.path;
-        return downloadFontFile(url, fileName, fs);
-      });
+    if (fs) {
+      const cached = forceRefresh ? null : readStoredFontLocalCache();
+      if (cached?.fileName === fileName && cached.path) {
+        checkFileExists(fs, cached.path).then((exists) => {
+          if (!exists) {
+            downloadFontFile(url, fileName, fs).catch(() => {});
+          }
+        });
+      } else {
+        downloadFontFile(url, fileName, fs).catch(() => {});
+      }
     }
-    return downloadFontFile(url, fileName, fs);
+    return url;
   });
 };
 

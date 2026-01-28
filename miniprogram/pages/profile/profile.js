@@ -41,6 +41,22 @@ function truncateNicknameByUnits(value, maxUnits = NICKNAME_MAX_UNITS) {
   return output;
 }
 
+function getWindowMetrics() {
+  let windowInfo = {};
+  if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+    try {
+      windowInfo = wx.getWindowInfo() || {};
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  const windowWidth = Number(windowInfo.windowWidth) || 375;
+  const windowHeight = Number(windowInfo.windowHeight) || 667;
+  const screenWidth = Number(windowInfo.screenWidth) || windowWidth;
+  const screenHeight = Number(windowInfo.screenHeight) || windowHeight;
+  return { windowWidth, windowHeight, screenWidth, screenHeight };
+}
+
 Page({
   data: {
     loading: true,
@@ -171,8 +187,7 @@ Page({
     if (typeof wx.getMenuButtonBoundingClientRect !== "function") return;
     const menuRect = wx.getMenuButtonBoundingClientRect();
     if (!menuRect || !menuRect.left) return;
-    const systemInfo = typeof wx.getSystemInfoSync === "function" ? wx.getSystemInfoSync() : null;
-    const screenWidth = systemInfo?.screenWidth;
+    const { screenWidth } = getWindowMetrics();
     if (!screenWidth) return;
     const rpx = screenWidth / 750;
     const badgeWidth = 150 * rpx;
@@ -704,16 +719,16 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
-        const rpx = system.windowWidth / 750;
+        const { windowWidth, windowHeight } = getWindowMetrics();
+        const rpx = windowWidth / 750;
         const padding = 10;
         const size = Math.max(rect.width, rect.height) + padding * 2;
         const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
         const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(system.windowWidth, left + size);
-        const bottomTop = Math.min(system.windowHeight, top + size);
+        const rightLeft = Math.min(windowWidth, left + size);
+        const bottomTop = Math.min(windowHeight, top + size);
         const introduceLeft = Math.max(0, left - 14 - 150 * rpx);
-        const introduceTop = Math.min(system.windowHeight, top + size + 12);
+        const introduceTop = Math.min(windowHeight, top + size + 12);
         resolve({
           mask: { top, left, size, rightLeft, bottomTop },
           introduce: { left: introduceLeft, top: introduceTop }
@@ -764,14 +779,14 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
+        const { windowWidth, windowHeight } = getWindowMetrics();
         const padding = 10;
         const width = rect.width + padding * 2;
         const height = rect.height + padding * 2;
         const left = Math.max(0, rect.left - padding);
         const top = Math.max(0, rect.top - padding);
-        const rightLeft = Math.min(system.windowWidth, left + width);
-        const bottomTop = Math.min(system.windowHeight, top + height);
+        const rightLeft = Math.min(windowWidth, left + width);
+        const bottomTop = Math.min(windowHeight, top + height);
         resolve({
           top,
           left,

@@ -218,8 +218,13 @@ Page({
   },
 
   onLoad() {
-    if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-      const system = (wx.getSystemInfoSync()?.system || "").toLowerCase();
+    if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
+      let system = "";
+      try {
+        system = (wx.getDeviceInfo()?.system || "").toLowerCase();
+      } catch (err) {
+        system = "";
+      }
       this.setData({
         isAndroid: system.includes("android"),
         isIOS: system.includes("ios")

@@ -7,7 +7,7 @@ const {
   normalizeProfileData,
   getAuthToken
 } = require("../../../utils/profile");
-const { appendInviteCodeToPath } = require("../../../utils/share");
+const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../../utils/share");
 const {
   requestWeappMerchantPoster,
   requestWeappMerchantPosterStatus
@@ -25,6 +25,17 @@ const decodeParamValue = (value) => {
   } catch (err) {
     return text;
   }
+};
+
+const isTruthyFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return ["1", "true", "yes", "y", "on", "share"].includes(normalized);
+  }
+  return false;
 };
 
 const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(value);
@@ -50,6 +61,10 @@ Page({
         : null;
     this.userDataPath = (typeof wx !== "undefined" && wx.env && wx.env.USER_DATA_PATH) || "";
     this.merchantId = this.extractMerchantId(options);
+    if (this.shouldRedirectToMerchantDetail(options)) {
+      this.redirectToMerchantDetail(options);
+      return;
+    }
     this.setData({ merchantPath: this.buildMerchantPath(this.merchantId) });
     if (typeof wx.showShareMenu === "function") {
       wx.showShareMenu({ menus: ["shareAppMessage", "shareTimeline"] });
@@ -67,6 +82,49 @@ Page({
       if (decoded) return decoded;
     }
     return "";
+  },
+
+  shouldRedirectToMerchantDetail(options = {}) {
+    if (!options || typeof options !== "object") return false;
+    const shareFlag = options.fs ?? options.fromShare ?? options.share ?? options.source;
+    if (!isTruthyFlag(shareFlag)) return false;
+    return !!this.extractMerchantId(options);
+  },
+
+  getInviteCodeFromOptions(options = {}) {
+    if (!options || typeof options !== "object") return "";
+    const candidate = options.ic ?? options.inviteCode ?? options.invitationCode;
+    return decodeParamValue(candidate);
+  },
+
+  redirectToMerchantDetail(options = {}) {
+    const merchantId = this.extractMerchantId(options);
+    if (!merchantId) return;
+    const inviteCode = this.getInviteCodeFromOptions(options);
+    const base = `/pages/map/map?fs=1&mId=${encodeURIComponent(merchantId)}`;
+    const target = inviteCode ? `${base}&ic=${encodeURIComponent(inviteCode)}` : base;
+    if (typeof wx.redirectTo === "function") {
+      wx.redirectTo({
+        url: target,
+        fail: () => {
+          if (typeof wx.reLaunch === "function") {
+            wx.reLaunch({ url: target });
+            return;
+          }
+          if (typeof wx.navigateTo === "function") {
+            wx.navigateTo({ url: target });
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx.reLaunch === "function") {
+      wx.reLaunch({ url: target });
+      return;
+    }
+    if (typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: target });
+    }
   },
 
   buildMerchantPath(merchantId) {
@@ -495,7 +553,7 @@ Page({
     if (typeof wx.showShareMenu === "function") {
       wx.showShareMenu({ menus: ["shareTimeline"] });
     }
-        wx.showToast({ title: "请点击右上角发布到朋友圈", icon: "none" });
+    wx.showToast({ title: "保存海报手动去朋友圈发布", icon: "none" });
   },
 
   onRetryTap() {
@@ -532,18 +590,19 @@ Page({
 
   onShareAppMessage() {
     const poster = this.getCurrentPoster();
+    const path = this.buildMerchantPath(this.merchantId);
     return {
       title: this.data.shareTitle || DEFAULT_SHARE_TITLE,
-      path: this.data.merchantPath || "/pages/map/map",
+      path: path || "/pages/map/map",
       imageUrl: poster?.path || poster?.backgroundUrl || ""
     };
   },
 
   onShareTimeline() {
     const poster = this.getCurrentPoster();
-    const path = this.data.merchantPath || "/pages/map/map";
-    const queryIndex = path.indexOf("?");
-    const query = queryIndex >= 0 ? path.slice(queryIndex + 1) : "";
+    const merchantId = this.merchantId;
+    const baseQuery = merchantId ? `fs=1&mId=${encodeURIComponent(merchantId)}` : "fs=1";
+    const query = appendInviteCodeToQuery(baseQuery);
     return {
       title: this.data.shareTitle || DEFAULT_SHARE_TITLE,
       query,
@@ -551,4 +610,3 @@ Page({
     };
   }
 });
-

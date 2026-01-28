@@ -53,6 +53,20 @@ const BENEFIT_ITEMS = [
   }
 ];
 
+const getWindowMetrics = () => {
+  let windowInfo = {};
+  if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+    try {
+      windowInfo = wx.getWindowInfo() || {};
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  const windowWidth = Number(windowInfo.windowWidth) || 375;
+  const windowHeight = Number(windowInfo.windowHeight) || 667;
+  return { windowWidth, windowHeight };
+};
+
 Page({
   data: {
     balance: DEFAULT_BALANCE_DISPLAY,
@@ -263,13 +277,13 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
+        const { windowWidth, windowHeight } = getWindowMetrics();
         const padding = 10;
         const size = Math.max(target.width, target.height) + padding * 2;
         const left = Math.max(0, target.left + target.width / 2 - size / 2);
         const top = Math.max(0, target.top + target.height / 2 - size / 2) - 210;
-        const rightLeft = Math.min(system.windowWidth, left + size);
-        const bottomTop = Math.min(system.windowHeight, top + size);
+        const rightLeft = Math.min(windowWidth, left + size);
+        const bottomTop = Math.min(windowHeight, top + size);
         resolve({
           top,
           left,

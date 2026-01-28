@@ -17,6 +17,20 @@ const isHttpUrl = (value) => typeof value === "string" && /^https?:\/\//i.test(v
 const isFilePath = (value) =>
   typeof value === "string" && (value.startsWith("wxfile://") || value.startsWith("file://"));
 
+const getWindowMetrics = () => {
+  let windowInfo = {};
+  if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+    try {
+      windowInfo = wx.getWindowInfo() || {};
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  const windowWidth = Number(windowInfo.windowWidth) || 375;
+  const windowHeight = Number(windowInfo.windowHeight) || 667;
+  return { windowWidth, windowHeight };
+};
+
 Page({
   data: {
     loading: true,
@@ -654,13 +668,13 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
+        const { windowWidth, windowHeight } = getWindowMetrics();
         const padding = 10;
         const size = Math.max(rect.width, rect.height) + padding * 2;
         const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
         const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(system.windowWidth, left + size);
-        const bottomTop = Math.min(system.windowHeight, top + size);
+        const rightLeft = Math.min(windowWidth, left + size);
+        const bottomTop = Math.min(windowHeight, top + size);
         resolve({
           top,
           left,

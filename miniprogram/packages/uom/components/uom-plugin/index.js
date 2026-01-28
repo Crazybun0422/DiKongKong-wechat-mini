@@ -23,14 +23,57 @@ const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 
 const normalizeRuntimeField = (value) => `${value || ""}`.toLowerCase();
+const getRuntimeInfo = () => {
+  let appBase = {};
+  let device = {};
+  let windowInfo = {};
+  if (typeof wx !== "undefined") {
+    try {
+      if (typeof wx.getAppBaseInfo === "function") {
+        appBase = wx.getAppBaseInfo() || {};
+      }
+    } catch (err) {
+      appBase = {};
+    }
+    try {
+      if (typeof wx.getDeviceInfo === "function") {
+        device = wx.getDeviceInfo() || {};
+      }
+    } catch (err) {
+      device = {};
+    }
+    try {
+      if (typeof wx.getWindowInfo === "function") {
+        windowInfo = wx.getWindowInfo() || {};
+      }
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  return {
+    SDKVersion: appBase.SDKVersion || "",
+    appName: appBase.appName || appBase.hostName || "",
+    app: "",
+    AppPlatform: appBase.platform || device.platform || "",
+    environment: "",
+    platform: device.platform || "",
+    pixelRatio: Number(windowInfo.pixelRatio || device.pixelRatio) || 1,
+    host: appBase.host || "",
+    hostName: appBase.hostName || ""
+  };
+};
+
 const isWeChatRuntime = () => {
   try {
-    if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
-      const info = wx.getSystemInfoSync() || {};
-      const env = normalizeRuntimeField(info.environment || info.AppPlatform);
-      const appName = normalizeRuntimeField(info.appName || info.app);
-      return env === "wechat" && appName === "weixin";
-    }
+    const info = getRuntimeInfo();
+    const env = normalizeRuntimeField(info.environment || info.AppPlatform || info.host || info.hostName);
+    const appName = normalizeRuntimeField(info.appName || info.app || info.hostName);
+    return (
+      env === "wechat" ||
+      env === "weixin" ||
+      appName === "weixin" ||
+      appName === "wechat"
+    );
   } catch (err) {
     // ignore
   }
@@ -354,13 +397,13 @@ Component({
 
     detectUomOverlaySupport() {
       try {
-        const info = typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function"
-          ? wx.getSystemInfoSync()
-          : {};
+        const info = getRuntimeInfo();
         this._sdkVersion = info.SDKVersion || "";
-        const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
-        const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
-        const platform = (info.platform || "").toLowerCase();
+        const appName = normalizeRuntimeField(info.appName || info.hostName || info.app || "");
+        const appPlatform = normalizeRuntimeField(
+          info.AppPlatform || info.environment || info.host || info.hostName || ""
+        );
+        const platform = normalizeRuntimeField(info.platform || "");
         this._isIOS = platform === "ios";
         this._devicePixelRatio = Number(info.pixelRatio) || 1;
         this.reportUomEnv({
@@ -601,11 +644,12 @@ Component({
             width = info.windowWidth || info.screenWidth || width;
             height = info.windowHeight || info.screenHeight || height;
           }
-        } else if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-          const info = wx.getSystemInfoSync();
-          if (info) {
-            width = info.windowWidth || info.screenWidth || width;
-            height = info.windowHeight || info.screenHeight || height;
+        }
+        if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
+          const device = wx.getDeviceInfo();
+          if (device) {
+            width = width || device.screenWidth || width;
+            height = height || device.screenHeight || height;
           }
         }
       } catch (err) {
