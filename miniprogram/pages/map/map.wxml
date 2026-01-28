@@ -249,17 +249,30 @@
           </view>
           <text class="drone-picker-confirm" bindtap="confirmDronePicker">确定</text>
         </view>
-        <scroll-view class="drone-picker-sheet-list" scroll-y="true">
-          <block wx:for="{{droneNames}}" wx:key="index">
-            <view
-              class="drone-picker-option {{pendingDroneIndex === index ? 'is-active' : ''}}"
-              data-index="{{index}}"
-              bindtap="onSelectDroneOption"
-            >
-              {{item}}
-            </view>
-          </block>
-        </scroll-view>
+        <view class="drone-picker-sheet-body">
+          <scroll-view class="drone-category-list" scroll-y="true">
+            <block wx:for="{{droneCategories}}" wx:key="index">
+              <view
+                class="drone-category-item {{activeDroneCategoryIndex === index ? 'is-active' : ''}}"
+                data-index="{{index}}"
+                bindtap="onSelectDroneCategory"
+              >
+                {{item.label}}
+              </view>
+            </block>
+          </scroll-view>
+          <scroll-view class="drone-model-list" scroll-y="true">
+            <block wx:for="{{droneCategoryItems}}" wx:key="index">
+              <view
+                class="drone-picker-option {{pendingDroneIndex === item.index ? 'is-active' : ''}}"
+                data-index="{{item.index}}"
+                bindtap="onSelectDroneOption"
+              >
+                {{item.name}}
+              </view>
+            </block>
+          </scroll-view>
+        </view>
       </view>
     </block>
 

@@ -1,4 +1,4 @@
-﻿const { DRONES, fetchDrones } = require("../../utils/drones");
+﻿const { fetchDrones } = require("../../utils/drones");
 const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const {
@@ -58,15 +58,6 @@ const DEFAULT_CENTER = {
   longitude: 116.39747
 };
 
-const DEFAULT_DRONE_INDEX = (() => {
-  const idx = DRONES.findIndex((d) => d.slug === "dji-mavic-3");
-  return idx >= 0 ? idx : 0;
-})();
-
-const DEFAULT_DRONE = DRONES[DEFAULT_DRONE_INDEX] || DRONES[0] || {
-  name: "",
-  slug: ""
-};
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
@@ -651,13 +642,16 @@ Page({
     markers: [],
     polygons: [],
     circles: [],
-    droneNames: DRONES.map((d) => d.name),
-    loadingDrones: false,
+    droneNames: [],
+    droneCategories: [],
+    droneCategoryItems: [],
+    activeDroneCategoryIndex: 0,
+    loadingDrones: true,
     droneListAvailable: true,
-    dronePickerLabel: DEFAULT_DRONE.name,
-    selectedDroneIndex: DEFAULT_DRONE_INDEX,
-    selectedDrone: DEFAULT_DRONE.slug,
-    selectedDroneName: DEFAULT_DRONE.name,
+    dronePickerLabel: "加载中",
+    selectedDroneIndex: -1,
+    selectedDrone: "",
+    selectedDroneName: "",
     levelsInput: DEFAULT_LEVELS_PARAM,
     loadingDji: false,
     uomStatus: "评估中",
@@ -788,6 +782,7 @@ Page({
     this._fetchTimer = null;
     this._mapLayerSettingsLoaded = false;
     this._mapLayerAircraftModelWritten = false;
+    this._pendingAircraftModel = "";
     this._markersFetchTimer = null;
     this._pinsFetchTimer = null;
     this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
@@ -821,7 +816,7 @@ Page({
         platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
       })
     });
-    this._droneList = DRONES;
+    this._droneList = [];
     this.loadDronesFromApi();
     this.bootstrapMapLayerSettings(true);
     this._markerExposureCache = new Map();
@@ -3375,13 +3370,100 @@ Page({
     if (Array.isArray(this._droneList) && this._droneList.length) {
       return this._droneList;
     }
-    return DRONES;
+    return [];
+  },
+
+  resolveDroneCategoryId(item = {}) {
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    const slug = typeof item.slug === "string" ? item.slug.trim() : "";
+    const nameLower = name.toLowerCase();
+    const slugLower = slug.toLowerCase();
+
+    const isTransport = slugLower.includes("flycart") || nameLower.includes("flycart");
+    const isAgriculture =
+      slugLower.startsWith("mg-") ||
+      slugLower.startsWith("mg1") ||
+      slugLower.startsWith("mg-new") ||
+      /^mg\d/.test(slugLower) ||
+      /^t\d/.test(slugLower) ||
+      /^t\d/i.test(name);
+    const isEnterprise =
+      slugLower.includes("matrice") ||
+      slugLower.startsWith("m-") ||
+      slugLower.startsWith("m100") ||
+      slugLower.startsWith("m200") ||
+      slugLower.startsWith("m300") ||
+      slugLower.startsWith("m350") ||
+      slugLower.startsWith("m600") ||
+      slugLower.startsWith("m30") ||
+      slugLower.startsWith("industry-") ||
+      nameLower.includes("enterprise");
+    const isProAerial = slugLower.includes("inspire") || nameLower.includes("inspire");
+    const isFpv = slugLower.includes("fpv") || nameLower.includes("fpv") ||
+      slugLower.includes("avata") || nameLower.includes("avata");
+    const isConsumerPortable =
+      slugLower.includes("mini") ||
+      nameLower.includes("mini") ||
+      slugLower.includes("neo") ||
+      nameLower.includes("neo") ||
+      slugLower.includes("flip") ||
+      nameLower.includes("flip") ||
+      slugLower.includes("spark") ||
+      nameLower.includes("spark");
+    const isConsumerImaging =
+      slugLower.includes("mavic") ||
+      nameLower.includes("mavic") ||
+      slugLower.includes("air") ||
+      nameLower.includes("air") ||
+      slugLower.includes("classic") ||
+      nameLower.includes("classic") ||
+      slugLower.includes("phantom") ||
+      nameLower.includes("phantom") ||
+      slugLower.includes("pro") ||
+      nameLower.includes("pro");
+
+    if (isTransport) return "transport";
+    if (isAgriculture) return "agri";
+    if (isEnterprise) return "enterprise";
+    if (isProAerial) return "pro";
+    if (isFpv) return "fpv";
+    if (isConsumerPortable) return "consumer-portable";
+    if (isConsumerImaging) return "consumer-imaging";
+    return "other";
+  },
+
+  buildDroneCategories(list = []) {
+    if (!Array.isArray(list) || !list.length) return [];
+    const categories = [
+      { id: "consumer-portable", label: "消费级便携", items: [] },
+      { id: "consumer-imaging", label: "消费级影像", items: [] },
+      { id: "fpv", label: "FPV 沉浸", items: [] },
+      { id: "pro", label: "专业航拍", items: [] },
+      { id: "enterprise", label: "企业级行业", items: [] },
+      { id: "agri", label: "农业植保", items: [] },
+      { id: "transport", label: "物流运输", items: [] },
+      { id: "other", label: "其他", items: [] }
+    ];
+
+    const map = new Map(categories.map((category) => [category.id, category]));
+    list.forEach((item, index) => {
+      if (!item) return;
+      const id = this.resolveDroneCategoryId(item);
+      const target = map.get(id) || map.get("other");
+      if (target) {
+        target.items.push({
+          index,
+          name: item.name || "",
+          slug: item.slug || ""
+        });
+      }
+    });
+    return categories.filter((category) => category.items.length);
   },
 
   applyDroneList(list = []) {
     if (!Array.isArray(list) || !list.length) return;
     this._droneList = list;
-    const names = list.map((item) => item.name);
     const currentSlug = this.data.selectedDrone;
     let nextIndex = list.findIndex((item) => item.slug === currentSlug);
     if (nextIndex < 0) {
@@ -3395,8 +3477,26 @@ Page({
       droneListAvailable: true,
       selectedDroneName: next.name
     });
+
+    const categories = this.buildDroneCategories(list);
+    let activeIndex = Number.isFinite(this.data.activeDroneCategoryIndex)
+      ? this.data.activeDroneCategoryIndex
+      : 0;
+    if (activeIndex < 0 || activeIndex >= categories.length) {
+      activeIndex = 0;
+    }
+    const matchedCategoryIndex = categories.findIndex((category) =>
+      Array.isArray(category.items) && category.items.some((item) => item.index === nextIndex)
+    );
+    if (matchedCategoryIndex >= 0) {
+      activeIndex = matchedCategoryIndex;
+    }
+    const activeCategory = categories[activeIndex] || categories[0] || { items: [] };
+
     this.setData({
-      droneNames: names,
+      droneCategories: categories,
+      droneCategoryItems: activeCategory.items || [],
+      activeDroneCategoryIndex: activeIndex,
       selectedDroneIndex: nextIndex,
       selectedDrone: next.slug,
       selectedDroneName: next.name,
@@ -3419,6 +3519,13 @@ Page({
       .then((list) => {
         if (Array.isArray(list) && list.length) {
           this.applyDroneList(list);
+          const pending = this._pendingAircraftModel;
+          if (pending) {
+            const applied = this.applyAircraftModelSetting(pending, { persist: false });
+            if (applied) {
+              this._pendingAircraftModel = "";
+            }
+          }
           return;
         }
         this._droneList = [];
@@ -3428,6 +3535,9 @@ Page({
         });
         this.setData({
           droneNames: [],
+          droneCategories: [],
+          droneCategoryItems: [],
+          activeDroneCategoryIndex: 0,
           loadingDrones: false,
           droneListAvailable: false,
           dronePickerLabel: fallbackLabel
@@ -3442,6 +3552,9 @@ Page({
         });
         this.setData({
           droneNames: [],
+          droneCategories: [],
+          droneCategoryItems: [],
+          activeDroneCategoryIndex: 0,
           loadingDrones: false,
           droneListAvailable: false,
           dronePickerLabel: fallbackLabel
@@ -3930,10 +4043,17 @@ Page({
             onApplied: () => {
               const aircraftModel = this.normalizeAircraftModel(settings.aircraftModel);
               if (aircraftModel) {
-                this.applyAircraftModelSetting(aircraftModel, { persist: false });
+                const applied = this.applyAircraftModelSetting(aircraftModel, { persist: false });
+                if (!applied) {
+                  this._pendingAircraftModel = aircraftModel;
+                } else {
+                  this._pendingAircraftModel = "";
+                }
               } else if (!this._mapLayerAircraftModelWritten) {
                 this._mapLayerAircraftModelWritten = true;
-                this.persistMapLayerSettings();
+                if (this.data.selectedDrone) {
+                  this.persistMapLayerSettings();
+                }
               }
             }
           });
@@ -4920,6 +5040,18 @@ Page({
     });
   },
 
+  onSelectDroneCategory(e) {
+    const idx = Number(e.currentTarget.dataset.index);
+    if (!Number.isFinite(idx)) return;
+    const categories = Array.isArray(this.data.droneCategories) ? this.data.droneCategories : [];
+    const category = categories[idx];
+    if (!category) return;
+    this.setData({
+      activeDroneCategoryIndex: idx,
+      droneCategoryItems: category.items || []
+    });
+  },
+
   onSelectDroneOption(e) {
     const idx = Number(e.currentTarget.dataset.index);
     if (!Number.isFinite(idx)) return;
@@ -4947,7 +5079,21 @@ Page({
     const previousSlug = this.data.selectedDrone;
     const changed = drone.slug !== previousSlug;
     const shouldPersist = options.persist !== false;
+    const categories = Array.isArray(this.data.droneCategories) ? this.data.droneCategories : [];
+    let activeIndex = Number.isFinite(this.data.activeDroneCategoryIndex)
+      ? this.data.activeDroneCategoryIndex
+      : 0;
+    const matchedCategoryIndex = categories.findIndex((category) =>
+      Array.isArray(category.items) && category.items.some((item) => item.index === bounded)
+    );
+    if (matchedCategoryIndex >= 0) {
+      activeIndex = matchedCategoryIndex;
+    }
+    const activeCategory = categories[activeIndex] || categories[0] || { items: [] };
+
     this.setData({
+      activeDroneCategoryIndex: activeIndex,
+      droneCategoryItems: activeCategory.items || [],
       selectedDroneIndex: bounded,
       selectedDrone: drone.slug,
       selectedDroneName: drone.name,
