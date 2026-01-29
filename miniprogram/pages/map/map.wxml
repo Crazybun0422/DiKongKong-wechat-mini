@@ -170,6 +170,10 @@
           </view>
         </view>
       </view>
+      <city-report-h5-entry
+        center="{{cityReportCenter}}"
+        active="{{showDashboardPanel}}"
+      />
     </view>
 
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">

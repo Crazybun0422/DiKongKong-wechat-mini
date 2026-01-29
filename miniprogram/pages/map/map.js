@@ -672,6 +672,7 @@ Page({
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
+    cityReportCenter: null,
     dronePickerVisible: false,
     pendingDroneIndex: null,
     showDashboardPanel: true,
@@ -4282,7 +4283,8 @@ Page({
       this.setData({
         centerPinTitle: "",
         centerCoordinateLatText: "",
-        centerCoordinateLngText: ""
+        centerCoordinateLngText: "",
+        cityReportCenter: null
       });
       return;
     }
@@ -4300,7 +4302,8 @@ Page({
     this.setData({
       centerPinTitle: pin ? pin.name || "" : "",
       centerCoordinateLngText: coord ? coord.lngText : "",
-      centerCoordinateLatText: coord ? coord.latText : ""
+      centerCoordinateLatText: coord ? coord.latText : "",
+      cityReportCenter: center
     });
   },
 

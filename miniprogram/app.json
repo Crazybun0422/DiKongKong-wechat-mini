@@ -41,6 +41,13 @@
       "pages": [
         "placeholder/index"
       ]
+    },
+    {
+      "root": "packages/city-report",
+      "pages": [
+        "placeholder/index",
+        "h5/index"
+      ]
     }
   ],
   "window": {
