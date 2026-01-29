@@ -6,9 +6,23 @@
       <view class="newbie-task-header">
         <view class="newbie-task-title">
           <text class="newbie-task-title-only">30秒领取新人大礼包</text>
+          <text class="newbie-task-subtitle">长按识别二维码进飞友群</text>
         </view>
       </view>
-      <image class="newbie-task-header-icon" src="/assets/af-task.png" mode="aspectFit" />
+      <view class="newbie-task-header-badge">
+        <image class="newbie-task-header-icon" src="/assets/af-qrcode.png" mode="aspectFit" />
+        <view class="newbie-task-qr-wrap" wx:if="{{qrCodeUrl}}">
+          <image
+            class="newbie-task-qr"
+            src="{{qrCodeUrl}}"
+            mode="aspectFit"
+            show-menu-by-longpress="true"
+          />
+          <view class="newbie-task-qr-scan">
+            <view class="newbie-task-qr-scan-line"></view>
+          </view>
+        </view>
+      </view>
       <view class="newbie-task-list-wrap" wx:if="{{tasks.length}}">
         <scroll-view scroll-y class="newbie-task-list" bindscroll="onTaskListScroll">
           <block wx:for="{{tasks}}" wx:key="index">

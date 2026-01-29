@@ -317,6 +317,8 @@ components:
     NewbieTaskTemplateRequest:
       type: object
       properties:
+        qrCodeUrl:
+          type: string
         tasks:
           type: array
           items:
@@ -342,6 +344,11 @@ components:
       properties:
         id:
           type: string
+        qrCodeUrl:
+          type: string
+        qrCodeUploadedAt:
+          type: string
+          format: date-time
         tasks:
           type: array
           items:
@@ -411,6 +418,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NewbieTaskItemResponse'
+        qrCodeUrl:
+          type: string
         rewardAvailable:
           type: boolean
         showThirtySecondPopup:
