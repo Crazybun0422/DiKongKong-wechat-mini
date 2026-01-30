@@ -99,6 +99,8 @@ const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const MIN_CENTER_SYNC_METERS = 6;
+const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
+const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -680,6 +682,8 @@ Page({
     showProfileRedDot: false,
     showNewbieGiftEntry: false,
     newbieTaskBlockerVisible: false,
+    addMiniAppBlockerVisible: false,
+    mapBlockerVisible: false,
     showCheckinGuideMap: false,
     checkinGuideOverlayStyle: "",
     checkinGuideMask: {
@@ -795,6 +799,10 @@ Page({
     this._isIOS = false;
     this._centerOverride = this.data.center;
     this._layerPanelCloseTimer = null;
+    this._addMiniAppPopupChecking = false;
+    this._addMiniAppPopupVisible = false;
+    this._addMiniAppPopupCheckTimer = null;
+    this._mapLayerSettings = null;
     this._uomPluginInitTimer = null;
     this._uomPluginInitialized = false;
     this._uomPluginInitLogged = false;
@@ -2938,6 +2946,7 @@ Page({
     } else if (this.data.showInviteGuideMap) {
       this.setData({ showInviteGuideMap: false });
     }
+    this.scheduleAddMiniAppPopupCheck("show");
   },
 
   onHide() {
@@ -3099,6 +3108,8 @@ Page({
     this.setData({
       showNewbieGiftEntry: !!detail.showGiftEntry,
       newbieTaskBlockerVisible: !!detail.blockMap
+    }, () => {
+      this.updateMapBlockerVisible();
     });
   },
 
@@ -3108,6 +3119,126 @@ Page({
       popup.openFromEntry();
     }
   },
+
+  onAddMiniAppStateChange(event) {
+    const detail = event?.detail || {};
+    this.setData({
+      addMiniAppBlockerVisible: !!detail.blockMap
+    }, () => {
+      this.updateMapBlockerVisible();
+    });
+  },
+
+  updateMapBlockerVisible() {
+    const blocked = !!(this.data.newbieTaskBlockerVisible || this.data.addMiniAppBlockerVisible);
+    if (this.data.mapBlockerVisible !== blocked) {
+      this.setData({ mapBlockerVisible: blocked });
+    }
+  },
+
+  scheduleAddMiniAppPopupCheck() {
+    if (this._addMiniAppPopupCheckTimer) {
+      clearTimeout(this._addMiniAppPopupCheckTimer);
+    }
+    this._addMiniAppPopupCheckTimer = setTimeout(() => {
+      this._addMiniAppPopupCheckTimer = null;
+      this.maybeShowAddMiniAppPopup();
+    }, ADD_MINI_APP_CHECK_DELAY_MS);
+  },
+
+  shouldShowAddMiniAppPopup() {
+    if (!this._mapLayerSettingsLoaded) return false;
+    const lastClosedAt = Number(this._mapLayerSettings?.miniProgramAddedAt) || 0;
+    if (!lastClosedAt) return true;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (lastClosedAt > nowSec) return false;
+    return nowSec - lastClosedAt >= ADD_MINI_APP_SUPPRESS_SECONDS;
+  },
+
+  canShowAddMiniAppPopup() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const guideActive = !!(app?.globalData?.checkinGuide?.active || app?.globalData?.inviteGuide?.active);
+    return !guideActive &&
+      !this._addMiniAppPopupVisible &&
+      !this.data.newbieTaskBlockerVisible &&
+      !this.data.showCheckinGuideMap &&
+      !this.data.showInviteGuideMap &&
+      !this.data.markerDetailVisible &&
+      !this.data.markerPageVisible &&
+      !this.data.layerPanelVisible &&
+      !this.data.callSheetVisible &&
+      !this.data.joinInvitePrompt &&
+      !this.data.dronePickerVisible &&
+      !this.data.showSubscribeWaitOverlay;
+  },
+
+  maybeShowAddMiniAppPopup() {
+    if (this._addMiniAppPopupChecking || this._addMiniAppPopupVisible) return;
+    if (!this.canShowAddMiniAppPopup()) return;
+    if (!this.shouldShowAddMiniAppPopup()) return;
+    if (typeof wx === "undefined" || typeof wx.checkIsAddedToMyMiniProgram !== "function") return;
+    this._addMiniAppPopupChecking = true;
+    wx.checkIsAddedToMyMiniProgram({
+      success: (res = {}) => {
+        console.log("check is added to my mini program result", res);
+        const isAdded = !!(res.isAdded || res.isAddedToMyMiniProgram || res.added);
+        if (isAdded) {
+          this.persistMiniProgramAddedAt();
+          return;
+        }
+        if (!isAdded && this.canShowAddMiniAppPopup()) {
+          const popup = this.selectComponent("#add-mini-app-popup");
+          if (popup && typeof popup.open === "function") {
+            popup.open();
+            this._addMiniAppPopupVisible = true;
+          }
+        }
+      },
+      fail: (err) => {
+        console.warn("check is added to my mini program failed", err);
+      },
+      complete: () => {
+        this._addMiniAppPopupChecking = false;
+      }
+    });
+  },
+
+  handleAddMiniAppPopupClosed(reason = "") {
+    this._addMiniAppPopupVisible = false;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!this._mapLayerSettings || typeof this._mapLayerSettings !== "object") {
+      this._mapLayerSettings = {};
+    }
+    this._mapLayerSettings.miniProgramAddedAt = nowSec;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    updateMapLayerSettings({ miniProgramAddedAt: nowSec }, { apiBase, token })
+      .catch((err) => {
+        console.warn("update mini program popup close time failed", err);
+      });
+  },
+
+  onAddMiniAppPopupClose() {
+    this._addMiniAppPopupVisible = false;
+    this.persistMiniProgramAddedAt();
+  },
+
+  persistMiniProgramAddedAt() {
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (!this._mapLayerSettings || typeof this._mapLayerSettings !== "object") {
+      this._mapLayerSettings = {};
+    }
+    this._mapLayerSettings.miniProgramAddedAt = nowSec;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return;
+    updateMapLayerSettings({ miniProgramAddedAt: nowSec }, { apiBase, token })
+      .catch((err) => {
+        console.warn("update mini program popup close time failed", err);
+      });
+  },
+
 
   onUnload() {
     if (this._fetchTimer) clearTimeout(this._fetchTimer);
@@ -3120,6 +3251,7 @@ Page({
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
+    if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
     if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
     this._activeMarkersRequest = null;
     this._activeNoFlyRequest = null;
@@ -4046,6 +4178,7 @@ Page({
     })
       .then((settings) => {
         if (settings) {
+          this._mapLayerSettings = settings;
           this.applyLayerSettings(settings, {
             onApplied: () => {
               const aircraftModel = this.normalizeAircraftModel(settings.aircraftModel);
@@ -4065,6 +4198,7 @@ Page({
             }
           });
           this._mapLayerSettingsLoaded = true;
+          this.scheduleAddMiniAppPopupCheck("map-layer-settings");
         }
       })
       .catch((err) => {

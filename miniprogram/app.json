@@ -43,6 +43,12 @@
       ]
     },
     {
+      "root": "packages/add-mini-app",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/city-report",
       "pages": [
         "placeholder/index",

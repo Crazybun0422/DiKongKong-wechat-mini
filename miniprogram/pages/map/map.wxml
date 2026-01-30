@@ -4,7 +4,7 @@
       id="main-map"
       class="map-canvas"
       style="height: calc(100vh + {{statusBarHeight}}px); margin-top: -{{statusBarHeight}}px;"
-      hidden="{{newbieTaskBlockerVisible}}"
+      hidden="{{mapBlockerVisible}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
@@ -13,10 +13,10 @@
       subkey="{{mapSubKey}}"
       layer-style="1"
       enable-satellite="{{enableSatellite}}"
-      enable-scroll="{{!newbieTaskBlockerVisible}}"
-      enable-zoom="{{!newbieTaskBlockerVisible}}"
-      enable-rotate="{{!newbieTaskBlockerVisible}}"
-      enable-overlooking="{{!newbieTaskBlockerVisible}}"
+      enable-scroll="{{!mapBlockerVisible}}"
+      enable-zoom="{{!mapBlockerVisible}}"
+      enable-rotate="{{!mapBlockerVisible}}"
+      enable-overlooking="{{!mapBlockerVisible}}"
       show-location="true"
       markers="{{markers}}"
       polygons="{{polygons}}"
@@ -36,6 +36,11 @@
       bind:statechange="onNewbieTaskStateChange"
       bind:checkinguide="onCheckinGuideStart"
       bind:inviteguide="onInviteGuideStart"
+    />
+    <add-mini-app-popup
+      id="add-mini-app-popup"
+      bind:close="onAddMiniAppPopupClose"
+      bind:statechange="onAddMiniAppStateChange"
     />
     <uom-plugin id="uom-plugin" bind:statuschange="onUomStatusChange" />
     <view

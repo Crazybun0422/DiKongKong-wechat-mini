@@ -1,0 +1,3 @@
+.add-mini-placeholder {
+  min-height: 100vh;
+}
