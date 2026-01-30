@@ -383,7 +383,7 @@
 .floating-confirm {
   position: absolute;
   left: 50%;
-  bottom: 24rpx;
+  bottom: 124rpx;
   transform: translateX(-50%);
   width: 58%;
   max-width: 460rpx;
@@ -398,7 +398,7 @@
 .coord-panel {
   position: absolute;
   right: 24rpx;
-  bottom: 180rpx;
+  bottom: 280rpx;
   width: 420rpx;
   max-height: 760rpx;
   background: rgba(255, 255, 255, 0.75);
@@ -630,7 +630,7 @@
 .line-actions {
   position: absolute;
   left: 50%;
-  bottom: 28rpx;
+  bottom: 128rpx;
   transform: translateX(-50%);
   width: 82%;
   max-width: 560rpx;

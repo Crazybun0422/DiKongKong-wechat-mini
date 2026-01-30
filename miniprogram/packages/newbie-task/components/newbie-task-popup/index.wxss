@@ -7,6 +7,8 @@
   justify-content: center;
   padding: 40rpx;
   box-sizing: border-box;
+  opacity: 0;
+  animation: newbie-popup-fade 240ms ease-out forwards;
 }
 
 .newbie-task-mask {
@@ -20,6 +22,9 @@
   width: 620rpx;
   max-width: 90vw;
   z-index: 1;
+  transform: translateY(16rpx) scale(0.98);
+  opacity: 0;
+  animation: newbie-popup-rise 320ms ease-out forwards;
 }
 
 .newbie-task-header {
@@ -75,6 +80,24 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 30rpx;
+  opacity: 0;
+  animation: newbie-badge-fade 360ms ease-out forwards;
+  animation-delay: 80ms;
+}
+
+@keyframes newbie-popup-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes newbie-popup-rise {
+  0% { opacity: 0; transform: translateY(16rpx) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes newbie-badge-fade {
+  0% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
 }
 .newbie-task-header-icon {
   display: block;

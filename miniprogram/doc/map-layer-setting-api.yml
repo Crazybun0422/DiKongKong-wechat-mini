@@ -134,6 +134,10 @@ components:
         aircraftModel:
           type: string
           description: 执飞机型，未设置时返回空字符串。
+        miniProgramAddedAt:
+          type: integer
+          format: int64
+          description: 用户添加小程序到我的小程序的时间（秒）。
     MapLayerSettingResponse:
       type: object
       properties:
@@ -159,3 +163,7 @@ components:
         aircraftModel:
           type: string
           description: 执飞机型，未设置时返回空字符串。
+        miniProgramAddedAt:
+          type: integer
+          format: int64
+          description: 用户添加小程序到我的小程序的时间（秒）。
