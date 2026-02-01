@@ -3716,23 +3716,9 @@ Page({
       return;
     }
     const dataset = event?.currentTarget?.dataset || {};
-    const articleUrl = dataset.link || info.link || "";
-    const fallbackPath = dataset.path || info.linkPath || "";
-    if (articleUrl && typeof wx.openOfficialAccountArticle === "function") {
-      wx.openOfficialAccountArticle({
-        url: articleUrl,
-        fail: () => {
-          this.openTemporaryZoneLinkFallback(fallbackPath);
-        }
-      });
-      return;
-    }
-    this.openTemporaryZoneLinkFallback(fallbackPath);
-  },
-
-  openTemporaryZoneLinkFallback(path) {
-    if (path && typeof wx.navigateTo === "function") {
-      wx.navigateTo({ url: path });
+    const targetPath = dataset.path || info.linkPath || "";
+    if (targetPath && typeof wx.navigateTo === "function") {
+      wx.navigateTo({ url: targetPath });
       return;
     }
     this.showPlaceholderToast("链接不可用");
@@ -6979,7 +6965,9 @@ Page({
     const displayName = formatTemporaryZoneLabel(name);
     const rawLink = typeof hit.zone?.wechatLink === "string" ? hit.zone.wechatLink.trim() : "";
     const validLink = /^https?:\/\/mp\.weixin\.qq\.com\//.test(rawLink) ? rawLink : "";
-    const linkPath = validLink ? `/pages/webview/index?url=${encodeURIComponent(validLink)}` : "";
+    const linkPath = validLink
+      ? `/packages/city-report/h5/index?url=${encodeURIComponent(validLink)}`
+      : "";
     const zoneInfo = {
       id: hit.zone?.id || "",
       name,
