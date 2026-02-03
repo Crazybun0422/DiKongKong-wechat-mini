@@ -675,6 +675,8 @@ Page({
     searchSuggestLoading: false,
     searchSuggestError: "",
     cityReportCenter: null,
+    cityReportDialogVisible: false,
+    cityReportDialogText: "",
     dronePickerVisible: false,
     pendingDroneIndex: null,
     showDashboardPanel: true,
@@ -682,6 +684,7 @@ Page({
     showProfileRedDot: false,
     showNewbieGiftEntry: false,
     newbieTaskBlockerVisible: false,
+    cityReportBlockerVisible: false,
     addMiniAppBlockerVisible: false,
     mapBlockerVisible: false,
     showCheckinGuideMap: false,
@@ -3113,6 +3116,35 @@ Page({
     });
   },
 
+  onCityReportStateChange(event) {
+    const detail = event?.detail || {};
+    this.setData({
+      cityReportBlockerVisible: !!detail.blockMap
+    }, () => {
+      this.updateMapBlockerVisible();
+    });
+  },
+
+  onCityReportDialogChange(event) {
+    const detail = event?.detail || {};
+    const visible = !!detail.visible;
+    const text = typeof detail.text === "string" ? detail.text : "";
+    this.setData({
+      cityReportDialogVisible: visible,
+      cityReportDialogText: text
+    });
+  },
+
+  onCityReportDialogClose() {
+    const popup = this.selectComponent("#city-report-h5-entry");
+    if (popup && typeof popup.closeDialog === "function") {
+      popup.closeDialog();
+    }
+    if (this.data.cityReportDialogVisible) {
+      this.setData({ cityReportDialogVisible: false });
+    }
+  },
+
   onNewbieGiftTap() {
     const popup = this.selectComponent("#newbie-task-popup");
     if (popup && typeof popup.openFromEntry === "function") {
@@ -3130,7 +3162,11 @@ Page({
   },
 
   updateMapBlockerVisible() {
-    const blocked = !!(this.data.newbieTaskBlockerVisible || this.data.addMiniAppBlockerVisible);
+    const blocked = !!(
+      this.data.newbieTaskBlockerVisible ||
+      this.data.addMiniAppBlockerVisible ||
+      this.data.cityReportBlockerVisible
+    );
     if (this.data.mapBlockerVisible !== blocked) {
       this.setData({ mapBlockerVisible: blocked });
     }

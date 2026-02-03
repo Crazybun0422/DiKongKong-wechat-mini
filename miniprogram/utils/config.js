@@ -9,7 +9,7 @@ const CITY_REPORT_CITY_CONFIGS = {
     label: "上海市飞行申请",
     appId: "wxc5059c3803665d9c",
     path: "suishenban-main-mine/pages/h5/publicJumpH5/index?path=https%3A%2F%2Fdikongfeixing.jtw.sh.gov.cn%2Flowspace-app%2F%23%2Fpages_people%2Findex%3Faccess_token%3D&isAccessToken=2",
-    mpLink: "https://mp.weixin.qq.com/s/iYW0ymyTQkKkp3CFkz4Ekg"
+    mpLink: "https://mp.weixin.qq.com/s/jg8MnReZrbafR8X2wJa5UA"
   },
   nanchang: {
     label: "南昌市飞行申请",

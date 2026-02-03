@@ -175,10 +175,13 @@
           </view>
         </view>
       </view>
-      <city-report-h5-entry
-        center="{{cityReportCenter}}"
-        active="{{showDashboardPanel}}"
-      />
+    <city-report-h5-entry
+      id="city-report-h5-entry"
+      center="{{cityReportCenter}}"
+      active="{{showDashboardPanel}}"
+      bind:statechange="onCityReportStateChange"
+      bind:dialogchange="onCityReportDialogChange"
+    />
     </view>
 
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
@@ -651,6 +654,17 @@
     </block>
 
   </view>
+
+  <block wx:if="{{cityReportDialogVisible}}">
+    <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
+      <view class="city-report-dialog-container">
+        <view class="city-report-dialog-card">
+          <text class="city-report-dialog-text">{{cityReportDialogText}}</text>
+          <view class="city-report-dialog-btn" catchtap="onCityReportDialogClose">我知道了</view>
+        </view>
+      </view>
+    </view>
+  </block>
 
   <view wx:if="{{joinInvitePrompt}}" class="invite-overlay" catchtouchmove="noop">
     <view class="invite-mask"></view>

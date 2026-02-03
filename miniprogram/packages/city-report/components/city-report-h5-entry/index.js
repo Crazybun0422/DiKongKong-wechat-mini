@@ -1,26 +1,120 @@
 const { reverseGeocode } = require("../../../../utils/geocoder");
-const { buildCityReportWebviewPath, getCityReportConfig } = require("../../../../utils/city-report");
-
-const CITY_MATCHERS = [
-  {
-    key: "shanghai",
-    adcodePrefix: "310",
-    cityNames: ["上海"],
-    provinceNames: ["上海"]
-  },
-  {
-    key: "nanchang",
-    adcodePrefix: "3601",
-    cityNames: ["南昌"],
-    provinceNames: ["江西"]
-  }
-];
+const { buildCityReportWebviewPath } = require("../../../../utils/city-report");
+const { fetchReportEntries } = require("../../../../utils/report-entries");
+const { getLatestFontFileSource } = require("../../../../utils/font-config");
 
 const RESOLVE_DEBOUNCE_MS = 450;
 const MIN_MOVED_METERS = 300;
 
-const normalizeName = (value) =>
-  typeof value === "string" ? value.replace(/\s+/g, "").replace(/市$/, "") : "";
+const REGION_SUFFIXES = [
+  "省",
+  "市",
+  "县",
+  "区",
+  "自治区",
+  "自治州",
+  "自治县",
+  "特别行政区",
+  "盟",
+  "地区",
+  "自治旗",
+  "旗",
+  "林区",
+  "新区"
+];
+
+const normalizeName = (value) => {
+  if (typeof value !== "string") return "";
+  let text = value.trim().replace(/\s+/g, "");
+  if (!text) return "";
+  for (const suffix of REGION_SUFFIXES) {
+    if (text.endsWith(suffix)) {
+      text = text.slice(0, Math.max(0, text.length - suffix.length));
+      break;
+    }
+  }
+  return text;
+};
+
+const hasLabelSuffix = (value) =>
+  REGION_SUFFIXES.some((suffix) => typeof value === "string" && value.endsWith(suffix));
+
+const ensureLabelSuffix = (value, suffix) => {
+  if (!value) return "";
+  if (hasLabelSuffix(value)) return value;
+  return suffix ? `${value}${suffix}` : value;
+};
+
+const formatReportLabel = (name, suffix) => {
+  const base = ensureLabelSuffix(name, suffix);
+  return base ? `${base}飞行申请` : "";
+};
+
+const buildRegionInfo = (adInfo = {}) => {
+  const province = typeof adInfo.province === "string" ? adInfo.province.trim() : "";
+  const city = typeof adInfo.city === "string" ? adInfo.city.trim() : "";
+  const districtRaw =
+    typeof adInfo.district === "string"
+      ? adInfo.district.trim()
+      : (typeof adInfo.county === "string" ? adInfo.county.trim() : "");
+  return {
+    province,
+    city,
+    county: districtRaw,
+    normalized: {
+      province: normalizeName(province),
+      city: normalizeName(city),
+      county: normalizeName(districtRaw)
+    }
+  };
+};
+
+const buildRegionKey = (region) =>
+  `${region?.normalized?.province || ""}|${region?.normalized?.city || ""}|${region?.normalized?.county || ""}`;
+
+const entryMatchesRegion = (entry = {}, region = {}) => {
+  const normalized = region.normalized || {};
+  if (!entry || !entry.province || !normalized.province) return false;
+  if (normalizeName(entry.province) !== normalized.province) return false;
+  if (entry.city && normalizeName(entry.city) !== normalized.city) return false;
+  if (entry.county && normalizeName(entry.county) !== normalized.county) return false;
+  return true;
+};
+
+const entrySpecificity = (entry = {}) => {
+  if (entry.county) return 3;
+  if (entry.city) return 2;
+  if (entry.province) return 1;
+  return 0;
+};
+
+const pickBestEntry = (entries = [], region = {}) => {
+  let best = null;
+  let bestScore = 0;
+  entries.forEach((entry) => {
+    if (!entryMatchesRegion(entry, region)) return;
+    const score = entrySpecificity(entry);
+    if (!best || score > bestScore) {
+      best = entry;
+      bestScore = score;
+    }
+  });
+  return best;
+};
+
+const buildEntryLabel = (entry, region) => {
+  if (entry) {
+    if (entry.county) return formatReportLabel(entry.county, "县");
+    if (entry.city) return formatReportLabel(entry.city, "市");
+    if (entry.province) return formatReportLabel(entry.province, "省");
+  }
+  const fallback = region?.city || region?.province || "";
+  const suffix = region?.city ? "市" : "省";
+  return formatReportLabel(fallback, suffix);
+};
+
+const normalizeDialogText = (value) =>
+  typeof value === "string" ? value.trim() : "";
 
 const haversineMeters = (lat1, lng1, lat2, lng2) => {
   const toRad = (v) => (Number(v) * Math.PI) / 180;
@@ -31,20 +125,6 @@ const haversineMeters = (lat1, lng1, lat2, lng2) => {
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   return 2 * r * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
-
-const resolveCityKey = (adInfo = {}) => {
-  const adcode = `${adInfo.adcode || ""}`;
-  const city = normalizeName(adInfo.city);
-  const province = normalizeName(adInfo.province);
-  for (const matcher of CITY_MATCHERS) {
-    if (matcher.adcodePrefix && adcode.startsWith(matcher.adcodePrefix)) {
-      return matcher.key;
-    }
-    if (city && matcher.cityNames?.includes(city)) return matcher.key;
-    if (province && matcher.provinceNames?.includes(province)) return matcher.key;
-  }
-  return "";
 };
 
 Component({
@@ -60,10 +140,9 @@ Component({
   },
   data: {
     visible: false,
-    cityKey: "",
     jumpLabel: "",
-    appId: "",
-    appPath: ""
+    dialogText: "",
+    dialogVisible: false
   },
   observers: {
     "center.latitude, center.longitude, active": function (lat, lng, active) {
@@ -77,6 +156,9 @@ Component({
     }
   },
   lifetimes: {
+    attached() {
+      this.ensureFontLoaded();
+    },
     detached() {
       if (this._resolveTimer) {
         clearTimeout(this._resolveTimer);
@@ -85,6 +167,42 @@ Component({
     }
   },
   methods: {
+    noop() { },
+    ensureFontLoaded() {
+      if (this._fontLoaded) return;
+      const apiBase = typeof getApp === "function" ? getApp()?.globalData?.apiBase : "";
+      this._fontLoaded = true;
+      getLatestFontFileSource({ apiBase })
+        .then((source) => {
+          if (!source) {
+            this._fontLoaded = false;
+            return;
+          }
+          wx.loadFontFace({
+            family: "ZhSubset",
+            source: `url("${source}")`,
+            global: true,
+            success: () => { },
+            fail: () => {
+              this._fontLoaded = false;
+            }
+          });
+        })
+        .catch(() => {
+          this._fontLoaded = false;
+        });
+    },
+    triggerStateChange(payload) {
+      const state = { blockMap: !!this.data.dialogVisible };
+      this.triggerEvent("statechange", Object.assign(state, payload || {}));
+    },
+    triggerDialogChange(visible, text) {
+      this.triggerEvent("dialogchange", {
+        visible: !!visible,
+        text: typeof text === "string" ? text : ""
+      });
+    },
+
     scheduleResolve(center) {
       if (!center) return;
       if (this._lastCenter) {
@@ -100,11 +218,11 @@ Component({
       if (this._resolveTimer) clearTimeout(this._resolveTimer);
       this._resolveTimer = setTimeout(() => {
         this._resolveTimer = null;
-        this.resolveCityFromCenter(this._pendingCenter);
+        this.resolveRegionFromCenter(this._pendingCenter);
       }, RESOLVE_DEBOUNCE_MS);
     },
 
-    resolveCityFromCenter(center) {
+    resolveRegionFromCenter(center) {
       if (!center) return;
       const token = (this._resolveToken || 0) + 1;
       this._resolveToken = token;
@@ -112,61 +230,139 @@ Component({
         .then((res = {}) => {
           if (this._resolveToken !== token) return;
           this._lastCenter = center;
-          const key = resolveCityKey(res.ad_info || {});
-          this.applyCityKey(key);
+          const region = buildRegionInfo(res.ad_info || {});
+          if (!region.province && !region.city) {
+            this.setData({ visible: false, jumpLabel: "" });
+            return;
+          }
+          this.applyRegion(region);
+          const regionKey = buildRegionKey(region);
+          if (this._lastRegionKey === regionKey) return;
+          this._lastRegionKey = regionKey;
+          this.loadReportEntries(region);
         })
         .catch(() => {
           if (this._resolveToken !== token) return;
-          if (!this.data.cityKey) {
-            this.setData({ visible: false, cityKey: "" });
+          if (!this.data.jumpLabel) {
+            this.setData({ visible: false });
           }
         });
     },
 
-    applyCityKey(key) {
-      console.log("applyCityKey", key);
-      const config = getCityReportConfig(key);
-      if (!config) {
-        this.setData({ visible: false, cityKey: "" });
-        return;
-      }
-      this._activeConfig = config;
+    applyRegion(region) {
+      this._regionInfo = region;
+      const defaultLabel = buildEntryLabel(null, region);
       this.setData({
-        visible: true,
-        cityKey: key,
-        jumpLabel: config.label || "",
-        appId: config.appId || "",
-        appPath: config.path || ""
+        visible: !!defaultLabel,
+        jumpLabel: defaultLabel || "",
+        dialogVisible: false
+      }, () => {
+        this.triggerStateChange();
+      });
+    },
+
+    loadReportEntries(region) {
+      if (!region || !region.province) return;
+      const token = (this._loadToken || 0) + 1;
+      this._loadToken = token;
+      fetchReportEntries({ province: region.province })
+        .then((payload = {}) => {
+          if (this._loadToken !== token) return;
+          const entries = Array.isArray(payload.entries) ? payload.entries : [];
+          const dialogText = normalizeDialogText(payload.dialogText);
+          this._entries = entries;
+          this._globalDialogText = dialogText;
+          this.applyMatchedEntry(region, entries, dialogText);
+        })
+        .catch((err) => {
+          if (this._loadToken !== token) return;
+          console.warn("fetch report entries failed", err);
+          this._entries = [];
+          this.applyMatchedEntry(region, [], "");
+        });
+    },
+
+    applyMatchedEntry(region, entries, dialogTextOverride) {
+      const match = pickBestEntry(entries, region);
+      this._activeEntry = match;
+      const label = buildEntryLabel(match, region);
+      const dialogText =
+        typeof dialogTextOverride === "string"
+          ? normalizeDialogText(dialogTextOverride)
+          : normalizeDialogText(this._globalDialogText);
+      this.setData({
+        visible: !!label,
+        jumpLabel: label || "",
+        dialogText
+      });
+    },
+
+    openDialog(message) {
+      const text =
+        normalizeDialogText(message) ||
+        normalizeDialogText(this.data.dialogText) ||
+        normalizeDialogText(this._globalDialogText);
+      this.setData({
+        dialogVisible: true,
+        dialogText: text || "暂无报备入口"
+      }, () => {
+        this.triggerStateChange();
+        this.triggerDialogChange(true, this.data.dialogText || "");
+      });
+    },
+
+    closeDialog() {
+      if (!this.data.dialogVisible) return;
+      this.setData({ dialogVisible: false }, () => {
+        this.triggerStateChange();
+        this.triggerDialogChange(false, "");
       });
     },
 
     onJumpTap() {
-      const config = this._activeConfig || getCityReportConfig(this.data.cityKey);
-      if (!config || !config.appId) {
-        wx.showToast({ title: "跳转配置缺失", icon: "none" });
+      const entry = this._activeEntry;
+      const appId = entry?.miniProgram?.appId || "";
+      if (!entry || !appId) {
+        this.openDialog();
         return;
       }
       wx.navigateToMiniProgram({
-        appId: config.appId,
-        path: config.path || "",
+        appId,
+        path: entry?.miniProgram?.path || "",
         envVersion: "release"
       });
     },
 
     onTipTap() {
-      const key = this.data.cityKey;
-      if (!key) {
-        wx.showToast({ title: "链接不可用", icon: "none" });
+      const entry = this._activeEntry;
+      const guide = entry?.guide || {};
+      const link = typeof guide.publicAccountLink === "string" ? guide.publicAccountLink.trim() : "";
+      if (link) {
+        const target = buildCityReportWebviewPath(link);
+        if (target) {
+          wx.navigateTo({ url: target });
+          return;
+        }
+      }
+      const finderUserName = typeof guide.videoAccountId === "string" ? guide.videoAccountId.trim() : "";
+      const feedId = typeof guide.videoId === "string" ? guide.videoId.trim() : "";
+      if (finderUserName && feedId && typeof wx?.openChannelsActivity === "function") {
+        wx.openChannelsActivity({ finderUserName, feedId });
         return;
       }
-      console.log("onTipTap", key);
-      const target = buildCityReportWebviewPath({ city: key });
-      console.log("onTipTap target", target);
-      if (!target) {
-        wx.showToast({ title: "链接不可用", icon: "none" });
+      if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
+        wx.openChannelsUserProfile({ finderUserName });
         return;
       }
-      wx.navigateTo({ url: target });
+      if (feedId && typeof wx?.openChannelsActivity === "function") {
+        wx.openChannelsActivity({ activityId: feedId });
+        return;
+      }
+      this.openDialog();
+    },
+
+    onDialogClose() {
+      this.closeDialog();
     }
   }
 });
