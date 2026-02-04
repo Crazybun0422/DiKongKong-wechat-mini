@@ -1,0 +1,468 @@
+openapi: 3.0.1
+info:
+  title: Report Entry APIs
+  description: 报备数据管理与查询接口。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/admin/report-entries:
+    post:
+      summary: 新增报备数据
+      description: 仅管理员可调用，创建报备数据。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportEntryRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    get:
+      summary: 分页查询报备数据
+      description: 仅管理员可调用，按创建时间分页返回报备数据列表。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数，默认 20。
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [ASC, DESC]
+          description: 创建时间排序方向，默认 DESC。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryPageResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/report-entries/{id}:
+    get:
+      summary: 查询报备数据详情
+      description: 仅管理员可调用，根据 ID 获取报备数据。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新报备数据
+      description: 仅管理员可调用，更新报备数据。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportEntryRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 删除报备数据
+      description: 仅管理员可调用，根据 ID 删除报备数据。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/report-entries/dialog-text:
+    get:
+      summary: 查询报备弹窗文案
+      description: 仅管理员可调用，获取报备弹窗文案配置。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryDialogResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新报备弹窗文案
+      description: 仅管理员可调用，更新报备弹窗文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportEntryDialogRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryDialogResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/report-entries:
+    get:
+      summary: 按区域查询报备数据
+      description: 用户根据省、市、县查询报备数据，city 与 county 可选。响应包含统一弹窗文案。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: province
+          required: true
+          schema:
+            type: string
+          description: 省份名称。
+        - in: query
+          name: city
+          required: false
+          schema:
+            type: string
+          description: 城市名称，可为空。
+        - in: query
+          name: county
+          required: false
+          schema:
+            type: string
+          description: 区县名称，可为空。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseReportEntryListResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseReportEntryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/ReportEntryResponse'
+    ApiResponseReportEntryPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PageResponseReportEntryResponse'
+    ApiResponseReportEntryList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportEntryResponse'
+    ApiResponseReportEntryListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/ReportEntryListResponse'
+    ApiResponseReportEntryDialogResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/ReportEntryDialogResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: object
+          nullable: true
+    PageResponseReportEntryResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportEntryResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    ReportEntryRequest:
+      type: object
+      required:
+        - province
+        - miniProgram
+        - guide
+      properties:
+        province:
+          type: string
+          description: 省份名称。
+        city:
+          type: string
+          nullable: true
+          description: 城市名称，可为空。
+        county:
+          type: string
+          nullable: true
+          description: 区县名称，可为空。
+        miniProgram:
+          $ref: '#/components/schemas/ReportEntryMiniProgram'
+          description: 跳转小程序配置。
+        guide:
+          $ref: '#/components/schemas/ReportEntryGuide'
+          description: 申请指引配置。
+    ReportEntryResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        province:
+          type: string
+        city:
+          type: string
+          nullable: true
+        county:
+          type: string
+          nullable: true
+        miniProgram:
+          $ref: '#/components/schemas/ReportEntryMiniProgram'
+        guide:
+          $ref: '#/components/schemas/ReportEntryGuide'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ReportEntryMiniProgram:
+      type: object
+      required:
+        - appId
+        - path
+      properties:
+        appId:
+          type: string
+          description: 小程序 appid。
+        path:
+          type: string
+          description: 小程序 path。
+    ReportEntryGuide:
+      type: object
+      required:
+        - publicAccountLink
+        - videoAccountId
+        - videoId
+      properties:
+        publicAccountLink:
+          type: string
+          description: 公众号链接。
+        videoAccountId:
+          type: string
+          description: 视频号 ID。
+        videoId:
+          type: string
+          description: 视频 ID。
+    ReportEntryListResponse:
+      type: object
+      properties:
+        dialogText:
+          type: string
+          description: 报备弹窗文案。
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportEntryResponse'
+    ReportEntryDialogRequest:
+      type: object
+      required:
+        - dialogText
+      properties:
+        dialogText:
+          type: string
+          description: 报备弹窗文案。
+    ReportEntryDialogResponse:
+      type: object
+      properties:
+        dialogText:
+          type: string
+          description: 报备弹窗文案。
+        updatedAt:
+          type: string
+          format: date-time

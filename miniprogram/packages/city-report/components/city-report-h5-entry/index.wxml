@@ -1,6 +1,7 @@
 <view class="city-report-h5-entry" wx:if="{{visible}}">
   <view
     class="city-report-h5-jump"
+    style="width: {{jumpWidth}}rpx;"
     hover-class="city-report-h5-jump--hover"
     catchtap="onJumpTap"
   >

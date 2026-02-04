@@ -5,6 +5,10 @@ const { getLatestFontFileSource } = require("../../../../utils/font-config");
 
 const RESOLVE_DEBOUNCE_MS = 450;
 const MIN_MOVED_METERS = 300;
+const JUMP_BASE_WIDTH = 240;
+const JUMP_CHAR_WIDTH = 28;
+const JUMP_SIDE_PADDING = 56;
+const JUMP_MAX_WIDTH = 520;
 
 const REGION_SUFFIXES = [
   "省",
@@ -47,7 +51,14 @@ const ensureLabelSuffix = (value, suffix) => {
 
 const formatReportLabel = (name, suffix) => {
   const base = ensureLabelSuffix(name, suffix);
-  return base ? `${base}飞行申请` : "";
+  return base ? `${base}飞行报备` : "";
+};
+
+const calcJumpWidth = (label) => {
+  const length = Array.from(label || "").length;
+  if (!length) return JUMP_BASE_WIDTH;
+  const width = JUMP_SIDE_PADDING + length * JUMP_CHAR_WIDTH;
+  return Math.max(JUMP_BASE_WIDTH, Math.min(JUMP_MAX_WIDTH, Math.round(width)));
 };
 
 const buildRegionInfo = (adInfo = {}) => {
@@ -81,25 +92,18 @@ const entryMatchesRegion = (entry = {}, region = {}) => {
   return true;
 };
 
-const entrySpecificity = (entry = {}) => {
-  if (entry.county) return 3;
-  if (entry.city) return 2;
-  if (entry.province) return 1;
-  return 0;
-};
-
 const pickBestEntry = (entries = [], region = {}) => {
-  let best = null;
-  let bestScore = 0;
-  entries.forEach((entry) => {
-    if (!entryMatchesRegion(entry, region)) return;
-    const score = entrySpecificity(entry);
-    if (!best || score > bestScore) {
-      best = entry;
-      bestScore = score;
-    }
-  });
-  return best;
+  const matched = entries.filter((entry) => entryMatchesRegion(entry, region));
+  if (!matched.length) return null;
+  const countyEntry = matched.find((entry) => normalizeName(entry.county));
+  if (countyEntry) return countyEntry;
+  const provinceEntry = matched.find(
+    (entry) => normalizeName(entry.province) && !normalizeName(entry.city) && !normalizeName(entry.county)
+  );
+  if (provinceEntry) return provinceEntry;
+  const cityEntry = matched.find((entry) => normalizeName(entry.city));
+  if (cityEntry) return cityEntry;
+  return null;
 };
 
 const buildEntryLabel = (entry, region) => {
@@ -141,6 +145,7 @@ Component({
   data: {
     visible: false,
     jumpLabel: "",
+    jumpWidth: JUMP_BASE_WIDTH,
     dialogText: "",
     dialogVisible: false
   },
@@ -235,10 +240,13 @@ Component({
             this.setData({ visible: false, jumpLabel: "" });
             return;
           }
-          this.applyRegion(region);
           const regionKey = buildRegionKey(region);
-          if (this._lastRegionKey === regionKey) return;
+          if (this._lastRegionKey === regionKey) {
+            this._regionInfo = region;
+            return;
+          }
           this._lastRegionKey = regionKey;
+          this.applyRegion(region);
           this.loadReportEntries(region);
         })
         .catch(() => {
@@ -252,9 +260,11 @@ Component({
     applyRegion(region) {
       this._regionInfo = region;
       const defaultLabel = buildEntryLabel(null, region);
+      const jumpWidth = calcJumpWidth(defaultLabel);
       this.setData({
         visible: !!defaultLabel,
         jumpLabel: defaultLabel || "",
+        jumpWidth,
         dialogVisible: false
       }, () => {
         this.triggerStateChange();
@@ -286,6 +296,7 @@ Component({
       const match = pickBestEntry(entries, region);
       this._activeEntry = match;
       const label = buildEntryLabel(match, region);
+      const jumpWidth = calcJumpWidth(label);
       const dialogText =
         typeof dialogTextOverride === "string"
           ? normalizeDialogText(dialogTextOverride)
@@ -293,6 +304,7 @@ Component({
       this.setData({
         visible: !!label,
         jumpLabel: label || "",
+        jumpWidth,
         dialogText
       });
     },
