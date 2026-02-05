@@ -6926,7 +6926,7 @@ Page({
 
   describeDjiStatus(areas) {
     if (this.data.djiNoFlyZoneEnabled === false) {
-      return { status: "已禁用", extra: "", tone: "warn", color: "#f59e0b" };
+      return { status: "已禁用", extra: "", tone: "warn", color: this.softenPanelColor("#F59E0B") };
     }
     const fallback = { status: "暂无空域数据", extra: "", tone: "neutral", color: "" };
     if (typeof areas === "undefined") {
@@ -6977,7 +6977,7 @@ Page({
       status: this.labelForArea(target.area, target.parent),
       extra: extraParts.join(" · "),
       tone: this.toneForLevel(normalizedLevel),
-      color: this.colorForArea(target.area)
+      color: this.softenPanelColor(this.colorForArea(target.area))
     };
   },
 
@@ -7262,6 +7262,26 @@ Page({
     if (!trimmed) return "";
     const prefixed = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
     return prefixed.toUpperCase();
+  },
+
+  softenPanelColor(hex, mix = 0.72) {
+    const normalized = this.normalizeHexColor(hex);
+    if (!normalized) return "";
+    const raw = normalized.slice(1);
+    let r, g, b;
+    if (raw.length === 3) {
+      r = parseInt(raw[0] + raw[0], 16);
+      g = parseInt(raw[1] + raw[1], 16);
+      b = parseInt(raw[2] + raw[2], 16);
+    } else {
+      r = parseInt(raw.slice(0, 2), 16);
+      g = parseInt(raw.slice(2, 4), 16);
+      b = parseInt(raw.slice(4, 6), 16);
+    }
+    if (![r, g, b].every(Number.isFinite)) return normalized;
+    const blend = (value) => Math.round(value + (255 - value) * mix);
+    const toHex = (value) => blend(value).toString(16).padStart(2, "0").toUpperCase();
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   },
 
   colorForArea(area) {
