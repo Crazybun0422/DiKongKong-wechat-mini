@@ -321,7 +321,7 @@ paths:
   /api/user/profile:
     get:
       summary: 获取用户资料
-      description: 返回用户基础信息、收到的点赞总数，以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
+      description: 返回用户基础信息、收到的点赞总数、从 FLP 余额表读取的 flpBalance 虚拟代币余额，以及用户最新访问的协议/隐私版本记录。
       responses:
         '200':
           description: OK
@@ -642,6 +642,26 @@ components:
           type: integer
           format: int64
           description: 用户收到的点赞总数（包含标记与图钉）。
+        policyAccessRecord:
+          allOf:
+            - $ref: '#/components/schemas/UserPolicyAccessRecordResponse'
+          nullable: true
+          description: 用户最新访问的协议/隐私版本记录，无记录时为 null。
+    UserPolicyAccessRecordResponse:
+      type: object
+      properties:
+        userAgreementVersion:
+          type: string
+          nullable: true
+          description: 最近一次访问记录中的用户协议版本。
+        privacyPolicyVersion:
+          type: string
+          nullable: true
+          description: 最近一次访问记录中的隐私政策版本。
+        createdAt:
+          type: string
+          format: date-time
+          description: 访问记录写入时间。
     UserSummaryResponse:
       type: object
       properties:
