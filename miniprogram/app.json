@@ -1,10 +1,18 @@
 {
   "pages": [
+    "pages/entry/index",
     "pages/map/map",
     "pages/topic/topic",
     "pages/webview/index"
   ],
   "subpackages": [
+    {
+      "root": "packages/guide",
+      "pages": [
+        "index/index",
+        "policy/index"
+      ]
+    },
     {
       "root": "pages/profile",
       "pages": [

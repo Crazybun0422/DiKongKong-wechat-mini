@@ -126,6 +126,10 @@ App({
 
   onLaunch(options = {}) {
     console.log("Mini program launched");
+    this.globalData.launchOptions = options || {};
+    if (this.globalData.pendingLaunchOptions === undefined) {
+      this.globalData.pendingLaunchOptions = null;
+    }
     const launchInvite = extractInviteCodeFromOptions(options);
     if (launchInvite) {
       this.setPendingInviteCode(launchInvite);

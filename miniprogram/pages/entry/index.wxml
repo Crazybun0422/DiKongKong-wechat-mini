@@ -1,0 +1,9 @@
+<view class="entry-page">
+  <view class="entry-card" wx:if="{{loading}}">
+    <image class="entry-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
+  </view>
+  <view class="entry-error" wx:elif="{{error}}">
+    <text class="entry-error-text">{{error}}</text>
+    <button class="entry-retry" bindtap="onRetryTap">重试</button>
+  </view>
+</view>

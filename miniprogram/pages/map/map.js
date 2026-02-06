@@ -590,6 +590,17 @@ const extractInviteCodeFromOptions = (options = {}) => {
   return "";
 };
 
+const mergeLaunchOptions = (primary = {}, secondary = {}) => {
+  const merged = Object.assign({}, primary || {}, secondary || {});
+  const primaryQuery = primary?.query && typeof primary.query === "object" ? primary.query : {};
+  const secondaryQuery = secondary?.query && typeof secondary.query === "object" ? secondary.query : {};
+  const query = Object.assign({}, primaryQuery, secondaryQuery);
+  if (Object.keys(query).length) {
+    merged.query = query;
+  }
+  return merged;
+};
+
 const formatLikeCountDisplay = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) return "0";
@@ -780,7 +791,16 @@ Page({
     shareWorkGroup: null
   },
 
+  consumePendingLaunchOptions(options = {}) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const pending = app?.globalData?.pendingLaunchOptions;
+    if (!pending) return options || {};
+    app.globalData.pendingLaunchOptions = null;
+    return mergeLaunchOptions(pending, options || {});
+  },
+
   onLoad(options = {}) {
+    const launchOptions = this.consumePendingLaunchOptions(options);
     applyMapStatusBarStyle();
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
@@ -868,10 +888,10 @@ Page({
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
     this.requestInitialLocation();
-    this.captureInviteCode(options);
-    this.handleWorkGroupInviteOptions(options);
-    this.initializeShareLaunch(options);
-    this.initializePinShareLaunch(options);
+    this.captureInviteCode(launchOptions);
+    this.handleWorkGroupInviteOptions(launchOptions);
+    this.initializeShareLaunch(launchOptions);
+    this.initializePinShareLaunch(launchOptions);
     this.consumePendingMarkerFocus({ immediate: true });
     this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {

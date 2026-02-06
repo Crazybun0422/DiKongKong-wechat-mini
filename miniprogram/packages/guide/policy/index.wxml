@@ -1,0 +1,46 @@
+<view class="policy-page">
+  <scroll-view scroll-y="true" class="policy-scroll">
+    <block wx:if="{{loading}}">
+      <view class="policy-loading">
+        <image class="policy-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
+      </view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="policy-error">
+        <text>{{error}}</text>
+        <button class="policy-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <block wx:if="{{contentSegments.length}}">
+        <block wx:for="{{contentSegments}}" wx:key="index">
+          <rich-text
+            wx:if="{{item.type === 'rich'}}"
+            class="policy-content"
+            nodes="{{item.nodes}}"
+            space="nbsp"
+            selectable="true"
+            bindtap="onRichTextTap"
+          />
+          <image
+            wx:elif="{{item.type === 'image'}}"
+            class="policy-image"
+            src="{{item.src}}"
+            mode="widthFix"
+            show-menu-by-longpress="true"
+            data-index="{{item.index}}"
+            bindtap="onImageTap"
+          />
+        </block>
+      </block>
+      <rich-text
+        wx:else
+        class="policy-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </scroll-view>
+</view>
