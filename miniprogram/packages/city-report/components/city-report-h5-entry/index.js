@@ -120,6 +120,15 @@ const buildEntryLabel = (entry, region) => {
 const normalizeDialogText = (value) =>
   typeof value === "string" ? value.trim() : "";
 
+const normalizeGuideValue = (value) =>
+  typeof value === "string" ? value.trim() : "";
+
+const isGuideAvailable = (guide = {}) => {
+  const publicAccountLink = normalizeGuideValue(guide.publicAccountLink);
+  const videoAccountId = normalizeGuideValue(guide.videoAccountId);
+  return !!publicAccountLink || !!videoAccountId;
+}
+
 const haversineMeters = (lat1, lng1, lat2, lng2) => {
   const toRad = (v) => (Number(v) * Math.PI) / 180;
   const r = 6371000;
@@ -147,7 +156,8 @@ Component({
     jumpLabel: "",
     jumpWidth: JUMP_BASE_WIDTH,
     dialogText: "",
-    dialogVisible: false
+    dialogVisible: false,
+    showGuide: false
   },
   observers: {
     "center.latitude, center.longitude, active": function (lat, lng, active) {
@@ -265,7 +275,8 @@ Component({
         visible: !!defaultLabel,
         jumpLabel: defaultLabel || "",
         jumpWidth,
-        dialogVisible: false
+        dialogVisible: false,
+        showGuide: false
       }, () => {
         this.triggerStateChange();
       });
@@ -301,11 +312,14 @@ Component({
         typeof dialogTextOverride === "string"
           ? normalizeDialogText(dialogTextOverride)
           : normalizeDialogText(this._globalDialogText);
+      const showGuide = isGuideAvailable(match?.guide);
+      console.log("matched entry", match, label, showGuide);
       this.setData({
         visible: !!label,
         jumpLabel: label || "",
         jumpWidth,
-        dialogText
+        dialogText,
+        showGuide
       });
     },
 

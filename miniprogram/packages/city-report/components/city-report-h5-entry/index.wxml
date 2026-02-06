@@ -11,6 +11,7 @@
     class="city-report-h5-tip"
     hover-class="city-report-h5-tip--hover"
     catchtap="onTipTap"
+    wx:if="{{showGuide}}"
   >
     <image class="city-report-h5-tip-icon" src="/assets/tips-b.png" mode="aspectFit" />
   </view>
