@@ -184,6 +184,18 @@
     />
     </view>
 
+    <policy-update-modal
+      visible="{{policyUpdateVisible}}"
+      update-type="{{policyUpdateType}}"
+      title="{{policyUpdateTitle}}"
+      loading="{{policyUpdateSubmitting}}"
+      closing="{{policyUpdateClosing}}"
+      bind:agree="onPolicyUpdateAgree"
+      bind:disagree="onPolicyUpdateDisagree"
+      bind:agreement="onPolicyAgreementTap"
+      bind:privacy="onPolicyPrivacyTap"
+    />
+
     <view class="floating-controls" wx:if="{{activeTab === 'home'}}">
       <!-- <button
         class="panorama-button"

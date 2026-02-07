@@ -26,8 +26,16 @@ const {
 const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
 const {
   loadStoredProfile: loadStoredProfileUtil,
-  prepareAvatarForUpload
+  prepareAvatarForUpload,
+  fetchUserProfile
 } = require("../../utils/profile");
+const {
+  fetchLatestUserAgreement,
+  fetchLatestPrivacyPolicy,
+  extractPolicyAccessVersions,
+  normalizePolicyVersion,
+  recordPolicyAccess
+} = require("../../utils/policies");
 const {
   appendInviteCodeToPath,
   appendInviteCodeToQuery,
@@ -723,6 +731,11 @@ Page({
     subscriptionBannerHeightRpx: 70,
     preflightBaseTopRpx: 120,
     preflightTopRpx: 120,
+    policyUpdateVisible: false,
+    policyUpdateType: "",
+    policyUpdateTitle: "",
+    policyUpdateSubmitting: false,
+    policyUpdateClosing: false,
     markerDetailVisible: false,
     detailCard: null,
     markerDetailClosing: false,
@@ -913,6 +926,7 @@ Page({
     this.updateStatusPanel();
     this.updateCenterPinIndicator();
     this.autoLoginOnLaunch();
+    this.checkPolicyUpdateOnLaunch();
     this.initSubscriptionBanner();
 
   },
@@ -1391,6 +1405,136 @@ Page({
       .catch((err) => {
         console.warn("自动登录失败", err);
       });
+  },
+
+  checkPolicyUpdateOnLaunch() {
+    if (this._policyUpdateChecking || this._policyUpdateChecked) return;
+    this._policyUpdateChecking = true;
+    const apiBase = this.getApiBase();
+    if (!apiBase) {
+      this._policyUpdateChecking = false;
+      return;
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    const cachedProfile = app?.globalData?.latestUserProfile;
+    const loadLatestPolicies = () =>
+      Promise.all([
+        fetchLatestUserAgreement({ apiBase }),
+        fetchLatestPrivacyPolicy({ apiBase })
+      ]);
+    const loadProfile = () =>
+      fetchUserProfile({
+        apiBase,
+        token: this.getAuthToken()
+      });
+    this.ensureAccessToken()
+      .then(() => {
+        const profilePromise = cachedProfile ? Promise.resolve(cachedProfile) : loadProfile();
+        return Promise.all([profilePromise, loadLatestPolicies()]);
+      })
+      .then(([profile, [latestAgreement, latestPrivacy]]) => {
+        if (app && app.globalData && profile && profile !== cachedProfile) {
+          app.globalData.latestUserProfile = profile;
+          app.globalData.latestUserProfileAt = Date.now();
+        }
+        const record = extractPolicyAccessVersions(profile || {});
+        const agreementVersion = normalizePolicyVersion(latestAgreement?.version);
+        const privacyVersion = normalizePolicyVersion(latestPrivacy?.version);
+        const agreementNeedsUpdate =
+          agreementVersion && record.userAgreementVersion !== agreementVersion;
+        const privacyNeedsUpdate =
+          privacyVersion && record.privacyPolicyVersion !== privacyVersion;
+        if (!agreementNeedsUpdate && !privacyNeedsUpdate) {
+          this._policyUpdateChecked = true;
+          return;
+        }
+        const updateType = agreementNeedsUpdate && privacyNeedsUpdate
+          ? "both"
+          : (agreementNeedsUpdate ? "agreement" : "privacy");
+        const title =
+          updateType === "both"
+            ? "协议更新提示"
+            : (updateType === "agreement" ? "用户协议更新提示" : "隐私政策更新提示");
+        this._policyUpdateVersions = {
+          userAgreementVersion: agreementVersion || record.userAgreementVersion,
+          privacyPolicyVersion: privacyVersion || record.privacyPolicyVersion
+        };
+        this.setData({
+          policyUpdateVisible: true,
+          policyUpdateType: updateType,
+          policyUpdateTitle: title,
+          policyUpdateClosing: false,
+          mapBlockerVisible: true
+        }, () => {
+          this.updateMapBlockerVisible();
+        });
+      })
+      .catch((err) => {
+        console.warn("checkPolicyUpdateOnLaunch failed", err);
+      })
+      .finally(() => {
+        this._policyUpdateChecking = false;
+      });
+  },
+
+  onPolicyUpdateAgree() {
+    if (this._policyUpdateSubmitting) return;
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    const versions = this._policyUpdateVersions || {};
+    if (!apiBase || !token) {
+      return;
+    }
+    this._policyUpdateSubmitting = true;
+    this.setData({ policyUpdateSubmitting: true });
+    recordPolicyAccess(versions, { apiBase, token })
+      .then(() => {
+        this._policyUpdateChecked = true;
+        this.setData({ policyUpdateClosing: true }, () => {
+          if (this._policyUpdateCloseTimer) {
+            clearTimeout(this._policyUpdateCloseTimer);
+          }
+          this._policyUpdateCloseTimer = setTimeout(() => {
+            this._policyUpdateCloseTimer = null;
+            this.setData({
+              policyUpdateVisible: false,
+              policyUpdateClosing: false,
+              policyUpdateSubmitting: false
+            }, () => {
+              this.updateMapBlockerVisible();
+            });
+          }, 240);
+        });
+      })
+      .catch((err) => {
+        console.warn("record policy access failed", err);
+        wx.showToast({ title: "提交失败，请稍后重试", icon: "none" });
+        this.setData({ policyUpdateSubmitting: false });
+      })
+      .finally(() => {
+        this._policyUpdateSubmitting = false;
+      });
+  },
+
+  onPolicyUpdateDisagree() {
+    if (typeof wx.exitMiniProgram === "function") {
+      wx.exitMiniProgram();
+      return;
+    }
+    if (this.data.policyUpdateVisible) {
+      this.setData({ policyUpdateVisible: false }, () => {
+        this.updateMapBlockerVisible();
+      });
+    }
+    wx.showToast({ title: "请同意后继续使用", icon: "none" });
+  },
+
+  onPolicyAgreementTap() {
+    wx.navigateTo({ url: "/packages/guide/policy/index?type=agreement" });
+  },
+
+  onPolicyPrivacyTap() {
+    wx.navigateTo({ url: "/packages/guide/policy/index?type=privacy" });
   },
 
   initSubscriptionBanner() {
@@ -3185,7 +3329,8 @@ Page({
     const blocked = !!(
       this.data.newbieTaskBlockerVisible ||
       this.data.addMiniAppBlockerVisible ||
-      this.data.cityReportBlockerVisible
+      this.data.cityReportBlockerVisible ||
+      this.data.policyUpdateVisible
     );
     if (this.data.mapBlockerVisible !== blocked) {
       this.setData({ mapBlockerVisible: blocked });

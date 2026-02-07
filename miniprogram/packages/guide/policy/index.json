@@ -1,6 +1,6 @@
 {
-  "navigationBarTitleText": "用户协议",
-  "navigationBarBackgroundColor": "#FFFFFF",
-  "navigationBarTextStyle": "black",
+  "navigationBarTitleText": "",
+  "navigationBarBackgroundColor": "#000000",
+  "navigationBarTextStyle": "white",
   "backgroundColor": "#F7F8FA"
 }

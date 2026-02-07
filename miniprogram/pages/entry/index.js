@@ -84,13 +84,28 @@ Page({
       });
     return this.ensureAccessToken()
       .then(fetchProfile)
+      .then((profile = {}) => {
+        if (app && app.globalData) {
+          app.globalData.latestUserProfile = profile;
+          app.globalData.latestUserProfileAt = Date.now();
+        }
+        return profile;
+      })
       .catch((err) => {
         if (this._profileRetry) {
           throw err;
         }
         this._profileRetry = true;
         if (app && typeof app.loginWithProfile === "function") {
-          return app.loginWithProfile(loadStoredProfile()).then(fetchProfile);
+          return app.loginWithProfile(loadStoredProfile())
+            .then(fetchProfile)
+            .then((profile = {}) => {
+              if (app && app.globalData) {
+                app.globalData.latestUserProfile = profile;
+                app.globalData.latestUserProfileAt = Date.now();
+              }
+              return profile;
+            });
         }
         throw err;
       });

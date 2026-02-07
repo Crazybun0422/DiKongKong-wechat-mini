@@ -144,7 +144,22 @@ Page({
         userAgreementVersion: userAgreement?.version || "",
         privacyPolicyVersion: privacyPolicy?.version || ""
       };
-      return recordPolicyAccess(versions, { apiBase });
+      return recordPolicyAccess(versions, { apiBase }).then((record) => {
+        const app = typeof getApp === "function" ? getApp() : null;
+        if (app && app.globalData) {
+          const cached = app.globalData.latestUserProfile || {};
+          app.globalData.latestUserProfile = {
+            ...cached,
+            policyAccessRecord: {
+              userAgreementVersion: versions.userAgreementVersion || cached?.policyAccessRecord?.userAgreementVersion || "",
+              privacyPolicyVersion: versions.privacyPolicyVersion || cached?.policyAccessRecord?.privacyPolicyVersion || "",
+              createdAt: record?.createdAt || cached?.policyAccessRecord?.createdAt || ""
+            }
+          };
+          app.globalData.latestUserProfileAt = Date.now();
+        }
+        return record;
+      });
     });
   },
 

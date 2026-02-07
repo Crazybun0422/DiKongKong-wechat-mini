@@ -90,9 +90,6 @@ Page({
     const definition = POLICY_DEFINITIONS[type] || POLICY_DEFINITIONS.agreement;
     this._policyFetcher = definition.fetcher;
     this.setData({ title: definition.title });
-    if (typeof wx.setNavigationBarTitle === "function") {
-      wx.setNavigationBarTitle({ title: definition.title });
-    }
     this.loadContent();
   },
 

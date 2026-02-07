@@ -3,13 +3,15 @@
     "newbie-task-popup": "/packages/newbie-task/components/newbie-task-popup/index",
     "add-mini-app-popup": "/packages/add-mini-app/components/add-mini-app-popup/index",
     "uom-plugin": "/packages/uom/components/uom-plugin/index",
-    "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index"
+    "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index",
+    "policy-update-modal": "/packages/guide/components/policy-update-modal/index"
   },
   "componentPlaceholder": {
     "newbie-task-popup": "view",
     "add-mini-app-popup": "view",
     "uom-plugin": "view",
-    "city-report-h5-entry": "view"
+    "city-report-h5-entry": "view",
+    "policy-update-modal": "view"
   },
   "navigationStyle": "custom"
 }
