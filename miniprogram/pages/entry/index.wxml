@@ -6,4 +6,5 @@
     <text class="entry-error-text">{{error}}</text>
     <button class="entry-retry" bindtap="onRetryTap">重试</button>
   </view>
+
 </view>

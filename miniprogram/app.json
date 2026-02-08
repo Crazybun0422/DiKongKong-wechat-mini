@@ -51,6 +51,12 @@
       ]
     },
     {
+      "root": "packages/uom2",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/add-mini-app",
       "pages": [
         "placeholder/index"

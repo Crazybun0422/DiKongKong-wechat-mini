@@ -1,5 +1,5 @@
 <view class="policy-page">
-  <scroll-view scroll-y="true" class="policy-scroll">
+  <view class="policy-scroll">
     <block wx:if="{{loading}}">
       <view class="policy-loading">
         <image class="policy-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
@@ -19,7 +19,6 @@
             class="policy-content"
             nodes="{{item.nodes}}"
             space="nbsp"
-            selectable="true"
             bindtap="onRichTextTap"
           />
           <image
@@ -27,6 +26,7 @@
             class="policy-image"
             src="{{item.src}}"
             mode="widthFix"
+            lazy-load="true"
             show-menu-by-longpress="true"
             data-index="{{item.index}}"
             bindtap="onImageTap"
@@ -38,9 +38,8 @@
         class="policy-content"
         nodes="{{contentNodes}}"
         space="nbsp"
-        selectable="true"
         bindtap="onRichTextTap"
       />
     </block>
-  </scroll-view>
+  </view>
 </view>

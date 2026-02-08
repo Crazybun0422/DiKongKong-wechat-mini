@@ -41,8 +41,8 @@ Page({
     }
     fetchGuideUrls({ apiBase })
       .then((payload = {}) => {
-        const title = payload.title || DEFAULT_TITLE;
-        const slides = Array.isArray(payload.urls) ? payload.urls : [];
+        const slides = Array.isArray(payload.items) ? payload.items : [];
+        const title = slides[0]?.title || payload.title || DEFAULT_TITLE;
         this.setData({
           title,
           slides,
@@ -99,7 +99,8 @@ Page({
 
   onSwiperChange(event) {
     const current = Number(event?.detail?.current) || 0;
-    this.setData({ current });
+    const title = this.data.slides?.[current]?.title || DEFAULT_TITLE;
+    this.setData({ current, title });
   },
 
   onToggleAgree() {
@@ -122,9 +123,8 @@ Page({
     if (this.data.submitLoading) return;
     this.setData({ submitLoading: true });
     this.submitPolicyAccess()
-      .then(() => {
-        this.goMap();
-      })
+      .then(() => this.ensureLocationPermission().catch(() => {}))
+      .then(() => this.goMap())
       .catch((err) => {
         console.warn("submit policy access failed", err);
         wx.showToast({ title: TOAST_SUBMIT_FAIL, icon: "none" });
@@ -159,6 +159,41 @@ Page({
           app.globalData.latestUserProfileAt = Date.now();
         }
         return record;
+      });
+    });
+  },
+
+  ensureLocationPermission() {
+    return new Promise((resolve, reject) => {
+      wx.getSetting({
+        success: (res) => {
+          const granted = !!(res.authSetting && res.authSetting["scope.userLocation"]);
+          if (granted) {
+            resolve();
+            return;
+          }
+          this.authorizeLocation().then(resolve).catch(reject);
+        },
+        fail: reject
+      });
+    });
+  },
+
+  authorizeLocation() {
+    return new Promise((resolve, reject) => {
+      wx.authorize({
+        scope: "scope.userLocation",
+        success: () => resolve(),
+        fail: () => {
+          wx.openSetting({
+            success: (st) => {
+              const granted = !!(st.authSetting && st.authSetting["scope.userLocation"]);
+              if (granted) resolve();
+              else reject(new Error("permission-denied"));
+            },
+            fail: (err) => reject(err)
+          });
+        }
       });
     });
   },

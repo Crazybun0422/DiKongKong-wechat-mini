@@ -19,7 +19,7 @@
     >
       <swiper-item wx:for="{{slides}}" wx:key="index">
         <view class="guide-slide">
-          <image class="guide-image" src="{{item}}" mode="aspectFit" />
+          <image class="guide-image" src="{{item.url}}" mode="aspectFit" />
         </view>
       </swiper-item>
     </swiper>
@@ -51,5 +51,10 @@
     <text class="guide-link" catchtap="onUserAgreementTap">用户协议</text>
     <text class="guide-agree-text">和</text>
     <text class="guide-link" catchtap="onPrivacyPolicyTap">隐私政策</text>
+  </view>
+
+  <view class="guide-brand">
+    <image class="guide-brand-logo" src="/pages/entry/assets/gray-logo.png" mode="aspectFit" />
+    <text class="guide-brand-text">低空星球</text>
   </view>
 </view>

@@ -34,11 +34,12 @@ Page({
     this._profileRetry = false;
     this.setData({ loading: true, error: "" });
     this.prepareLaunchOptions();
+    const preloadGuide = this.preloadGuideSubpackage();
     this.ensureProfile()
       .then((profile = {}) => {
         if (this._navigating) return;
         if (shouldShowGuide(profile)) {
-          this.goGuide();
+          preloadGuide.finally(() => this.goGuide());
         } else {
           this.goMap();
         }
@@ -49,6 +50,24 @@ Page({
         const message = err?.message || DEFAULT_ERROR;
         this.setData({ loading: false, error: message });
       });
+  },
+
+  preloadGuideSubpackage() {
+    if (this._preloadGuidePromise) return this._preloadGuidePromise;
+    if (typeof wx.preloadSubpackage !== "function") {
+      this._preloadGuidePromise = Promise.resolve();
+      return this._preloadGuidePromise;
+    }
+    this._preloadGuidePromise = new Promise((resolve) => {
+      wx.preloadSubpackage({
+        name: "packages/guide",
+        success: () => resolve(),
+        fail: () => resolve()
+      });
+    }).finally(() => {
+      this._preloadGuidePromise = null;
+    });
+    return this._preloadGuidePromise;
   },
 
   prepareLaunchOptions() {

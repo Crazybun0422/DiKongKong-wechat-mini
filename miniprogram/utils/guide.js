@@ -6,13 +6,27 @@ const GUIDE_URLS_PATH = "/api/config/guide-urls";
 function normalizeGuideUrls(payload = {}, options = {}) {
   const apiBase = resolveApiBase(options.apiBase);
   const rawUrls = Array.isArray(payload.urls) ? payload.urls : [];
-  const urls = rawUrls
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter(Boolean)
-    .map((url) => resolveAssetUrl(url, { apiBase }))
-    .filter(Boolean);
-  const title = typeof payload.title === "string" ? payload.title.trim() : "";
-  return { title, urls };
+  const legacyTitle = typeof payload.title === "string" ? payload.title.trim() : "";
+  const items = rawUrls
+    .map((item) => {
+      if (typeof item === "string") {
+        return { url: item.trim(), title: "" };
+      }
+      if (item && typeof item === "object") {
+        const url = typeof item.url === "string" ? item.url.trim() : "";
+        const title = typeof item.title === "string" ? item.title.trim() : "";
+        return { url, title };
+      }
+      return { url: "", title: "" };
+    })
+    .filter((item) => item.url)
+    .map((item) => ({
+      ...item,
+      title: item.title || legacyTitle,
+      url: resolveAssetUrl(item.url, { apiBase })
+    }))
+    .filter((item) => item.url);
+  return { title: legacyTitle, items };
 }
 
 function fetchGuideUrls(options = {}) {

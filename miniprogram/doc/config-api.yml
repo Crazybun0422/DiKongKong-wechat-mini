@@ -114,7 +114,7 @@ paths:
   /api/config/guide-urls:
     get:
       summary: 获取引导界面 URL 数组
-      description: 普通用户可读取，返回用于引导界面的 URL 列表与标题；数据存储在 system_setting 表中，键为 CONFIG_GUIDE_URLS。
+      description: 普通用户可读取，返回用于引导界面的 URL 列表（每个条目包含 URL 与标题）；数据存储在 system_setting 表中，键为 CONFIG_GUIDE_URLS。
       responses:
         '200':
           description: OK
@@ -130,7 +130,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 创建或更新引导界面 URL 数组
-      description: 仅管理员可调用，用于创建或更新引导界面 URL 列表与标题。
+      description: 仅管理员可调用，用于创建或更新引导界面 URL 列表（每个条目包含 URL 与标题）。
       security:
         - bearerAuth: []
       requestBody:
@@ -945,16 +945,12 @@ components:
       type: object
       required:
         - urls
-        - title
       properties:
         urls:
           type: array
-          description: 引导界面 URL 列表。
+          description: 引导界面 URL 列表（每个条目包含 URL 与标题）。
           items:
-            type: string
-        title:
-          type: string
-          description: 引导界面标题。
+            $ref: '#/components/schemas/GuideUrlItem'
     GuideUrlsResponse:
       type: object
       properties:
@@ -962,14 +958,23 @@ components:
           type: array
           description: 已保存的引导界面 URL 列表（会过滤空字符串并去掉首尾空格）。
           items:
-            type: string
-        title:
-          type: string
-          description: 已保存的引导界面标题（会去掉首尾空格）。
+            $ref: '#/components/schemas/GuideUrlItem'
         updatedAt:
           type: string
           format: date-time
           description: 配置最后更新时间。
+    GuideUrlItem:
+      type: object
+      required:
+        - url
+        - title
+      properties:
+        url:
+          type: string
+          description: 引导界面 URL。
+        title:
+          type: string
+          description: 引导界面标题。
     ApiResponseGuideUrlsResponse:
       type: object
       properties:

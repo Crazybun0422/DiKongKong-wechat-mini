@@ -7,6 +7,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  position: relative;
 }
 
 .guide-title {
@@ -189,4 +190,28 @@
   color: #111111;
   text-decoration: underline;
   font-weight: 600;
+}
+
+.guide-brand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+}
+
+.guide-brand-logo {
+  width: 76rpx;
+  height: 76rpx;
+}
+
+.guide-brand-text {
+  font-size: 30rpx;
+  color: #111111;
+  letter-spacing: 4rpx;
+  font-family: "SimHei", "Heiti SC", "PingFang SC", sans-serif;
+  font-weight: 1000;
 }
