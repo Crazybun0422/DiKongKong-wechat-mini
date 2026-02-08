@@ -205,7 +205,7 @@
 
 .guide-brand-logo {
   width: 76rpx;
-  height: 76rpx;
+  height: 76rpx
 }
 
 .guide-brand-text {

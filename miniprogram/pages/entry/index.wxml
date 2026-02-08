@@ -3,8 +3,8 @@
     <image class="entry-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
   </view>
   <view class="entry-error" wx:elif="{{error}}">
-    <text class="entry-error-text">{{error}}</text>
+    <image class="entry-error-image" src="/assets/depressed-shapped.png" mode="aspectFit" />
+    <text class="entry-error-text">遇到一些小麻烦~请稍后再试</text>
     <button class="entry-retry" bindtap="onRetryTap">重试</button>
   </view>
-
 </view>
