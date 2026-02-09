@@ -43,6 +43,6 @@
     </view>
 
     <button class="policy-update-button" loading="{{loading}}" disabled="{{loading}}" bindtap="onAgreeTap">同意并继续</button>
-    <view class="policy-update-disagree" bindtap="onDisagreeTap">不同意</view>
+    <view class="policy-update-disagree" bindtap="onDisagreeTap">不同意，退出</view>
   </view>
 </view>

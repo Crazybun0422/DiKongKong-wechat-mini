@@ -23,7 +23,7 @@ const {
   formatDistanceText,
   computeGreatCircleDistance
 } = require("../../utils/distance");
-const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID } = require("../../utils/config");
+const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID, MAP_DEBUG_PANEL_ENABLED } = require("../../utils/config");
 const {
   loadStoredProfile: loadStoredProfileUtil,
   prepareAvatarForUpload,
@@ -60,6 +60,7 @@ const {
 const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
 const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
 const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
+const { isWeChatRuntime, isDesktopRuntime } = require("../../utils/runtime");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -777,7 +778,10 @@ Page({
     scaleBarWidthRpx: DEFAULT_SCALE_BAR_BASE_RPX,
     scaleBarLabel: "",
     enableSatellite: false,
+    debugEnabled: MAP_DEBUG_PANEL_ENABLED === true,
+    debugInfo: {},
     mapLayerType: "standard",
+    isWeChatRuntime: null,
     layerPanelVisible: false,
     layerPanelClosing: false,
     airBoardEnabled: true,
@@ -818,6 +822,47 @@ Page({
     this.mapCtx = wx.createMapContext("main-map");
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
+    let appBase = {};
+    try {
+      if (typeof wx !== "undefined" && typeof wx.getAppBaseInfo === "function") {
+        appBase = wx.getAppBaseInfo() || {};
+      }
+    } catch (err) {
+      appBase = {};
+    }
+    const appName = `${appBase.appName || appBase.hostName || ""}`.toLowerCase();
+    const host = `${appBase.host || appBase.hostName || ""}`.toLowerCase();
+    const isDevtools =
+      appName.includes("devtools") ||
+      appName.includes("开发者") ||
+      host.includes("devtools");
+    const runtimeIsWeChat = isWeChatRuntime();
+    const runtimeIsDesktop = isDesktopRuntime();
+    const useWeChatUom = runtimeIsWeChat && !isDevtools && !runtimeIsDesktop;
+    console.log("[map] runtime", {
+      runtimeIsWeChat,
+      runtimeIsDesktop,
+      useWeChatUom,
+      appName,
+      host
+    });
+    this._runtimeIsWeChat = useWeChatUom;
+    this.data.isWeChatRuntime = useWeChatUom;
+    const debugEnabled = MAP_DEBUG_PANEL_ENABLED === true;
+    if (debugEnabled) {
+      this._debugInfoBase = this.collectRuntimeDebugInfo({
+        appBase,
+        runtimeIsWeChat,
+        runtimeIsDesktop,
+        useWeChatUom,
+        isDevtools
+      });
+    }
+    this.setData({
+      isWeChatRuntime: useWeChatUom,
+      debugEnabled,
+      debugInfo: debugEnabled ? this.buildDebugInfo({}) : {}
+    });
     this._mapMarkerIdMap = new Map();
     this._mapMarkerIdSeq = 100000;
     this._fetchTimer = null;
@@ -849,6 +894,7 @@ Page({
     this._nfzPolygons = [];
     this._nfzCircles = [];
     this._suggestTimer = null;
+    this._uom2Markers = [];
     this.prefetchSubscriptionLatest();
     this.setData({
       mapElementOptions: this.composeMapElementOptions({
@@ -941,7 +987,9 @@ Page({
       console.log("[uom-plugin] init check");
       this._uomPluginInitLogged = true;
     }
-    const plugin = this.selectComponent("#uom-plugin");
+    const selector = this.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
+    console.log("[uom-plugin] select", { selector, useWeChatUom: this.data.isWeChatRuntime });
+    const plugin = this.selectComponent(selector);
     if (plugin && typeof plugin.init === "function") {
       console.log("[uom-plugin] instance ready, init");
       plugin.init({
@@ -3142,12 +3190,85 @@ Page({
     }
   },
 
+  onUomTilesChanged(event = {}) {
+    const detail = event?.detail || {};
+    const markers = Array.isArray(detail.markers) ? detail.markers : [];
+    this._uom2Markers = markers;
+    this.updateDebugPanel({ uom2MarkerCount: `${markers.length}` });
+    this.syncAllMarkers();
+  },
+
   onCheckinGuideStart() {
     const app = typeof getApp === "function" ? getApp() : null;
     if (app && app.globalData) {
       app.globalData.checkinGuide = { active: true, step: "map" };
     }
     this.showCheckinGuideOnMap();
+  },
+
+  buildDebugInfo(extra = {}) {
+    const base = this._debugInfoBase || {};
+    return Object.assign({}, base, this.data.debugInfo || {}, extra);
+  },
+
+  updateDebugPanel(extra = {}) {
+    if (!this.data.debugEnabled) return;
+    this.setData({ debugInfo: this.buildDebugInfo(extra) });
+  },
+
+  formatDebugCoord(point) {
+    const lat = Number(point?.latitude);
+    const lng = Number(point?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+    return `${lng.toFixed(6)}, ${lat.toFixed(6)}`;
+  },
+
+  formatDebugRegion(region) {
+    const ne = region?.northeast;
+    const sw = region?.southwest;
+    if (!ne || !sw) return "";
+    const neLat = Number(ne.latitude);
+    const neLng = Number(ne.longitude);
+    const swLat = Number(sw.latitude);
+    const swLng = Number(sw.longitude);
+    if (![neLat, neLng, swLat, swLng].every(Number.isFinite)) return "";
+    return `${swLng.toFixed(4)},${swLat.toFixed(4)} -> ${neLng.toFixed(4)},${neLat.toFixed(4)}`;
+  },
+
+  collectRuntimeDebugInfo(options = {}) {
+    let deviceInfo = {};
+    let systemInfo = {};
+    try {
+      if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
+        deviceInfo = wx.getDeviceInfo() || {};
+      }
+    } catch (err) {
+      deviceInfo = {};
+    }
+    try {
+      if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
+        systemInfo = wx.getSystemInfoSync() || {};
+      }
+    } catch (err) {
+      systemInfo = {};
+    }
+    const appBase = options.appBase || {};
+    const toText = (val) => (val === undefined || val === null ? "" : `${val}`);
+    return {
+      appName: toText(appBase.appName || appBase.hostName || ""),
+      host: toText(appBase.host || appBase.hostName || ""),
+      hostName: toText(appBase.hostName || ""),
+      platform: toText(deviceInfo.platform || systemInfo.platform || appBase.platform || ""),
+      system: toText(systemInfo.system || ""),
+      model: toText(systemInfo.model || ""),
+      brand: toText(systemInfo.brand || ""),
+      runtimeIsWeChat: `${!!options.runtimeIsWeChat}`,
+      runtimeIsDesktop: `${!!options.runtimeIsDesktop}`,
+      isDevtools: `${!!options.isDevtools}`,
+      useWeChatUom: `${!!options.useWeChatUom}`,
+      hasWx: `${typeof wx !== "undefined"}`,
+      hasQq: `${typeof qq !== "undefined"}`
+    };
   },
 
   onInviteGuideStart() {
@@ -4589,12 +4710,14 @@ Page({
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
+    const uom2 = Array.isArray(this._uom2Markers) ? this._uom2Markers : [];
+    this.normalizeMapMarkerList(uom2);
     this.normalizeMapMarkerList(nearby);
     this.normalizeMapMarkerList(pinMarkers);
     this.normalizeMapMarkerList(search);
     this.normalizeMapMarkerList(manual);
     this.normalizeMapMarkerList(preview);
-    const combined = manual.concat(pinMarkers, nearby, search, preview);
+    const combined = uom2.concat(manual, pinMarkers, nearby, search, preview);
     this.setData({ markers: combined });
   },
 
@@ -6368,13 +6491,43 @@ Page({
   },
 
   onRegionChange(e) {
-    if (e.type === "begin") {
+    if (e.type !== "end") {
       if (this._fetchTimer) clearTimeout(this._fetchTimer);
       if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
       this._currentBounds = null;
+      if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
+        this._uomPlugin.startFollow();
+      }
+      const detail = e?.detail || {};
+      const cl = detail && (detail.centerLocation || null);
+      if (cl && this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+        const region = detail.region || {
+          northeast: detail.northeast,
+          southwest: detail.southwest
+        };
+        const scale = clampMapScale(detail.scale || this.data.scale);
+        const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
+        this.updateDebugPanel({
+          scale: `${scale}`,
+          rawScale: `${detail.scale ?? ""}`,
+          center: this.formatDebugCoord(newCenter),
+          region: this.formatDebugRegion(region),
+          regionPhase: "move"
+        });
+        this._uomPlugin.handleRegionChange({
+          center: newCenter,
+          centerPin: newCenter,
+          scale,
+          rawScale: detail.scale,
+          region,
+          force: true
+        });
+      }
       return;
     }
-    if (e.type === "end") {
+    if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
+      this._uomPlugin.stopFollow();
+    }
       const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
       const detail = e?.detail || {};
       this.updateMapGestureState(detail);
@@ -6390,11 +6543,23 @@ Page({
         southwest: detail.southwest
       });
       const cl = detail && (detail.centerLocation || null);
-      if (region && region.northeast && region.southwest && cl) {
-        const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
+      if (region && region.northeast && region.southwest) {
+        const newCenter = cl
+          ? { latitude: cl.latitude, longitude: cl.longitude }
+          : {
+            latitude: (region.northeast.latitude + region.southwest.latitude) / 2,
+            longitude: (region.northeast.longitude + region.southwest.longitude) / 2
+          };
         this._centerOverride = newCenter;
         const prevScale = this.data.scale;
         const scale = clampMapScale(detail.scale || prevScale);
+        this.updateDebugPanel({
+          scale: `${scale}`,
+          rawScale: `${detail.scale ?? ""}`,
+          center: this.formatDebugCoord(newCenter),
+          region: this.formatDebugRegion(region),
+          regionPhase: "end"
+        });
         const scaleChanged = scale !== prevScale;
         // console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
@@ -6419,7 +6584,13 @@ Page({
         }
         const run = (forceRefresh) => {
           if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-            this._uomPlugin.handleRegionChange({ center: newCenter, centerPin: newCenter, scale, region });
+            this._uomPlugin.handleRegionChange({
+              center: newCenter,
+              centerPin: newCenter,
+              scale,
+              rawScale: detail.scale,
+              region
+            });
           }
           this.requestDjiZones(forceRefresh, newCenter, region, scale);
           this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
@@ -6467,7 +6638,6 @@ Page({
       if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
         this._uomPlugin.scheduleFinalRefresh();
       }
-    }
   },
 
   onMapUpdated() { },

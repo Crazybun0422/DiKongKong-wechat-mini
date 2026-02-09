@@ -19,18 +19,64 @@
   text-align: center;
 }
 
+.guide-media-wrap {
+  width: 100vw;
+  height: 680rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  margin-left: -36rpx;
+  margin-right: -36rpx;
+}
+
+.guide-media-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.guide-media-fade {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background:
+    linear-gradient(
+      to right,
+      rgba(247, 248, 250, 1) 0%,
+      rgba(247, 248, 250, 0) 14%,
+      rgba(247, 248, 250, 0) 86%,
+      rgba(247, 248, 250, 1) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(247, 248, 250, 1) 0%,
+      rgba(247, 248, 250, 0) 14%,
+      rgba(247, 248, 250, 0) 86%,
+      rgba(247, 248, 250, 1) 100%
+    );
+}
+
 .guide-media {
   width: 100%;
   max-width: 620rpx;
-  height: 680rpx;
+  height: 100%;
   background: transparent;
   border-radius: 0;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
   box-shadow: none;
+  position: relative;
+  z-index: 2;
 }
 
 .guide-loading,
@@ -39,6 +85,8 @@
   font-size: 28rpx;
   color: #666;
   text-align: center;
+  position: relative;
+  z-index: 1;
 }
 
 .guide-loading-image {
@@ -80,6 +128,8 @@
 .guide-swiper {
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .guide-slide {
@@ -102,6 +152,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translateY(-100rpx);
 }
 
 .guide-dot {
@@ -119,7 +170,7 @@
 }
 
 .guide-start-btn {
-  width: 320rpx;
+  width: 400rpx !important;
   height: 73rpx;
   margin-top: 10rpx;
   border-radius: 999rpx;

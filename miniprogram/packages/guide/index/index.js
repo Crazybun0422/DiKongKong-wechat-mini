@@ -18,6 +18,7 @@ Page({
     title: DEFAULT_TITLE,
     slides: [],
     current: 0,
+    autoplay: true,
     agreed: false,
     submitLoading: false,
     contentTopRpx: 0
@@ -26,6 +27,38 @@ Page({
   onLoad() {
     this.updateContentTopOffset();
     this.loadGuide();
+  },
+
+  onShow() {
+    const slides = Array.isArray(this.data.slides) ? this.data.slides : [];
+    const current = Number.isFinite(this.data.current) ? this.data.current : 0;
+    const safeCurrent = Math.min(Math.max(current, 0), Math.max(0, slides.length - 1));
+    const title = slides[safeCurrent]?.title || DEFAULT_TITLE;
+    if (this._resumeAutoplayTimer) {
+      clearTimeout(this._resumeAutoplayTimer);
+      this._resumeAutoplayTimer = null;
+    }
+    this.setData(
+      {
+        autoplay: false,
+        current: safeCurrent,
+        title
+      },
+      () => {
+        this._resumeAutoplayTimer = setTimeout(() => {
+          this._resumeAutoplayTimer = null;
+          this.setData({ autoplay: true });
+        }, 200);
+      }
+    );
+  },
+
+  onHide() {
+    if (this._resumeAutoplayTimer) {
+      clearTimeout(this._resumeAutoplayTimer);
+      this._resumeAutoplayTimer = null;
+    }
+    this.setData({ autoplay: false });
   },
 
   onRetryTap() {

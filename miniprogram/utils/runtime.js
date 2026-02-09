@@ -4,17 +4,30 @@ function normalizeRuntimeField(value) {
 
 function getRuntimeInfo() {
   let appBase = {};
-  if (typeof wx !== "undefined" && typeof wx.getAppBaseInfo === "function") {
+  let deviceInfo = {};
+  const api =
+    (typeof wx !== "undefined" && wx) ||
+    (typeof qq !== "undefined" && qq) ||
+    null;
+  if (api && typeof api.getAppBaseInfo === "function") {
     try {
-      appBase = wx.getAppBaseInfo() || {};
+      appBase = api.getAppBaseInfo() || {};
     } catch (err) {
       appBase = {};
+    }
+  }
+  if (api && typeof api.getDeviceInfo === "function") {
+    try {
+      deviceInfo = api.getDeviceInfo() || {};
+    } catch (err) {
+      deviceInfo = {};
     }
   }
   return {
     appName: appBase.appName || appBase.hostName || "",
     host: appBase.host || appBase.hostName || "",
-    hostName: appBase.hostName || ""
+    hostName: appBase.hostName || "",
+    platform: deviceInfo.platform || appBase.platform || ""
   };
 }
 
@@ -23,7 +36,7 @@ function isWeChatRuntime() {
     const info = getRuntimeInfo();
     const env = normalizeRuntimeField(info.host || info.hostName);
     const appName = normalizeRuntimeField(info.appName || info.hostName);
-    if (!env && !appName) return true;
+    if (!env && !appName) return false;
     return (
       env.includes("wechat") ||
       env.includes("weixin") ||
@@ -31,10 +44,26 @@ function isWeChatRuntime() {
       appName.includes("wechat")
     );
   } catch (err) {
-    return true;
+    return false;
+  }
+}
+
+function isDesktopRuntime() {
+  try {
+    const info = getRuntimeInfo();
+    const platform = normalizeRuntimeField(info.platform);
+    return (
+      platform.includes("windows") ||
+      platform.includes("win") ||
+      platform.includes("mac") ||
+      platform.includes("desktop")
+    );
+  } catch (err) {
+    return false;
   }
 }
 
 module.exports = {
-  isWeChatRuntime
+  isWeChatRuntime,
+  isDesktopRuntime
 };

@@ -42,7 +42,14 @@
       bind:close="onAddMiniAppPopupClose"
       bind:statechange="onAddMiniAppStateChange"
     />
-    <uom-plugin id="uom-plugin" bind:statuschange="onUomStatusChange" />
+    <uom-plugin id="uom-plugin" wx:if="{{isWeChatRuntime === true}}" bind:statuschange="onUomStatusChange" />
+    <uom2-plugin
+      id="uom2-plugin"
+      wx:elif="{{isWeChatRuntime === false}}"
+      bind:statuschange="onUomStatusChange"
+      bind:tileschanged="onUomTilesChanged"
+    />
+    <map-debug-panel wx:if="{{debugEnabled}}" info="{{debugInfo}}" />
     <view
       class="subscription-banner"
       wx:if="{{activeTab === 'home' && showSubscriptionBanner}}"

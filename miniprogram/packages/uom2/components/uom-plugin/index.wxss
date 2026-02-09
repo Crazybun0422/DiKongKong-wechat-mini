@@ -3,4 +3,14 @@
   inset: 0;
   z-index: 10;
   pointer-events: none;
+  overflow: hidden;
+}
+
+.uom2-tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 256px;
+  height: 256px;
+  opacity: 0.65;
 }
