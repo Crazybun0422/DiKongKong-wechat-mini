@@ -141,9 +141,38 @@
   background: transparent;
 }
 
+.guide-image-stack {
+  width: 82%;
+  height: 62%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-image-card {
+  position: absolute;
+  width: 108%;
+  height: 108%;
+  border-radius: 32rpx;
+  background: #ffffff;
+  box-shadow: 0 22rpx 48rpx rgba(0, 0, 0, 0.18);
+  z-index: 0;
+}
+
+.guide-image-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 28rpx;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
 .guide-image {
-  width: 72%;
-  height: 72%;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .guide-indicator {

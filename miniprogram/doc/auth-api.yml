@@ -650,18 +650,56 @@ components:
     UserPolicyAccessRecordResponse:
       type: object
       properties:
-        userAgreementVersion:
+        userId:
+          type: integer
+          format: int64
+          description: 访问记录对应的用户 ID。
+        featureCode:
           type: string
-          nullable: true
-          description: 最近一次访问记录中的用户协议版本。
-        privacyPolicyVersion:
+          description: 访问记录对应的低空号。
+        agreementType:
           type: string
-          nullable: true
-          description: 最近一次访问记录中的隐私政策版本。
-        createdAt:
+          description: 协议类型（privacy / terms）。
+        version:
+          type: string
+          description: 协议版本号。
+        acceptedAt:
           type: string
           format: date-time
-          description: 访问记录写入时间。
+          description: 服务端记录的接受时间。
+        clientReportedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 客户端上报的接受时间。
+        scene:
+          type: string
+          nullable: true
+          description: 触发场景。
+        platform:
+          type: string
+          nullable: true
+          description: 平台标识。
+        appVersion:
+          type: string
+          nullable: true
+          description: 小程序版本号。
+        deviceInfo:
+          type: string
+          nullable: true
+          description: 设备信息。
+        ip:
+          type: string
+          nullable: true
+          description: 服务端记录的 IP 地址。
+        userAgent:
+          type: string
+          nullable: true
+          description: 服务端记录的 User-Agent。
+        docHash:
+          type: string
+          nullable: true
+          description: 协议正文 hash。
     UserSummaryResponse:
       type: object
       properties:

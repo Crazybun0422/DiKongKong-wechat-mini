@@ -22,7 +22,12 @@
       >
         <swiper-item wx:for="{{slides}}" wx:key="index">
           <view class="guide-slide">
-            <image class="guide-image" src="{{item.url}}" mode="aspectFit" />
+            <view class="guide-image-stack">
+              <view class="guide-image-card"></view>
+              <view class="guide-image-frame">
+                <image class="guide-image" src="{{item.url}}" mode="aspectFill" />
+              </view>
+            </view>
           </view>
         </swiper-item>
       </swiper>
