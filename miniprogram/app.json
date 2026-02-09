@@ -68,6 +68,12 @@
         "placeholder/index",
         "h5/index"
       ]
+    },
+    {
+      "root": "packages/compass",
+      "pages": [
+        "placeholder/index"
+      ]
     }
   ],
   "window": {

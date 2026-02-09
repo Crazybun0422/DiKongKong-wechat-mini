@@ -108,6 +108,9 @@ const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const MIN_CENTER_SYNC_METERS = 6;
+const MAP_COMPASS_ROTATE_THRESHOLD = 1;
+const MAP_COMPASS_ROTATE_SYNC_DELTA = 1;
+const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
 const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
 const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
 
@@ -116,6 +119,15 @@ const clampMapScale = (value) => {
   const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
   const rounded = Math.round(base);
   return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
+};
+
+const normalizeMapRotate = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  let normalized = numeric % 360;
+  if (normalized < 0) normalized += 360;
+  if (Math.abs(normalized - 360) < 0.0001) normalized = 0;
+  return normalized;
 };
 
 const formatNearbyMarkerLabel = (value) => {
@@ -777,6 +789,10 @@ Page({
     scaleBarVisible: false,
     scaleBarWidthRpx: DEFAULT_SCALE_BAR_BASE_RPX,
     scaleBarLabel: "",
+    mapRotate: 0,
+    compassVisible: false,
+    compassRotate: 0,
+    compassSkew: 0,
     enableSatellite: false,
     debugEnabled: MAP_DEBUG_PANEL_ENABLED === true,
     debugInfo: {},
@@ -5601,11 +5617,16 @@ Page({
   },
 
   onLocateTap() {
+    this.resetCompassState();
     this.ensureLocationPermission()
       .then(() => this.pullAndCenterLocation({ scaleMeters: LOCATE_SCALE_METERS, scale: 14 }))
       .catch(() => {
         wx.showToast({ title: "未授权定位权限", icon: "none" });
       });
+  },
+
+  onCompassTap() {
+    this.resetCompassState();
   },
 
   requestInitialLocation() {
@@ -6378,6 +6399,78 @@ Page({
         this._overlookSyncAvoidUntil = now + 400;
       }
     }
+    if (Number.isFinite(skew) || Number.isFinite(rotate)) {
+      this.syncCompassState({ rotate, skew });
+    }
+  },
+
+  syncCompassState(detail = {}) {
+    const rotateValue = Object.prototype.hasOwnProperty.call(detail, "rotate")
+      ? detail.rotate
+      : this._mapRotate;
+    const normalized = normalizeMapRotate(rotateValue);
+    if (!Number.isFinite(normalized)) return;
+    const skewValue = Object.prototype.hasOwnProperty.call(detail, "skew")
+      ? detail.skew
+      : this._mapSkew;
+    const normalizedSkew = Number.isFinite(skewValue) ? Math.max(0, Math.min(60, skewValue)) : 0;
+    const distance = normalized > 180 ? 360 - normalized : normalized;
+    const shouldShow = distance >= MAP_COMPASS_ROTATE_THRESHOLD;
+    const updates = {};
+    if (shouldShow) {
+      if (
+        !Number.isFinite(this.data.mapRotate)
+        || Math.abs(this.data.mapRotate - normalized) >= MAP_COMPASS_ROTATE_SYNC_DELTA
+      ) {
+        updates.mapRotate = normalized;
+      }
+      if (
+        !Number.isFinite(this.data.compassRotate)
+        || Math.abs(this.data.compassRotate - normalized) >= MAP_COMPASS_ROTATE_SYNC_DELTA
+      ) {
+        updates.compassRotate = normalized;
+      }
+    } else {
+      if (this.data.mapRotate !== 0) {
+        updates.mapRotate = 0;
+      }
+      if (this.data.compassRotate !== 0) {
+        updates.compassRotate = 0;
+      }
+    }
+    if (
+      !Number.isFinite(this.data.compassSkew)
+      || Math.abs(this.data.compassSkew - normalizedSkew) >= MAP_COMPASS_SKEW_SYNC_DELTA
+    ) {
+      updates.compassSkew = normalizedSkew;
+    }
+    if (shouldShow !== this.data.compassVisible) {
+      updates.compassVisible = shouldShow;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+  },
+
+  resetCompassState() {
+    this._mapRotate = 0;
+    const updates = {};
+    if (this.data.mapRotate !== 0) {
+      updates.mapRotate = 0;
+    }
+    if (this.data.compassRotate !== 0) {
+      updates.compassRotate = 0;
+    }
+    if (this.data.compassSkew !== 0) {
+      updates.compassSkew = 0;
+    }
+    if (this.data.compassVisible) {
+      updates.compassVisible = false;
+    }
+    if (Object.keys(updates).length) {
+      this._skipNextRotateRegion = true;
+      this.setData(updates);
+    }
   },
 
   shouldAvoidCenterSync(options = {}) {
@@ -6569,6 +6662,26 @@ Page({
     }
       const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
       const detail = e?.detail || {};
+      if (this._skipNextRotateRegion) {
+        const rotate = Number(detail?.rotate);
+        if (Number.isFinite(rotate)) {
+          const cl = detail && (detail.centerLocation || null);
+          const prevCenter = this.data.center;
+          const moveMeters = (cl && prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+            ? haversineMeters(
+              prevCenter.latitude,
+              prevCenter.longitude,
+              cl.latitude,
+              cl.longitude
+            )
+            : 0;
+          if (!Number.isFinite(moveMeters) || moveMeters < MIN_CENTER_SYNC_METERS) {
+            this._skipNextRotateRegion = false;
+            return;
+          }
+        }
+        this._skipNextRotateRegion = false;
+      }
       this.updateMapGestureState(detail);
       if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
         this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);

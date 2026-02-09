@@ -746,6 +746,14 @@ button.search-btn::after {
   pointer-events: none;
 }
 
+.map-compass-anchor {
+  position: absolute;
+  left: 32rpx;
+  bottom: calc(env(safe-area-inset-bottom) + 240rpx + 250rpx);
+  z-index: 36;
+  pointer-events: auto;
+}
+
 .map-scale {
   position: relative;
   padding: 12rpx 0;

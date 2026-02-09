@@ -8,6 +8,7 @@
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
+      rotate="{{mapRotate}}"
       min-scale="{{minScale}}"
       max-scale="{{maxScale}}"
       subkey="{{mapSubKey}}"
@@ -66,6 +67,13 @@
       >
         立即开启
       </button>
+    </view>
+    <view class="map-compass-anchor" wx:if="{{compassVisible}}">
+      <map-compass
+        rotate="{{compassRotate}}"
+        skew="{{compassSkew}}"
+        bind:compasstap="onCompassTap"
+      />
     </view>
     <view class="map-scale-container" wx:if="{{scaleBarVisible}}">
       <view class="map-scale">
