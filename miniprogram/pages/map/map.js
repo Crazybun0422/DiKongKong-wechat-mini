@@ -1507,6 +1507,10 @@ Page({
           userAgreementVersion: agreementVersion || record.userAgreementVersion,
           privacyPolicyVersion: privacyVersion || record.privacyPolicyVersion
         };
+        this._policyUpdatePolicies = {
+          agreement: latestAgreement || null,
+          privacy: latestPrivacy || null
+        };
         this.setData({
           policyUpdateVisible: true,
           policyUpdateType: updateType,
@@ -1530,12 +1534,47 @@ Page({
     const apiBase = this.getApiBase();
     const token = this.getAuthToken();
     const versions = this._policyUpdateVersions || {};
+    const policies = this._policyUpdatePolicies || {};
+    const updateType = this.data.policyUpdateType;
     if (!apiBase || !token) {
       return;
     }
     this._policyUpdateSubmitting = true;
     this.setData({ policyUpdateSubmitting: true });
-    recordPolicyAccess(versions, { apiBase, token })
+    const tasks = [];
+    if (updateType === "agreement" || updateType === "both") {
+      const version = normalizePolicyVersion(policies?.agreement?.version || versions.userAgreementVersion);
+      if (version) {
+        tasks.push(
+          recordPolicyAccess(
+            {
+              agreementType: "terms",
+              version,
+              docHash: policies?.agreement?.docHash,
+              scene: "POPUP"
+            },
+            { apiBase, token }
+          )
+        );
+      }
+    }
+    if (updateType === "privacy" || updateType === "both") {
+      const version = normalizePolicyVersion(policies?.privacy?.version || versions.privacyPolicyVersion);
+      if (version) {
+        tasks.push(
+          recordPolicyAccess(
+            {
+              agreementType: "privacy",
+              version,
+              docHash: policies?.privacy?.docHash,
+              scene: "POPUP"
+            },
+            { apiBase, token }
+          )
+        );
+      }
+    }
+    Promise.all(tasks)
       .then(() => {
         this._policyUpdateChecked = true;
         this.setData({ policyUpdateClosing: true }, () => {

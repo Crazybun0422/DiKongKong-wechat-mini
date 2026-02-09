@@ -13,10 +13,12 @@ function normalizePolicyContent(payload) {
   if (!payload || typeof payload !== "object") return null;
   const version = normalizePolicyVersion(payload.version);
   const content = typeof payload.content === "string" ? payload.content : "";
+  const docHash = typeof payload.docHash === "string" ? payload.docHash : "";
   return {
     id: payload.id,
     version,
     content,
+    docHash,
     createdAt: payload.createdAt,
     updatedAt: payload.updatedAt
   };
@@ -58,9 +60,40 @@ function fetchLatestPrivacyPolicy(options = {}) {
 }
 
 function extractPolicyAccessVersions(profile = {}) {
-  const record = profile?.policyAccessRecord || {};
-  const userAgreementVersion = normalizePolicyVersion(record.userAgreementVersion);
-  const privacyPolicyVersion = normalizePolicyVersion(record.privacyPolicyVersion);
+  const records = profile?.policyAccessRecords;
+  let userAgreementVersion = normalizePolicyVersion(records?.terms?.version);
+  let privacyPolicyVersion = normalizePolicyVersion(records?.privacy?.version);
+
+  const legacyRecord = profile?.policyAccessRecord || {};
+  if (!userAgreementVersion) {
+    userAgreementVersion = normalizePolicyVersion(legacyRecord.userAgreementVersion);
+  }
+  if (!privacyPolicyVersion) {
+    privacyPolicyVersion = normalizePolicyVersion(legacyRecord.privacyPolicyVersion);
+  }
+
+  const applyRecord = (item) => {
+    if (!item || typeof item !== "object") return;
+    const agreementType = `${item.agreementType || ""}`.toLowerCase();
+    const version = normalizePolicyVersion(item.version);
+    if (agreementType === "terms") {
+      userAgreementVersion = userAgreementVersion || version;
+    } else if (agreementType === "privacy") {
+      privacyPolicyVersion = privacyPolicyVersion || version;
+    }
+  };
+
+  if (!userAgreementVersion && !privacyPolicyVersion) {
+    if (Array.isArray(records)) {
+      records.forEach(applyRecord);
+    } else if (Array.isArray(legacyRecord)) {
+      legacyRecord.forEach(applyRecord);
+    } else {
+      applyRecord(records);
+      applyRecord(legacyRecord);
+    }
+  }
+
   return { userAgreementVersion, privacyPolicyVersion };
 }
 
@@ -69,15 +102,85 @@ function shouldShowGuide(profile = {}) {
   return !versions.userAgreementVersion && !versions.privacyPolicyVersion;
 }
 
-function recordPolicyAccess(versions = {}, options = {}) {
-  const userAgreementVersion = normalizePolicyVersion(versions.userAgreementVersion) || null;
-  const privacyPolicyVersion = normalizePolicyVersion(versions.privacyPolicyVersion) || null;
+function resolvePolicyPlatform() {
+  if (typeof qq !== "undefined") return "qq";
+  if (typeof wx !== "undefined") return "wx";
+  return "unknown";
+}
+
+function resolvePolicyAppVersion() {
+  try {
+    const info = typeof wx !== "undefined" && typeof wx.getAccountInfoSync === "function"
+      ? wx.getAccountInfoSync()
+      : null;
+    const version = info?.miniProgram?.version || "";
+    if (version) return version;
+  } catch (err) {
+    // ignore
+  }
+  try {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const version = app?.globalData?.version;
+    if (version) return `${version}`;
+  } catch (err) {
+    // ignore
+  }
+  return "unknown";
+}
+
+function resolvePolicyDeviceInfo() {
+  try {
+    if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
+      const info = wx.getSystemInfoSync() || {};
+      const payload = {
+        brand: info.brand,
+        model: info.model,
+        system: info.system,
+        platform: info.platform,
+        version: info.version,
+        SDKVersion: info.SDKVersion,
+        screenWidth: info.screenWidth,
+        screenHeight: info.screenHeight
+      };
+      return JSON.stringify(payload);
+    }
+  } catch (err) {
+    // ignore
+  }
+  return "unknown";
+}
+
+function buildPolicyAccessPayload(payload = {}, options = {}) {
+  const agreementType = `${payload.agreementType || ""}`.trim();
+  const version = normalizePolicyVersion(payload.version);
+  const scene = `${payload.scene || options.scene || ""}`.trim() || null;
+  const clientReportedAt = payload.clientReportedAt || new Date().toISOString();
+  const platform = payload.platform || resolvePolicyPlatform();
+  const appVersion = payload.appVersion || resolvePolicyAppVersion();
+  const deviceInfo = payload.deviceInfo || resolvePolicyDeviceInfo();
+  const docHash = typeof payload.docHash === "string" && payload.docHash.trim()
+    ? payload.docHash.trim()
+    : (payload.docHash ?? null);
+  return {
+    agreementType,
+    version,
+    clientReportedAt,
+    scene,
+    platform,
+    appVersion,
+    deviceInfo,
+    docHash
+  };
+}
+
+function recordPolicyAccess(payload = {}, options = {}) {
+  const data = buildPolicyAccessPayload(payload, options);
   return authorizedRequest({
     apiBase: options.apiBase,
     token: options.token,
     path: ACCESS_RECORD_PATH,
     method: "POST",
-    data: { userAgreementVersion, privacyPolicyVersion }
+    data
   }).then((body = {}) => body?.data || {});
 }
 
@@ -87,5 +190,6 @@ module.exports = {
   fetchLatestPrivacyPolicy,
   extractPolicyAccessVersions,
   shouldShowGuide,
+  buildPolicyAccessPayload,
   recordPolicyAccess
 };

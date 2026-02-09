@@ -173,25 +173,68 @@ Page({
       fetchLatestUserAgreement({ apiBase }),
       fetchLatestPrivacyPolicy({ apiBase })
     ]).then(([userAgreement, privacyPolicy]) => {
-      const versions = {
-        userAgreementVersion: userAgreement?.version || "",
-        privacyPolicyVersion: privacyPolicy?.version || ""
-      };
-      return recordPolicyAccess(versions, { apiBase }).then((record) => {
+      const tasks = [];
+      const agreementVersion = userAgreement?.version || "";
+      const privacyVersion = privacyPolicy?.version || "";
+      if (agreementVersion) {
+        tasks.push(
+          recordPolicyAccess(
+            {
+              agreementType: "terms",
+              version: agreementVersion,
+              docHash: userAgreement?.docHash,
+              scene: "ENTRY"
+            },
+            { apiBase }
+          )
+        );
+      }
+      if (privacyVersion) {
+        tasks.push(
+          recordPolicyAccess(
+            {
+              agreementType: "privacy",
+              version: privacyVersion,
+              docHash: privacyPolicy?.docHash,
+              scene: "ENTRY"
+            },
+            { apiBase }
+          )
+        );
+      }
+      return Promise.all(tasks).then((records = []) => {
         const app = typeof getApp === "function" ? getApp() : null;
         if (app && app.globalData) {
           const cached = app.globalData.latestUserProfile || {};
+          const cachedRecords = cached.policyAccessRecords || {};
+          const nextRecords = { ...cachedRecords };
+          records.forEach((record) => {
+            const type = `${record?.agreementType || ""}`.toLowerCase();
+            if (type) {
+              nextRecords[type] = record;
+            }
+          });
+          if (agreementVersion && !nextRecords.terms) {
+            nextRecords.terms = {
+              agreementType: "terms",
+              version: agreementVersion,
+              docHash: userAgreement?.docHash || null
+            };
+          }
+          if (privacyVersion && !nextRecords.privacy) {
+            nextRecords.privacy = {
+              agreementType: "privacy",
+              version: privacyVersion,
+              docHash: privacyPolicy?.docHash || null
+            };
+          }
           app.globalData.latestUserProfile = {
             ...cached,
-            policyAccessRecord: {
-              userAgreementVersion: versions.userAgreementVersion || cached?.policyAccessRecord?.userAgreementVersion || "",
-              privacyPolicyVersion: versions.privacyPolicyVersion || cached?.policyAccessRecord?.privacyPolicyVersion || "",
-              createdAt: record?.createdAt || cached?.policyAccessRecord?.createdAt || ""
-            }
+            policyAccessRecords: nextRecords
           };
           app.globalData.latestUserProfileAt = Date.now();
         }
-        return record;
+        return records;
       });
     });
   },
