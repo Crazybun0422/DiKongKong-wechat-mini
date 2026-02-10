@@ -232,6 +232,98 @@ function incrementPinExposure(pinId, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
+function importPinKmlKmz(filePath, options = {}) {
+  return new Promise((resolve, reject) => {
+    if (!filePath) {
+      reject(new Error("missing-file-path"));
+      return;
+    }
+    const base = resolveApiBase(options.apiBase);
+    if (!base) {
+      reject(new Error("missing-api-base"));
+      return;
+    }
+    const token = options.token || getAuthToken();
+    const formData = {};
+    if (options.visibility) {
+      formData.visibility = options.visibility;
+    }
+    const url = `${base}/api/pins/import/kml-kmz`;
+    console.info("importPinKmlKmz upload start", { url, filePath });
+    wx.uploadFile({
+      url,
+      method: "POST",
+      filePath,
+      name: "file",
+      formData,
+      header: token
+        ? {
+            Authorization: `Bearer ${token}`
+          }
+        : {},
+      success: (res) => {
+        let body = {};
+        try {
+          body = JSON.parse(res?.data || "{}");
+        } catch (err) {
+          body = {};
+        }
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body?.data || {});
+          return;
+        }
+        if (res.statusCode === 401 || res.statusCode === 403) {
+          reject(new Error("missing-token"));
+          return;
+        }
+        const reason = body?.message || res.errMsg || `status-${res.statusCode}`;
+        reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
+function exportPinKmlKmz(pinId, options = {}) {
+  const id = `${pinId || ""}`.trim();
+  if (!id) {
+    return Promise.reject(new Error("missing-pin-id"));
+  }
+  return new Promise((resolve, reject) => {
+    const base = resolveApiBase(options.apiBase);
+    if (!base) {
+      reject(new Error("missing-api-base"));
+      return;
+    }
+    const token = options.token || getAuthToken();
+    const header = Object.assign({}, options.header || {});
+    if (token) {
+      header.Authorization = `Bearer ${token}`;
+    }
+    const url = `${base}/api/pins/${encodeURIComponent(id)}/export/kml-kmz`;
+    wx.downloadFile({
+      url,
+      header,
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+          resolve({
+            tempFilePath: res.tempFilePath,
+            header: res.header || {}
+          });
+          return;
+        }
+        if (res.statusCode === 401 || res.statusCode === 403) {
+          reject(new Error("missing-token"));
+          return;
+        }
+        const reason = res.errMsg || `status-${res.statusCode}`;
+        reject(new Error(reason));
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 module.exports = {
   listMyPins,
   createPin,
@@ -243,5 +335,7 @@ module.exports = {
   searchPins,
   fetchNearbyPins,
   incrementPinExposure,
-  fetchPinDetail
+  fetchPinDetail,
+  importPinKmlKmz,
+  exportPinKmlKmz
 };

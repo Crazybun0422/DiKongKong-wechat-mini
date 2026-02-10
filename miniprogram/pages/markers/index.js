@@ -29,7 +29,9 @@ const {
   deletePin: deletePinApi,
   updatePinGroups,
   publishPin,
-  revokePin
+  revokePin,
+  importPinKmlKmz,
+  exportPinKmlKmz
 } = require("../../utils/pins");
 const {
   listMyWorkGroups,
@@ -59,7 +61,10 @@ const STATIC_ASSETS = {
   revoke: "/pages/markers/assets/revoke.png",
   home: "/assets/home.png",
   modify: "/pages/markers/assets/modify.png",
-  delete: "/pages/markers/assets/delete.png"
+  delete: "/pages/markers/assets/delete.png",
+  kml: "/pages/markers/assets/kml.png",
+  kmlLoaded: "/pages/markers/assets/kml-loaded.png",
+  tips: "/assets/tips-b.png"
 };
 
 const CENTER_TABS = [
@@ -108,6 +113,8 @@ const ATTACHMENT_MAX_COUNT = 1;
 const QR_CODE_MAX_COUNT = 2;
 const ATTACHMENT_FIXED_LABEL = "企业产品和业务介绍";
 const PIN_MEDIA_MAX_COUNT = 3;
+const KML_FILE_SIZE_LIMIT = 1024 * 1024;
+const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
 const PIN_CATEGORY_LABELS = {
   POINT: "点",
   LINE: "线",
@@ -122,7 +129,9 @@ const PIN_TYPE_ICONS = {
   LINE_PATH_BUFFER: "/assets/path.png",
   AREA_CIRCLE: "/assets/circle.png",
   AREA_RECTANGLE: "/assets/rectangle.png",
-  AREA_POLYGON: "/assets/polygon.png"
+  AREA_POLYGON: "/assets/polygon.png",
+  KML: STATIC_ASSETS.kmlLoaded,
+  KMZ: STATIC_ASSETS.kmlLoaded
 };
 const PIN_REVIEW_STATUS_META = {
   PENDING: { label: "审核中", tone: "pending" },
@@ -144,6 +153,115 @@ const decodeMaybeURI = (text = "") => {
 const normalizeInviteCode = (value) => {
   if (value === undefined || value === null) return "";
   return `${value}`.trim();
+};
+
+const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
+
+const normalizeStyleColorToTransparent = (value) => {
+  if (typeof value !== "string") return value;
+  const raw = value.trim();
+  if (!raw) return value;
+  const lower = raw.toLowerCase();
+  if (lower === "transparent") return value;
+  if (lower.startsWith("rgba")) {
+    const match = lower.match(/rgba\(([^)]+)\)/);
+    if (match && match[1]) {
+      const parts = match[1].split(",").map((p) => p.trim());
+      const alpha = Number(parts[3]);
+      if (Number.isFinite(alpha) && alpha <= 0) return value;
+    }
+    return "rgba(0,0,0,0)";
+  }
+  if (lower.startsWith("rgb(") || lower.startsWith("hsl(") || lower.startsWith("hsla")) {
+    return "rgba(0,0,0,0)";
+  }
+  if (lower.startsWith("#")) {
+    if (lower.length === 9) {
+      const hex = lower.slice(1);
+      if (hex.startsWith("00") || hex.endsWith("00")) return value;
+    }
+    return "#00000000";
+  }
+  return "transparent";
+};
+
+const normalizeKmlStyle = (style) => {
+  if (!style || typeof style !== "object") return style;
+  const next = Object.assign({}, style);
+  const colorKeys = ["color", "fillColor", "strokeColor", "lineColor", "polyColor", "outlineColor"];
+  colorKeys.forEach((key) => {
+    if (typeof next[key] === "string") {
+      next[key] = normalizeStyleColorToTransparent(next[key]);
+    }
+  });
+  return next;
+};
+
+const normalizeKmlShape = (shape = {}) => {
+  if (!shape || typeof shape !== "object") return shape;
+  const type = `${shape.type || ""}`.toUpperCase();
+  if (!isKmlShapeType(type)) return shape;
+  const style = normalizeKmlStyle(shape.style);
+  if (style === shape.style) return shape;
+  return Object.assign({}, shape, { style });
+};
+
+const flattenCoordinateList = (raw) => {
+  if (!Array.isArray(raw) || !raw.length) return [];
+  if (
+    Array.isArray(raw[0]) &&
+    raw[0].length &&
+    (Array.isArray(raw[0][0]) || (raw[0][0] && typeof raw[0][0] === "object"))
+  ) {
+    return raw[0];
+  }
+  return raw;
+};
+
+const resolveCoordinateGroup = (shape = {}) => {
+  const groups = shape.coordinateGroups || shape.coordinateGroup;
+  if (!groups) return null;
+  if (Array.isArray(groups)) return { type: "", coordinates: groups };
+  if (typeof groups !== "object") return null;
+  const entries = Object.entries(groups).filter(([, value]) => Array.isArray(value) && value.length);
+  if (!entries.length) return null;
+  const findBy = (keys = []) =>
+    entries.find(([key]) => keys.some((target) => key.toLowerCase().includes(target)));
+  const polygon = findBy(["polygon", "poly", "area"]);
+  if (polygon) return { type: "POLYGON", coordinates: polygon[1] };
+  const line = findBy(["line", "path"]);
+  if (line) return { type: "LINE", coordinates: line[1] };
+  const point = findBy(["point"]);
+  if (point) return { type: "POINT", coordinates: point[1] };
+  const first = entries[0];
+  return { type: "", coordinates: first[1] };
+};
+
+const resolveShapeCoordinates = (shape = {}) => {
+  const baseType = `${shape.type || ""}`.toUpperCase();
+  let coordinates = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+  let resolvedType = baseType || "POINT";
+  if (!coordinates.length) {
+    const grouped = resolveCoordinateGroup(shape);
+    if (grouped && Array.isArray(grouped.coordinates) && grouped.coordinates.length) {
+      coordinates = grouped.coordinates;
+      if (grouped.type) resolvedType = grouped.type;
+    }
+  }
+  if (isKmlShapeType(baseType) && resolvedType === baseType) {
+    const radius = Number(shape.radius);
+    const width = Number(shape.width);
+    if (Number.isFinite(radius) && radius > 0) {
+      resolvedType = "CIRCLE";
+    } else if (Number.isFinite(width) && width > 0) {
+      resolvedType = "LINE";
+    } else if (Array.isArray(coordinates) && coordinates.length <= 1) {
+      resolvedType = "POINT";
+    } else if (coordinates.length) {
+      resolvedType = "POLYGON";
+    }
+  }
+  return { coordinates: flattenCoordinateList(coordinates), resolvedType };
 };
 
 function createEmptyForm() {
@@ -172,6 +290,9 @@ function createEmptyPinForm() {
     geometryName: "通用",
     geometryIcon: PIN_TYPE_ICONS.POINT_DEFAULT,
     geometryCategory: "POINT",
+    kmlLocked: false,
+    kmlShape: null,
+    kmlShapeType: "",
     latitude: null,
     longitude: null,
     coordinateText: "",
@@ -246,6 +367,9 @@ Page({
     editingPinId: "",
     pinLocationDisplay: "",
     myPinSelectedGroups: [],
+    kmlImporting: false,
+    showKmlTips: false,
+    showPinCreateSheet: false,
     markers: [],
     visibleMarkers: [],
     error: "",
@@ -1811,6 +1935,9 @@ Page({
 
   mapShapeTypeToGeometry(shape = {}) {
     const type = `${shape.type || ""}`.toUpperCase();
+    if (isKmlShapeType(type)) {
+      return { category: "KML", typeId: type };
+    }
     if (type === "LINE" || type === "PATH") {
       return { category: "LINE", typeId: "LINE_PATH_BUFFER" };
     }
@@ -1827,15 +1954,13 @@ Page({
   },
 
   buildPinFormFromPin(pin = {}) {
-    const shape = pin?.raw?.shape || {};
-    if (!shape || !shape.type || !Array.isArray(shape.coordinates)) return null;
-    const geometry = this.mapShapeTypeToGeometry(shape);
-    const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
-    const typeId = geometry.category === "POINT"
-      ? this.mapPointCategoryToTypeId(pointCategory)
-      : geometry.typeId;
-    const coords = Array.isArray(shape.coordinates) ? shape.coordinates : [];
-    const coordinateList = coords
+    const shapeRaw = pin?.raw?.shape || {};
+    if (!shapeRaw || !shapeRaw.type) return null;
+    const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
+    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
+    const resolved = resolveShapeCoordinates(shape);
+    const coords = Array.isArray(resolved.coordinates) ? resolved.coordinates : [];
+    const coordinateList = this.normalizePinPreviewCoordinates(coords)
       .map((item) => ({
         latitude: normalizePinCoordValue(item.latitude ?? item.lat),
         longitude: normalizePinCoordValue(item.longitude ?? item.lng),
@@ -1844,11 +1969,27 @@ Page({
       .filter((c) => hasValidCoordinate(c.latitude, c.longitude));
     const first = coordinateList[0] || {};
     const form = createEmptyPinForm();
-    form.geometryCategory = geometry.category;
-    form.geometryType = typeId;
-    form.geometryLabel = pin.geometryLabel || this.computePinGeometryLabel(form.geometryCategory, form.geometryType);
-    form.geometryName = this.getPinTypeLabel(form.geometryType) || "通用";
-    form.geometryIcon = this.getPinTypeIcon(form.geometryType);
+    if (isKmlShapeType(shapeType)) {
+      form.geometryCategory = "KML";
+      form.geometryType = shapeType;
+      form.geometryLabel = pin.geometryLabel || this.computePinGeometryLabel(form.geometryCategory, form.geometryType);
+      form.geometryName = this.getPinTypeLabel(form.geometryType) || "KML导入";
+      form.geometryIcon = this.getPinTypeIcon(form.geometryType);
+      form.kmlLocked = true;
+      form.kmlShape = Object.assign({}, shape, { type: shapeType });
+      form.kmlShapeType = shapeType;
+    } else {
+      const geometry = this.mapShapeTypeToGeometry({ type: resolved.resolvedType || shapeType });
+      const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
+      const typeId = geometry.category === "POINT"
+        ? this.mapPointCategoryToTypeId(pointCategory)
+        : geometry.typeId;
+      form.geometryCategory = geometry.category;
+      form.geometryType = typeId;
+      form.geometryLabel = pin.geometryLabel || this.computePinGeometryLabel(form.geometryCategory, form.geometryType);
+      form.geometryName = this.getPinTypeLabel(form.geometryType) || "通用";
+      form.geometryIcon = this.getPinTypeIcon(form.geometryType);
+    }
     form.latitude = first.latitude ?? null;
     form.longitude = first.longitude ?? null;
     form.coordinateList = coordinateList;
@@ -1888,16 +2029,21 @@ Page({
     });
   },
 
+  resolvePinPrimaryCoordinate(shape = {}) {
+    const resolved = resolveShapeCoordinates(shape);
+    const coords = this.normalizePinPreviewCoordinates(resolved.coordinates);
+    return coords[0] || null;
+  },
+
   applyCachedPinAddresses(list = []) {
     if (!Array.isArray(list) || !list.length) return [];
     const cache = this._pinAddressCache || {};
     let changed = false;
     const next = list.map((item) => {
       if (item.locationText) return item;
-      const coords = Array.isArray(item.raw?.shape?.coordinates) ? item.raw.shape.coordinates : [];
-      const first = coords[0] || {};
-      const lat = Number(first.latitude);
-      const lng = Number(first.longitude);
+      const primary = this.resolvePinPrimaryCoordinate(item.raw?.shape || {});
+      const lat = Number(primary?.latitude);
+      const lng = Number(primary?.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return item;
       const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
       if (cache[key]) {
@@ -1915,10 +2061,9 @@ Page({
     if (!this._pendingPinGeo) this._pendingPinGeo = {};
     list.forEach((item) => {
       if (item.locationText) return;
-      const coords = Array.isArray(item.raw?.shape?.coordinates) ? item.raw.shape.coordinates : [];
-      const first = coords[0] || {};
-      const lat = Number(first.latitude);
-      const lng = Number(first.longitude);
+      const primary = this.resolvePinPrimaryCoordinate(item.raw?.shape || {});
+      const lat = Number(primary?.latitude);
+      const lng = Number(primary?.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
       if (this._pinAddressCache[key]) {
@@ -1936,13 +2081,16 @@ Page({
           const updated = (this.data.pins || []).map((pin) => {
             if (
               !pin.locationText &&
-              pin.raw &&
-              Array.isArray(pin.raw.shape?.coordinates) &&
-              pin.raw.shape.coordinates[0] &&
-              Number(pin.raw.shape.coordinates[0].latitude) === lat &&
-              Number(pin.raw.shape.coordinates[0].longitude) === lng
+              pin.raw
             ) {
-              return Object.assign({}, pin, { locationText: addr });
+              const primary = this.resolvePinPrimaryCoordinate(pin.raw?.shape || {});
+              if (
+                primary &&
+                Number(primary.latitude) === lat &&
+                Number(primary.longitude) === lng
+              ) {
+                return Object.assign({}, pin, { locationText: addr });
+              }
             }
             return pin;
           });
@@ -2114,7 +2262,9 @@ Page({
       LINE_PATH_BUFFER: "路径",
       AREA_CIRCLE: "圆形",
       AREA_RECTANGLE: "矩形",
-      AREA_POLYGON: "多边形"
+      AREA_POLYGON: "多边形",
+      KML: "KML导入",
+      KMZ: "KMZ导入"
     };
     return map[typeId] || "";
   },
@@ -2183,6 +2333,18 @@ Page({
   },
 
   buildPinShapePayload(form = this.data.myPinForm) {
+    if (form.kmlLocked) {
+      const baseShape = form.kmlShape || {};
+      const shapeType = `${baseShape.type || form.kmlShapeType || form.geometryType || ""}`.toUpperCase();
+      if (!isKmlShapeType(shapeType)) {
+        throw new Error("KML/KMZ标记缺少形状数据");
+      }
+      const normalized = Object.assign({}, baseShape, { type: shapeType });
+      if (normalized.style) {
+        normalized.style = normalizeKmlStyle(normalized.style);
+      }
+      return normalized;
+    }
     const shapeType = this.mapPinShapeType(form.geometryCategory, form.geometryType);
     const coordinates = this.buildPinCoordinates(form, shapeType);
     const shape = {
@@ -2501,6 +2663,9 @@ Page({
     const isPrivate = scope === "PRIVATE";
     const isPublic = scope === "PUBLIC";
     const isPending = (`${marker.reviewStatus || ""}`.toUpperCase() === "PENDING") && marker.scope === "PUBLIC";
+    const shapeType = `${marker?.raw?.shape?.type || ""}`.toUpperCase();
+    const exportKmlEnabled = shapeType !== "CIRCLE";
+    const exportKmlNote = exportKmlEnabled ? "" : "（圆形不支持）";
     const firstActionType = isPublic ? "revoke" : "publish";
     const firstActionLabel = isPublic ? "撤回发布" : "发布到平台";
     const firstActionIcon = isPublic ? assetPaths.revoke : assetPaths.publish;
@@ -2535,6 +2700,13 @@ Page({
         icon: assetPaths.delete,
         enabled: !disableModify && !isPending,
         note: ""
+      },
+      {
+        action: "export-kml",
+        label: "导出KML",
+        icon: "",
+        enabled: exportKmlEnabled,
+        note: exportKmlNote
       }
     ];
     return options;
@@ -2627,11 +2799,140 @@ Page({
       this.onEditMarkerTap({ currentTarget: { dataset: { id: marker.id } } });
       return;
     }
+    if (action === "export-kml") {
+      this.exportPinKml(marker);
+      return;
+    }
     if (action === "delete") {
       this.onDeleteMarkerTap({
         currentTarget: { dataset: { id: marker.id, name: marker.name } }
       });
     }
+  },
+
+  exportPinKml(marker = {}) {
+    const pinId = marker?.id || "";
+    if (!pinId) {
+      wx.showToast({ title: "未找到标记", icon: "none" });
+      return;
+    }
+    if (this._pinExportPending) return;
+
+    const getHeaderValue = (header = {}, key) => {
+      if (!header || typeof header !== "object") return "";
+      const foundKey = Object.keys(header).find((k) => k.toLowerCase() === key);
+      return foundKey ? header[foundKey] || "" : "";
+    };
+
+    const resolveExtension = (header = {}) => {
+      const contentType = `${getHeaderValue(header, "content-type") || ""}`.toLowerCase();
+      if (contentType.includes("kmz")) return "kmz";
+      if (contentType.includes("kml")) return "kml";
+      const shapeType = `${marker?.raw?.shape?.type || ""}`.toUpperCase();
+      if (shapeType === "KMZ") return "kmz";
+      if (shapeType === "KML") return "kml";
+      return "kml";
+    };
+
+    const buildFileName = (ext) => {
+      const base = (marker.name || `pin-${pinId}`).trim() || `pin-${pinId}`;
+      const safe = base
+        .replace(/[\\/:*?"<>|]/g, "_")
+        .replace(/\s+/g, "_")
+        .slice(0, 32);
+      return `${safe || "pin"}-${Date.now()}.${ext}`;
+    };
+
+    const saveFile = (tempFilePath, ext) =>
+      new Promise((resolve) => {
+        const fs = typeof wx.getFileSystemManager === "function" ? wx.getFileSystemManager() : null;
+        const userPath = wx.env && wx.env.USER_DATA_PATH ? wx.env.USER_DATA_PATH : "";
+        if (fs && typeof fs.saveFile === "function" && userPath) {
+          const target = `${userPath}/${buildFileName(ext)}`;
+          fs.saveFile({
+            tempFilePath,
+            filePath: target,
+            success: (res) => resolve(res?.savedFilePath || target),
+            fail: () => resolve(tempFilePath)
+          });
+          return;
+        }
+        if (typeof wx.saveFile === "function") {
+          wx.saveFile({
+            tempFilePath,
+            success: (res) => resolve(res?.savedFilePath || tempFilePath),
+            fail: () => resolve(tempFilePath)
+          });
+          return;
+        }
+        resolve(tempFilePath);
+      });
+
+    const promptShare = (filePath, ext) => {
+      if (typeof wx.shareFileMessage !== "function") {
+        wx.showToast({ title: "已导出", icon: "success" });
+        return;
+      }
+      const fileName = buildFileName(ext);
+      wx.showModal({
+        title: "导出完成",
+        content: "文件已生成，可选择分享保存。",
+        confirmText: "分享",
+        cancelText: "完成",
+        success: (res) => {
+          if (!res?.confirm) {
+            wx.showToast({ title: "已导出", icon: "success" });
+            return;
+          }
+          wx.shareFileMessage({
+            filePath,
+            fileName,
+            success: () => wx.showToast({ title: "已导出", icon: "success" }),
+            fail: (err) => {
+              const errMsg = err?.errMsg || "";
+              if (!/cancel/i.test(errMsg)) {
+                wx.showToast({ title: "分享失败", icon: "none" });
+              }
+            }
+          });
+        }
+      });
+    };
+
+    const startAction = () => exportPinKmlKmz(pinId, { apiBase: this.apiBase });
+    let retried = false;
+    const run = () =>
+      startAction().catch((err) => {
+        if (!retried && err?.message === "missing-token") {
+          retried = true;
+          return this.ensureAccessToken().then(() => startAction());
+        }
+        throw err;
+      });
+
+    this._pinExportPending = true;
+    if (typeof wx.showLoading === "function") {
+      wx.showLoading({ title: "导出中...", mask: true });
+    }
+    run()
+      .then(({ tempFilePath, header }) => {
+        const ext = resolveExtension(header || {});
+        return saveFile(tempFilePath, ext).then((savedPath) => ({ savedPath, ext }));
+      })
+      .then(({ savedPath, ext }) => {
+        promptShare(savedPath, ext);
+      })
+      .catch((err) => {
+        const message = err?.message || "导出失败";
+        if (/cancel/i.test(message)) return;
+        wx.showToast({ title: message, icon: "none" });
+      })
+      .finally(() => {
+        this._pinExportPending = false;
+        if (typeof wx.hideLoading === "function") {
+          wx.hideLoading();
+        }
+      });
   },
 
   handlePinPublish(marker = {}, options = {}) {
@@ -2829,11 +3130,14 @@ Page({
   },
 
   buildPinPreviewPayload(marker = {}) {
-    const shape = marker?.raw?.shape;
-    if (!shape) return null;
-    const coordinates = this.normalizePinPreviewCoordinates(shape.coordinates);
+    const shapeRaw = marker?.raw?.shape;
+    if (!shapeRaw) return null;
+    const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
+    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
+    const resolved = resolveShapeCoordinates(shape);
+    const coordinates = this.normalizePinPreviewCoordinates(resolved.coordinates);
     if (!coordinates.length) return null;
-    const type = `${shape.type || "POINT"}`.toUpperCase();
+    const type = resolved.resolvedType || `${shape.type || "POINT"}`.toUpperCase();
     const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
     const normalizedShape = {
       type,
@@ -2846,7 +3150,8 @@ Page({
         shape.pathDistanceMeters ??
         0
       ),
-      pointCategory
+      pointCategory,
+      style: shape.style
     };
     return {
       id: marker.id || "",
@@ -2860,7 +3165,8 @@ Page({
 
   normalizePinPreviewCoordinates(raw = []) {
     if (!Array.isArray(raw) || !raw.length) return [];
-    return raw
+    const list = flattenCoordinateList(raw);
+    return list
       .map((item) => {
         if (!item) return null;
         if (Array.isArray(item) && item.length >= 2) {
@@ -2915,7 +3221,7 @@ Page({
 
   onCreateTap() {
     if (this.data.activeCenterTab === "MY_MARKERS") {
-      this.openMyPinCreate();
+      this.setData({ showPinCreateSheet: true });
       return;
     }
     this.setData(
@@ -2940,6 +3246,169 @@ Page({
     );
   },
 
+  onClosePinCreateSheet() {
+    this.setData({ showPinCreateSheet: false });
+  },
+
+  onPinCreateDirect() {
+    this.setData({ showPinCreateSheet: false }, () => {
+      this.openMyPinCreate();
+    });
+  },
+
+  onPinCreateKml() {
+    if (this.data.kmlImporting) return;
+    this.setData({ showPinCreateSheet: false }, () => {
+      this.onKmlImportTap();
+    });
+  },
+
+  onKmlImportTap() {
+    if (this.data.kmlImporting) return;
+    const chooseFile = () =>
+      new Promise((resolve, reject) => {
+        const handleSuccess = (res) => {
+          const files = res?.tempFiles || res?.files || [];
+          const file = files[0] || null;
+          const path =
+            file?.path ||
+            file?.tempFilePath ||
+            (Array.isArray(res?.tempFilePaths) ? res.tempFilePaths[0] : "") ||
+            "";
+          if (!path) {
+            reject(new Error("missing-file-path"));
+            return;
+          }
+          resolve({
+            path,
+            name: file?.name || path,
+            size: file?.size
+          });
+        };
+
+        if (typeof wx.chooseMessageFile === "function") {
+          wx.chooseMessageFile({
+            count: 1,
+            type: "file",
+            success: handleSuccess,
+            fail: (err) => reject(err)
+          });
+          return;
+        }
+
+        if (typeof wx.chooseFile === "function") {
+          wx.chooseFile({
+            count: 1,
+            success: handleSuccess,
+            fail: (err) => reject(err)
+          });
+          return;
+        }
+
+        wx.showToast({ title: "当前版本不支持文件导入", icon: "none" });
+        reject(new Error("choose-file-unsupported"));
+      });
+
+    const resolveFileSize = (file) =>
+      new Promise((resolve) => {
+        const size = Number(file?.size);
+        if (Number.isFinite(size)) {
+          resolve(size);
+          return;
+        }
+        if (typeof wx.getFileInfo !== "function" || !file?.path) {
+          resolve(NaN);
+          return;
+        }
+        wx.getFileInfo({
+          filePath: file.path,
+          success: (res) => resolve(res?.size),
+          fail: () => resolve(NaN)
+        });
+      });
+
+    const resolveVisibility = () => {
+      if (this.data.activePinFilter === "PRIVATE") return "PRIVATE";
+      if (this.data.activePinFilter === "PUBLISHED") return "PUBLIC";
+      return "";
+    };
+
+    chooseFile()
+      .then((file) => {
+        const name = `${file.name || file.path || ""}`.trim();
+        const ext = name.split(".").pop()?.toLowerCase() || "";
+        if (!["kml", "kmz"].includes(ext)) {
+          wx.showToast({ title: "仅支持KML/KMZ文件", icon: "none" });
+          throw new Error("invalid-kml-extension");
+        }
+        return resolveFileSize(file).then((size) => ({ file, size }));
+      })
+      .then(({ file, size }) => {
+        if (Number.isFinite(size) && size > KML_FILE_SIZE_LIMIT) {
+          wx.showToast({ title: "文件太大，不能超过1M", icon: "none" });
+          throw new Error("kml-file-too-large");
+        }
+        this.setData({ kmlImporting: true });
+        if (typeof wx.showLoading === "function") {
+          wx.showLoading({ title: "导入中...", mask: true });
+        }
+        const submit = () =>
+          importPinKmlKmz(file.path, {
+            apiBase: this.apiBase,
+            visibility: resolveVisibility()
+          });
+        let retried = false;
+        const run = () =>
+          submit().catch((err) => {
+            if (!retried && err?.message === "missing-token") {
+              retried = true;
+              return this.ensureAccessToken().then(() => submit());
+            }
+            throw err;
+          });
+        return run();
+      })
+      .then((result = {}) => {
+        const importedCount = Number(result.importedCount ?? result.count ?? 0);
+        const count = Number.isFinite(importedCount)
+          ? importedCount
+          : Array.isArray(result.pins)
+            ? result.pins.length
+            : 0;
+        const message = count ? `已导入${count}个` : "导入成功";
+        wx.showToast({ title: message, icon: "success" });
+        this.refreshPins({ silent: true });
+      })
+      .catch((err) => {
+        if (!err || err.message === "invalid-kml-extension" || err.message === "kml-file-too-large") {
+          return;
+        }
+        if (err.message === "choose-file-unsupported") {
+          return;
+        }
+        const errMsg = err?.errMsg || err?.message || "";
+        if (/cancel/i.test(errMsg)) {
+          return;
+        }
+        const message = err?.message || "导入失败";
+        wx.showToast({ title: message, icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ kmlImporting: false });
+        if (typeof wx.hideLoading === "function") {
+          wx.hideLoading();
+        }
+      });
+  },
+
+  onKmlTipsTap() {
+    this.setData({ showKmlTips: true });
+  },
+
+  onCloseKmlTips() {
+    this.setData({ showKmlTips: false });
+  },
+
   openMyPinCreate() {
     this.setData({
       showMyPinCreate: true,
@@ -2961,6 +3430,10 @@ Page({
   onPinPickerTap() {
     if (typeof wx.navigateTo !== "function") {
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    if (this.data.myPinForm?.kmlLocked) {
+      wx.showToast({ title: "KML/KMZ标记不支持修改类型", icon: "none" });
       return;
     }
     const payload = {};
@@ -3032,6 +3505,9 @@ Page({
       "myPinForm.activeCoordIndex": activeCoordIndex,
       "myPinForm.bufferWidth": Number.isFinite(Number(bufferWidthRaw)) ? Number(bufferWidthRaw) : null,
       "myPinForm.radius": Number.isFinite(Number(radiusRaw)) ? Number(radiusRaw) : null,
+      "myPinForm.kmlLocked": false,
+      "myPinForm.kmlShape": null,
+      "myPinForm.kmlShapeType": "",
       myPinFormConfigured: isPinLocationConfigured(
         Object.assign({}, this.data.myPinForm, {
           latitude: lat,

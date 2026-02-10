@@ -113,6 +113,116 @@ const MAP_COMPASS_ROTATE_SYNC_DELTA = 1;
 const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
 const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
 const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
+const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
+
+const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
+
+const normalizeStyleColorToTransparent = (value) => {
+  if (typeof value !== "string") return value;
+  const raw = value.trim();
+  if (!raw) return value;
+  const lower = raw.toLowerCase();
+  if (lower === "transparent") return value;
+  if (lower.startsWith("rgba")) {
+    const match = lower.match(/rgba\(([^)]+)\)/);
+    if (match && match[1]) {
+      const parts = match[1].split(",").map((p) => p.trim());
+      const alpha = Number(parts[3]);
+      if (Number.isFinite(alpha) && alpha <= 0) return value;
+    }
+    return "rgba(0,0,0,0)";
+  }
+  if (lower.startsWith("rgb(") || lower.startsWith("hsl(") || lower.startsWith("hsla")) {
+    return "rgba(0,0,0,0)";
+  }
+  if (lower.startsWith("#")) {
+    if (lower.length === 9) {
+      const hex = lower.slice(1);
+      if (hex.startsWith("00") || hex.endsWith("00")) return value;
+    }
+    return "#00000000";
+  }
+  return "transparent";
+};
+
+const normalizeKmlStyle = (style) => {
+  if (!style || typeof style !== "object") return style;
+  const next = Object.assign({}, style);
+  const colorKeys = ["color", "fillColor", "strokeColor", "lineColor", "polyColor", "outlineColor"];
+  colorKeys.forEach((key) => {
+    if (typeof next[key] === "string") {
+      next[key] = normalizeStyleColorToTransparent(next[key]);
+    }
+  });
+  return next;
+};
+
+const normalizeKmlShape = (shape = {}) => {
+  if (!shape || typeof shape !== "object") return shape;
+  const type = `${shape.type || ""}`.toUpperCase();
+  if (!isKmlShapeType(type)) return shape;
+  const style = normalizeKmlStyle(shape.style);
+  if (style === shape.style) return shape;
+  return Object.assign({}, shape, { style });
+};
+
+const flattenCoordinateList = (raw) => {
+  if (!Array.isArray(raw) || !raw.length) return [];
+  if (
+    Array.isArray(raw[0]) &&
+    raw[0].length &&
+    (Array.isArray(raw[0][0]) || (raw[0][0] && typeof raw[0][0] === "object"))
+  ) {
+    return raw[0];
+  }
+  return raw;
+};
+
+const resolveCoordinateGroup = (shape = {}) => {
+  const groups = shape.coordinateGroups || shape.coordinateGroup;
+  if (!groups) return null;
+  if (Array.isArray(groups)) return { type: "", coordinates: groups };
+  if (typeof groups !== "object") return null;
+  const entries = Object.entries(groups).filter(([, value]) => Array.isArray(value) && value.length);
+  if (!entries.length) return null;
+  const findBy = (keys = []) =>
+    entries.find(([key]) => keys.some((target) => key.toLowerCase().includes(target)));
+  const polygon = findBy(["polygon", "poly", "area"]);
+  if (polygon) return { type: "POLYGON", coordinates: polygon[1] };
+  const line = findBy(["line", "path"]);
+  if (line) return { type: "LINE", coordinates: line[1] };
+  const point = findBy(["point"]);
+  if (point) return { type: "POINT", coordinates: point[1] };
+  const first = entries[0];
+  return { type: "", coordinates: first[1] };
+};
+
+const resolveShapeCoordinates = (shape = {}) => {
+  const baseType = `${shape.type || ""}`.toUpperCase();
+  let coordinates = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+  let resolvedType = baseType || "POINT";
+  if (!coordinates.length) {
+    const grouped = resolveCoordinateGroup(shape);
+    if (grouped && Array.isArray(grouped.coordinates) && grouped.coordinates.length) {
+      coordinates = grouped.coordinates;
+      if (grouped.type) resolvedType = grouped.type;
+    }
+  }
+  if (isKmlShapeType(baseType) && resolvedType === baseType) {
+    const radius = Number(shape.radius);
+    const width = Number(shape.width);
+    if (Number.isFinite(radius) && radius > 0) {
+      resolvedType = "CIRCLE";
+    } else if (Number.isFinite(width) && width > 0) {
+      resolvedType = "LINE";
+    } else if (Array.isArray(coordinates) && coordinates.length <= 1) {
+      resolvedType = "POINT";
+    } else if (coordinates.length) {
+      resolvedType = "POLYGON";
+    }
+  }
+  return { coordinates: flattenCoordinateList(coordinates), resolvedType };
+};
 
 const clampMapScale = (value) => {
   const numeric = Number(value);
@@ -1155,10 +1265,11 @@ Page({
 
   buildPinDetailFromPin(pin = {}) {
     const rawPin = pin.raw || pin;
-    const coords = Array.isArray(rawPin.shape?.coordinates) ? rawPin.shape.coordinates : [];
-    const normalizedCoords = coords
-      .map((coord) => this.normalizePreviewCoordinate(coord))
-      .filter(Boolean);
+    const shapeRaw = rawPin.shape || {};
+    const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
+    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
+    const resolved = resolveShapeCoordinates(shape);
+    const normalizedCoords = this.normalizePreviewCoordinateList(resolved.coordinates);
     const primary =
       normalizedCoords[0] ||
       this.normalizePreviewCoordinate(rawPin.location) ||
@@ -1240,12 +1351,11 @@ Page({
   },
 
   buildPinPreviewZone(shape = {}) {
-    const type = `${shape.type || ""}`.toUpperCase();
-    const coordinates = Array.isArray(shape.coordinates)
-      ? shape.coordinates
-        .map((coord) => this.normalizePreviewCoordinate(coord))
-        .filter(Boolean)
-      : [];
+    const shapeType = `${shape.type || ""}`.toUpperCase();
+    const normalizedShape = isKmlShapeType(shapeType) ? normalizeKmlShape(shape) : shape;
+    const resolved = resolveShapeCoordinates(normalizedShape);
+    const type = resolved.resolvedType || shapeType;
+    const coordinates = this.normalizePreviewCoordinateList(resolved.coordinates);
     if (!coordinates.length) return null;
     if (type === "CIRCLE") {
       const center = coordinates[0];
@@ -1328,10 +1438,12 @@ Page({
 
   computePinPreviewCenter(shape = {}, payload = {}) {
     const location = payload.location;
-    const coords = Array.isArray(shape.coordinates) ? shape.coordinates : [];
+    const resolved = resolveShapeCoordinates(shape || {});
+    const coords = Array.isArray(resolved.coordinates) ? resolved.coordinates : [];
+    const normalized = this.normalizePreviewCoordinateList(coords);
     const target = (location && hasValidCoordinate(location.latitude, location.longitude))
       ? location
-      : coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude));
+      : normalized[0];
     if (target && hasValidCoordinate(target.latitude, target.longitude)) {
       const latitude = Number(target.latitude);
       const longitude = Number(target.longitude);
@@ -1339,11 +1451,7 @@ Page({
         return { latitude, longitude };
       }
     }
-    if (coords.length) {
-      const normalized = coords
-        .map((coord) => this.normalizePreviewCoordinate(coord))
-        .filter(Boolean);
-      if (!normalized.length) return null;
+    if (normalized.length) {
       const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
       const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
       const latitude = avgLat;
@@ -1373,6 +1481,12 @@ Page({
     const coord = { latitude: lat, longitude: lng };
     if (Number.isFinite(alt)) coord.altitude = alt;
     return coord;
+  },
+
+  normalizePreviewCoordinateList(raw = []) {
+    if (!Array.isArray(raw) || !raw.length) return [];
+    const list = flattenCoordinateList(raw);
+    return list.map((coord) => this.normalizePreviewCoordinate(coord)).filter(Boolean);
   },
 
   lookupPinAddress(detail) {
@@ -5172,12 +5286,11 @@ Page({
   },
 
   normalizeNearbyPin(raw = {}) {
-    const shape = raw.shape || {};
-    const type = `${shape.type || ""}`.toUpperCase() || "POINT";
-    const coordinates = Array.isArray(shape.coordinates) ? shape.coordinates : [];
-    const normalizedCoords = coordinates
-      .map((coord) => this.normalizePreviewCoordinate(coord))
-      .filter(Boolean);
+    const shapeRaw = raw.shape || {};
+    const shapeType = `${shapeRaw.type || ""}`.toUpperCase() || "POINT";
+    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
+    const resolved = resolveShapeCoordinates(shape);
+    const normalizedCoords = this.normalizePreviewCoordinateList(resolved.coordinates);
     if (!normalizedCoords.length) return null;
     const name =
       (typeof raw.name === "string" && raw.name) ||
@@ -5200,11 +5313,12 @@ Page({
       }
     }
     const normalizedShape = {
-      type,
+      type: resolved.resolvedType || shapeType,
       coordinates: normalizedCoords,
       radius: Number(shape.radius ?? shape.radiusKm ?? shape.radiusInKilometers),
       width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
-      pointCategory: shape.pointCategory || shape.pointcategory
+      pointCategory: shape.pointCategory || shape.pointcategory,
+      style: shape.style
     };
     // console.log(raw)
     return {
@@ -6052,11 +6166,15 @@ Page({
       name: raw.name || raw.title,
       locationText: raw.location?.text || raw.address
     });
-    const coords = Array.isArray(raw?.shape?.coordinates) ? raw.shape.coordinates : [];
-    const primary =
-      coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
-      detail ||
-      {};
+      const shapeRaw = raw?.shape || {};
+      const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
+      const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
+      const resolved = resolveShapeCoordinates(shape);
+      const coords = this.normalizePreviewCoordinateList(resolved.coordinates);
+      const primary =
+        coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
+        detail ||
+        {};
     const latitude = Number(primary.latitude);
     const longitude = Number(primary.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {

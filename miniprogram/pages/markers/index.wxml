@@ -838,12 +838,12 @@
               <text>开始标记</text>
               <text wx:if="{{myPinFormConfigured}}" class="pin-configured-hint">(已配置)</text>
             </view>
-            <view class="pin-selector" bindtap="onPinPickerTap">
+            <view class="pin-selector {{myPinForm.kmlLocked ? 'is-locked' : ''}}" bindtap="onPinPickerTap">
               <view class="pin-selector-main">
                 <image class="pin-selector-icon" src="{{myPinForm.geometryIcon || '/assets/default.png'}}" mode="aspectFit" />
                 <text class="pin-selector-text">{{myPinForm.geometryName || '通用'}}</text>
               </view>
-              <image class="pin-selector-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
+              <image wx:if="{{!myPinForm.kmlLocked}}" class="pin-selector-arrow-img" src="/assets/arrow-right.png" mode="aspectFit" />
             </view>
             <view wx:if="{{myPinFormConfigured && pinLocationDisplay}}" class="pin-location-hint">
               <text class="pin-location-text">{{pinLocationDisplay}}</text>
@@ -959,6 +959,40 @@
         <view class="publish-platform-actions">
           <button class="publish-platform-btn primary" bindtap="onPublishPlatformConfirm">确定</button>
           <button class="publish-platform-btn secondary" bindtap="onPublishPlatformCancel">取消</button>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{showKmlTips}}">
+    <view class="kml-tips-dialog-overlay" catchtouchmove="noop" catchtap="noop">
+      <view class="kml-tips-dialog-container">
+        <view class="kml-tips-dialog-card">
+          <text class="kml-tips-dialog-text" decode="true">
+            KML/KMZ功能仅支持导入导出，不支持编辑;因为小程绘制性能偏低，KML/KMZ限制最大文件1M；KML/KMZ功能默认绘制浅黄色区域，不支持颜色的变更。
+          </text>
+          <view class="kml-tips-dialog-btn" catchtap="onCloseKmlTips">我知道了</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{showPinCreateSheet}}">
+    <view class="pin-create-sheet-overlay" catchtouchmove="noop">
+      <view class="pin-create-sheet-mask" bindtap="onClosePinCreateSheet"></view>
+      <view class="pin-create-sheet">
+        <view class="pin-create-sheet-handle"></view>
+        <view class="pin-create-sheet-item" bindtap="onPinCreateDirect">
+          <text class="pin-create-sheet-title">直接创建</text>
+        </view>
+        <view class="pin-create-sheet-divider"></view>
+        <view class="pin-create-sheet-item" bindtap="onPinCreateKml">
+          <view class="pin-create-sheet-row">
+            <text class="pin-create-sheet-title">通过KML/KMZ文件创建</text>
+            <view class="pin-create-sheet-tip" catchtap="onKmlTipsTap">
+              <image class="pin-create-sheet-tip-icon" src="{{assetPaths.tips}}" mode="aspectFit" />
+            </view>
+          </view>
         </view>
       </view>
     </view>

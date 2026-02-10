@@ -66,9 +66,22 @@
 }
 
 .newbie-task-subtitle {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.newbie-task-subtitle-line {
   font-size: 27rpx;
   font-weight: 500;
   color: #000000;
+  line-height: 1.2;
+}
+
+.newbie-task-subtitle-em {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #e11d48;
   line-height: 1.2;
 }
 

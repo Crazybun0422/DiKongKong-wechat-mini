@@ -201,3 +201,143 @@
   background: #f4f4f5;
   color: #111827;
 }
+
+.kml-tips-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kml-tips-dialog-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  box-sizing: border-box;
+}
+
+.kml-tips-dialog-card {
+  width: 520rpx;
+  padding: 76rpx 48rpx 60rpx;
+  border-radius: 36rpx;
+  background: linear-gradient(180deg, #86b5ff 0%, #b5d1ff 30%, #eef4ff 60%, #f5f5f7 100%);
+  box-shadow: 0 24rpx 60rpx rgba(0, 0, 0, 0.18);
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14rpx;
+  text-align: center;
+}
+
+.kml-tips-dialog-text {
+  font-size: 28rpx;
+  color: #333333;
+  opacity: 0.95;
+  line-height: 1.6;
+}
+
+.kml-tips-dialog-btn {
+  margin-top: 24rpx;
+  width: 100%;
+  height: 72rpx;
+  border-radius: 999rpx;
+  background: #1c1c1c;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "ZhSubset", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.kml-tips-dialog-btn::after {
+  border: none;
+}
+
+.pin-create-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
+.pin-create-sheet-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.pin-create-sheet {
+  position: relative;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 32rpx 32rpx 0 0;
+  padding: 12rpx 24rpx 18rpx;
+  box-shadow: 0 -18rpx 40rpx rgba(15, 23, 42, 0.14);
+  border-top: 1rpx solid rgba(148, 163, 184, 0.2);
+  box-sizing: border-box;
+}
+
+.pin-create-sheet-handle {
+  width: 64rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: #e5e7eb;
+  margin: 2rpx auto 12rpx;
+  opacity: 0.9;
+}
+
+.pin-create-sheet-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10rpx 6rpx;
+  min-height: 72rpx;
+}
+
+.pin-create-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.pin-create-sheet-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.pin-create-sheet-divider {
+  height: 1px;
+  background: rgba(15, 23, 42, 0.08);
+  margin: 4rpx 6rpx;
+}
+
+.pin-create-sheet-tip {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1rpx solid #eef2f7;
+}
+
+.pin-create-sheet-tip-icon {
+  width: 26rpx;
+  height: 26rpx;
+}
