@@ -23,7 +23,7 @@ const TILE_KEEP_RADIUS = 1;
 const TILE_CACHE_LIMIT = 9;
 const MASK_ALPHA_THRESHOLD = 16;
 
-const FORCE_HTTP_MARKER = true;
+const FORCE_HTTP_MARKER = false;
 
 const SAFE_STATUS_TEXT = "适飞区域（限高120m）";
 const RESTRICTED_STATUS_TEXT = "管制区域";
@@ -718,16 +718,23 @@ Component({
     },
 
     downloadTile(src, entry) {
+      const isMarkerRender = this._renderMode === "marker";
       if (this._forceHttpMarker) {
+        return Promise.resolve(isMarkerRender ? "" : (src || ""));
+      }
+      if (!src) {
+        return Promise.resolve("");
+      }
+      if (!isHttpUrl(src)) {
         return Promise.resolve(src || "");
       }
       const api = this._miniApi || getMiniApi();
-      if (!src || !isHttpUrl(src) || !api || typeof api.downloadFile !== "function") {
-        return Promise.resolve(src || "");
+      if (!api || typeof api.downloadFile !== "function") {
+        return Promise.resolve(isMarkerRender ? "" : (src || ""));
       }
       return new Promise((resolve) => {
         const finalize = (path) => resolve(path || "");
-        const fallbackSrc = () => (this._allowHttpMarker ? src : "");
+        const fallbackSrc = () => (isMarkerRender ? "" : (this._allowHttpMarker ? src : ""));
         const persistIfNeeded = (path) => {
           if (!path) {
             finalize("");

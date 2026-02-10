@@ -37,6 +37,83 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/import/kml-kmz:
+    post:
+      summary: 导入 KML/KMZ 为 Pin 标记
+      description: |
+        需登录。上传 `.kml` 或 `.kmz` 文件后，将每个 Placemark 转换为一个 Pin。
+
+        - Point -> 单点标记
+        - LineString -> 沿边缓冲，默认宽度 1 米
+        - Polygon -> 面标记（若为 buffer 面，按导入数据中的实际宽度）
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: KML/KMZ 文件。
+                visibility:
+                  $ref: '#/components/schemas/PinVisibility'
+              required: [file]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinImportResponse'
+        '400':
+          description: 参数错误或文件格式错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/export/kml-kmz:
+    get:
+      summary: 导出 Pin 为 KML/KMZ
+      description: |
+        需登录。按 Pin 的 shape 类型导出。
+
+        - 一般类型导出为 KML
+        - 若 shape.type=KMZ 则导出 KMZ
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
+      responses:
+        '200':
+          description: 文件流（KML/KMZ）
+          content:
+            application/vnd.google-earth.kml+xml:
+              schema:
+                type: string
+                format: binary
+            application/vnd.google-earth.kmz:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: 未授权
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/pins/{id}:
     get:
       summary: 获取已审核通过的公开 Pin 标记详情
@@ -601,6 +678,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PinResponse'
+    ApiResponsePinImportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: "#/components/schemas/PinImportResponse"
     ApiResponsePinMetricsResponse:
       type: object
       properties:
@@ -766,6 +854,16 @@ components:
     WorkGroupStatus:
       type: string
       enum: [ACTIVE, BANNED]
+    PinImportResponse:
+      type: object
+      properties:
+        importedCount:
+          type: integer
+          description: 本次成功导入的 pin 数量。
+        pins:
+          type: array
+          items:
+            $ref: "#/components/schemas/PinResponse"
     PinMetricsResponse:
       type: object
       properties:
@@ -786,7 +884,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PinCoordinateDto'
-          description: 经纬度（含可选高程）列表，线、多边形等需闭合。
+          description: 兼容旧版本的扁平坐标数组。
+        coordinateGroups:
+          type: object
+          description: 按几何类型分组的坐标集合（如 point/line/polygon）。
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/PinCoordinateDto'
+        style:
+          type: object
+          description: 前端渲染样式元数据（颜色、线宽、透明度等扩展字段）。
+          additionalProperties: true
         radius:
           type: number
           format: double
@@ -824,7 +933,7 @@ components:
       enum: [ALIVE, BANNED]
     PinShapeType:
       type: string
-      enum: [LINE, CIRCLE, RECTANGLE, POLYGON, POINT]
+      enum: [LINE, CIRCLE, RECTANGLE, POLYGON, POINT, KML, KMZ]
     PinLineCategory:
       type: string
       enum: [STANDARD, TEMPORARY_NO_FLY_ZONE_BUFFER]

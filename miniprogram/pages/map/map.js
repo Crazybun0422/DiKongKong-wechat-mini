@@ -790,6 +790,7 @@ Page({
     scaleBarWidthRpx: DEFAULT_SCALE_BAR_BASE_RPX,
     scaleBarLabel: "",
     mapRotate: 0,
+    mapSkew: 0,
     compassVisible: false,
     compassRotate: 0,
     compassSkew: 0,
@@ -5619,7 +5620,13 @@ Page({
   onLocateTap() {
     this.resetCompassState();
     this.ensureLocationPermission()
-      .then(() => this.pullAndCenterLocation({ scaleMeters: LOCATE_SCALE_METERS, scale: 14 }))
+      .then(() =>
+        this.pullAndCenterLocation({
+          scaleMeters: LOCATE_SCALE_METERS,
+          scale: 14,
+          resetView: true
+        })
+      )
       .catch(() => {
         wx.showToast({ title: "未授权定位权限", icon: "none" });
       });
@@ -5664,10 +5671,24 @@ Page({
             : this.data.scale;
           targetScale = clampMapScale(fallbackScale);
         }
+        let extraUpdates = null;
+        if (options.resetView) {
+          extraUpdates = {
+            mapRotate: 0,
+            mapSkew: 0,
+            compassRotate: 0,
+            compassSkew: 0,
+            compassVisible: false
+          };
+          this._mapRotate = 0;
+          this._mapSkew = 0;
+          this._skipNextRotateRegion = true;
+        }
         this.centerOnPoint(
           { latitude: res.latitude, longitude: res.longitude },
           targetScale,
-          !!options.silent
+          !!options.silent,
+          extraUpdates
         );
       },
       fail: (err) => {
@@ -6454,9 +6475,13 @@ Page({
 
   resetCompassState() {
     this._mapRotate = 0;
+    this._mapSkew = 0;
     const updates = {};
     if (this.data.mapRotate !== 0) {
       updates.mapRotate = 0;
+    }
+    if (this.data.mapSkew !== 0) {
+      updates.mapSkew = 0;
     }
     if (this.data.compassRotate !== 0) {
       updates.compassRotate = 0;
@@ -6520,17 +6545,19 @@ Page({
     return clampMapScale(zoom);
   },
 
-  centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false) {
+  centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false, extraUpdates = null) {
     if (!point) return;
     this.queueRegionUpdateSkip(3);
     this._centerOverride = point;
     const targetScale = clampMapScale(scale);
-    this.setData(
-      {
-        center: point,
-        scale: targetScale
-      },
-      () => {
+    const updates = {
+      center: point,
+      scale: targetScale
+    };
+    if (extraUpdates && typeof extraUpdates === "object") {
+      Object.assign(updates, extraUpdates);
+    }
+    this.setData(updates, () => {
         this._currentBounds = null;
         if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
           this._uomPlugin.handleRegionChange({
@@ -6564,8 +6591,7 @@ Page({
         this.requestNearbyNoFlyZones(fetchOptions);
         this.requestDjiZones(true, point, this._lastRegion, targetScale);
         this.updateStatusPanel(this._lastAreas);
-      }
-    );
+      });
   },
 
   ensureLocationPermission() {

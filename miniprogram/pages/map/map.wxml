@@ -9,6 +9,7 @@
       latitude="{{center.latitude}}"
       scale="{{scale}}"
       rotate="{{mapRotate}}"
+      skew="{{mapSkew}}"
       min-scale="{{minScale}}"
       max-scale="{{maxScale}}"
       subkey="{{mapSubKey}}"
