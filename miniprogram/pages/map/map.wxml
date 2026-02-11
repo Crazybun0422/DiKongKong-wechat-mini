@@ -32,6 +32,7 @@
       class="center-pin {{mapLayerType === 'satellite' ? 'center-pin--satellite' : ''}}"
       src="/assets/position.png"
       mode="widthFix"
+      style="top: calc(50% - {{centerPinOffsetPx}}px);"
     />
     <newbie-task-popup
       id="newbie-task-popup"

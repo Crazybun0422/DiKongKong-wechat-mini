@@ -78,9 +78,9 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 64rpx;
-  height: 64rpx;
-  transform: translate(-50%, -96%);
+  width: 48rpx;
+  height: 51rpx;
+  transform: translate3d(-50%, -100%, 0);
   display: block;
   pointer-events: none;
   z-index: 20;

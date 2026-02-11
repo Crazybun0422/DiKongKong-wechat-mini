@@ -41,11 +41,12 @@ paths:
     post:
       summary: 导入 KML/KMZ 为 Pin 标记
       description: |
-        需登录。上传 `.kml` 或 `.kmz` 文件后，将每个 Placemark 转换为一个 Pin。
+        需登录。上传一个或多个 `.kml` / `.kmz` 文件后，将每个 Placemark 转换为一个 Pin。
 
         - Point -> 单点标记
         - LineString -> 沿边缓冲，默认宽度 1 米
         - Polygon -> 面标记（若为 buffer 面，按导入数据中的实际宽度）
+        - 命名规则 -> 优先使用 Placemark.name；若为空则使用 `{文件名}-placemark-{序号}`；同一次导入重名会自动追加 ` (2)`、` (3)` 后缀
       requestBody:
         required: true
         content:
@@ -53,13 +54,15 @@ paths:
             schema:
               type: object
               properties:
-                file:
-                  type: string
-                  format: binary
-                  description: KML/KMZ 文件。
+                files:
+                  type: array
+                  description: 一个或多个 KML/KMZ 文件。
+                  items:
+                    type: string
+                    format: binary
                 visibility:
                   $ref: '#/components/schemas/PinVisibility'
-              required: [file]
+              required: [files]
       responses:
         '200':
           description: OK

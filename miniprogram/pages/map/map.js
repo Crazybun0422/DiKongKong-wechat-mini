@@ -783,6 +783,7 @@ Page({
     mapSubKey: QQMAP_KEY || "",
     customMapStyleId: QQMAP_CUSTOM_STYLE_ID || "",
     statusBarHeight: 0,
+    centerPinOffsetPx: 0,
     markers: [],
     polygons: [],
     circles: [],
@@ -6443,12 +6444,22 @@ Page({
       this._isIOS = metrics.platform === "ios";
     }
     const statusBarHeight = Number(metrics.statusBarHeight);
+    const centerPinOffsetPx = Number.isFinite(statusBarHeight)
+      ? Math.max(0, Math.round(statusBarHeight / 2))
+      : 0;
+    const updates = {};
     if (
       Number.isFinite(statusBarHeight)
       && statusBarHeight > 0
       && this.data.statusBarHeight !== statusBarHeight
     ) {
-      this.setData({ statusBarHeight });
+      updates.statusBarHeight = statusBarHeight;
+    }
+    if (this.data.centerPinOffsetPx !== centerPinOffsetPx) {
+      updates.centerPinOffsetPx = centerPinOffsetPx;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
     }
   },
 
@@ -6619,6 +6630,9 @@ Page({
   shouldAvoidCenterSync(options = {}) {
     const cause = typeof options?.cause === "string" ? options.cause.toLowerCase() : "";
     if (cause === "skew" || cause === "rotate" || cause === "overlook") {
+      return true;
+    }
+    if (cause === "drag" || cause === "scale" || cause === "gesture") {
       return true;
     }
     if (
