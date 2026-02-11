@@ -232,9 +232,56 @@ function incrementPinExposure(pinId, options = {}) {
   }).then((body = {}) => body.data || {});
 }
 
-function importPinKmlKmz(filePath, options = {}) {
+function resolveUploadFileName(path = "") {
+  const raw = `${path || ""}`;
+  if (!raw) return "";
+  const parts = raw.split(/[\\/]/);
+  return parts[parts.length - 1] || raw;
+}
+
+function normalizeImportFiles(input) {
+  const rawList = Array.isArray(input) ? input : [input];
+  return rawList
+    .map((item) => {
+      if (!item) return null;
+      if (typeof item === "string") {
+        const path = item.trim();
+        if (!path) return null;
+        return { path, name: resolveUploadFileName(path) || path };
+      }
+      if (typeof item === "object") {
+        const path = `${item.path || item.filePath || item.tempFilePath || ""}`.trim();
+        if (!path) return null;
+        const name = `${item.name || item.fileName || resolveUploadFileName(path) || path}`.trim();
+        return { path, name: name || path };
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function mergeImportResults(results = []) {
+  const merged = { importedCount: 0, pins: [] };
+  results.forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    if (Array.isArray(item.pins)) {
+      merged.pins.push(...item.pins);
+    }
+    const count = Number(item.importedCount ?? item.count ?? (Array.isArray(item.pins) ? item.pins.length : 0));
+    if (Number.isFinite(count)) {
+      merged.importedCount += count;
+    }
+  });
+  if (!merged.pins.length) {
+    delete merged.pins;
+  }
+  return merged;
+}
+
+function importPinKmlKmz(fileInput, options = {}) {
   return new Promise((resolve, reject) => {
-    if (!filePath) {
+    const files = normalizeImportFiles(fileInput);
+    if (!files.length) {
       reject(new Error("missing-file-path"));
       return;
     }
@@ -249,38 +296,85 @@ function importPinKmlKmz(filePath, options = {}) {
       formData.visibility = options.visibility;
     }
     const url = `${base}/api/pins/import/kml-kmz`;
-    console.info("importPinKmlKmz upload start", { url, filePath });
-    wx.uploadFile({
-      url,
-      method: "POST",
-      filePath,
-      name: "file",
-      formData,
-      header: token
-        ? {
-            Authorization: `Bearer ${token}`
-          }
-        : {},
-      success: (res) => {
-        let body = {};
-        try {
-          body = JSON.parse(res?.data || "{}");
-        } catch (err) {
-          body = {};
+    console.info("importPinKmlKmz upload start", { url, count: files.length });
+    const header = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const handleSuccess = (res, resolveUpload, rejectUpload) => {
+      let body = {};
+      try {
+        body = JSON.parse(res?.data || "{}");
+      } catch (err) {
+        body = {};
+      }
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        resolveUpload(body?.data || {});
+        return;
+      }
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        rejectUpload(new Error("missing-token"));
+        return;
+      }
+      const reason = body?.message || res.errMsg || `status-${res.statusCode}`;
+      rejectUpload(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+    };
+
+    const uploadBatch = (batchFiles = []) =>
+      new Promise((resolveUpload, rejectUpload) => {
+        const uploadOptions = {
+          url,
+          method: "POST",
+          formData,
+          header,
+          success: (res) => handleSuccess(res, resolveUpload, rejectUpload),
+          fail: (err) => rejectUpload(err)
+        };
+        if (batchFiles.length <= 1) {
+          uploadOptions.filePath = batchFiles[0].path;
+          uploadOptions.name = "files";
+        } else {
+          uploadOptions.files = batchFiles.map((file) => ({
+            name: "files",
+            filePath: file.path,
+            fileName: file.name || resolveUploadFileName(file.path)
+          }));
         }
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(body?.data || {});
-          return;
+        wx.uploadFile(uploadOptions);
+      });
+
+    const uploadSequential = () => {
+      const results = [];
+      return files
+        .reduce(
+          (prev, file) =>
+            prev.then(() =>
+              uploadBatch([file]).then((data) => {
+                results.push(data);
+              })
+            ),
+          Promise.resolve()
+        )
+        .then(() => mergeImportResults(results));
+    };
+
+    const shouldFallbackToSequential = (err) => {
+      if (!err) return false;
+      const message = `${err?.errMsg || err?.message || ""}`.toLowerCase();
+      return message.includes("filepath") || message.includes("file path") || message.includes("parameter");
+    };
+
+    const attempt = () => {
+      if (files.length <= 1) {
+        return uploadBatch(files);
+      }
+      return uploadBatch(files).catch((err) => {
+        if (shouldFallbackToSequential(err)) {
+          return uploadSequential();
         }
-        if (res.statusCode === 401 || res.statusCode === 403) {
-          reject(new Error("missing-token"));
-          return;
-        }
-        const reason = body?.message || res.errMsg || `status-${res.statusCode}`;
-        reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
-      },
-      fail: (err) => reject(err)
-    });
+        throw err;
+      });
+    };
+
+    attempt().then(resolve).catch(reject);
   });
 }
 

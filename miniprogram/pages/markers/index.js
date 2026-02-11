@@ -114,6 +114,7 @@ const QR_CODE_MAX_COUNT = 2;
 const ATTACHMENT_FIXED_LABEL = "企业产品和业务介绍";
 const PIN_MEDIA_MAX_COUNT = 3;
 const KML_FILE_SIZE_LIMIT = 1024 * 1024;
+const KML_IMPORT_MAX_COUNT = 10;
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
 const PIN_CATEGORY_LABELS = {
   POINT: "点",
@@ -3265,30 +3266,58 @@ Page({
 
   onKmlImportTap() {
     if (this.data.kmlImporting) return;
-    const chooseFile = () =>
+    const resolveFileName = (file, path) => {
+      const rawName = `${file?.name || file?.fileName || ""}`.trim();
+      if (rawName) return rawName;
+      const rawPath = `${path || ""}`.trim();
+      if (!rawPath) return "";
+      const parts = rawPath.split(/[\\/]/);
+      return parts[parts.length - 1] || rawPath;
+    };
+
+    const normalizePickedFiles = (res) => {
+      const rawFiles = Array.isArray(res?.tempFiles)
+        ? res.tempFiles
+        : Array.isArray(res?.files)
+          ? res.files
+          : [];
+      const fallbackPaths = Array.isArray(res?.tempFilePaths) ? res.tempFilePaths : [];
+      const list = rawFiles.length ? rawFiles : fallbackPaths;
+      return (Array.isArray(list) ? list : [])
+        .map((file) => {
+          if (!file) return null;
+          if (typeof file === "string") {
+            const path = file;
+            if (!path) return null;
+            const name = resolveFileName(null, path) || path;
+            return { path, name };
+          }
+          const path = file.path || file.tempFilePath || file.filePath || "";
+          if (!path) return null;
+          const name = resolveFileName(file, path) || path;
+          return {
+            path,
+            name,
+            size: file.size
+          };
+        })
+        .filter(Boolean);
+    };
+
+    const chooseFiles = () =>
       new Promise((resolve, reject) => {
         const handleSuccess = (res) => {
-          const files = res?.tempFiles || res?.files || [];
-          const file = files[0] || null;
-          const path =
-            file?.path ||
-            file?.tempFilePath ||
-            (Array.isArray(res?.tempFilePaths) ? res.tempFilePaths[0] : "") ||
-            "";
-          if (!path) {
+          const files = normalizePickedFiles(res);
+          if (!files.length) {
             reject(new Error("missing-file-path"));
             return;
           }
-          resolve({
-            path,
-            name: file?.name || path,
-            size: file?.size
-          });
+          resolve(files);
         };
 
         if (typeof wx.chooseMessageFile === "function") {
           wx.chooseMessageFile({
-            count: 1,
+            count: KML_IMPORT_MAX_COUNT,
             type: "file",
             success: handleSuccess,
             fail: (err) => reject(err)
@@ -3298,7 +3327,7 @@ Page({
 
         if (typeof wx.chooseFile === "function") {
           wx.chooseFile({
-            count: 1,
+            count: KML_IMPORT_MAX_COUNT,
             success: handleSuccess,
             fail: (err) => reject(err)
           });
@@ -3333,18 +3362,32 @@ Page({
       return "";
     };
 
-    chooseFile()
-      .then((file) => {
-        const name = `${file.name || file.path || ""}`.trim();
-        const ext = name.split(".").pop()?.toLowerCase() || "";
-        if (!["kml", "kmz"].includes(ext)) {
+    chooseFiles()
+      .then((files) =>
+        Promise.all(
+          files.map((file) =>
+            resolveFileSize(file).then((size) => ({
+              path: file.path,
+              name: file.name,
+              size
+            }))
+          )
+        )
+      )
+      .then((files) => {
+        const invalidFile = files.find((file) => {
+          const name = `${file?.name || file?.path || ""}`.trim();
+          const ext = name.split(".").pop()?.toLowerCase() || "";
+          return !["kml", "kmz"].includes(ext);
+        });
+        if (invalidFile) {
           wx.showToast({ title: "仅支持KML/KMZ文件", icon: "none" });
           throw new Error("invalid-kml-extension");
         }
-        return resolveFileSize(file).then((size) => ({ file, size }));
-      })
-      .then(({ file, size }) => {
-        if (Number.isFinite(size) && size > KML_FILE_SIZE_LIMIT) {
+        const oversizeFile = files.find(
+          (file) => Number.isFinite(file.size) && file.size > KML_FILE_SIZE_LIMIT
+        );
+        if (oversizeFile) {
           wx.showToast({ title: "文件太大，不能超过1M", icon: "none" });
           throw new Error("kml-file-too-large");
         }
@@ -3353,7 +3396,7 @@ Page({
           wx.showLoading({ title: "导入中...", mask: true });
         }
         const submit = () =>
-          importPinKmlKmz(file.path, {
+          importPinKmlKmz(files, {
             apiBase: this.apiBase,
             visibility: resolveVisibility()
           });
