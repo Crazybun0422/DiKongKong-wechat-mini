@@ -23,7 +23,7 @@ const TILE_KEEP_RADIUS = 1;
 const TILE_CACHE_LIMIT = 9;
 const MASK_ALPHA_THRESHOLD = 16;
 
-const FORCE_HTTP_MARKER = false;
+const FORCE_HTTP_MARKER = true;
 
 const SAFE_STATUS_TEXT = "适飞区域（限高120m）";
 const RESTRICTED_STATUS_TEXT = "管制区域";
@@ -133,8 +133,8 @@ Component({
       this._lastCenterAt = 0;
       this._isMoving = false;
       this._renderMode = "marker";
-      this._allowHttpMarker = false;
-      this._forceHttpMarker = false;
+      this._allowHttpMarker = true;
+      this._forceHttpMarker = true;
       this._coordType = "gcj02";
       this._centerCoordType = "gcj02";
       this._offscreenSupported =
@@ -640,7 +640,9 @@ Component({
         maskStatus: "idle",
         maskData: null,
         maskWidth: 0,
-        maskHeight: 0
+        maskHeight: 0,
+        httpMarkerSrc: "",
+        httpMarkerVerified: undefined
       };
       session.tiles.set(tile.id, entry);
       return entry;
@@ -715,12 +717,20 @@ Component({
       entry.maskData = null;
       entry.maskWidth = 0;
       entry.maskHeight = 0;
+      entry.httpMarkerSrc = "";
+      entry.httpMarkerVerified = undefined;
     },
 
     downloadTile(src, entry) {
       const isMarkerRender = this._renderMode === "marker";
       if (this._forceHttpMarker) {
-        return Promise.resolve(isMarkerRender ? "" : (src || ""));
+        if (!isMarkerRender) {
+          return Promise.resolve(src || "");
+        }
+        if (!src || !isHttpUrl(src)) {
+          return Promise.resolve(src || "");
+        }
+        return this.verifyHttpMarkerSource(src, entry).then((ok) => (ok ? src : ""));
       }
       if (!src) {
         return Promise.resolve("");
@@ -835,6 +845,57 @@ Component({
           if (path && entry) entry.maskSrc = path;
           return path || "";
         });
+    },
+
+    verifyHttpMarkerSource(src, entry) {
+      if (!src || !isHttpUrl(src)) return Promise.resolve(!!src);
+      if (entry?.httpMarkerSrc === src && typeof entry.httpMarkerVerified === "boolean") {
+        return Promise.resolve(entry.httpMarkerVerified);
+      }
+      const api = this._miniApi || getMiniApi();
+      if (!api) {
+        if (entry) {
+          entry.httpMarkerSrc = src;
+          entry.httpMarkerVerified = false;
+        }
+        return Promise.resolve(false);
+      }
+      const mark = (ok) => {
+        if (entry) {
+          entry.httpMarkerSrc = src;
+          entry.httpMarkerVerified = !!ok;
+        }
+        return !!ok;
+      };
+      const tryGetImageInfo = () => new Promise((resolve) => {
+        if (typeof api.getImageInfo !== "function") {
+          resolve(null);
+          return;
+        }
+        api.getImageInfo({
+          src,
+          success: () => resolve(true),
+          fail: () => resolve(false)
+        });
+      });
+      const tryDownload = () => new Promise((resolve) => {
+        if (typeof api.downloadFile !== "function") {
+          resolve(false);
+          return;
+        }
+        api.downloadFile({
+          url: src,
+          success: (res) => resolve(Number(res?.statusCode) === 200 && !!res?.tempFilePath),
+          fail: () => resolve(false)
+        });
+      });
+      return tryGetImageInfo()
+        .then((ok) => {
+          if (ok === null) return tryDownload();
+          return ok;
+        })
+        .then(mark)
+        .catch(() => mark(false));
     },
 
     detectAllowHttpMarker() {
@@ -979,11 +1040,7 @@ Component({
 
     normalizeMiniFilePath(path) {
       if (!path) return "";
-      const raw = `${path}`;
-      if (raw.startsWith("wxfile://")) {
-        return raw.replace(/^wxfile:\/\//, "qqfile://");
-      }
-      return raw;
+      return `${path}`;
     },
 
     requestRender() {
