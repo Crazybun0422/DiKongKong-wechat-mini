@@ -968,9 +968,7 @@
     <view class="kml-tips-dialog-overlay" catchtouchmove="noop" catchtap="noop">
       <view class="kml-tips-dialog-container">
         <view class="kml-tips-dialog-card">
-          <text class="kml-tips-dialog-text" decode="true">
-            KML/KMZ功能仅支持导入导出，不支持编辑;因为小程绘制性能偏低，KML/KMZ限制最大文件1M；KML/KMZ功能默认绘制浅黄色区域，不支持颜色的变更。
-          </text>
+          <text class="kml-tips-dialog-text" decode="true">受限于小程序性能，KML/KMZ功能暂仅支持导入导出<text class="kml-tips-dialog-text-highlight" decode="true">（&lt;1M）</text>。</text>
           <view class="kml-tips-dialog-btn" catchtap="onCloseKmlTips">我知道了</view>
         </view>
       </view>
@@ -988,7 +986,7 @@
         <view class="pin-create-sheet-divider"></view>
         <view class="pin-create-sheet-item" bindtap="onPinCreateKml">
           <view class="pin-create-sheet-row">
-            <text class="pin-create-sheet-title">通过KML/KMZ文件创建</text>
+            <text class="pin-create-sheet-title">通过KML/KMZ文件创建（仅微信）</text>
             <view class="pin-create-sheet-tip" catchtap="onKmlTipsTap">
               <image class="pin-create-sheet-tip-icon" src="{{assetPaths.tips}}" mode="aspectFit" />
             </view>

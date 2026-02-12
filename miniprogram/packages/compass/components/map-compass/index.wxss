@@ -1,6 +1,6 @@
 .map-compass {
-  width: 75rpx;
-  height: 75rpx;
+  width: 66rpx;
+  height: 66rpx;
   border-radius: 50%;
   background: transparent;
   border: 0;
@@ -30,9 +30,9 @@
 }
 
 .map-compass-north {
-  top: -50rpx;
-  width: 50rpx;
-  height: 75rpx;
+  top: -44rpx;
+  width: 44rpx;
+  height: 66rpx;
   left: 50%;
   transform: translateX(-50%);
 }

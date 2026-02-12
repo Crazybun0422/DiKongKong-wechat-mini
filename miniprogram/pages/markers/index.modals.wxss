@@ -237,10 +237,17 @@
 }
 
 .kml-tips-dialog-text {
+  display: block;
+  width: 100%;
+  text-align: left;
   font-size: 28rpx;
-  color: #333333;
+  color: #111111;
   opacity: 0.95;
   line-height: 1.6;
+}
+
+.kml-tips-dialog-text-highlight {
+  color: #c28a00;
 }
 
 .kml-tips-dialog-btn {
