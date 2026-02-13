@@ -15,26 +15,46 @@ const { prefetchFontFileConfig } = require("./utils/font-config");
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
-  develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
-  //develop: "https://skylane.cn",
-  trial: "https://skylane.cn",                   // uploaded “体验版”
-  // trial: "https://kylee-suborbital-herta.ngrok-free.dev",                   // uploaded “体验版”
-  release: "https://skylane.cn"                        // 审核 & 上线
+  develop: {
+    apiBase: "https://kylee-suborbital-herta.ngrok-free.dev",
+    guideAssetBase: "https://kylee-suborbital-herta.ngrok-free.dev"
+    // apiBase: "https://skylane.cn",
+    // guideAssetBase: "https://www.skylane.cn"
+  }, // IDE / preview
+  trial: {
+    apiBase: "https://skylane.cn",
+    guideAssetBase: "https://www.skylane.cn"
+  }, // uploaded trial
+  release: {
+    apiBase: "https://skylane.cn",
+    guideAssetBase: "https://www.skylane.cn"
+  } // review & release
 };
 
-function resolveApiBase() {
+function resolveRuntimeEnv() {
   try {
     const { miniProgram } = wx.getAccountInfoSync();
-    const env = miniProgram?.envVersion || "develop";       // develop | trial | release
-
-    return API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+    return miniProgram?.envVersion || "develop"; // develop | trial | release
   } catch (err) {
-    console.warn("Fallback to dev API base because env lookup failed", err);
-    return API_BASE_BY_ENV.develop;
+    console.warn("Fallback to develop env because env lookup failed", err);
+    return "develop";
   }
 }
 
+function resolveApiBase() {
+  const env = resolveRuntimeEnv();
+  const envConfig = API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+  return envConfig.apiBase || API_BASE_BY_ENV.develop.apiBase;
+}
+
+function resolveGuideAssetBase() {
+  const env = resolveRuntimeEnv();
+  const envConfig = API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+  return envConfig.guideAssetBase || envConfig.apiBase || API_BASE_BY_ENV.develop.apiBase;
+}
+
 const API_BASE_URL = resolveApiBase();
+const GUIDE_ASSET_BASE_URL = resolveGuideAssetBase();
 
 function decodeParamValue(value) {
   if (value === undefined || value === null) return "";
@@ -115,6 +135,7 @@ App({
     token: null,
     userProfile: null,
     apiBase: API_BASE_URL,
+    guideAssetBase: GUIDE_ASSET_BASE_URL,
     pendingMarkerFocus: null,
     pendingPinPreview: null,
     pendingInviteCode: "",

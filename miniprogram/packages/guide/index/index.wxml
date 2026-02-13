@@ -4,9 +4,7 @@
     <image class="guide-media-bg" src="/assets/intro-bg.png" mode="aspectFill" />
     <view class="guide-media-fade"></view>
     <view class="guide-media">
-      <view class="guide-loading" wx:if="{{loading}}">
-        <image class="guide-loading-image" src="/assets/af-loading.png" mode="aspectFit" />
-      </view>
+      <view wx:if="{{loading}}"></view>
       <view class="guide-error" wx:elif="{{error}}">
         <text>{{error}}</text>
         <view class="guide-retry" bindtap="onRetryTap">重试</view>
@@ -22,10 +20,17 @@
       >
         <swiper-item wx:for="{{slides}}" wx:key="index">
           <view class="guide-slide">
-            <view class="guide-image-stack">
+            <view class="guide-image-stack {{item._loaded ? 'is-ready' : ''}}">
               <view class="guide-image-card"></view>
               <view class="guide-image-frame">
-                <image class="guide-image" src="{{item.url}}" mode="aspectFill" />
+                <image
+                  class="guide-image {{item._loaded ? 'is-ready' : ''}}"
+                  src="{{item.url}}"
+                  mode="aspectFill"
+                  data-index="{{index}}"
+                  bindload="onGuideImageLoad"
+                  binderror="onGuideImageError"
+                />
               </view>
             </view>
           </view>

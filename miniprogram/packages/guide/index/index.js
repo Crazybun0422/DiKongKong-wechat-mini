@@ -74,7 +74,10 @@ Page({
     }
     fetchGuideUrls({ apiBase })
       .then((payload = {}) => {
-        const slides = Array.isArray(payload.items) ? payload.items : [];
+        const slides = (Array.isArray(payload.items) ? payload.items : []).map((item = {}) => ({
+          ...item,
+          _loaded: false
+        }));
         const title = slides[0]?.title || payload.title || DEFAULT_TITLE;
         this.setData({
           title,
@@ -91,6 +94,22 @@ Page({
           slides: []
         });
       });
+  },
+
+  onGuideImageLoad(event) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    if (!Number.isFinite(index) || index < 0) return;
+    const slide = this.data.slides?.[index];
+    if (!slide || slide._loaded) return;
+    this.setData({ [`slides[${index}]._loaded`]: true });
+  },
+
+  onGuideImageError(event) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    if (!Number.isFinite(index) || index < 0) return;
+    const slide = this.data.slides?.[index];
+    if (!slide || slide._loaded) return;
+    this.setData({ [`slides[${index}]._loaded`]: true });
   },
 
   updateContentTopOffset() {
