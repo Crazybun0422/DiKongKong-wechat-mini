@@ -128,6 +128,19 @@ function extractInviteCodeFromOptions(options = {}) {
   return "";
 }
 
+function createWeappLoginError(reason, detail = {}) {
+  const message = typeof reason === "string" ? reason : JSON.stringify(reason || {});
+  const error = new Error(message || "weapp-login-failed");
+  error.statusCode = detail.statusCode || 0;
+  error.errMsg = detail.errMsg || "";
+  error.path = WEAPP_LOGIN_PATH;
+  error.method = "POST";
+  error.url = detail.url || "";
+  error.response = detail.response;
+  error.rawError = detail.rawError;
+  return error;
+}
+
 App({
   globalData: {
     version: "0.0.1",
@@ -458,9 +471,10 @@ App({
 
   requestWeappLogin(payload = {}) {
     console.log("Requesting Weapp login with payload:", payload);
+    const url = `${API_BASE_URL}${WEAPP_LOGIN_PATH}`;
     return new Promise((resolve, reject) => {
       wx.request({
-        url: `${API_BASE_URL}${WEAPP_LOGIN_PATH}`,
+        url,
         method: "POST",
         data: payload,
         header: {
@@ -482,12 +496,25 @@ App({
           } else {
             const reason = data?.message || data?.errMsg || resp?.errMsg || "Unknown error";
             console.error(`Weapp login failed: ${statusCode || "n/a"}`, reason);
-            reject(new Error(reason));
+            reject(
+              createWeappLoginError(reason, {
+                statusCode,
+                errMsg: resp?.errMsg,
+                url,
+                response: data
+              })
+            );
           }
         },
         fail: (err) => {
           console.error("Weapp login request failed", err);
-          reject(err);
+          reject(
+            createWeappLoginError(err?.errMsg || "weapp-login-request-failed", {
+              errMsg: err?.errMsg,
+              url,
+              rawError: err
+            })
+          );
         }
       });
     });

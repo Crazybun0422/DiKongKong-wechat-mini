@@ -3,6 +3,52 @@ const { shouldShowGuide } = require("../../utils/policies");
 
 const DEFAULT_ERROR = "初始化失败，请重试";
 
+function safeStringify(value) {
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(
+      value,
+      (key, current) => {
+        if (typeof current === "function") {
+          return `[Function ${current.name || "anonymous"}]`;
+        }
+        if (typeof current === "object" && current !== null) {
+          if (seen.has(current)) return "[Circular]";
+          seen.add(current);
+        }
+        return current;
+      },
+      2
+    );
+  } catch (err) {
+    return "";
+  }
+}
+
+function formatErrorDetail(err) {
+  if (!err) return "";
+  const detail = {
+    name: err.name || "",
+    message: err.message || "",
+    code: err.code || "",
+    statusCode: err.statusCode || "",
+    errMsg: err.errMsg || "",
+    method: err.method || "",
+    path: err.path || "",
+    url: err.url || "",
+    response: err.response || err.data || null
+  };
+  if (err && typeof err === "object") {
+    const raw = {};
+    Object.getOwnPropertyNames(err).forEach((key) => {
+      raw[key] = err[key];
+    });
+    detail.raw = raw;
+  }
+  const serialized = safeStringify(detail);
+  return serialized || "";
+}
+
 function mergeLaunchOptions(primary = {}, secondary = {}) {
   const merged = Object.assign({}, primary || {}, secondary || {});
   const primaryQuery = primary?.query && typeof primary.query === "object" ? primary.query : {};
@@ -17,7 +63,8 @@ function mergeLaunchOptions(primary = {}, secondary = {}) {
 Page({
   data: {
     loading: true,
-    error: ""
+    error: "",
+    errorDetail: ""
   },
 
   onLoad(options = {}) {
@@ -29,10 +76,32 @@ Page({
     this.bootstrap();
   },
 
+  onViewDetailTap() {
+    const detail = this.data.errorDetail || "暂无错误详情";
+    wx.showModal({
+      title: "错误详情",
+      content: detail,
+      showCancel: false,
+      confirmText: "我知道了",
+      success: (res) => {
+        if (!res?.confirm) return;
+        wx.setClipboardData({
+          data: detail,
+          success: () => {
+            wx.showToast({
+              title: "内容已拷贝，请发给相关人员",
+              icon: "none"
+            });
+          }
+        });
+      }
+    });
+  },
+
   bootstrap() {
     if (this._navigating) return;
     this._profileRetry = false;
-    this.setData({ loading: true, error: "" });
+    this.setData({ loading: true, error: "", errorDetail: "" });
     this.prepareLaunchOptions();
     const preloadGuide = this.preloadGuideSubpackage();
     this.ensureProfile()
@@ -48,7 +117,11 @@ Page({
         console.warn("entry bootstrap failed", err);
         if (this._navigating) return;
         const message = err?.message || DEFAULT_ERROR;
-        this.setData({ loading: false, error: message });
+        this.setData({
+          loading: false,
+          error: message,
+          errorDetail: formatErrorDetail(err)
+        });
       });
   },
 
@@ -137,7 +210,11 @@ Page({
       fail: (err) => {
         console.warn("failed to navigate to guide", err);
         this._navigating = false;
-        this.setData({ loading: false, error: DEFAULT_ERROR });
+        this.setData({
+          loading: false,
+          error: DEFAULT_ERROR,
+          errorDetail: formatErrorDetail(err)
+        });
       }
     });
   },
@@ -149,7 +226,11 @@ Page({
       fail: (err) => {
         console.warn("failed to navigate to map", err);
         this._navigating = false;
-        this.setData({ loading: false, error: DEFAULT_ERROR });
+        this.setData({
+          loading: false,
+          error: DEFAULT_ERROR,
+          errorDetail: formatErrorDetail(err)
+        });
       }
     });
   }

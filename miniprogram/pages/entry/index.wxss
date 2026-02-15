@@ -77,3 +77,11 @@
 .entry-retry::after {
   border: none;
 }
+
+.entry-detail-link {
+  margin-top: 24rpx;
+  font-size: 24rpx;
+  line-height: 1.4;
+  color: #3f6cff;
+  text-decoration: underline;
+}
