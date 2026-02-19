@@ -21,7 +21,9 @@
 
 .guide-media-wrap {
   width: 100vw;
-  height: 680rpx;
+  height: 56vh;
+  min-height: 460rpx;
+  max-height: 680rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -208,6 +210,7 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 18rpx 36rpx rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
 }
 
 .guide-start-btn::after {
@@ -226,13 +229,20 @@
 
 
 .guide-agree-row {
-  margin-top: 34rpx;
+  width: 100%;
+  max-width: 560rpx;
+  margin-top: 24rpx;
+  padding: 0 20rpx;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   font-size: 24rpx;
+  line-height: 34rpx;
   color: #444;
+  row-gap: 8rpx;
+  flex-shrink: 0;
 }
 
 .guide-checkbox {
@@ -243,14 +253,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 4rpx;
+  margin-right: 8rpx;
   box-sizing: border-box;
   background: #fff;
+  flex: 0 0 28rpx;
 }
 
 .guide-agree-text,
 .guide-link {
   margin: 0 4rpx;
+  line-height: 34rpx;
 }
 
 .guide-checkbox.is-checked {
@@ -270,14 +282,13 @@
 }
 
 .guide-brand {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 50rpx;
+  margin-top: auto;
+  padding-top: 32rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16rpx;
+  flex-shrink: 0;
 }
 
 .guide-brand-logo {
