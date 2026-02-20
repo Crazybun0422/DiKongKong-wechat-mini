@@ -618,7 +618,7 @@ const buildCoordinateClipboardText = ({
     `纬度(十进制)：${decimal.latText}`,
     `经度(时分秒)：${lngDms || "-"}`,
     `纬度(时分秒)：${latDms || "-"}`,
-    `地址反查：${normalizedAddress || "未获取到地址"}`
+    `详细地址：${normalizedAddress || "未获取到地址"}`
   ];
   return lines.join("\n");
 };
@@ -863,7 +863,7 @@ Page({
     centerPinTitle: "",
     centerCoordinateLatText: "",
     centerCoordinateLngText: "",
-    coordinateSystem: "gcj02",
+    coordinateSystem: "wgs84",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -5002,10 +5002,11 @@ Page({
         wx.showToast({ title: "复制失败", icon: "none" });
         return;
       }
+      let copied = false;
       wx.setClipboardData({
         data: text,
         success: () => {
-          wx.showToast({ title: "经纬度解析已复制", icon: "success" });
+          copied = true;
         },
         fail: (err) => {
           console.error("复制经纬度失败", err);
@@ -5013,6 +5014,11 @@ Page({
         },
         complete: () => {
           wx.hideLoading();
+          if (copied) {
+            setTimeout(() => {
+              wx.showToast({ title: "经纬度已复制", icon: "success", duration: 1500 });
+            }, 120);
+          }
         }
       });
     };
@@ -6535,9 +6541,7 @@ Page({
       this._isIOS = metrics.platform === "ios";
     }
     const statusBarHeight = Number(metrics.statusBarHeight);
-    const centerPinOffsetPx = Number.isFinite(statusBarHeight)
-      ? Math.max(0, Math.round(statusBarHeight / 2))
-      : 0;
+    const centerPinOffsetPx = 0;
     const updates = {};
     if (
       Number.isFinite(statusBarHeight)

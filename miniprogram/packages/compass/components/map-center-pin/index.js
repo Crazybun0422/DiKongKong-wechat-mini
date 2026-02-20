@@ -10,11 +10,11 @@ Component({
     },
     sheetTitle: {
       type: String,
-      value: "中心点操作"
+      value: "中心点操作开发中"
     },
     sheetDesc: {
       type: String,
-      value: "已识别长按手势，底部弹框已唤起。"
+      value: "详细功能开发中,敬请期待"
     },
     closeText: {
       type: String,
