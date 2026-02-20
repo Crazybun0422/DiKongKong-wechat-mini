@@ -28,11 +28,9 @@
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
     />
-    <image
-      class="center-pin {{mapLayerType === 'satellite' ? 'center-pin--satellite' : ''}}"
-      src="/assets/position.png"
-      mode="widthFix"
-      style="top: calc(50% - {{centerPinOffsetPx}}px);"
+    <map-center-pin
+      top-offset-px="{{centerPinOffsetPx}}"
+      satellite="{{mapLayerType === 'satellite'}}"
     />
     <newbie-task-popup
       id="newbie-task-popup"

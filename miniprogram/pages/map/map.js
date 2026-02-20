@@ -573,6 +573,56 @@ const formatCoordinateParts = (lat, lng) => {
   return { lngText, latText };
 };
 
+const formatDmsUnit = (value) => {
+  const abs = Math.abs(Number(value) || 0);
+  const degree = Math.floor(abs);
+  const minuteFloat = (abs - degree) * 60;
+  const minute = Math.floor(minuteFloat);
+  const second = (minuteFloat - minute) * 60;
+  const secondText = Number(second.toFixed(2)).toString();
+  return `${degree}°${minute}'${secondText}"`;
+};
+
+const formatCoordinateDms = (value, axis) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  const direction =
+    axis === "lng"
+      ? (numeric >= 0 ? "东经" : "西经")
+      : (numeric >= 0 ? "北纬" : "南纬");
+  return `${direction}${formatDmsUnit(numeric)}`;
+};
+
+const normalizeAddressText = (value) => {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim();
+};
+
+const resolveCoordinateSystemLabel = (coordinateSystem) =>
+  coordinateSystem === "wgs84" ? "WGS84" : "GCJ-02";
+
+const buildCoordinateClipboardText = ({
+  lat,
+  lng,
+  coordinateSystem = "gcj02",
+  address = ""
+} = {}) => {
+  const decimal = formatCoordinateParts(lat, lng);
+  if (!decimal) return "";
+  const lngDms = formatCoordinateDms(lng, "lng");
+  const latDms = formatCoordinateDms(lat, "lat");
+  const normalizedAddress = normalizeAddressText(address);
+  const lines = [
+    `坐标系：${resolveCoordinateSystemLabel(coordinateSystem)}`,
+    `经度(十进制)：${decimal.lngText}`,
+    `纬度(十进制)：${decimal.latText}`,
+    `经度(时分秒)：${lngDms || "-"}`,
+    `纬度(时分秒)：${latDms || "-"}`,
+    `地址反查：${normalizedAddress || "未获取到地址"}`
+  ];
+  return lines.join("\n");
+};
+
 const normalizeLaunchMarkerOptions = (options = {}) => {
   const normalized = {
     markerId: "",
@@ -4923,20 +4973,61 @@ Page({
   },
 
   onCenterCoordinateTap() {
-    const lngText = this.data.centerCoordinateLngText;
-    const latText = this.data.centerCoordinateLatText;
-    if (!latText || !lngText) return;
-    const text = `${lngText},${latText}`;
-    wx.setClipboardData({
-      data: text,
-      success: () => {
-        wx.showToast({ title: "经纬度已复制", icon: "success" });
-      },
-      fail: (err) => {
-        console.error("复制经纬度失败", err);
-        wx.showToast({ title: "复制失败", icon: "none" });
+    const center = this._centerOverride || this.data.center;
+    const hasCenter = hasValidCoordinate(center?.latitude, center?.longitude);
+    let displayLat = hasCenter ? Number(center.latitude) : Number(this.data.centerCoordinateLatText);
+    let displayLng = hasCenter ? Number(center.longitude) : Number(this.data.centerCoordinateLngText);
+
+    if (hasCenter && this.data.coordinateSystem === "wgs84") {
+      const wgs = gcj02ToWgs84(Number(center.longitude), Number(center.latitude));
+      if (Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng)) {
+        displayLat = wgs.lat;
+        displayLng = wgs.lng;
       }
-    });
+    }
+
+    if (!Number.isFinite(displayLat) || !Number.isFinite(displayLng)) return;
+
+    wx.showLoading({ title: "经纬度解析中", mask: false });
+
+    const copyResolvedText = (address = "") => {
+      const text = buildCoordinateClipboardText({
+        lat: displayLat,
+        lng: displayLng,
+        coordinateSystem: this.data.coordinateSystem,
+        address
+      });
+      if (!text) {
+        wx.hideLoading();
+        wx.showToast({ title: "复制失败", icon: "none" });
+        return;
+      }
+      wx.setClipboardData({
+        data: text,
+        success: () => {
+          wx.showToast({ title: "经纬度解析已复制", icon: "success" });
+        },
+        fail: (err) => {
+          console.error("复制经纬度失败", err);
+          wx.showToast({ title: "复制失败", icon: "none" });
+        },
+        complete: () => {
+          wx.hideLoading();
+        }
+      });
+    };
+
+    if (!hasCenter) {
+      copyResolvedText("");
+      return;
+    }
+
+    this.requestPinAddress(Number(center.latitude), Number(center.longitude))
+      .then((address) => copyResolvedText(address || ""))
+      .catch((err) => {
+        console.warn("center reverse geocode failed", err);
+        copyResolvedText("");
+      });
   },
 
   onCoordinateSystemToggle() {

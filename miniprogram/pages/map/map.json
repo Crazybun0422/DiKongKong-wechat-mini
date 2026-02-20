@@ -7,7 +7,8 @@
     "map-debug-panel": "/packages/uom2/components/map-debug-panel/index",
     "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index",
     "policy-update-modal": "/packages/guide/components/policy-update-modal/index",
-    "map-compass": "/packages/compass/components/map-compass/index"
+    "map-compass": "/packages/compass/components/map-compass/index",
+    "map-center-pin": "/packages/compass/components/map-center-pin/index"
   },
   "componentPlaceholder": {
     "newbie-task-popup": "view",
@@ -17,7 +18,8 @@
     "map-debug-panel": "view",
     "city-report-h5-entry": "view",
     "policy-update-modal": "view",
-    "map-compass": "view"
+    "map-compass": "view",
+    "map-center-pin": "view"
   },
   "navigationStyle": "custom"
 }

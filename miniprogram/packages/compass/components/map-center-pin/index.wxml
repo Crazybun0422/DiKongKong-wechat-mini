@@ -1,0 +1,18 @@
+<view class="center-pin-touch-area" style="top: calc(50% - {{topOffsetPx}}px);" bindlongpress="onLongPress">
+  <image
+    class="center-pin {{satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}}"
+    src="/assets/position.png"
+    mode="widthFix"
+  />
+  <view class="center-pin-ring {{triggered ? 'is-visible' : ''}}"></view>
+</view>
+
+<block wx:if="{{sheetVisible}}">
+  <view class="center-pin-sheet-mask" bindtap="onMaskTap"></view>
+  <view class="center-pin-sheet {{sheetClosing ? 'is-closing' : 'is-open'}}" catchtap="onSheetTap" catchtouchmove="noop">
+    <view class="center-pin-sheet-handle"></view>
+    <view class="center-pin-sheet-title">{{sheetTitle}}</view>
+    <view class="center-pin-sheet-desc">{{sheetDesc}}</view>
+    <button class="center-pin-sheet-btn" bindtap="onCloseTap">{{closeText}}</button>
+  </view>
+</block>
