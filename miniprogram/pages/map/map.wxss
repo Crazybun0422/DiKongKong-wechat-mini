@@ -816,13 +816,32 @@ button.search-btn::after {
   padding: 6rpx 16rpx;
   border-radius: 999rpx;
   background: #000;
+  color: #fff;
+}
+
+.map-center-coords-pill-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  white-space: nowrap;
 }
 
 .map-center-coords-pill-text {
   font-size: 20rpx;
   font-weight: 600;
-  color: #fff;
+  color: currentColor;
   letter-spacing: 0.3rpx;
+  white-space: nowrap;
+}
+
+.map-center-coords-pill-arrow {
+  width: 0;
+  height: 0;
+  border-left: 7rpx solid transparent;
+  border-right: 7rpx solid transparent;
+  border-top: 9rpx solid currentColor;
+  transform: translateY(2rpx);
 }
 
 .map-scale-container--satellite .map-scale {
@@ -852,10 +871,88 @@ button.search-btn::after {
 .map-scale-container--satellite .map-center-coords-pill {
   background: #fff;
   border: 2rpx solid rgba(0, 0, 0, 0.45);
+  color: #111827;
 }
 
-.map-scale-container--satellite .map-center-coords-pill-text {
+.coordinate-system-sheet-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  z-index: 140;
+}
+
+.coordinate-system-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 141;
+  background: #ffffff;
+  border-top-left-radius: 28rpx;
+  border-top-right-radius: 28rpx;
+  padding: 24rpx 20rpx calc(env(safe-area-inset-bottom) + 24rpx);
+  box-sizing: border-box;
+}
+
+.coordinate-system-sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.coordinate-system-sheet-option {
+  flex: 1;
+  min-width: 0;
+  height: 84rpx;
+  border-radius: 16rpx;
+  background: #f1f5f9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  box-sizing: border-box;
+}
+
+.coordinate-system-sheet-radio {
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid #111827;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.coordinate-system-sheet-radio::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: transparent;
+  transform: translate(-50%, -50%);
+}
+
+.coordinate-system-sheet-option-text {
+  font-size: 24rpx;
+  line-height: 1;
   color: #111827;
+  font-weight: 600;
+}
+
+.coordinate-system-sheet-option.is-active {
+  background: #e2e8f0;
+}
+
+.coordinate-system-sheet-option.is-active .coordinate-system-sheet-radio {
+  border-color: #000000;
+  background: #000000;
+}
+
+.coordinate-system-sheet-option.is-active .coordinate-system-sheet-radio::after {
+  background: #ffffff;
 }
 
 .floating-controls {

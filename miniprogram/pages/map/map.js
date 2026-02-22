@@ -18,7 +18,14 @@ const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
 } = require("../../utils/no-fly-zones");
-const { haversineMeters, clampRadius, gcj02ToWgs84, wgs84ToGcj02 } = require("../../utils/coords");
+const {
+  haversineMeters,
+  clampRadius,
+  gcj02ToWgs84,
+  wgs84ToGcj02,
+  gcj02ToBd09,
+  gcj02ToCgcs2000
+} = require("../../utils/coords");
 const {
   formatDistanceText,
   computeGreatCircleDistance
@@ -598,8 +605,58 @@ const normalizeAddressText = (value) => {
   return value.replace(/\s+/g, " ").trim();
 };
 
+const COORDINATE_SYSTEM_OPTIONS = [
+  { value: "gcj02", label: "GCJ-02" },
+  { value: "bd09", label: "BD09" },
+  { value: "wgs84", label: "WGS84" },
+  { value: "cgcs2000", label: "CGCS2000" }
+];
+
+const COORDINATE_SYSTEM_DISPLAY_LABEL_MAP = {
+  gcj02: "gcj-02",
+  bd09: "bd09",
+  wgs84: "wgs84",
+  cgcs2000: "cgcs2000"
+};
+
+const COORDINATE_SYSTEM_CLIPBOARD_LABEL_MAP = {
+  gcj02: "GCJ-02",
+  bd09: "BD09",
+  wgs84: "WGS84",
+  cgcs2000: "CGCS2000"
+};
+
+const normalizeCoordinateSystem = (value) => {
+  const raw = `${value || ""}`.toLowerCase();
+  return COORDINATE_SYSTEM_OPTIONS.some((item) => item.value === raw) ? raw : "gcj02";
+};
+
+const resolveCoordinateSystemDisplayLabel = (coordinateSystem) =>
+  COORDINATE_SYSTEM_DISPLAY_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "gcj-02";
+
 const resolveCoordinateSystemLabel = (coordinateSystem) =>
-  coordinateSystem === "wgs84" ? "WGS84" : "GCJ-02";
+  COORDINATE_SYSTEM_CLIPBOARD_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "GCJ-02";
+
+const convertCoordinateFromGcj02 = (lng, lat, coordinateSystem = "gcj02") => {
+  const baseLng = Number(lng);
+  const baseLat = Number(lat);
+  if (!Number.isFinite(baseLng) || !Number.isFinite(baseLat)) return null;
+  const normalized = normalizeCoordinateSystem(coordinateSystem);
+  let converted = { lng: baseLng, lat: baseLat };
+  if (normalized === "wgs84") {
+    converted = gcj02ToWgs84(baseLng, baseLat);
+  } else if (normalized === "bd09") {
+    converted = gcj02ToBd09(baseLng, baseLat);
+  } else if (normalized === "cgcs2000") {
+    converted = gcj02ToCgcs2000(baseLng, baseLat);
+  }
+  const outLng = Number(converted?.lng);
+  const outLat = Number(converted?.lat);
+  if (!Number.isFinite(outLng) || !Number.isFinite(outLat)) {
+    return { lng: baseLng, lat: baseLat };
+  }
+  return { lng: outLng, lat: outLat };
+};
 
 const buildCoordinateClipboardText = ({
   lat,
@@ -864,6 +921,9 @@ Page({
     centerCoordinateLatText: "",
     centerCoordinateLngText: "",
     coordinateSystem: "wgs84",
+    coordinateSystemLabel: resolveCoordinateSystemDisplayLabel("wgs84"),
+    coordinateSystemOptions: COORDINATE_SYSTEM_OPTIONS,
+    coordinateSystemSheetVisible: false,
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -4953,14 +5013,16 @@ Page({
       });
       return;
     }
-    let displayLat = center.latitude;
-    let displayLng = center.longitude;
-    if (this.data.coordinateSystem === "wgs84") {
-      const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-      if (Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng)) {
-        displayLat = wgs.lat;
-        displayLng = wgs.lng;
-      }
+    let displayLat = Number(center.latitude);
+    let displayLng = Number(center.longitude);
+    const converted = convertCoordinateFromGcj02(
+      Number(center.longitude),
+      Number(center.latitude),
+      this.data.coordinateSystem
+    );
+    if (converted && hasValidCoordinate(converted.lat, converted.lng)) {
+      displayLat = converted.lat;
+      displayLng = converted.lng;
     }
     const pin = this.findPinContainingPoint(center);
     const coord = formatCoordinateParts(displayLat, displayLng);
@@ -4978,11 +5040,15 @@ Page({
     let displayLat = hasCenter ? Number(center.latitude) : Number(this.data.centerCoordinateLatText);
     let displayLng = hasCenter ? Number(center.longitude) : Number(this.data.centerCoordinateLngText);
 
-    if (hasCenter && this.data.coordinateSystem === "wgs84") {
-      const wgs = gcj02ToWgs84(Number(center.longitude), Number(center.latitude));
-      if (Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng)) {
-        displayLat = wgs.lat;
-        displayLng = wgs.lng;
+    if (hasCenter) {
+      const converted = convertCoordinateFromGcj02(
+        Number(center.longitude),
+        Number(center.latitude),
+        this.data.coordinateSystem
+      );
+      if (converted && hasValidCoordinate(converted.lat, converted.lng)) {
+        displayLat = converted.lat;
+        displayLng = converted.lng;
       }
     }
 
@@ -5037,9 +5103,31 @@ Page({
   },
 
   onCoordinateSystemToggle() {
-    const next = this.data.coordinateSystem === "wgs84" ? "gcj02" : "wgs84";
-    this.setData({ coordinateSystem: next }, () => {
-      this.updateCenterPinIndicator();
+    if (this.data.coordinateSystemSheetVisible) return;
+    this.setData({ coordinateSystemSheetVisible: true });
+  },
+
+  onCoordinateSystemSheetTap() {},
+
+  onCoordinateSystemSheetMaskTap() {
+    if (!this.data.coordinateSystemSheetVisible) return;
+    this.setData({ coordinateSystemSheetVisible: false });
+  },
+
+  onCoordinateSystemOptionTap(event) {
+    const next = normalizeCoordinateSystem(event?.currentTarget?.dataset?.value);
+    const changed = next !== this.data.coordinateSystem;
+    const updates = {
+      coordinateSystemSheetVisible: false
+    };
+    if (changed) {
+      updates.coordinateSystem = next;
+      updates.coordinateSystemLabel = resolveCoordinateSystemDisplayLabel(next);
+    }
+    this.setData(updates, () => {
+      if (changed) {
+        this.updateCenterPinIndicator();
+      }
     });
   },
 
