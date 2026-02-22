@@ -7,6 +7,10 @@ Component({
     skew: {
       type: Number,
       value: 0
+    },
+    satellite: {
+      type: Boolean,
+      value: false
     }
   },
   methods: {

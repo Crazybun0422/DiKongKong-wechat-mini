@@ -40,3 +40,8 @@
 .map-compass-pointer {
   transform-origin: 50% 50%;
 }
+
+.map-compass--satellite .map-compass-dial,
+.map-compass--satellite .map-compass-north {
+  filter: brightness(0) invert(1) contrast(1.15) drop-shadow(0 2rpx 6rpx rgba(0, 0, 0, 0.78));
+}

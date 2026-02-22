@@ -68,14 +68,15 @@
         立即开启
       </button>
     </view>
-    <view class="map-compass-anchor" wx:if="{{compassVisible}}">
+    <view class="map-compass-anchor {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}" wx:if="{{compassVisible}}">
       <map-compass
         rotate="{{compassRotate}}"
         skew="{{compassSkew}}"
+        satellite="{{mapLayerType === 'satellite'}}"
         bind:compasstap="onCompassTap"
       />
     </view>
-    <view class="map-scale-container" wx:if="{{scaleBarVisible}}">
+    <view class="map-scale-container {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}" wx:if="{{scaleBarVisible}}">
       <view class="map-scale">
         <text class="map-scale-label">{{scaleBarLabel}}</text>
         <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">

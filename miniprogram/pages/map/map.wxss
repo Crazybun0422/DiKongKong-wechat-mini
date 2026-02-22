@@ -735,6 +735,10 @@ button.search-btn::after {
   pointer-events: auto;
 }
 
+.map-compass-anchor--satellite {
+  filter: drop-shadow(0 2rpx 8rpx rgba(0, 0, 0, 0.8));
+}
+
 .map-scale {
   position: relative;
   padding: 12rpx 0;
@@ -819,6 +823,39 @@ button.search-btn::after {
   font-weight: 600;
   color: #fff;
   letter-spacing: 0.3rpx;
+}
+
+.map-scale-container--satellite .map-scale {
+  color: #fff;
+}
+
+.map-scale-container--satellite .map-scale-label {
+  color: #fff;
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.85);
+}
+
+.map-scale-container--satellite .map-scale-line,
+.map-scale-container--satellite .map-scale-tick {
+  background: #fff;
+  box-shadow: 0 0 6rpx rgba(0, 0, 0, 0.7);
+}
+
+.map-scale-container--satellite .map-center-coords {
+  padding: 10rpx 0;
+}
+
+.map-scale-container--satellite .map-center-coords-text {
+  color: #fff;
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.85);
+}
+
+.map-scale-container--satellite .map-center-coords-pill {
+  background: #fff;
+  border: 2rpx solid rgba(0, 0, 0, 0.45);
+}
+
+.map-scale-container--satellite .map-center-coords-pill-text {
+  color: #111827;
 }
 
 .floating-controls {
