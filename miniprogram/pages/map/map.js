@@ -1,5 +1,4 @@
 ﻿const { fetchDrones } = require("../../utils/drones");
-const { fetchDjiAreas, buildAreaGraphics } = require("../../utils/dji");
 const { searchPlaces } = require("../../utils/search");
 const {
   fetchNearbyMarkers,
@@ -15,12 +14,10 @@ const {
 } = require("../../utils/marker-detail");
 const { reverseGeocode } = require("../../utils/geocoder");
 const {
-  fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics
 } = require("../../utils/no-fly-zones");
 const {
   haversineMeters,
-  clampRadius,
   gcj02ToWgs84,
   wgs84ToGcj02,
   gcj02ToBd09,
@@ -79,26 +76,11 @@ const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 const PANORAMA_DEMO_FILE = "ex.jpg";
 const PANORAMA_FALLBACK_ASSET = "/assets/ex.jpg";
-// 小程序静态资源使用相对路径；assets 位于 miniprogram/assets
-const NFZ_CENTER_COLORS = {
-  1: "#000000",
-  2: "#DE4329",
-  3: "#EE8815",
-  4: "#FFCC00",
-  6: "#979797",
-  7: "#37C4DB",
-  8: "#35C759",
-  10: "#A9D86E"
-};
-
 const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
 const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
 
-const MIN_FETCH_RADIUS = 80000;
-const MAX_FETCH_RADIUS = 80000;
-const DEFAULT_FETCH_RADIUS = 80000;
 const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
 const MAX_SEARCH_SUGGESTIONS = 10;
 const MAX_SEARCH_RESULTS = 20;
@@ -280,21 +262,6 @@ const buildMarkerNameCallout = (content, overrides = {}) => {
     },
     overrides
   );
-};
-
-const formatTemporaryZoneLabel = (value, maxLength = 9) => {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  const chars = Array.from(trimmed);
-  if (chars.length <= maxLength) {
-    return trimmed;
-  }
-  return `${chars.slice(0, maxLength).join("")}...`;
 };
 
 const getWindowMetrics = () => {
@@ -1103,14 +1070,11 @@ Page({
     });
     this._mapMarkerIdMap = new Map();
     this._mapMarkerIdSeq = 100000;
-    this._fetchTimer = null;
     this._mapLayerSettingsLoaded = false;
     this._mapLayerAircraftModelWritten = false;
     this._pendingAircraftModel = "";
     this._markersFetchTimer = null;
     this._pinsFetchTimer = null;
-    this._currentRadius = clampRadius(DEFAULT_FETCH_RADIUS);
-    this._currentBounds = null;
     this._pendingRegionUpdates = 0;
     this._mapSkew = 0;
     this._mapRotate = 0;
@@ -1125,9 +1089,16 @@ Page({
     this._uomPluginInitTimer = null;
     this._uomPluginInitialized = false;
     this._uomPluginInitLogged = false;
+    this._djiLayer = null;
+    this._djiLayerInitTimer = null;
+    this._djiLayerInitialized = false;
+    this._djiLayerInitLogged = false;
+    this._temporaryNoFlyLayer = null;
+    this._temporaryNoFlyLayerInitTimer = null;
+    this._temporaryNoFlyLayerInitialized = false;
+    this._temporaryNoFlyLayerInitLogged = false;
     this._djiPolygons = [];
     this._djiCircles = [];
-    this._djiZonesReady = false;
     this._mapLayerSettingsInitPromise = null;
     this._nfzPolygons = [];
     this._nfzCircles = [];
@@ -1154,13 +1125,6 @@ Page({
     this._lastNearbyFetch = null;
     this._activePinsRequest = null;
     this._lastNearbyPinFetch = null;
-    this._activeNoFlyRequest = null;
-    this._lastNoFlyFetch = null;
-    this._noFlyZonesReady = false;
-    this._noFlyZones = [];
-    this._noFlyZonesError = null;
-    this._noFlyZoneShapes = [];
-    this._nfzFetchTimer = null;
     this._nearbyMarkers = [];
     this._nearbyPinsRaw = [];
     this._nearbyPinMarkers = [];
@@ -1190,7 +1154,6 @@ Page({
     this.initializeShareLaunch(launchOptions);
     this.initializePinShareLaunch(launchOptions);
     this.consumePendingMarkerFocus({ immediate: true });
-    this.scheduleFetchDji(0);
     this.scheduleFetchMarkers(0, {
       center: this.data.center,
       scale: this.data.scale,
@@ -1201,13 +1164,19 @@ Page({
       scale: this.data.scale,
       force: true
     });
-    this.scheduleFetchNoFlyZones(0, {
+    this.syncTemporaryNoFlyLayerViewport({
       center: this.data.center,
+      region: this._lastRegion || null,
+      scale: this.data.scale,
+      force: true
+    });
+    this.syncDjiLayerViewport({
+      center: this.data.center,
+      region: this._lastRegion || null,
       scale: this.data.scale,
       force: true
     });
     this.updateScaleBar();
-    this.updateStatusPanel();
     this.updateCenterPinIndicator();
     this.autoLoginOnLaunch();
     this.checkPolicyUpdateOnLaunch();
@@ -1217,6 +1186,8 @@ Page({
 
   onReady() {
     this.ensureUomPluginReady();
+    this.ensureDjiLayerReady();
+    this.ensureTemporaryNoFlyLayerReady();
   },
 
   ensureUomPluginReady(retry = 0) {
@@ -1255,6 +1226,188 @@ Page({
       this._uomPluginInitTimer = null;
       this.ensureUomPluginReady(retry + 1);
     }, delay);
+  },
+
+  ensureDjiLayerReady(retry = 0) {
+    if (this._djiLayer && this._djiLayerInitialized) return;
+    if (!this._djiLayerInitLogged) {
+      this._djiLayerInitLogged = true;
+      console.log("[dji-layer] init check");
+    }
+    const layer = this.selectComponent("#dji-no-fly-layer");
+    if (
+      layer &&
+      typeof layer.init === "function" &&
+      typeof layer.updateViewport === "function" &&
+      typeof layer.updateQuery === "function" &&
+      typeof layer.setEnabled === "function"
+    ) {
+      this._djiLayer = layer;
+      this._djiLayerInitialized = true;
+      layer.init({
+        enabled: this.data.djiNoFlyZoneEnabled !== false,
+        center: this._centerOverride || this.data.center,
+        region: this._lastRegion || null,
+        scale: this.data.scale,
+        drone: this.data.selectedDrone || "",
+        levels: this.data.levelsInput || DEFAULT_LEVELS_PARAM,
+        force: true
+      });
+      return;
+    }
+    if (retry >= 10) {
+      console.warn("[dji-layer] init retries exhausted");
+      return;
+    }
+    if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._djiLayerInitTimer = setTimeout(() => {
+      this._djiLayerInitTimer = null;
+      this.ensureDjiLayerReady(retry + 1);
+    }, delay);
+  },
+
+  syncDjiLayerViewport(options = {}) {
+    this.ensureDjiLayerReady();
+    if (!this._djiLayer || typeof this._djiLayer.updateViewport !== "function") return;
+    this._djiLayer.updateViewport({
+      center: options.center || this._centerOverride || this.data.center,
+      region: options.region || this._lastRegion || null,
+      scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : this.data.scale,
+      force: options.force === true
+    });
+  },
+
+  syncDjiLayerQuery(options = {}) {
+    this.ensureDjiLayerReady();
+    if (!this._djiLayer || typeof this._djiLayer.updateQuery !== "function") return;
+    this._djiLayer.updateQuery({
+      drone: this.data.selectedDrone || "",
+      levels: this.data.levelsInput || DEFAULT_LEVELS_PARAM,
+      force: options.force === true
+    });
+  },
+
+  setDjiLayerEnabled(enabled, options = {}) {
+    this.ensureDjiLayerReady();
+    if (!this._djiLayer || typeof this._djiLayer.setEnabled !== "function") return;
+    this._djiLayer.setEnabled(enabled !== false, {
+      force: options.force === true
+    });
+  },
+
+  onDjiGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._djiPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    this._djiCircles = Array.isArray(detail.circles) ? detail.circles : [];
+    this.updateOverlayGraphics();
+  },
+
+  onDjiStatusChange(event = {}) {
+    const detail = event?.detail || {};
+    const updates = {};
+    if (Object.prototype.hasOwnProperty.call(detail, "djiStatus")) {
+      updates.djiStatus = detail.djiStatus;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "djiStatusExtra")) {
+      updates.djiStatusExtra = detail.djiStatusExtra;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "djiTone")) {
+      updates.djiTone = detail.djiTone;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "djiColor")) {
+      updates.djiColor = detail.djiColor || "";
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "djiMsg")) {
+      updates.djiMsg = detail.djiMsg || "";
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "loadingDji")) {
+      updates.loadingDji = !!detail.loadingDji;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+  },
+
+  ensureTemporaryNoFlyLayerReady(retry = 0) {
+    if (this._temporaryNoFlyLayer && this._temporaryNoFlyLayerInitialized) return;
+    if (!this._temporaryNoFlyLayerInitLogged) {
+      this._temporaryNoFlyLayerInitLogged = true;
+      console.log("[temporary-no-fly-layer] init check");
+    }
+    const layer = this.selectComponent("#temporary-no-fly-layer");
+    if (
+      layer &&
+      typeof layer.init === "function" &&
+      typeof layer.updateViewport === "function" &&
+      typeof layer.setEnabled === "function"
+    ) {
+      this._temporaryNoFlyLayer = layer;
+      this._temporaryNoFlyLayerInitialized = true;
+      layer.init({
+        enabled: this.data.temporaryNoFlyZoneEnabled !== false,
+        center: this._centerOverride || this.data.center,
+        region: this._lastRegion || null,
+        scale: this.data.scale,
+        apiBase: this.getApiBase(),
+        force: true
+      });
+      return;
+    }
+    if (retry >= 10) {
+      console.warn("[temporary-no-fly-layer] init retries exhausted");
+      return;
+    }
+    if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._temporaryNoFlyLayerInitTimer = setTimeout(() => {
+      this._temporaryNoFlyLayerInitTimer = null;
+      this.ensureTemporaryNoFlyLayerReady(retry + 1);
+    }, delay);
+  },
+
+  syncTemporaryNoFlyLayerViewport(options = {}) {
+    this.ensureTemporaryNoFlyLayerReady();
+    if (!this._temporaryNoFlyLayer || typeof this._temporaryNoFlyLayer.updateViewport !== "function") return;
+    this._temporaryNoFlyLayer.updateViewport({
+      center: options.center || this._centerOverride || this.data.center,
+      region: options.region || this._lastRegion || null,
+      scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : this.data.scale,
+      apiBase: this.getApiBase(),
+      force: options.force === true
+    });
+  },
+
+  setTemporaryNoFlyLayerEnabled(enabled, options = {}) {
+    this.ensureTemporaryNoFlyLayerReady();
+    if (!this._temporaryNoFlyLayer || typeof this._temporaryNoFlyLayer.setEnabled !== "function") return;
+    this._temporaryNoFlyLayer.setEnabled(enabled !== false, {
+      force: options.force === true
+    });
+  },
+
+  onTemporaryNoFlyGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._nfzPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    this._nfzCircles = Array.isArray(detail.circles) ? detail.circles : [];
+    this.updateOverlayGraphics();
+  },
+
+  onTemporaryNoFlyStatusChange(event = {}) {
+    const detail = event?.detail || {};
+    const updates = {};
+    if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyZoneInfo")) {
+      updates.temporaryNoFlyZoneInfo = detail.temporaryNoFlyZoneInfo || null;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyText")) {
+      updates.temporaryNoFlyText = detail.temporaryNoFlyText || "";
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyTone")) {
+      updates.temporaryNoFlyTone = detail.temporaryNoFlyTone || "neutral";
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
   },
 
   ensureMapMarkerId(value) {
@@ -3866,9 +4019,7 @@ Page({
 
 
   onUnload() {
-    if (this._fetchTimer) clearTimeout(this._fetchTimer);
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
-    if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
     if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
     setSubscribeWaitOverlay(false);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
@@ -3878,10 +4029,17 @@ Page({
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
     if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
+    if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
+    if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
     this._activeMarkersRequest = null;
-    this._activeNoFlyRequest = null;
     if (this._uomPlugin && typeof this._uomPlugin.destroy === "function") {
       this._uomPlugin.destroy();
+    }
+    if (this._djiLayer && typeof this._djiLayer.destroy === "function") {
+      this._djiLayer.destroy();
+    }
+    if (this._temporaryNoFlyLayer && typeof this._temporaryNoFlyLayer.destroy === "function") {
+      this._temporaryNoFlyLayer.destroy();
     }
   },
 
@@ -4269,7 +4427,7 @@ Page({
       dronePickerLabel
     });
     if (changed) {
-      this.scheduleFetchDji(0, true);
+      this.syncDjiLayerQuery({ force: true });
     }
   },
 
@@ -4664,24 +4822,38 @@ Page({
     if (!djiEnabled) {
       this._djiPolygons = [];
       this._djiCircles = [];
-      this._djiZonesReady = false;
+      this.setData({
+        djiStatus: "已禁用",
+        djiStatusExtra: "",
+        djiTone: "warn",
+        djiColor: ""
+      });
+    } else {
+      this.setData({
+        djiStatus: "评估中",
+        djiStatusExtra: "",
+        djiTone: "neutral",
+        djiColor: ""
+      });
     }
+    this.setDjiLayerEnabled(djiEnabled, { force: djiEnabled });
     if (!temporaryEnabled) {
-      this._noFlyZones = [];
       this._nfzPolygons = [];
       this._nfzCircles = [];
-      this._noFlyZoneShapes = [];
-      this._noFlyZonesReady = false;
-      this._lastNoFlyFetch = null;
+      this.setData({
+        temporaryNoFlyZoneInfo: null,
+        temporaryNoFlyText: "已禁用",
+        temporaryNoFlyTone: "warn"
+      });
+    } else {
+      this.setData({
+        temporaryNoFlyZoneInfo: null,
+        temporaryNoFlyText: "评估中",
+        temporaryNoFlyTone: "neutral"
+      });
     }
+    this.setTemporaryNoFlyLayerEnabled(temporaryEnabled, { force: temporaryEnabled });
     this.updateOverlayGraphics();
-    if (djiEnabled && !this._djiZonesReady) {
-      this.scheduleFetchDji(0, true);
-    }
-    if (temporaryEnabled && !this._noFlyZonesReady) {
-      this.scheduleFetchNoFlyZones(0, { force: true });
-    }
-    this.updateStatusPanel(this._lastAreas);
   },
 
   applyMerchantMarkersToggle(enabled) {
@@ -5986,7 +6158,7 @@ Page({
       dronePickerLabel
     }, () => {
       if (changed) {
-        this.scheduleFetchDji(200, true);
+        this.syncDjiLayerQuery({ force: true });
         if (shouldPersist) {
           this.persistMapLayerSettings();
         }
@@ -6950,7 +7122,6 @@ Page({
       Object.assign(updates, extraUpdates);
     }
     this.setData(updates, () => {
-        this._currentBounds = null;
         if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
           this._uomPlugin.handleRegionChange({
             center: point,
@@ -6965,14 +7136,6 @@ Page({
           clearTimeout(this._markersFetchTimer);
           this._markersFetchTimer = null;
         }
-        if (this._nfzFetchTimer) {
-          clearTimeout(this._nfzFetchTimer);
-          this._nfzFetchTimer = null;
-        }
-        if (this._fetchTimer) {
-          clearTimeout(this._fetchTimer);
-          this._fetchTimer = null;
-        }
         const fetchOptions = {
           center: point,
           region: this._lastRegion,
@@ -6980,9 +7143,13 @@ Page({
           force: true
         };
         this.requestNearbyMarkers(fetchOptions);
-        this.requestNearbyNoFlyZones(fetchOptions);
-        this.requestDjiZones(true, point, this._lastRegion, targetScale);
-        this.updateStatusPanel(this._lastAreas);
+        this.syncTemporaryNoFlyLayerViewport(fetchOptions);
+        this.syncDjiLayerViewport({
+          center: point,
+          region: this._lastRegion,
+          scale: targetScale,
+          force: true
+        });
       });
   },
 
@@ -7042,9 +7209,7 @@ Page({
 
   onRegionChange(e) {
     if (e.type !== "end") {
-      if (this._fetchTimer) clearTimeout(this._fetchTimer);
       if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
-      this._currentBounds = null;
       if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
         this._uomPlugin.startFollow();
       }
@@ -7133,9 +7298,6 @@ Page({
         const scaleChanged = scale !== prevScale;
         // console.log("[map] regionchange scale", scale);
         this._lastRegion = region;
-        const radius = this.computeRadius({ region });
-        this._currentRadius = clampRadius(radius);
-        this._currentBounds = this.buildBoundsRect(region, newCenter, this._currentRadius);
         const prevCenter = this.data.center;
         const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
           ? haversineMeters(
@@ -7162,7 +7324,12 @@ Page({
               region
             });
           }
-          this.requestDjiZones(forceRefresh, newCenter, region, scale);
+          this.syncDjiLayerViewport({
+            center: newCenter,
+            region,
+            scale,
+            force: !!forceRefresh
+          });
           this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
             center: newCenter,
             region,
@@ -7175,13 +7342,12 @@ Page({
             scale,
             force: !!forceRefresh
           });
-          this.scheduleFetchNoFlyZones(forceRefresh ? 0 : 200, {
+          this.syncTemporaryNoFlyLayerViewport({
             center: newCenter,
             region,
             scale,
             force: !!forceRefresh
           });
-          this.updateStatusPanel(this._lastAreas);
         };
         const afterSync = () => {
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
@@ -7245,45 +7411,43 @@ Page({
           this.data.scale = scale;
         }
         const run = () => {
-          const radius = this.computeRadius(detail);
-          this._currentRadius = clampRadius(radius);
-          this._currentBounds = this.buildBoundsRect(
-            detail?.region,
-            newCenter,
-            this._currentRadius
-          );
+          const region = detail?.region || null;
+          this.syncDjiLayerViewport({
+            center: newCenter,
+            region,
+            scale,
+            force: true
+          });
           if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
             this._uomPlugin.handleRegionChange({
               center: newCenter,
               centerPin: newCenter,
               scale,
-              region: detail?.region
+              region
             });
           }
           this.scheduleFetchMarkers(0, {
             center: newCenter,
-            region: detail?.region,
+            region,
             scale,
             force: true
           });
           this.scheduleFetchPins(0, {
             center: newCenter,
-            region: detail?.region,
+            region,
             scale,
             force: true
           });
-          this.scheduleFetchNoFlyZones(0, {
+          this.syncTemporaryNoFlyLayerViewport({
             center: newCenter,
-            region: detail?.region,
+            region,
             scale,
             force: true
           });
-          this.scheduleFetchDji(300);
         };
         const afterUpdate = () => {
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
           run();
-          this.updateStatusPanel(this._lastAreas);
           this.updateCenterPinIndicator();
         };
         if (needSync || forceScaleSync) {
@@ -7298,22 +7462,6 @@ Page({
         }
       }
     });
-  },
-
-  computeRadius(detail) {
-    if (detail?.region) {
-      const { northeast, southwest } = detail.region;
-      if (northeast && southwest) {
-        const diag = haversineMeters(
-          northeast.latitude,
-          northeast.longitude,
-          southwest.latitude,
-          southwest.longitude
-        );
-        return Math.max(MIN_FETCH_RADIUS, Math.min(MAX_FETCH_RADIUS, diag / 2));
-      }
-    }
-    return clampRadius(DEFAULT_FETCH_RADIUS);
   },
 
   computeMarkerRadiusKm(context = {}) {
@@ -7357,25 +7505,6 @@ Page({
       this._markersFetchTimer = null;
       this.requestNearbyMarkers(options);
     }, ms);
-  },
-
-  scheduleFetchNoFlyZones(delay = 0, options = {}) {
-    if (this.data.temporaryNoFlyZoneEnabled === false) return;
-    if (this._nfzFetchTimer) clearTimeout(this._nfzFetchTimer);
-    const ms = Math.max(0, Number(delay) || 0);
-    this._nfzFetchTimer = setTimeout(() => {
-      this._nfzFetchTimer = null;
-      this.requestNearbyNoFlyZones(options);
-    }, ms);
-  },
-
-  scheduleFetchDji(delay = 300, force = false) {
-    if (this.data.djiNoFlyZoneEnabled === false) return;
-    if (this._fetchTimer) clearTimeout(this._fetchTimer);
-    this._fetchTimer = setTimeout(() => {
-      this._fetchTimer = null;
-      this.requestDjiZones(force);
-    }, delay);
   },
 
   requestNearbyPins(options = {}) {
@@ -7603,99 +7732,6 @@ Page({
       });
   },
 
-  requestNearbyNoFlyZones(options = {}) {
-    if (this.data.temporaryNoFlyZoneEnabled === false) {
-      this._noFlyZones = [];
-      this._nfzPolygons = [];
-      this._nfzCircles = [];
-      this._noFlyZoneShapes = [];
-      this._noFlyZonesReady = false;
-      this._lastNoFlyFetch = null;
-      this.updateOverlayGraphics();
-      return;
-    }
-    const force = options.force === true;
-    const center = options?.center || this._centerOverride || this.data.center;
-    if (!center) return;
-    const scale = options?.scale || this.data.scale;
-    const region = options?.region || this._lastRegion;
-    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
-    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
-
-    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
-    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-    const prev = this._lastNoFlyFetch || {};
-    const moveMeters = haversineMeters(
-      center.latitude,
-      center.longitude,
-      prev.latitude || 0,
-      prev.longitude || 0
-    );
-    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
-    const now = Date.now();
-    const prevTimestamp = Number(prev.timestamp) || 0;
-    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
-      return;
-    }
-
-    const requestId = now;
-    this._activeNoFlyRequest = requestId;
-    this._noFlyZonesError = null;
-
-    fetchNearbyNoFlyZones(
-      {
-        latitude,
-        longitude,
-        radiusInKilometers: radiusKm
-      },
-      {
-        apiBase: this.getApiBase()
-      }
-    )
-      .then((zones = []) => {
-        if (this._activeNoFlyRequest !== requestId) return;
-        const items = Array.isArray(zones) ? zones : [];
-        const graphics = buildNoFlyZoneGraphics(items);
-        this._nfzPolygons = graphics.polygons || [];
-        this._nfzCircles = graphics.circles || [];
-        this._noFlyZoneShapes = graphics.shapes || [];
-        this._noFlyZones = items;
-        this._noFlyZonesReady = true;
-        this._noFlyZonesError = null;
-        this.updateOverlayGraphics();
-        this.updateStatusPanel();
-        this._lastNoFlyFetch = {
-          latitude: center.latitude,
-          longitude: center.longitude,
-          radiusKm,
-          scale: clampMapScale(scale),
-          timestamp: now
-        };
-      })
-      .catch((err) => {
-        console.warn("Fetch no-fly zones failed", err);
-        if (!this._noFlyZonesReady) {
-          this._noFlyZoneShapes = [];
-          this._noFlyZones = [];
-          this._nfzPolygons = [];
-          this._nfzCircles = [];
-          this.updateOverlayGraphics();
-        }
-        this._noFlyZonesReady = true;
-        this._noFlyZonesError = err || new Error("nfz-fetch-failed");
-        this.updateStatusPanel();
-      })
-      .finally(() => {
-        if (this._activeNoFlyRequest === requestId) {
-          this._activeNoFlyRequest = null;
-        }
-      });
-  },
-
   updateOverlayGraphics() {
     const polygons = [];
     const circles = [];
@@ -7726,418 +7762,6 @@ Page({
     this.setData({ polygons, circles });
   },
 
-  requestDjiZones(force, centerOverride, regionOverride, scaleOverride) {
-    if (this.data.djiNoFlyZoneEnabled === false) {
-      this._djiPolygons = [];
-      this._djiCircles = [];
-      this._djiZonesReady = false;
-      this._lastFetch = null;
-      this._lastAreas = null;
-      this.updateOverlayGraphics();
-      return;
-    }
-    const center = centerOverride || this.data.center;
-    const radius = this._currentRadius || clampRadius(DEFAULT_FETCH_RADIUS);
-    const prev = this._lastFetch || {};
-    const moved =
-      haversineMeters(
-        center.latitude,
-        center.longitude,
-        prev.latitude || 0,
-        prev.longitude || 0
-      ) > 300;
-    const radiusDiff = Math.abs((prev.radius || 0) - radius) > 500;
-    const gcjRect = regionOverride
-      ? this.buildBoundsRect(regionOverride, center, radius)
-      : this.currentGcjRect();
-    const rectChanged = prev.rect
-      ? (
-        Math.abs((gcjRect.ltlng || 0) - (prev.rect.ltlng || 0)) > 0.005 ||
-        Math.abs((gcjRect.ltlat || 0) - (prev.rect.ltlat || 0)) > 0.005 ||
-        Math.abs((gcjRect.rblng || 0) - (prev.rect.rblng || 0)) > 0.005 ||
-        Math.abs((gcjRect.rblat || 0) - (prev.rect.rblat || 0)) > 0.005
-      )
-      : true;
-    if (!force && !moved && !radiusDiff && !rectChanged) return;
-
-    this.setData({ loadingDji: true, djiMsg: "" });
-    if (!gcjRect) {
-      this.setData({
-        loadingDji: false,
-        djiMsg: "正在获取地图范围，请稍后再试"
-      });
-      return;
-    }
-    const rect = this.gcjRectToWgs(gcjRect);
-    if (!rect) {
-      this.setData({
-        loadingDji: false,
-        djiMsg: "坐标转换失败，稍后重试"
-      });
-      return;
-    }
-    fetchDjiAreas({
-      rect,
-      levels: this.levelsParam(),
-      drone: this.data.selectedDrone
-    })
-      .then((areas) => {
-        // console.log("areas", areas);
-        const graphics = buildAreaGraphics(areas);
-        this._lastAreas = areas;
-        this.updateStatusPanel(areas);
-        this._djiPolygons = graphics.polygons || [];
-        this._djiCircles = graphics.circles || [];
-        this._djiZonesReady = true;
-        this.updateOverlayGraphics();
-        this.setData({
-          djiMsg: `已获取 ${areas.length} 个空域`
-        });
-        this._lastFetch = {
-          latitude: center.latitude,
-          longitude: center.longitude,
-          radius,
-          rect: gcjRect
-        };
-      })
-      .catch((err) => {
-        console.error("DJI geo fetch failed", err);
-        this._lastAreas = null;
-        this.updateStatusPanel(null);
-        this.setData({
-          djiMsg: "DJI 数据暂不可用"
-        });
-        this._djiZonesReady = false;
-      })
-      .finally(() => {
-        this.setData({ loadingDji: false });
-      });
-  },
-
-  updateStatusPanel(areas) {
-    const resolved = typeof areas === "undefined" ? this._lastAreas : areas;
-    const dji = this.describeDjiStatus(resolved);
-    const temporary = this.describeTemporaryNoFlyStatus();
-    this.setData({
-      djiStatus: dji.status,
-      djiStatusExtra: dji.extra,
-      djiTone: dji.tone,
-      djiColor: dji.color || "",
-      temporaryNoFlyZoneInfo: temporary.zoneInfo,
-      temporaryNoFlyText: temporary.text,
-      temporaryNoFlyTone: temporary.tone
-    });
-  },
-
-  describeDjiStatus(areas) {
-    if (this.data.djiNoFlyZoneEnabled === false) {
-      return { status: "已禁用", extra: "", tone: "warn", color: this.softenPanelColor("#F59E0B") };
-    }
-    const fallback = { status: "暂无空域数据", extra: "", tone: "neutral", color: "" };
-    if (typeof areas === "undefined") {
-      return { status: "评估中", extra: "", tone: "neutral", color: "" };
-    }
-    if (areas === null) {
-      return { status: "空域数据加载失败", extra: "", tone: "warn", color: "" };
-    }
-    if (!Array.isArray(areas) || !areas.length) {
-      return { status: "不在限制区", extra: "", tone: "safe", color: "" };
-    }
-    const center = this._centerOverride || this.data.center;
-    if (!center) return fallback;
-    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-    if (!wgs) return fallback;
-    const hits = [];
-    const visitArea = (area, parent, polygonOnly) => {
-      if (!area) return;
-      if (Array.isArray(area.sub_areas) && area.sub_areas.length) {
-        area.sub_areas.forEach((sub) => visitArea(sub, area, true));
-        return;
-      }
-
-      if (this.areaContainsWgsPoint(area, wgs.lng, wgs.lat, { polygonOnly })) {
-
-        hits.push({ area, parent });
-      }
-    };
-    areas.forEach((area) => visitArea(area, null, false));
-    if (!hits.length) {
-      return { status: "不在限制区", extra: "", tone: "safe", color: "" };
-    }
-    hits.sort((a, b) => this.severityRank(a.area) - this.severityRank(b.area));
-    const target = hits[0];
-    const extraParts = [];
-    const areaName = target.area.name || target.area.title || target.parent?.name;
-    const city = target.area.city || target.parent?.city;
-    if (areaName) extraParts.push(areaName);
-    if (city && city !== areaName) extraParts.push(city);
-    const height = this.effectiveHeight(target.area, target.parent);
-    if (typeof height === "number" && height > 0) {
-      extraParts.push(`限高 ${Math.round(height)}m`);
-    }
-    const reason = target.area.reason || target.area.desc || target.area.description;
-    if (reason) extraParts.push(reason);
-    const normalizedLevel = this.normalizedAreaLevel(target.area);
-    return {
-      status: this.labelForArea(target.area, target.parent),
-      extra: extraParts.join(" · "),
-      tone: this.toneForLevel(normalizedLevel),
-      color: this.softenPanelColor(this.colorForArea(target.area))
-    };
-  },
-
-  describeTemporaryNoFlyStatus() {
-    if (this.data.temporaryNoFlyZoneEnabled === false) {
-      return { zoneInfo: null, text: "已禁用", tone: "warn" };
-    }
-    const center = this._centerOverride || this.data.center;
-    if (!center) {
-      return { zoneInfo: null, text: "评估中", tone: "neutral" };
-    }
-    if (!Number.isFinite(center.longitude) || !Number.isFinite(center.latitude)) {
-      return { zoneInfo: null, text: "评估中", tone: "neutral" };
-    }
-    const hit = this.findNoFlyZoneAtPoint(center.longitude, center.latitude);
-    if (!hit) {
-      return { zoneInfo: null, text: "", tone: "safe" };
-    }
-    const rawName = typeof hit.zone?.name === "string" ? hit.zone.name.trim() : "";
-    const name = rawName || "临时禁飞区";
-    const displayName = formatTemporaryZoneLabel(name);
-    const rawLink = typeof hit.zone?.wechatLink === "string" ? hit.zone.wechatLink.trim() : "";
-    const validLink = /^https?:\/\/mp\.weixin\.qq\.com\//.test(rawLink) ? rawLink : "";
-    const linkPath = validLink
-      ? `/packages/city-report/h5/index?url=${encodeURIComponent(validLink)}`
-      : "";
-    const zoneInfo = {
-      id: hit.zone?.id || "",
-      name,
-      displayName,
-      hasLink: !!validLink,
-      link: validLink,
-      linkPath
-    };
-    return { zoneInfo, text: displayName, tone: "alert" };
-  },
-
-  toneForLevel(level) {
-    const normalized = Number(level);
-    if (normalized === 2 || normalized === 1) return "alert";
-    if (normalized === 6 || normalized === 3 || normalized === 4) return "warn";
-    if (normalized === 7 || normalized === 10) return "neutral";
-    return "safe";
-  },
-
-  levelsParam() {
-    const cleaned = this.data.levelsInput
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    return cleaned.length ? cleaned.join(",") : DEFAULT_LEVELS_PARAM;
-  },
-
-
-  buildBoundsRect(region, center, radius) {
-    if (typeof radius === "number" && Number.isFinite(radius)) {
-      return this.circleRectFromCenter(center, radius);
-    }
-    if (region?.northeast && region?.southwest) {
-      const { northeast, southwest } = region;
-      return {
-        ltlat: northeast.latitude,
-        ltlng: southwest.longitude,
-        rblat: southwest.latitude,
-        rblng: northeast.longitude
-      };
-    }
-    return this.circleRectFromCenter(center, radius);
-  },
-
-  circleRectFromCenter(center, radius) {
-    if (!center) return null;
-    const metersLat = 111320;
-    const useRadius = clampRadius(radius || DEFAULT_FETCH_RADIUS);
-    const latDelta = useRadius / metersLat;
-    const cosLat = Math.cos((center.latitude * Math.PI) / 180);
-    const metersLng = metersLat * Math.max(cosLat, 0.01);
-    const lngDelta = useRadius / metersLng;
-    const clampLat = (lat) => Math.max(-90, Math.min(90, lat));
-    const clampLng = (lng) => {
-      if (!isFinite(lng)) return 0;
-      let val = lng;
-      while (val > 180) val -= 360;
-      while (val < -180) val += 360;
-      return val;
-    };
-    return {
-      ltlat: clampLat(center.latitude + latDelta),
-      ltlng: clampLng(center.longitude - lngDelta),
-      rblat: clampLat(center.latitude - latDelta),
-      rblng: clampLng(center.longitude + lngDelta)
-    };
-  },
-
-  currentGcjRect() {
-    if (this._currentBounds) return this._currentBounds;
-    const rect = this.circleRectFromCenter(
-      this.data.center || DEFAULT_CENTER,
-      this._currentRadius || DEFAULT_FETCH_RADIUS
-    );
-    this._currentBounds = rect;
-    return rect;
-  },
-
-  gcjRectToWgs(rect) {
-    if (!rect) return null;
-    const leftTop = gcj02ToWgs84(rect.ltlng, rect.ltlat);
-    const rightBottom = gcj02ToWgs84(rect.rblng, rect.rblat);
-    if (!leftTop || !rightBottom) return null;
-    return {
-      ltlat: leftTop.lat,
-      ltlng: leftTop.lng,
-      rblat: rightBottom.lat,
-      rblng: rightBottom.lng
-    };
-  },
-
-  labelForArea(area, parent) {
-    const level = this.normalizedAreaLevel(area);
-    switch (level) {
-      case 2: return "禁飞区";
-      case 6: return "限高区";
-      case 1: return "授权区";
-      case 4: return "警示区";
-      case 3: return "加强警示区";
-      case 7: return "法规限制区";
-      case 8: return "法规适飞区";
-      case 10: return "风景示范区";
-      default: return "空域限制";
-    }
-  },
-
-  severityRank(area) {
-    const level = this.normalizedAreaLevel(area);
-    if (level === 2) return 0;
-    if (level === 6) return 1;
-    if (level === 1) return 2;
-    if (level === 3) return 3;
-    if (level === 4) return 4;
-    if (level === 7) return 5;
-    if (level === 10) return 6;
-    if (level === 8) return 7;
-    return 100;
-  },
-
-  effectiveHeight(area, parent) {
-    if (typeof area.height === "number" && area.height > 0) return area.height;
-    const fallback = parent && Array.isArray(parent.sub_areas)
-      ? parent.sub_areas.find((sa) => this.sameGeometry(area, sa) && typeof sa.height === "number" && sa.height > 0)
-      : null;
-    return fallback ? fallback.height : null;
-  },
-
-  sameGeometry(a, b) {
-    if (!a || !b) return false;
-    return this.sameCircle(a, b) || this.samePolygon(a, b);
-  },
-
-  sameCircle(a, b) {
-    const ar = Number(a.radius), br = Number(b.radius);
-    if (!isFinite(ar) || !isFinite(br)) return false;
-    const ax = Number(a.lng), ay = Number(a.lat);
-    const bx = Number(b.lng), by = Number(b.lat);
-    if (!isFinite(ax) || !isFinite(ay) || !isFinite(bx) || !isFinite(by)) return false;
-    const near = (x, y, eps = 1e-5) => Math.abs(x - y) <= eps;
-    return near(ar, br, 1) && near(ax, bx) && near(ay, by);
-  },
-
-  samePolygon(a, b) {
-    const ap = a.polygon_points || a.points || a.polygon || a.geometry?.coordinates;
-    const bp = b.polygon_points || b.points || b.polygon || b.geometry?.coordinates;
-    if (!ap || !bp) return false;
-    try {
-      return JSON.stringify(ap) === JSON.stringify(bp);
-    } catch (err) {
-      return false;
-    }
-  },
-
-  findNoFlyZoneAtPoint(lng, lat) {
-    if (!Array.isArray(this._noFlyZoneShapes) || !this._noFlyZoneShapes.length) {
-      return null;
-    }
-    for (const entry of this._noFlyZoneShapes) {
-      if (!entry) continue;
-      if (entry.type === "circle" && entry.center) {
-        const radius = Number(entry.radius);
-        if (!Number.isFinite(radius) || radius <= 0) continue;
-        const dist = haversineMeters(lat, lng, Number(entry.center.lat), Number(entry.center.lng));
-        if (Number.isFinite(dist) && dist <= radius) {
-          return { zone: entry.zone, shape: entry };
-        }
-        continue;
-      }
-      if (entry.type === "polygon" && Array.isArray(entry.rings)) {
-        for (const ring of entry.rings) {
-          if (this.ringContains(ring, lng, lat)) {
-            return { zone: entry.zone, shape: entry };
-          }
-        }
-      }
-    }
-    return null;
-  },
-
-  areaContainsWgsPoint(area, lng, lat, options = {}) {
-    if (!area) return false;
-    const polygonOnly = !!options.polygonOnly;
-    const poly = this.resolvePolygonCoords(area, polygonOnly);
-    if (this.hasPolygonCoords(poly)) {
-      return this.polygonPointsContain(poly, lng, lat);
-    }
-    return this.circleContainsArea(area, lng, lat);
-  },
-
-  resolvePolygonCoords(area, polygonOnly) {
-    if (!area) return null;
-    if (polygonOnly) return area.polygon_points;
-    return area.polygon_points || area.points || area.polygon || (area.geometry && area.geometry.coordinates);
-  },
-
-  hasPolygonCoords(poly) {
-    return Array.isArray(poly) && poly.length > 0;
-  },
-
-  polygonPointsContain(poly, lng, lat) {
-    if (!this.hasPolygonCoords(poly)) return false;
-    if (Array.isArray(poly[0]) && Array.isArray(poly[0][0]) && Array.isArray(poly[0][0][0])) {
-      return poly.some((single) => {
-        const outer = Array.isArray(single[0]) ? single[0] : single;
-        const ring = Array.isArray(outer[0]) ? outer[0] : outer;
-        return this.ringContains(ring, lng, lat);
-      });
-    }
-    if (Array.isArray(poly[0]) && Array.isArray(poly[0][0])) {
-      const ring = Array.isArray(poly[0]) ? poly[0] : poly;
-      return this.ringContains(ring, lng, lat);
-    }
-    return this.ringContains(poly, lng, lat);
-  },
-
-  circleContainsArea(area, lng, lat) {
-    if (!area) return false;
-    const isCircleShape = area.shape === 0;
-    const hasCircleParams = area.radius && area.lat && area.lng;
-    if (!isCircleShape && !hasCircleParams) return false;
-    const radius = Number(area.radius);
-    const centerLng = Number(area.lng);
-    const centerLat = Number(area.lat);
-    if (!Number.isFinite(radius) || radius <= 0) return false;
-    if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat)) return false;
-    const dist = haversineMeters(lat, lng, centerLat, centerLng);
-    return Number.isFinite(dist) && dist <= radius;
-  },
-
   ringContains(ring, lng, lat) {
     if (!Array.isArray(ring) || ring.length === 0) return false;
     let inside = false;
@@ -8150,55 +7774,6 @@ Page({
     }
     return inside;
   },
-
-  normalizedAreaLevel(area) {
-    const level = Number(area?.level);
-    if (!Number.isFinite(level)) return level;
-    const color = this.normalizeHexColor(area?.color);
-    if (color === "#979797" && level === 2) {
-      return 6;
-    }
-    return level;
-  },
-
-  normalizeHexColor(hex) {
-    if (typeof hex !== "string") return "";
-    const trimmed = hex.trim();
-    if (!trimmed) return "";
-    const prefixed = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
-    return prefixed.toUpperCase();
-  },
-
-  softenPanelColor(hex, mix = 0.72) {
-    const normalized = this.normalizeHexColor(hex);
-    if (!normalized) return "";
-    const raw = normalized.slice(1);
-    let r, g, b;
-    if (raw.length === 3) {
-      r = parseInt(raw[0] + raw[0], 16);
-      g = parseInt(raw[1] + raw[1], 16);
-      b = parseInt(raw[2] + raw[2], 16);
-    } else {
-      r = parseInt(raw.slice(0, 2), 16);
-      g = parseInt(raw.slice(2, 4), 16);
-      b = parseInt(raw.slice(4, 6), 16);
-    }
-    if (![r, g, b].every(Number.isFinite)) return normalized;
-    const blend = (value) => Math.round(value + (255 - value) * mix);
-    const toHex = (value) => blend(value).toString(16).padStart(2, "0").toUpperCase();
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-  },
-
-  colorForArea(area) {
-    const level = this.normalizedAreaLevel(area);
-    if (level === 6) {
-      return "#FFFFFF";
-    }
-    const explicit = this.normalizeHexColor(area?.color);
-    if (explicit) return explicit;
-    return NFZ_CENTER_COLORS[level] || "#DE4329";
-  },
-
 
 });
 

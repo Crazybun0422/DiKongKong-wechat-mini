@@ -74,6 +74,12 @@
       "pages": [
         "placeholder/index"
       ]
+    },
+    {
+      "root": "packages/dji",
+      "pages": [
+        "placeholder/index"
+      ]
     }
   ],
   "window": {

@@ -34,6 +34,16 @@
       satellite="{{mapLayerType === 'satellite'}}"
       bind:tap="onCenterPinTap"
     />
+    <dji-no-fly-layer
+      id="dji-no-fly-layer"
+      bind:graphicschange="onDjiGraphicsChange"
+      bind:statuschange="onDjiStatusChange"
+    />
+    <temporary-no-fly-layer
+      id="temporary-no-fly-layer"
+      bind:graphicschange="onTemporaryNoFlyGraphicsChange"
+      bind:statuschange="onTemporaryNoFlyStatusChange"
+    />
     <newbie-task-popup
       id="newbie-task-popup"
       bind:statechange="onNewbieTaskStateChange"

@@ -8,7 +8,9 @@
     "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index",
     "policy-update-modal": "/packages/guide/components/policy-update-modal/index",
     "map-compass": "/packages/compass/components/map-compass/index",
-    "map-center-pin": "/packages/compass/components/map-center-pin/index"
+    "map-center-pin": "/packages/compass/components/map-center-pin/index",
+    "dji-no-fly-layer": "/packages/dji/components/dji-no-fly-layer/index",
+    "temporary-no-fly-layer": "/packages/dji/components/temporary-no-fly-layer/index"
   },
   "componentPlaceholder": {
     "newbie-task-popup": "view",
@@ -19,7 +21,9 @@
     "city-report-h5-entry": "view",
     "policy-update-modal": "view",
     "map-compass": "view",
-    "map-center-pin": "view"
+    "map-center-pin": "view",
+    "dji-no-fly-layer": "view",
+    "temporary-no-fly-layer": "view"
   },
   "navigationStyle": "custom"
 }
