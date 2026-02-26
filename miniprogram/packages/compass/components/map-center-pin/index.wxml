@@ -4,6 +4,10 @@
   bindtap="onTap"
   bindlongpress="onLongPress"
 >
+  <view wx:if="{{showWelcomeBubble}}" class="center-pin-tip">
+    <text class="center-pin-tip-text">长按中心地标触发魔法~ 🔮</text>
+  </view>
+
   <image
     class="center-pin {{satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}}"
     src="/assets/position.png"

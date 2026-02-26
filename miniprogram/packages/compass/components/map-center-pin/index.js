@@ -1,3 +1,5 @@
+const LONGPRESS_DONE_STORAGE_KEY = "compass_center_pin_longpress_done_v1";
+
 Component({
   properties: {
     topOffsetPx: {
@@ -25,10 +27,15 @@ Component({
   data: {
     triggered: false,
     sheetVisible: false,
-    sheetClosing: false
+    sheetClosing: false,
+    showWelcomeBubble: false
   },
 
   lifetimes: {
+    attached() {
+      this.tryShowWelcomeBubble();
+    },
+
     detached() {
       if (this._triggerTimer) {
         clearTimeout(this._triggerTimer);
@@ -42,6 +49,24 @@ Component({
   },
 
   methods: {
+    tryShowWelcomeBubble() {
+      let hasLongPressed = false;
+      try {
+        hasLongPressed = !!wx.getStorageSync(LONGPRESS_DONE_STORAGE_KEY);
+      } catch (err) {}
+
+      if (hasLongPressed) return;
+
+      this.setData({ showWelcomeBubble: true });
+    },
+
+    markWelcomeBubbleDone() {
+      try {
+        wx.setStorageSync(LONGPRESS_DONE_STORAGE_KEY, 1);
+      } catch (err) {}
+      this.setData({ showWelcomeBubble: false });
+    },
+
     onTap() {
       if (this.data.sheetVisible || this.data.sheetClosing) return;
       this.triggerEvent("tap");
@@ -49,6 +74,7 @@ Component({
 
     onLongPress() {
       if (this.data.sheetVisible || this.data.sheetClosing) return;
+      this.markWelcomeBubbleDone();
       this.setData({
         triggered: true,
         sheetVisible: true
