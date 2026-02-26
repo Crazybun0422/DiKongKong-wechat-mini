@@ -3154,12 +3154,24 @@ Page({
       pointCategory,
       style: shape.style
     };
+    const imageRefs = this.extractFileReferences(marker.images);
+    const rawImageRefs = this.extractFileReferences(marker?.raw?.images);
+    const images = imageRefs.length ? imageRefs : rawImageRefs;
+    const locationText =
+      marker.locationText ||
+      marker?.raw?.locationText ||
+      marker?.raw?.location?.text ||
+      "";
+    const description = marker.description || marker?.raw?.description || "";
     return {
       id: marker.id || "",
       name: marker.name || "",
       shape: normalizedShape,
       location: coordinates[0],
       height: this.extractPinPreviewHeight(marker, coordinates[0]),
+      images,
+      locationText,
+      description,
       zoom: 16
     };
   },

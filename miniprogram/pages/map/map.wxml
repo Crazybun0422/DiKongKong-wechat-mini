@@ -29,8 +29,10 @@
       bindcallouttap="onMarkerCalloutTap"
     />
     <map-center-pin
+      wx:if="{{!markerDetailVisible && !markerPageVisible}}"
       top-offset-px="{{centerPinOffsetPx}}"
       satellite="{{mapLayerType === 'satellite'}}"
+      bind:tap="onCenterPinTap"
     />
     <newbie-task-popup
       id="newbie-task-popup"

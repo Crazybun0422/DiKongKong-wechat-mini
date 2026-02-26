@@ -1390,14 +1390,36 @@ Page({
     const normalized = this.normalizeMarkerDetail(rawPin);
     const pinIdValue = rawPin.pinIdNew ?? rawPin.pinId ?? rawPin.id ?? "";
     const pinId = pinIdValue !== undefined && pinIdValue !== null ? `${pinIdValue}` : "";
-    const rawImages = Array.isArray(rawPin.images)
-      ? rawPin.images
-      : [];
+    const resolveImageRef = (item) => {
+      if (!item) return "";
+      if (typeof item === "string") {
+        return item.trim();
+      }
+      if (typeof item === "object") {
+        const candidate =
+          item.fileName ||
+          item.filename ||
+          item.objectName ||
+          item.path ||
+          item.location ||
+          item.url ||
+          item.imageUrl ||
+          "";
+        return typeof candidate === "string" ? candidate.trim() : "";
+      }
+      return "";
+    };
+    const rawImages = Array.isArray(rawPin.images) ? rawPin.images : [];
     const images = rawImages
-      .map((img, idx) => ({
-        url: buildFileDownloadUrl(img, { apiBase }),
-        id: `${pinId || rawPin.id || "pin"}-image-${idx}`
-      }))
+      .map((img, idx) => {
+        const ref = resolveImageRef(img);
+        const url = ref ? buildFileDownloadUrl(ref, { apiBase }) : "";
+        if (!url) return null;
+        return {
+          url,
+          id: `${pinId || rawPin.id || "pin"}-image-${idx}`
+        };
+      })
       .filter((img) => !!img.url);
     const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
     const heightDisplay =
@@ -5142,14 +5164,34 @@ Page({
     return null;
   },
 
+  onCenterPinTap() {
+    this.openMarkerOrPinAtCenter();
+  },
+
   onCenterPinIndicatorTap() {
-    const center = this._centerOverride || this.data.center;
-    const pin = this.findPinContainingPoint(center);
-    if (!pin) {
+    const opened = this.openMarkerOrPinAtCenter();
+    if (!opened) {
       wx.showToast({ title: "未找到标记", icon: "none" });
-      return;
     }
+  },
+
+  openMarkerOrPinAtCenter() {
+    const center = this._centerOverride || this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) return false;
+    const pin = this.isPinLayerEnabled() ? this.findPinContainingPoint(center) : null;
+    if (pin) {
+      return this.openPinDetail(pin);
+    }
+    const marker = this.findClosestMarkerFromCenter(center);
+    if (!marker) return false;
+    this.openMarkerDetail(marker);
+    return true;
+  },
+
+  openPinDetail(pin) {
+    if (!pin) return false;
     const detail = this.buildPinDetailFromPin(pin);
+    if (!detail) return false;
     const marker = {
       id: detail.id || `pin-${Date.now()}`,
       latitude: detail.latitude,
@@ -5161,6 +5203,41 @@ Page({
       }
     };
     this.openMarkerDetail(marker);
+    return true;
+  },
+
+  findClosestMarkerFromCenter(point = {}, maxDistanceMeters = 35) {
+    if (!point || !hasValidCoordinate(point.latitude, point.longitude)) return null;
+    const targetLat = Number(point.latitude);
+    const targetLng = Number(point.longitude);
+    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return null;
+
+    const candidates = Array.isArray(this.data.markers) ? this.data.markers : [];
+
+    let target = null;
+    let minDistance = Infinity;
+    for (const marker of candidates) {
+      if (!marker) continue;
+      const lat = Number(marker.latitude);
+      const lng = Number(marker.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+      const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
+      if (src.includes("pin")) {
+        const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
+        if (shapeType && shapeType !== "POINT") continue;
+      } else if (!this.resolveMarkerDetail(marker)) {
+        continue;
+      }
+
+      const distance = haversineMeters(targetLat, targetLng, lat, lng);
+      if (!Number.isFinite(distance) || distance > maxDistanceMeters) continue;
+      if (distance < minDistance) {
+        minDistance = distance;
+        target = marker;
+      }
+    }
+    return target;
   },
 
   pinContainsPoint(pin = {}, point = {}) {

@@ -42,6 +42,11 @@ Component({
   },
 
   methods: {
+    onTap() {
+      if (this.data.sheetVisible || this.data.sheetClosing) return;
+      this.triggerEvent("tap");
+    },
+
     onLongPress() {
       if (this.data.sheetVisible || this.data.sheetClosing) return;
       this.setData({

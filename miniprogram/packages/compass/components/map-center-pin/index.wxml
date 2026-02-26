@@ -1,4 +1,9 @@
-<view class="center-pin-touch-area" style="top: calc(50% - {{topOffsetPx}}px);" bindlongpress="onLongPress">
+<view
+  class="center-pin-touch-area"
+  style="top: calc(50% - {{topOffsetPx}}px);"
+  bindtap="onTap"
+  bindlongpress="onLongPress"
+>
   <image
     class="center-pin {{satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}}"
     src="/assets/position.png"
