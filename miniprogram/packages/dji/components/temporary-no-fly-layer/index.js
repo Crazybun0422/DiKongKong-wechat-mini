@@ -1,6 +1,7 @@
 const {
   fetchNearbyNoFlyZones,
-  buildNoFlyZoneGraphics
+  buildNoFlyZoneGraphics,
+  filterEffectiveNoFlyZones
 } = require("../../../../utils/no-fly-zones");
 const { haversineMeters, gcj02ToWgs84 } = require("../../../../utils/coords");
 
@@ -172,7 +173,7 @@ Component({
       )
         .then((zones = []) => {
           if (this._activeRequestId !== requestId) return;
-          const items = Array.isArray(zones) ? zones : [];
+          const items = filterEffectiveNoFlyZones(Array.isArray(zones) ? zones : []);
           const graphics = buildNoFlyZoneGraphics(items);
           this._polygons = graphics.polygons || [];
           this._circles = graphics.circles || [];

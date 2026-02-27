@@ -11,6 +11,7 @@ const {
   extractAcceptedTemplateIdsFromWxSetting,
   areTemplateIdSetsEqual
 } = require("./utils/subscriptions");
+const { prefetchMapKey } = require("./utils/map-key");
 const { prefetchFontFileConfig } = require("./utils/font-config");
 
 // miniprogram/app.js
@@ -149,6 +150,7 @@ App({
     userProfile: null,
     apiBase: API_BASE_URL,
     guideAssetBase: GUIDE_ASSET_BASE_URL,
+    mapKey: "",
     pendingMarkerFocus: null,
     pendingPinPreview: null,
     pendingInviteCode: "",
@@ -205,6 +207,9 @@ App({
 
     prefetchFontFileConfig({ apiBase: this.globalData.apiBase }).catch((err) => {
       console.warn("prefetch font config failed", err);
+    });
+    prefetchMapKey({ apiBase: this.globalData.apiBase, forceRefresh: true }).catch((err) => {
+      console.warn("prefetch map key failed", err);
     });
 
     this.initUpdateManager();

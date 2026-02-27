@@ -6,6 +6,48 @@ const FILL_OPACITY = 0.3;
 const STROKE_OPACITY = 0.95;
 const STROKE_WIDTH = 1;
 
+function normalizeUnixSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  if (Math.abs(numeric) >= 1e12) {
+    return Math.floor(numeric / 1000);
+  }
+  return Math.floor(numeric);
+}
+
+function isPeriodEffective(period = {}, currentSeconds = null) {
+  const nowSeconds = normalizeUnixSeconds(currentSeconds ?? Date.now());
+  if (!Number.isFinite(nowSeconds)) return true;
+  const from = normalizeUnixSeconds(period?.effectiveFrom);
+  const to = normalizeUnixSeconds(period?.effectiveTo);
+  if (from === null && to === null) return true;
+  if (from !== null && nowSeconds < from) return false;
+  if (to !== null && nowSeconds > to) return false;
+  return true;
+}
+
+function isNoFlyZoneEffective(zone = {}, currentSeconds = null) {
+  const periods = Array.isArray(zone?.effectivePeriods) ? zone.effectivePeriods : [];
+  const hasLegacyPeriod =
+    normalizeUnixSeconds(zone?.effectiveFrom) !== null ||
+    normalizeUnixSeconds(zone?.effectiveTo) !== null;
+  if (!periods.length && !hasLegacyPeriod) {
+    return true;
+  }
+  if (periods.some((period) => isPeriodEffective(period, currentSeconds))) {
+    return true;
+  }
+  if (hasLegacyPeriod && isPeriodEffective(zone, currentSeconds)) {
+    return true;
+  }
+  return false;
+}
+
+function filterEffectiveNoFlyZones(zones = [], currentSeconds = null) {
+  if (!Array.isArray(zones)) return [];
+  return zones.filter((zone) => isNoFlyZoneEffective(zone, currentSeconds));
+}
+
 function normalizeHex(hex) {
   if (!hex) return DEFAULT_COLOR;
   return hex.startsWith("#") ? hex : `#${hex}`;
@@ -270,5 +312,7 @@ function fetchNearbyNoFlyZones(params = {}, options = {}) {
 
 module.exports = {
   fetchNearbyNoFlyZones,
-  buildNoFlyZoneGraphics
+  buildNoFlyZoneGraphics,
+  isNoFlyZoneEffective,
+  filterEffectiveNoFlyZones
 };

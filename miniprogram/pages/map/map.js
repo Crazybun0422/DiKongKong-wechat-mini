@@ -27,7 +27,8 @@ const {
   formatDistanceText,
   computeGreatCircleDistance
 } = require("../../utils/distance");
-const { QQMAP_KEY, QQMAP_CUSTOM_STYLE_ID, MAP_DEBUG_PANEL_ENABLED } = require("../../utils/config");
+const { QQMAP_CUSTOM_STYLE_ID, MAP_DEBUG_PANEL_ENABLED } = require("../../utils/config");
+const { getMapKeySync, prefetchMapKey } = require("../../utils/map-key");
 const {
   loadStoredProfile: loadStoredProfileUtil,
   prepareAvatarForUpload,
@@ -854,7 +855,7 @@ Page({
     scale: DEFAULT_MAP_SCALE,
     minScale: MAP_MIN_SCALE,
     maxScale: MAP_MAX_SCALE,
-    mapSubKey: QQMAP_KEY || "",
+    mapSubKey: getMapKeySync(),
     customMapStyleId: QQMAP_CUSTOM_STYLE_ID || "",
     statusBarHeight: 0,
     centerPinOffsetPx: 0,
@@ -1025,6 +1026,7 @@ Page({
     const launchOptions = this.consumePendingLaunchOptions(options);
     applyMapStatusBarStyle();
     this.mapCtx = wx.createMapContext("main-map");
+    this.loadMapSubKey();
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
     let appBase = {};
@@ -1188,6 +1190,18 @@ Page({
     this.ensureUomPluginReady();
     this.ensureDjiLayerReady();
     this.ensureTemporaryNoFlyLayerReady();
+  },
+
+  loadMapSubKey() {
+    prefetchMapKey({ apiBase: this.getApiBase() })
+      .then((mapKey) => {
+        const nextKey = typeof mapKey === "string" ? mapKey.trim() : "";
+        if (!nextKey || nextKey === this.data.mapSubKey) return;
+        this.setData({ mapSubKey: nextKey });
+      })
+      .catch((err) => {
+        console.warn("loadMapSubKey failed", err);
+      });
   },
 
   ensureUomPluginReady(retry = 0) {

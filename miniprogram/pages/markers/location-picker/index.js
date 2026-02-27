@@ -1,12 +1,18 @@
 const { reverseGeocode } = require("../../../utils/geocoder");
 const { gcj02ToWgs84, wgs84ToGcj02 } = require("../../../utils/coords");
 const { searchPlaces } = require("../../../utils/search");
+const { getMapKeySync, prefetchMapKey } = require("../../../utils/map-key");
+const { isWeChatRuntime, isDesktopRuntime } = require("../../../utils/runtime");
 
 const DEFAULT_CENTER = {
   latitude: 39.9042,
   longitude: 116.4074,
   scale: 16
 };
+const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
+const MAP_MIN_SCALE = 0;
+const MAP_MAX_SCALE = 18;
+const RUNTIME_IS_WECHAT = isWeChatRuntime() && !isDesktopRuntime();
 
 function normalizeCoord(value) {
   const num = Number(value);
@@ -60,11 +66,40 @@ function hasValidCoordinate(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng) && !isZeroCoordinate(lat, lng);
 }
 
+function normalizeMapScale(value) {
+  const numeric = Number(value);
+  const base = Number.isFinite(numeric) ? numeric : DEFAULT_CENTER.scale;
+  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, Math.round(base)));
+}
+
+function normalizeRegionDetail(detail = {}) {
+  if (!detail || typeof detail !== "object") return null;
+  const region = detail.region || {
+    northeast: detail.northeast,
+    southwest: detail.southwest
+  };
+  if (!region || !region.northeast || !region.southwest) return null;
+  const neLat = Number(region.northeast.latitude);
+  const neLng = Number(region.northeast.longitude);
+  const swLat = Number(region.southwest.latitude);
+  const swLng = Number(region.southwest.longitude);
+  if (![neLat, neLng, swLat, swLng].every(Number.isFinite)) return null;
+  return {
+    northeast: { latitude: neLat, longitude: neLng },
+    southwest: { latitude: swLat, longitude: swLng }
+  };
+}
+
 Page({
   data: {
     latitude: DEFAULT_CENTER.latitude,
     longitude: DEFAULT_CENTER.longitude,
     scale: DEFAULT_CENTER.scale,
+    mapSubKey: getMapKeySync(),
+    isWeChatRuntime: RUNTIME_IS_WECHAT,
+    markers: [],
+    polygons: [],
+    circles: [],
     showUserLocation: true,
     addressMain: "",
     addressDetail: "",
@@ -100,6 +135,24 @@ Page({
     this._latestSuggestKeyword = "";
     this._pendingMoveTo = null;
     this._searchBlurTimer = null;
+    this._lastRegion = null;
+    this._uomPlugin = null;
+    this._uomPluginInitialized = false;
+    this._uomPluginInitTimer = null;
+    this._djiLayer = null;
+    this._djiLayerInitialized = false;
+    this._djiLayerInitTimer = null;
+    this._temporaryNoFlyLayer = null;
+    this._temporaryNoFlyLayerInitialized = false;
+    this._temporaryNoFlyLayerInitTimer = null;
+    this._uom2Markers = [];
+    this._djiPolygons = [];
+    this._djiCircles = [];
+    this._nfzPolygons = [];
+    this._nfzCircles = [];
+    this._mapMarkerIdMap = new Map();
+    this._mapMarkerIdSeq = 100000;
+    this.loadMapSubKey();
 
     if (typeof this.getOpenerEventChannel === "function") {
       const channel = this.getOpenerEventChannel();
@@ -118,6 +171,9 @@ Page({
   onReady() {
     this.mapCtx = wx.createMapContext("picker-map", this);
     this._ready = true;
+    this.ensureUomPluginReady();
+    this.ensureDjiLayerReady();
+    this.ensureTemporaryNoFlyLayerReady();
     if (this._pendingMoveTo) {
       const { latitude, longitude } = this._pendingMoveTo;
       this.queueMapMove(latitude, longitude);
@@ -138,10 +194,239 @@ Page({
       clearTimeout(this._searchBlurTimer);
       this._searchBlurTimer = null;
     }
+    if (this._uomPluginInitTimer) {
+      clearTimeout(this._uomPluginInitTimer);
+      this._uomPluginInitTimer = null;
+    }
+    if (this._djiLayerInitTimer) {
+      clearTimeout(this._djiLayerInitTimer);
+      this._djiLayerInitTimer = null;
+    }
+    if (this._temporaryNoFlyLayerInitTimer) {
+      clearTimeout(this._temporaryNoFlyLayerInitTimer);
+      this._temporaryNoFlyLayerInitTimer = null;
+    }
+    if (this._uomPlugin && typeof this._uomPlugin.destroy === "function") {
+      this._uomPlugin.destroy();
+    }
+    if (this._djiLayer && typeof this._djiLayer.destroy === "function") {
+      this._djiLayer.destroy();
+    }
+    if (this._temporaryNoFlyLayer && typeof this._temporaryNoFlyLayer.destroy === "function") {
+      this._temporaryNoFlyLayer.destroy();
+    }
     if (this._eventChannel && typeof this._eventChannel.off === "function") {
       this._eventChannel.off("initLocation");
     }
     this._eventChannel = null;
+  },
+
+  loadMapSubKey() {
+    prefetchMapKey()
+      .then((mapKey) => {
+        const nextKey = typeof mapKey === "string" ? mapKey.trim() : "";
+        if (!nextKey || nextKey === this.data.mapSubKey) return;
+        this.setData({ mapSubKey: nextKey });
+      })
+      .catch((err) => {
+        console.warn("location picker loadMapSubKey failed", err);
+      });
+  },
+
+  ensureMapMarkerId(value) {
+    if (Number.isFinite(value)) return Number(value);
+    const text = value === undefined || value === null ? "" : `${value}`.trim();
+    if (!text) {
+      this._mapMarkerIdSeq += 1;
+      return this._mapMarkerIdSeq;
+    }
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) return numeric;
+    if (!this._mapMarkerIdMap) {
+      this._mapMarkerIdMap = new Map();
+      this._mapMarkerIdSeq = 100000;
+    }
+    if (this._mapMarkerIdMap.has(text)) {
+      return this._mapMarkerIdMap.get(text);
+    }
+    this._mapMarkerIdSeq += 1;
+    const mapped = this._mapMarkerIdSeq;
+    this._mapMarkerIdMap.set(text, mapped);
+    return mapped;
+  },
+
+  normalizeMapMarkerId(marker) {
+    if (!marker || typeof marker !== "object") return marker;
+    const rawId =
+      marker.id !== undefined && marker.id !== null
+        ? marker.id
+        : marker.markerId ?? marker.markerID;
+    const mappedId = this.ensureMapMarkerId(rawId);
+    marker.id = mappedId;
+    return marker;
+  },
+
+  normalizeMapMarkerList(list) {
+    if (!Array.isArray(list)) return list;
+    list.forEach((marker) => this.normalizeMapMarkerId(marker));
+    return list;
+  },
+
+  ensureUomPluginReady(retry = 0) {
+    if (this._uomPlugin && this._uomPluginInitialized) return;
+    const selector = this.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
+    const plugin = this.selectComponent(selector);
+    if (plugin && typeof plugin.init === "function") {
+      plugin.init({
+        mapCtx: this.mapCtx,
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        centerPin: { latitude: this.data.latitude, longitude: this.data.longitude },
+        scale: normalizeMapScale(this.data.scale),
+        region: this._lastRegion,
+        enabled: true
+      });
+      this._uomPlugin = plugin;
+      this._uomPluginInitialized = true;
+      return;
+    }
+    if (retry >= 10) return;
+    if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._uomPluginInitTimer = setTimeout(() => {
+      this._uomPluginInitTimer = null;
+      this.ensureUomPluginReady(retry + 1);
+    }, delay);
+  },
+
+  ensureDjiLayerReady(retry = 0) {
+    if (this._djiLayer && this._djiLayerInitialized) return;
+    const layer = this.selectComponent("#dji-no-fly-layer");
+    if (
+      layer &&
+      typeof layer.init === "function" &&
+      typeof layer.updateViewport === "function"
+    ) {
+      this._djiLayer = layer;
+      this._djiLayerInitialized = true;
+      layer.init({
+        enabled: true,
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        region: this._lastRegion || null,
+        scale: normalizeMapScale(this.data.scale),
+        drone: "",
+        levels: DEFAULT_LEVELS_PARAM,
+        force: true
+      });
+      return;
+    }
+    if (retry >= 10) return;
+    if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._djiLayerInitTimer = setTimeout(() => {
+      this._djiLayerInitTimer = null;
+      this.ensureDjiLayerReady(retry + 1);
+    }, delay);
+  },
+
+  ensureTemporaryNoFlyLayerReady(retry = 0) {
+    if (this._temporaryNoFlyLayer && this._temporaryNoFlyLayerInitialized) return;
+    const layer = this.selectComponent("#temporary-no-fly-layer");
+    if (
+      layer &&
+      typeof layer.init === "function" &&
+      typeof layer.updateViewport === "function"
+    ) {
+      this._temporaryNoFlyLayer = layer;
+      this._temporaryNoFlyLayerInitialized = true;
+      layer.init({
+        enabled: true,
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        region: this._lastRegion || null,
+        scale: normalizeMapScale(this.data.scale),
+        force: true
+      });
+      return;
+    }
+    if (retry >= 10) return;
+    if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._temporaryNoFlyLayerInitTimer = setTimeout(() => {
+      this._temporaryNoFlyLayerInitTimer = null;
+      this.ensureTemporaryNoFlyLayerReady(retry + 1);
+    }, delay);
+  },
+
+  syncExternalLayerViewport(options = {}) {
+    const center = options.center || { latitude: this.data.latitude, longitude: this.data.longitude };
+    const scale = normalizeMapScale(options.scale || this.data.scale);
+    const region = options.region || this._lastRegion || null;
+    this.ensureUomPluginReady();
+    this.ensureDjiLayerReady();
+    this.ensureTemporaryNoFlyLayerReady();
+    if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+      this._uomPlugin.handleRegionChange({
+        center,
+        centerPin: center,
+        scale,
+        rawScale: options.rawScale,
+        region,
+        force: options.force === true
+      });
+    }
+    if (this._djiLayer && typeof this._djiLayer.updateViewport === "function") {
+      this._djiLayer.updateViewport({
+        center,
+        region,
+        scale,
+        force: options.force === true
+      });
+    }
+    if (this._temporaryNoFlyLayer && typeof this._temporaryNoFlyLayer.updateViewport === "function") {
+      this._temporaryNoFlyLayer.updateViewport({
+        center,
+        region,
+        scale,
+        force: options.force === true
+      });
+    }
+  },
+
+  updateOverlayGraphics() {
+    const polygons = [];
+    const circles = [];
+    if (Array.isArray(this._djiPolygons)) polygons.push(...this._djiPolygons);
+    if (Array.isArray(this._nfzPolygons)) polygons.push(...this._nfzPolygons);
+    if (Array.isArray(this._djiCircles)) circles.push(...this._djiCircles);
+    if (Array.isArray(this._nfzCircles)) circles.push(...this._nfzCircles);
+    this.setData({ polygons, circles });
+  },
+
+  syncMapMarkers() {
+    const markers = Array.isArray(this._uom2Markers) ? this._uom2Markers.slice() : [];
+    this.normalizeMapMarkerList(markers);
+    this.setData({ markers });
+  },
+
+  onUomStatusChange() { },
+
+  onUomTilesChanged(event = {}) {
+    const detail = event?.detail || {};
+    this._uom2Markers = Array.isArray(detail.markers) ? detail.markers : [];
+    this.syncMapMarkers();
+  },
+
+  onDjiGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._djiPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    this._djiCircles = Array.isArray(detail.circles) ? detail.circles : [];
+    this.updateOverlayGraphics();
+  },
+
+  onTemporaryNoFlyGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._nfzPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    this._nfzCircles = Array.isArray(detail.circles) ? detail.circles : [];
+    this.updateOverlayGraphics();
   },
 
   requestInitialLocation() {
@@ -282,6 +567,7 @@ Page({
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return;
     }
+    const center = { latitude, longitude };
     if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
       const moveOptions = { latitude, longitude };
       moveOptions.fail = () => {
@@ -291,14 +577,28 @@ Page({
       };
       this.mapCtx.moveToLocation(moveOptions);
       this._pendingMoveTo = null;
+      this.syncExternalLayerViewport({
+        center,
+        region: this._lastRegion,
+        scale: this.data.scale,
+        force: true
+      });
       return;
     }
     this._pendingMoveTo = { latitude, longitude };
+    this.syncExternalLayerViewport({
+      center,
+      region: this._lastRegion,
+      scale: this.data.scale,
+      force: true
+    });
   },
 
   handleCenterChange(gcjLat, gcjLng, options = {}) {
     const {
       updateMapCenter = false,
+      syncMapCenter = false,
+      suppressLayerSync = false,
       skipReverse = false,
       immediateReverse = false,
       presetAddress = ""
@@ -322,14 +622,16 @@ Page({
       hasLocation: true
     };
     let moveAfterUpdate = null;
-    if (updateMapCenter) {
+    if (updateMapCenter || syncMapCenter) {
       const moveLatitude = latitude;
       const moveLongitude = longitude;
       nextData.latitude = latitude;
       nextData.longitude = longitude;
-      moveAfterUpdate = () => {
-        this.queueMapMove(moveLatitude, moveLongitude);
-      };
+      if (updateMapCenter) {
+        moveAfterUpdate = () => {
+          this.queueMapMove(moveLatitude, moveLongitude);
+        };
+      }
     }
 
     const shouldReverse = !skipReverse && !isSameLocation;
@@ -351,6 +653,14 @@ Page({
       if (typeof moveAfterUpdate === "function") {
         moveAfterUpdate();
       }
+      if (!suppressLayerSync) {
+        this.syncExternalLayerViewport({
+          center: { latitude, longitude },
+          region: this._lastRegion,
+          scale: this.data.scale,
+          force: !moveAfterUpdate
+        });
+      }
     });
 
     if (shouldReverse) {
@@ -362,9 +672,68 @@ Page({
   },
 
   onRegionChange(e) {
-    if (e?.type !== "end") return;
-    if (e?.causedBy && e.causedBy !== "drag" && e.causedBy !== "scale") return;
-    this.fetchCenterLocation();
+    const detail = e?.detail || {};
+    const cause = e?.causedBy || detail?.causedBy || detail?.cause || "";
+    if (cause && cause !== "drag" && cause !== "scale") return;
+    if (e?.type !== "end") {
+      if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
+        this._uomPlugin.startFollow();
+      }
+      const cl = detail.centerLocation || null;
+      if (cl && this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+        const region = normalizeRegionDetail(detail);
+        const scale = normalizeMapScale(detail.scale || this.data.scale);
+        if (region) this._lastRegion = region;
+        this._uomPlugin.handleRegionChange({
+          center: { latitude: cl.latitude, longitude: cl.longitude },
+          centerPin: { latitude: cl.latitude, longitude: cl.longitude },
+          scale,
+          rawScale: detail.scale,
+          region: region || this._lastRegion,
+          force: true
+        });
+      }
+      return;
+    }
+    if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
+      this._uomPlugin.stopFollow();
+    }
+    const centerLocation = detail.centerLocation || null;
+    const region = normalizeRegionDetail(detail);
+    const rawScale = Number(detail.scale);
+    const currentScale = Number(this.data.scale);
+    const resolvedScale = Number.isFinite(rawScale) ? rawScale : currentScale;
+    const scale = normalizeMapScale(resolvedScale);
+    const updates = {};
+    if (cause === "scale" && scale !== this.data.scale) {
+      updates.scale = scale;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+    this._lastRegion = region;
+    const center = centerLocation && hasValidCoordinate(centerLocation.latitude, centerLocation.longitude)
+      ? { latitude: Number(centerLocation.latitude), longitude: Number(centerLocation.longitude) }
+      : { latitude: this.data.latitude, longitude: this.data.longitude };
+    if (centerLocation && hasValidCoordinate(center.latitude, center.longitude)) {
+      this.handleCenterChange(center.latitude, center.longitude, {
+        updateMapCenter: false,
+        syncMapCenter: true,
+        suppressLayerSync: true
+      });
+    }
+    this.syncExternalLayerViewport({
+      center,
+      region,
+      scale,
+      rawScale: detail.scale
+    });
+    if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
+      this._uomPlugin.scheduleFinalRefresh();
+    }
+    if (!centerLocation || !hasValidCoordinate(center.latitude, center.longitude)) {
+      this.fetchCenterLocation();
+    }
   },
 
   fetchCenterLocation() {

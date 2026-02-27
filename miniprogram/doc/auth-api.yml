@@ -255,7 +255,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseAdminProfileResponse'
   /api/auth/weapp/config:
     get:
-      summary: 获取小程序相关密钥
+      summary: 获取小程序相关密钥（含地图 map-key）
       responses:
         '200':
           description: OK
@@ -270,7 +270,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
     post:
-      summary: 设置小程序相关密钥
+      summary: 设置小程序相关密钥（含地图 map-key）
       requestBody:
         required: true
         content:
@@ -362,6 +362,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
+  /api/weapp/config/map-key:
+    get:
+      summary: 用户读取小程序地图 map-key
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappMapKeyResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/weapp/qrcode:
     post:
       summary: 获取小程序二维码
@@ -980,6 +997,9 @@ components:
           type: string
         jwtSecret:
           type: string
+        mapKey:
+          type: string
+          description: 小程序地图服务 map-key。
     WeappConfigResponse:
       type: object
       properties:
@@ -989,6 +1009,15 @@ components:
           type: string
         jwtSecret:
           type: string
+        mapKey:
+          type: string
+          description: 小程序地图服务 map-key。
+    WeappMapKeyResponse:
+      type: object
+      properties:
+        mapKey:
+          type: string
+          description: 小程序地图服务 map-key。
     WeappQrcodeRequest:
       type: object
       properties:
@@ -1069,6 +1098,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WeappConfigResponse'
+    ApiResponseWeappMapKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappMapKeyResponse'
     ApiResponseObject:
       type: object
       properties:

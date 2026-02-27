@@ -6,6 +6,10 @@
       latitude="{{latitude}}"
       longitude="{{longitude}}"
       scale="{{scale}}"
+      subkey="{{mapSubKey}}"
+      markers="{{markers}}"
+      polygons="{{polygons}}"
+      circles="{{circles}}"
       show-location="{{showUserLocation}}"
       enable-overlooking="{{false}}"
       enable-3D="{{false}}"
@@ -14,6 +18,21 @@
       enable-satellite="{{false}}"
       enable-traffic="{{false}}"
       bindregionchange="onRegionChange"
+    />
+    <dji-no-fly-layer
+      id="dji-no-fly-layer"
+      bind:graphicschange="onDjiGraphicsChange"
+    />
+    <temporary-no-fly-layer
+      id="temporary-no-fly-layer"
+      bind:graphicschange="onTemporaryNoFlyGraphicsChange"
+    />
+    <uom-plugin id="uom-plugin" wx:if="{{isWeChatRuntime === true}}" bind:statuschange="onUomStatusChange" />
+    <uom2-plugin
+      id="uom2-plugin"
+      wx:elif="{{isWeChatRuntime === false}}"
+      bind:statuschange="onUomStatusChange"
+      bind:tileschanged="onUomTilesChanged"
     />
     <image class="center-pin" src="/assets/position.png" mode="widthFix" />
     <view class="address-panel">
