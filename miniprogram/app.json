@@ -76,6 +76,12 @@
       ]
     },
     {
+      "root": "packages/map-center-pin",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/dji",
       "pages": [
         "placeholder/index"

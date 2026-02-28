@@ -8,7 +8,7 @@
     "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index",
     "policy-update-modal": "/packages/guide/components/policy-update-modal/index",
     "map-compass": "/packages/compass/components/map-compass/index",
-    "map-center-pin": "/packages/compass/components/map-center-pin/index",
+    "map-center-pin": "/packages/map-center-pin/components/map-center-pin/index",
     "dji-no-fly-layer": "/packages/dji/components/dji-no-fly-layer/index",
     "temporary-no-fly-layer": "/packages/dji/components/temporary-no-fly-layer/index"
   },

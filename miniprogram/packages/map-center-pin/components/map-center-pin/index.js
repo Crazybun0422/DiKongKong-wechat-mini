@@ -1,4 +1,10 @@
 const LONGPRESS_DONE_STORAGE_KEY = "compass_center_pin_longpress_done_v1";
+const LONGPRESS_ACTION_ITEMS = [
+  { id: "quickMark", label: "标记该处", icon: "/packages/map-center-pin/assets/quick-pin.png" },
+  { id: "share", label: "分享", icon: "/packages/map-center-pin/assets/share-location.png" },
+  { id: "askAgent", label: "问问智能体", icon: "/packages/map-center-pin/assets/ask-ai.png" },
+  { id: "bindMyLocation", label: "地标绑定", icon: "/packages/map-center-pin/assets/bind-my-location.png" }
+];
 
 Component({
   properties: {
@@ -9,18 +15,6 @@ Component({
     satellite: {
       type: Boolean,
       value: false
-    },
-    sheetTitle: {
-      type: String,
-      value: "中心点操作开发中"
-    },
-    sheetDesc: {
-      type: String,
-      value: "详细功能开发中,敬请期待"
-    },
-    closeText: {
-      type: String,
-      value: "知道了"
     }
   },
 
@@ -28,7 +22,8 @@ Component({
     triggered: false,
     sheetVisible: false,
     sheetClosing: false,
-    showWelcomeBubble: false
+    showWelcomeBubble: false,
+    actionItems: LONGPRESS_ACTION_ITEMS
   },
 
   lifetimes: {
@@ -56,7 +51,6 @@ Component({
       } catch (err) {}
 
       if (hasLongPressed) return;
-
       this.setData({ showWelcomeBubble: true });
     },
 
@@ -98,7 +92,10 @@ Component({
       this.closeSheet();
     },
 
-    onCloseTap() {
+    onActionTap(event = {}) {
+      const action = `${event?.currentTarget?.dataset?.action || ""}`.trim();
+      if (!action) return;
+      this.triggerEvent("action", { action });
       this.closeSheet();
     },
 

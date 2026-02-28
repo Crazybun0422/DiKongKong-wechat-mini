@@ -20,8 +20,13 @@
   <view class="center-pin-sheet-mask" bindtap="onMaskTap"></view>
   <view class="center-pin-sheet {{sheetClosing ? 'is-closing' : 'is-open'}}" catchtap="onSheetTap" catchtouchmove="noop">
     <view class="center-pin-sheet-handle"></view>
-    <view class="center-pin-sheet-title">{{sheetTitle}}</view>
-    <view class="center-pin-sheet-desc">{{sheetDesc}}</view>
-    <button class="center-pin-sheet-btn" bindtap="onCloseTap">{{closeText}}</button>
+    <view class="center-pin-sheet-actions">
+      <block wx:for="{{actionItems}}" wx:key="id">
+        <view class="center-pin-action-item" data-action="{{item.id}}" bindtap="onActionTap">
+          <image class="center-pin-action-icon" src="{{item.icon}}" mode="aspectFit" />
+          <text class="center-pin-action-label">{{item.label}}</text>
+        </view>
+      </block>
+    </view>
   </view>
 </block>

@@ -1026,6 +1026,7 @@ Page({
     const launchOptions = this.consumePendingLaunchOptions(options);
     applyMapStatusBarStyle();
     this.mapCtx = wx.createMapContext("main-map");
+    this._isIOS = false;
     this.loadMapSubKey();
     this.applyCustomMapStyle();
     this.initializeSystemInfo();
@@ -1081,7 +1082,6 @@ Page({
     this._mapSkew = 0;
     this._mapRotate = 0;
     this._overlookSyncAvoidUntil = 0;
-    this._isIOS = false;
     this._centerOverride = this.data.center;
     this._layerPanelCloseTimer = null;
     this._addMiniAppPopupChecking = false;
@@ -5262,7 +5262,10 @@ Page({
 
     if (!Number.isFinite(displayLat) || !Number.isFinite(displayLng)) return;
 
-    wx.showLoading({ title: "经纬度解析中", mask: false });
+    const showCopyLoading = !this._isIOS;
+    if (showCopyLoading) {
+      wx.showLoading({ title: "经纬度解析中", mask: false });
+    }
 
     const copyResolvedText = (address = "") => {
       const text = buildCoordinateClipboardText({
@@ -5272,7 +5275,9 @@ Page({
         address
       });
       if (!text) {
-        wx.hideLoading();
+        if (showCopyLoading) {
+          wx.hideLoading();
+        }
         wx.showToast({ title: "复制失败", icon: "none" });
         return;
       }
@@ -5284,11 +5289,16 @@ Page({
         },
         fail: (err) => {
           console.error("复制经纬度失败", err);
+          if (showCopyLoading) {
+            wx.hideLoading();
+          }
           wx.showToast({ title: "复制失败", icon: "none" });
         },
         complete: () => {
-          wx.hideLoading();
-          if (copied) {
+          if (showCopyLoading) {
+            wx.hideLoading();
+          }
+          if (copied && !this._isIOS) {
             setTimeout(() => {
               wx.showToast({ title: "经纬度已复制", icon: "success", duration: 1500 });
             }, 120);
