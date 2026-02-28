@@ -33,6 +33,8 @@
       top-offset-px="{{centerPinOffsetPx}}"
       satellite="{{mapLayerType === 'satellite'}}"
       long-press-guide-nodes="{{coordinateLongPressGuideNodes}}"
+      follow-active="{{centerPinFollowActive}}"
+      follow-tip-text="{{centerPinFollowTipText}}"
       bind:tap="onCenterPinTap"
       bind:longpress="onCenterPinLongPress"
       bind:action="onCenterPinAction"

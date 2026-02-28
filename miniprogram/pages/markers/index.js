@@ -72,6 +72,7 @@ const CENTER_TABS = [
   { id: "MY_MARKERS", label: "我的标记" },
   { id: "WORKGROUP", label: "工作组" }
 ];
+const CENTER_TAB_IDS = new Set(CENTER_TABS.map((item) => item.id));
 
 const MY_MARKER_FILTERS = [
   { id: "ALL", label: "全部" },
@@ -474,8 +475,10 @@ Page({
     this.refreshMarkers({ initial: true });
     this.fetchSettlementConfig();
     this.refreshWorkGroups({ initial: true });
+    this.consumePendingCenterTab();
+    const consumedPendingMyPinCreate = this.consumePendingMyPinCreate();
     // this.handleWorkGroupInviteOptions(options);
-    if (options.create === "1") {
+    if (!consumedPendingMyPinCreate && options.create === "1") {
       this.onCreateTap();
     }
   },
@@ -486,6 +489,7 @@ Page({
 
   onShow() {
     this.consumePendingCenterTab();
+    this.consumePendingMyPinCreate();
     const pendingInvite = this.consumePendingWorkGroupInvite();
     if (pendingInvite) {
       this.promptJoinWorkGroup(pendingInvite);
@@ -515,9 +519,8 @@ Page({
     try {
       const app = typeof getApp === "function" ? getApp() : null;
       const targetTab = app?.globalData?.targetMarkersCenterTab;
-      if (targetTab === "WORKGROUP") {
-        console.log("consumePendingCenterTab -> WORKGROUP");
-        this.setData({ activeCenterTab: "WORKGROUP" });
+      if (CENTER_TAB_IDS.has(targetTab)) {
+        this.setData({ activeCenterTab: targetTab });
       }
       if (app && app.globalData && app.globalData.targetMarkersCenterTab) {
         delete app.globalData.targetMarkersCenterTab;
@@ -525,6 +528,82 @@ Page({
     } catch (err) {
       console.warn("consumePendingCenterTab failed", err);
     }
+  },
+
+  consumePendingMyPinCreate() {
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const pending = app?.globalData?.pendingMyPinCreate;
+      if (!pending || typeof pending !== "object") {
+        return false;
+      }
+      if (app && app.globalData) {
+        app.globalData.pendingMyPinCreate = null;
+      }
+      this.openMyPinCreateWithPreset(pending);
+      return true;
+    } catch (err) {
+      console.warn("consumePendingMyPinCreate failed", err);
+      return false;
+    }
+  },
+
+  openMyPinCreateWithPreset(preset = {}) {
+    const form = createEmptyPinForm();
+    const latitudeRaw = Number(preset.latitude);
+    const longitudeRaw = Number(preset.longitude);
+    const addressMain = `${preset.addressMain || preset.address || ""}`.trim();
+    const addressDetail = `${preset.addressDetail || ""}`.trim();
+    if (addressMain) {
+      form.addressMain = addressMain;
+    }
+    if (addressDetail) {
+      form.addressDetail = addressDetail;
+    }
+    if (hasValidCoordinate(latitudeRaw, longitudeRaw)) {
+      const latitude = normalizePinCoordValue(latitudeRaw);
+      const longitude = normalizePinCoordValue(longitudeRaw);
+      const altitude = normalizePinAltitude(preset.altitude);
+      form.latitude = latitude;
+      form.longitude = longitude;
+      form.coordinateList = [
+        {
+          latitude,
+          longitude,
+          altitude
+        }
+      ];
+      form.activeCoordIndex = 0;
+      form.coordinateText = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    } else if (typeof preset.coordinateText === "string" && preset.coordinateText.trim()) {
+      form.coordinateText = preset.coordinateText.trim();
+    }
+    const configured = isPinLocationConfigured(form);
+    this.setData(
+      {
+        activeCenterTab: "MY_MARKERS",
+        showCreate: false,
+        showDetail: false,
+        showPinCreateSheet: false,
+        showMyPinCreate: true,
+        myPinForm: form,
+        myPinFormConfigured: configured,
+        pinSubmitting: false,
+        pinError: "",
+        editingPinId: "",
+        pinLocationDisplay: "",
+        myPinSelectedGroups: []
+      },
+      () => {
+        this.updatePinLocationDisplay();
+        if (hasValidCoordinate(form.latitude, form.longitude) && !form.addressMain) {
+          this.reverseGeocodePinLocation(form.latitude, form.longitude);
+        }
+        if (!this.data.pinsLoaded && !this.data.pinsLoading) {
+          this.refreshPins({ silent: true, filter: this.data.activePinFilter });
+        }
+      }
+    );
   },
 
   consumePendingWorkGroupInvite() {

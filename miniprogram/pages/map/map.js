@@ -103,6 +103,12 @@ const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const MIN_CENTER_SYNC_METERS = 6;
+const CENTER_SHARE_LOCK_DURATION_MS = 10000;
+const CENTER_SHARE_LOCK_MAX_DRIFT_METERS = 2000;
+const CENTER_SHARE_LOCK_ALIGN_DELAY_MS = 120;
+const CENTER_PIN_FOLLOW_INTERVAL_MS = 1000;
+const CENTER_PIN_FOLLOW_ERROR_TOAST_INTERVAL_MS = 5000;
+const CENTER_PIN_FOLLOW_TIP_TEXT = "长按解除绑定状态~";
 const MAP_WIDE_LAYOUT_MIN_WIDTH = 560;
 const MAP_WIDE_LAYOUT_MIN_RATIO = 1.1;
 const WINDOW_RESIZE_DEBOUNCE_MS = 80;
@@ -822,6 +828,68 @@ const normalizeLaunchPinOptions = (options = {}) => {
   return normalized;
 };
 
+const normalizeLaunchCenterShareOptions = (options = {}) => {
+  const normalized = {
+    active: false,
+    latitude: null,
+    longitude: null,
+    scale: 15
+  };
+  if (!options || typeof options !== "object") {
+    return normalized;
+  }
+  const readFromObject = (source) => {
+    if (!source || typeof source !== "object") return null;
+    const hasCenterKeys =
+      source.clat !== undefined ||
+      source.clng !== undefined ||
+      source.centerLat !== undefined ||
+      source.centerLng !== undefined;
+    const explicitFlag = source.cs ?? source.centerShare ?? source.shareCenter ?? source.center;
+    if (!hasCenterKeys && !isTruthyFlag(explicitFlag)) {
+      return null;
+    }
+    const lat = Number(source.clat ?? source.centerLat ?? source.lat ?? source.latitude);
+    const lng = Number(source.clng ?? source.centerLng ?? source.lng ?? source.longitude);
+    if (!hasValidCoordinate(lat, lng)) {
+      return null;
+    }
+    const scaleRaw = Number(source.cscale ?? source.zoom ?? source.scale);
+    return {
+      latitude: lat,
+      longitude: lng,
+      scale: Number.isFinite(scaleRaw) ? scaleRaw : normalized.scale
+    };
+  };
+  const applyPayload = (payload) => {
+    if (!payload) return false;
+    normalized.active = true;
+    normalized.latitude = payload.latitude;
+    normalized.longitude = payload.longitude;
+    normalized.scale = clampMapScale(payload.scale);
+    return true;
+  };
+  if (applyPayload(readFromObject(options))) {
+    return normalized;
+  }
+  if (applyPayload(readFromObject(options.query))) {
+    return normalized;
+  }
+  if (applyPayload(readFromObject(parseSceneParams(options.scene)))) {
+    return normalized;
+  }
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    if (applyPayload(readFromObject(qParams))) {
+      return normalized;
+    }
+  }
+  return normalized;
+};
+
 const extractInviteCodeFromOptions = (options = {}) => {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
@@ -945,6 +1013,8 @@ Page({
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     centerPinTitle: "",
+    centerPinFollowActive: false,
+    centerPinFollowTipText: CENTER_PIN_FOLLOW_TIP_TEXT,
     centerCoordinateLatText: "",
     centerCoordinateLngText: "",
     coordinateSystem: "wgs84",
@@ -1165,6 +1235,15 @@ Page({
 
   onLoad(options = {}) {
     const launchOptions = this.consumePendingLaunchOptions(options);
+    const launchCenterPreset = normalizeLaunchCenterShareOptions(launchOptions);
+    if (launchCenterPreset.active) {
+      const presetLat = Number(launchCenterPreset.latitude);
+      const presetLng = Number(launchCenterPreset.longitude);
+      if (hasValidCoordinate(presetLat, presetLng)) {
+        this.data.center = { latitude: presetLat, longitude: presetLng };
+        this.data.scale = clampMapScale(launchCenterPreset.scale || 15);
+      }
+    }
     applyMapStatusBarStyle();
     this.mapCtx = wx.createMapContext("main-map");
     this._isIOS = false;
@@ -1294,34 +1373,59 @@ Page({
     this._previewMarker = null;
     this._previewPinId = null;
     this._lastKnownLocation = null;
+    this._centerPinFollowActive = false;
+    this._centerPinFollowPaused = false;
+    this._centerPinFollowTimer = null;
+    this._centerPinFollowLocating = false;
+    this._centerPinFollowLastErrorAt = 0;
+    this._shareCenterLaunch = null;
+    this._centerShareLaunchLock = null;
+    this._centerShareLaunchLockTimer = null;
+    this._pendingCenterActionShare = null;
+    this._pendingCenterActionShareTimer = null;
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
-    this.requestInitialLocation();
     this.captureInviteCode(launchOptions);
     this.handleWorkGroupInviteOptions(launchOptions);
+    const hasCenterShareLaunch = this.initializeCenterShareLaunch(launchOptions);
     this.initializeShareLaunch(launchOptions);
     this.initializePinShareLaunch(launchOptions);
-    this.consumePendingMarkerFocus({ immediate: true });
+    if (hasCenterShareLaunch) {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.pendingMarkerFocus = null;
+        app.globalData.pendingPinPreview = null;
+      }
+      this._skipPendingFocusOnShow = true;
+      this.applyCenterShareLaunch();
+      this.markSharePermissionAttempted();
+    } else {
+      this._skipPendingFocusOnShow = false;
+      this.requestInitialLocation();
+      this.consumePendingMarkerFocus({ immediate: true });
+    }
+    const initialViewportCenter = this._centerOverride || this.data.center;
+    const initialViewportScale = this.data.scale;
     this.scheduleFetchMarkers(0, {
-      center: this.data.center,
-      scale: this.data.scale,
+      center: initialViewportCenter,
+      scale: initialViewportScale,
       force: true
     });
     this.scheduleFetchPins(0, {
-      center: this.data.center,
-      scale: this.data.scale,
+      center: initialViewportCenter,
+      scale: initialViewportScale,
       force: true
     });
     this.syncTemporaryNoFlyLayerViewport({
-      center: this.data.center,
+      center: initialViewportCenter,
       region: this._lastRegion || null,
-      scale: this.data.scale,
+      scale: initialViewportScale,
       force: true
     });
     this.syncDjiLayerViewport({
-      center: this.data.center,
+      center: initialViewportCenter,
       region: this._lastRegion || null,
-      scale: this.data.scale,
+      scale: initialViewportScale,
       force: true
     });
     this.updateScaleBar();
@@ -2368,6 +2472,215 @@ Page({
         console.warn("Failed to cache invite code locally", err);
       }
     }
+  },
+
+  initializeCenterShareLaunch(options = {}) {
+    const normalized = normalizeLaunchCenterShareOptions(options);
+    if (!normalized.active) {
+      this._shareCenterLaunch = null;
+      return false;
+    }
+    this._shareCenterLaunch = normalized;
+    return true;
+  },
+
+  applyCenterShareLaunch() {
+    const launch = this._shareCenterLaunch;
+    if (!launch || !launch.active) return false;
+    const latitude = Number(launch.latitude);
+    const longitude = Number(launch.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) {
+      this._shareCenterLaunch = null;
+      return false;
+    }
+    this.centerOnPoint(
+      { latitude, longitude },
+      clampMapScale(launch.scale || 15),
+      true
+    );
+    this._centerShareLaunchLock = {
+      latitude,
+      longitude,
+      scale: clampMapScale(launch.scale || 15),
+      expiresAt: Date.now() + CENTER_SHARE_LOCK_DURATION_MS
+    };
+    this.scheduleCenterShareLaunchLockAlign(CENTER_SHARE_LOCK_ALIGN_DELAY_MS);
+    this._shareCenterLaunch = null;
+    return true;
+  },
+
+  scheduleCenterShareLaunchLockAlign(delay = 0) {
+    const lock = this._centerShareLaunchLock;
+    if (!lock) return;
+    if (this._centerShareLaunchLockTimer) {
+      clearTimeout(this._centerShareLaunchLockTimer);
+      this._centerShareLaunchLockTimer = null;
+    }
+    const wait = Math.max(0, Number(delay) || 0);
+    this._centerShareLaunchLockTimer = setTimeout(() => {
+      this._centerShareLaunchLockTimer = null;
+      const latestLock = this._centerShareLaunchLock;
+      if (!latestLock) return;
+      if (Date.now() > Number(latestLock.expiresAt || 0)) {
+        this._centerShareLaunchLock = null;
+        return;
+      }
+      const point = {
+        latitude: Number(latestLock.latitude),
+        longitude: Number(latestLock.longitude)
+      };
+      if (!hasValidCoordinate(point.latitude, point.longitude)) {
+        this._centerShareLaunchLock = null;
+        return;
+      }
+      const targetScale = clampMapScale(latestLock.scale || this.data.scale || DEFAULT_MAP_SCALE);
+      this.setData({ center: point, scale: targetScale }, () => {
+        if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
+          this.mapCtx.moveToLocation({
+            latitude: point.latitude,
+            longitude: point.longitude
+          });
+        }
+      });
+    }, wait);
+  },
+
+  shouldIgnoreCenterShareLaunchSync(targetCenter, cause = "") {
+    const lock = this._centerShareLaunchLock;
+    if (!lock) return false;
+    if (Date.now() > Number(lock.expiresAt || 0)) {
+      this._centerShareLaunchLock = null;
+      if (this._centerShareLaunchLockTimer) {
+        clearTimeout(this._centerShareLaunchLockTimer);
+        this._centerShareLaunchLockTimer = null;
+      }
+      return false;
+    }
+    const normalizedCause = `${cause || ""}`.toLowerCase();
+    if (
+      normalizedCause === "drag" ||
+      normalizedCause === "gesture" ||
+      normalizedCause === "scale" ||
+      normalizedCause === "rotate" ||
+      normalizedCause === "skew" ||
+      normalizedCause === "overlook"
+    ) {
+      this._centerShareLaunchLock = null;
+      if (this._centerShareLaunchLockTimer) {
+        clearTimeout(this._centerShareLaunchLockTimer);
+        this._centerShareLaunchLockTimer = null;
+      }
+      return false;
+    }
+    if (
+      !targetCenter ||
+      !hasValidCoordinate(targetCenter.latitude, targetCenter.longitude)
+    ) {
+      return true;
+    }
+    const driftMeters = haversineMeters(
+      lock.latitude,
+      lock.longitude,
+      targetCenter.latitude,
+      targetCenter.longitude
+    );
+    if (
+      Number.isFinite(driftMeters) &&
+      driftMeters <= CENTER_SHARE_LOCK_MAX_DRIFT_METERS
+    ) {
+      this._centerShareLaunchLock = null;
+      if (this._centerShareLaunchLockTimer) {
+        clearTimeout(this._centerShareLaunchLockTimer);
+        this._centerShareLaunchLockTimer = null;
+      }
+      return false;
+    }
+    this.scheduleCenterShareLaunchLockAlign(60);
+    return true;
+  },
+
+  prepareCenterActionShare() {
+    const center = this._centerOverride || this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      this._pendingCenterActionShare = null;
+      return null;
+    }
+    const latitude = Number(center.latitude);
+    const longitude = Number(center.longitude);
+    const fallbackAddress = `${this.data.centerPinTitle || ""}`.trim();
+    const payload = {
+      createdAt: Date.now(),
+      latitude,
+      longitude,
+      address: fallbackAddress
+    };
+    if (this._pendingCenterActionShareTimer) {
+      clearTimeout(this._pendingCenterActionShareTimer);
+      this._pendingCenterActionShareTimer = null;
+    }
+    this._pendingCenterActionShare = payload;
+    this._pendingCenterActionShareTimer = setTimeout(() => {
+      if (this._pendingCenterActionShare === payload) {
+        this._pendingCenterActionShare = null;
+      }
+      this._pendingCenterActionShareTimer = null;
+    }, 20 * 1000);
+    this.requestPinAddress(latitude, longitude)
+      .then((address) => {
+        if (this._pendingCenterActionShare !== payload) return;
+        const resolved = `${address || ""}`.trim();
+        if (resolved) {
+          payload.address = resolved;
+        }
+      })
+      .catch((err) => {
+        console.warn("prepareCenterActionShare reverse geocode failed", err);
+      });
+    return payload;
+  },
+
+  buildCenterActionSharePayload(payload = {}) {
+    const latitude = Number(payload.latitude);
+    const longitude = Number(payload.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) return null;
+    const latText = latitude.toFixed(6);
+    const lngText = longitude.toFixed(6);
+    const title = "风里雨里我在这里等你~";
+    const queryBase = `fs=1&cs=1&clat=${encodeURIComponent(latText)}&clng=${encodeURIComponent(lngText)}`;
+    return {
+      title,
+      queryBase
+    };
+  },
+
+  buildCurrentCenterSharePayload() {
+    const center = this._centerOverride || this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      return null;
+    }
+    return this.buildCenterActionSharePayload({
+      latitude: Number(center.latitude),
+      longitude: Number(center.longitude)
+    });
+  },
+
+  consumeCenterActionSharePayload() {
+    const payload = this._pendingCenterActionShare;
+    if (!payload) return null;
+    this.clearPendingCenterActionShare();
+    const age = Date.now() - Number(payload.createdAt || 0);
+    if (!Number.isFinite(age) || age > 60 * 1000) {
+      return null;
+    }
+    return this.buildCenterActionSharePayload(payload);
+  },
+
+  clearPendingCenterActionShare() {
+    if (this._pendingCenterActionShareTimer) {
+      clearTimeout(this._pendingCenterActionShareTimer);
+      this._pendingCenterActionShareTimer = null;
+    }
+    this._pendingCenterActionShare = null;
   },
 
   initializeShareLaunch(options = {}) {
@@ -3708,8 +4021,23 @@ Page({
     }
   },
 
-  onShareAppMessage() {
-
+  onShareAppMessage(event = {}) {
+    const isCenterPinShareButton =
+      event?.from === "button" &&
+      !this.data.markerPageVisible &&
+      !this.data.markerDetailVisible;
+    const centerShare = isCenterPinShareButton
+      ? this.buildCurrentCenterSharePayload()
+      : this.consumeCenterActionSharePayload();
+    if (isCenterPinShareButton) {
+      this.clearPendingCenterActionShare();
+    }
+    if (centerShare && centerShare.queryBase) {
+      return {
+        title: centerShare.title,
+        path: appendInviteCodeToPath(`/pages/map/map?${centerShare.queryBase}`)
+      };
+    }
     const detail = this._lastMarkerDetail;
     const inviteCode = this.getShareInviteCodeValue();
     const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: this.getApiBase() });
@@ -3755,6 +4083,13 @@ Page({
   },
 
   onShareTimeline() {
+    const centerShare = this.consumeCenterActionSharePayload();
+    if (centerShare && centerShare.queryBase) {
+      return {
+        title: centerShare.title,
+        query: appendInviteCodeToQuery(centerShare.queryBase)
+      };
+    }
     const detail = this._lastMarkerDetail;
     const inviteCode = this.getShareInviteCodeValue();
     const fallback = {
@@ -3818,8 +4153,13 @@ Page({
     if (this.data.joinInvitePrompt && !this.data.joinInviting) {
       this.promptJoinWorkGroup(this.data.joinInvitePrompt);
     }
-    this.consumePendingMarkerFocus({ source: "show" });
-    this.consumePendingPinPreview();
+    this.resumeCenterPinLocationFollow();
+    if (this._skipPendingFocusOnShow) {
+      this._skipPendingFocusOnShow = false;
+    } else {
+      this.consumePendingMarkerFocus({ source: "show" });
+      this.consumePendingPinPreview();
+    }
     this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
     if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "map") {
       this.showCheckinGuideOnMap();
@@ -3844,6 +4184,7 @@ Page({
   },
 
   onHide() {
+    this.pauseCenterPinLocationFollow();
     this.clearPinPreview();
   },
 
@@ -4242,8 +4583,11 @@ Page({
 
 
   onUnload() {
+    this.stopCenterPinLocationFollow({ toast: false });
     this.unregisterWindowResizeListener();
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
+    if (this._pendingCenterActionShareTimer) clearTimeout(this._pendingCenterActionShareTimer);
+    if (this._centerShareLaunchLockTimer) clearTimeout(this._centerShareLaunchLockTimer);
     if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
     setSubscribeWaitOverlay(false);
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
@@ -5586,7 +5930,137 @@ Page({
     this.openMarkerOrPinAtCenter();
   },
 
+  startCenterPinLocationFollow() {
+    if (this._centerPinFollowActive) {
+      if (!this.data.centerPinFollowActive) {
+        this.setData({ centerPinFollowActive: true });
+      }
+      return Promise.resolve(true);
+    }
+    return this.ensureLocationPermission().then(() => {
+      this._centerPinFollowActive = true;
+      this._centerPinFollowPaused = false;
+      this._centerPinFollowLocating = false;
+      this._centerPinFollowLastErrorAt = 0;
+      if (this._centerPinFollowTimer) {
+        clearTimeout(this._centerPinFollowTimer);
+        this._centerPinFollowTimer = null;
+      }
+      this.setData({ centerPinFollowActive: true });
+      this.scheduleCenterPinLocationFollow(0);
+      return true;
+    });
+  },
+
+  stopCenterPinLocationFollow(options = {}) {
+    const shouldToast = options.toast !== false;
+    const wasActive = !!this._centerPinFollowActive || !!this.data.centerPinFollowActive;
+    this._centerPinFollowActive = false;
+    this._centerPinFollowPaused = false;
+    this._centerPinFollowLocating = false;
+    if (this._centerPinFollowTimer) {
+      clearTimeout(this._centerPinFollowTimer);
+      this._centerPinFollowTimer = null;
+    }
+    if (this.data.centerPinFollowActive) {
+      this.setData({ centerPinFollowActive: false });
+    }
+    if (shouldToast && wasActive && typeof wx?.showToast === "function") {
+      wx.showToast({ title: "已解除位置绑定", icon: "none" });
+    }
+  },
+
+  scheduleCenterPinLocationFollow(delay = CENTER_PIN_FOLLOW_INTERVAL_MS) {
+    if (!this._centerPinFollowActive || this._centerPinFollowPaused) return;
+    if (this._centerPinFollowTimer) {
+      clearTimeout(this._centerPinFollowTimer);
+      this._centerPinFollowTimer = null;
+    }
+    const wait = Math.max(0, Number(delay) || 0);
+    this._centerPinFollowTimer = setTimeout(() => {
+      this._centerPinFollowTimer = null;
+      this.runCenterPinLocationFollowTick();
+    }, wait);
+  },
+
+  runCenterPinLocationFollowTick() {
+    if (!this._centerPinFollowActive || this._centerPinFollowPaused) return;
+    if (this._centerPinFollowLocating) {
+      this.scheduleCenterPinLocationFollow(200);
+      return;
+    }
+    this._centerPinFollowLocating = true;
+    wx.getLocation({
+      type: "gcj02",
+      isHighAccuracy: false,
+      highAccuracyExpireTime: 8000,
+      success: (res) => {
+        if (!this._centerPinFollowActive) return;
+        const latitude = Number(res?.latitude);
+        const longitude = Number(res?.longitude);
+        if (!hasValidCoordinate(latitude, longitude)) return;
+        const point = { latitude, longitude };
+        this._lastKnownLocation = point;
+        this.refreshMarkerPageDistance();
+        this.centerOnPoint(point, this.data.scale, true);
+      },
+      fail: (err) => {
+        console.warn("center pin follow getLocation fail", err);
+        const now = Date.now();
+        if (
+          typeof wx?.showToast === "function" &&
+          (!Number.isFinite(this._centerPinFollowLastErrorAt) ||
+            now - this._centerPinFollowLastErrorAt >= CENTER_PIN_FOLLOW_ERROR_TOAST_INTERVAL_MS)
+        ) {
+          this._centerPinFollowLastErrorAt = now;
+          wx.showToast({ title: "位置读取失败", icon: "none" });
+        }
+      },
+      complete: () => {
+        this._centerPinFollowLocating = false;
+        if (this._centerPinFollowActive) {
+          this.scheduleCenterPinLocationFollow(CENTER_PIN_FOLLOW_INTERVAL_MS);
+        }
+      }
+    });
+  },
+
+  shouldIgnoreRegionSyncForCenterPinFollow(cause = "") {
+    if (!this._centerPinFollowActive) return false;
+    const normalized = `${cause || ""}`.trim().toLowerCase();
+    if (!normalized) return false;
+    return (
+      normalized === "drag" ||
+      normalized === "gesture" ||
+      normalized === "scale" ||
+      normalized === "rotate" ||
+      normalized === "skew" ||
+      normalized === "overlook"
+    );
+  },
+
+  pauseCenterPinLocationFollow() {
+    if (!this._centerPinFollowActive) return;
+    this._centerPinFollowPaused = true;
+    this._centerPinFollowLocating = false;
+    if (this._centerPinFollowTimer) {
+      clearTimeout(this._centerPinFollowTimer);
+      this._centerPinFollowTimer = null;
+    }
+  },
+
+  resumeCenterPinLocationFollow() {
+    if (!this._centerPinFollowActive) return;
+    if (!this._centerPinFollowPaused && this._centerPinFollowTimer) return;
+    this._centerPinFollowPaused = false;
+    this.scheduleCenterPinLocationFollow(0);
+  },
+
   onCenterPinLongPress() {
+    if (this._centerPinFollowActive) {
+      this.stopCenterPinLocationFollow({ toast: true });
+      return;
+    }
     if (!this.getAuthToken()) return;
     this.loadMapGuideConfigs().catch((err) => {
       console.warn("loadMapGuideConfigs onCenterPinLongPress failed", err);
@@ -5595,21 +6069,117 @@ Page({
 
   onCenterPinAction(event) {
     const action = `${event?.detail?.action || ""}`.trim();
-    if (action !== "navigate") return;
+    if (!action) return;
+    if (action === "quickMark") {
+      this.openMyPinCreateAtCenter();
+      return;
+    }
+    if (action === "share") {
+      this.prepareCenterActionShare();
+      return;
+    }
+    if (action === "bindMyLocation") {
+      if (this._centerPinFollowActive) {
+        wx.showToast({ title: "长按可解除绑定", icon: "none" });
+        return;
+      }
+      this.startCenterPinLocationFollow()
+        .then(() => {
+          wx.showToast({ title: "已绑定当前位置", icon: "none" });
+        })
+        .catch(() => {
+          wx.showToast({ title: "未授权定位权限", icon: "none" });
+        });
+      return;
+    }
+    if (action === "navigate") {
+      const center = this._centerOverride || this.data.center;
+      if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+        wx.showToast({ title: "暂无定位信息", icon: "none" });
+        return;
+      }
+      const pinTitle = `${this.data.centerPinTitle || ""}`.trim();
+      this.openMarkerLocation(
+        {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          name: pinTitle || "中心位置",
+          locationText: ""
+        }
+      );
+    }
+  },
+
+  openMyPinCreateAtCenter() {
     const center = this._centerOverride || this.data.center;
     if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
       wx.showToast({ title: "暂无定位信息", icon: "none" });
       return;
     }
-    const pinTitle = `${this.data.centerPinTitle || ""}`.trim();
-    this.openMarkerLocation(
-      {
-        latitude: center.latitude,
-        longitude: center.longitude,
-        name: pinTitle || "中心位置",
-        locationText: ""
+    const latitude = Number(center.latitude);
+    const longitude = Number(center.longitude);
+    const centerPinTitle = `${this.data.centerPinTitle || ""}`.trim();
+    const payload = {
+      latitude,
+      longitude,
+      coordinateText: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      addressMain: "",
+      addressDetail: centerPinTitle
+    };
+    let navigated = false;
+    const navigateOnce = () => {
+      if (navigated) return;
+      navigated = true;
+      this.navigateToMarkersPinCreate(payload);
+    };
+    const fallbackTimer = setTimeout(() => {
+      navigateOnce();
+    }, 520);
+    this.requestPinAddress(latitude, longitude)
+      .then((address) => {
+        const resolved = `${address || ""}`.trim();
+        if (resolved) {
+          payload.addressMain = resolved;
+          if (!payload.addressDetail || payload.addressDetail === resolved) {
+            payload.addressDetail = resolved;
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("resolve quick mark center address failed", err);
+      })
+      .finally(() => {
+        clearTimeout(fallbackTimer);
+        navigateOnce();
+      });
+  },
+
+  navigateToMarkersPinCreate(payload = {}) {
+    const url = "/pages/markers/index";
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.targetMarkersCenterTab = "MY_MARKERS";
+        app.globalData.pendingMyPinCreate = payload;
       }
-    );
+    } catch (err) {
+      console.warn("set pending my pin create failed", err);
+    }
+    if (typeof wx?.navigateTo === "function") {
+      wx.navigateTo({
+        url,
+        fail: (err) => {
+          console.warn("navigateTo markers failed, fallback to switchTab", err);
+          if (typeof wx?.switchTab === "function") {
+            wx.switchTab({ url });
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx?.switchTab === "function") {
+      wx.switchTab({ url });
+    }
   },
 
   onCenterPinIndicatorTap() {
@@ -7518,6 +8088,9 @@ Page({
     }
       const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
       const detail = e?.detail || {};
+      if (this.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
+        return;
+      }
       if (this._skipNextRotateRegion) {
         const rotate = Number(detail?.rotate);
         if (Number.isFinite(rotate)) {
@@ -7558,6 +8131,9 @@ Page({
             latitude: (region.northeast.latitude + region.southwest.latitude) / 2,
             longitude: (region.northeast.longitude + region.southwest.longitude) / 2
           };
+        if (this.shouldIgnoreCenterShareLaunchSync(newCenter, cause)) {
+          return;
+        }
         this._centerOverride = newCenter;
         const prevScale = this.data.scale;
         const scale = clampMapScale(detail.scale || prevScale);
@@ -7663,6 +8239,9 @@ Page({
           latitude: res.latitude,
           longitude: res.longitude
         };
+        if (this.shouldIgnoreCenterShareLaunchSync(newCenter, cause)) {
+          return;
+        }
         this._centerOverride = newCenter;
         const scale = clampMapScale(detail?.scale || this.data.scale);
         const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
