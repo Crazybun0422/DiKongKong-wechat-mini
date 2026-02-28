@@ -1,4 +1,4 @@
-<view class="picker-page">
+<view class="picker-page {{isWideLayout ? 'picker-page--wide' : ''}}">
   <view class="picker-map-wrap">
     <map
       id="picker-map"

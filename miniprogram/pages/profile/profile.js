@@ -600,6 +600,7 @@ Page({
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     const canGoBack = typeof wx.navigateBack === "function" && pages.length > 1;
     if (canGoBack) {
+      const prevPage = pages[pages.length - 2] || null;
       const prevRoute = pages[pages.length - 2]?.route || "";
       if (prevRoute === "pages/profile/checkin/index") {
         if (typeof wx.reLaunch === "function") {
@@ -611,6 +612,17 @@ Page({
           return;
         }
       } else {
+        if (
+          prevRoute === "pages/map/map" &&
+          prevPage &&
+          typeof prevPage.setData === "function"
+        ) {
+          const next = { activeTab: "home" };
+          if (Object.prototype.hasOwnProperty.call(prevPage.data || {}, "airBoardEnabled")) {
+            next.showDashboardPanel = !!prevPage.data.airBoardEnabled;
+          }
+          prevPage.setData(next);
+        }
         wx.navigateBack({ delta: 1 });
         return;
       }

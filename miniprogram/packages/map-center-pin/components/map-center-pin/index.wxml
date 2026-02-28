@@ -28,5 +28,13 @@
         </view>
       </block>
     </view>
+    <view wx:if="{{longPressGuideNodes}}" class="center-pin-guide-section">
+      <rich-text
+        class="center-pin-guide-content"
+        nodes="{{longPressGuideNodes}}"
+        selectable="true"
+        space="nbsp"
+      />
+    </view>
   </view>
 </block>

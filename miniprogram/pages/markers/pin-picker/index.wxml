@@ -1,4 +1,4 @@
-﻿<view class="pin-picker-page">
+﻿<view class="pin-picker-page {{isWideLayout ? 'pin-picker-page--wide' : ''}}">
   <view class="picker-map-wrap">
     <map
       id="pin-picker-map"
@@ -318,4 +318,5 @@
     </view>
   </view>
 </view>
+
 

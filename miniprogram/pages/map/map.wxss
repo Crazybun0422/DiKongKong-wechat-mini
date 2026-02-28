@@ -955,6 +955,31 @@ button.search-btn::after {
   background: #ffffff;
 }
 
+.coordinate-system-sheet-description {
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #334155;
+}
+
+.coordinate-system-sheet-description p {
+  margin: 10rpx 0;
+}
+
+.coordinate-system-sheet-description img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 14rpx auto;
+  border-radius: 10rpx;
+}
+
+.coordinate-system-sheet-description .op-link {
+  color: #1c66e1;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
 .floating-controls {
     position: absolute;
     right: 32rpx;
@@ -1066,7 +1091,7 @@ button.panorama-button::after,
 
 .menu-icon,
 .menu-label {
-  opacity: 0.55;
+  opacity: 1;
 }
 
 .menu-btn.is-active .menu-icon,
@@ -1129,13 +1154,13 @@ button.panorama-button::after,
 }
 
 .menu-btn.is-active .menu-label {
-  color: #000000;
+  color: #1c66e1;
   font-weight: 600;
   opacity: 1;
 }
 
 .menu-btn.is-active .menu-icon {
-  filter: brightness(0) saturate(100%);
+  filter: none;
   opacity: 1;
 }
 
@@ -2590,4 +2615,61 @@ button.panorama-button::after,
 
 .city-report-dialog-btn::after {
   border: none;
+}
+
+.page--wide .subscription-banner {
+  left: 24rpx;
+  min-width: 560rpx;
+  max-width: 680rpx;
+}
+
+.page--wide .subscription-banner-text {
+  max-width: 460rpx;
+}
+
+.page--wide .preflight-overlay {
+  left: 24rpx;
+  width: 560rpx;
+  min-width: 560rpx;
+  max-width: 560rpx;
+}
+
+.page--wide .map-scale-container,
+.page--wide .map-compass-anchor {
+  left: 48rpx;
+}
+
+.page--wide .floating-controls {
+  right: 48rpx;
+}
+
+.page--wide .drone-picker-sheet,
+.page--wide .coordinate-system-sheet,
+.page--wide .layer-panel,
+.page--wide .call-sheet,
+.page--wide .marker-detail-sheet {
+  width: calc(100vw - 64rpx);
+  max-width: 920rpx;
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.page--wide .marker-page-scroll {
+  width: 100%;
+  max-width: 980rpx;
+  margin: 0 auto;
+}
+
+.map-ui-scale-left {
+  transform-origin: left top;
+}
+
+.map-ui-scale-right {
+  transform-origin: right center;
+}
+
+.map-ui-scale-bottom {
+  transform-origin: center bottom;
 }

@@ -726,3 +726,30 @@
   100% { opacity: 0; transform: translate(-50%, -26rpx) scale(0.96); }
 }
 
+.pin-picker-page--wide .picker-search-panel {
+  top: calc(env(safe-area-inset-top) + 24rpx);
+  left: 40rpx;
+  right: 40rpx;
+  max-width: 980rpx;
+  padding: 0;
+}
+
+.pin-picker-page--wide .coord-panel {
+  right: 40rpx;
+  bottom: 220rpx;
+  width: 500rpx;
+  max-height: 82vh;
+}
+
+.pin-picker-page--wide .floating-confirm {
+  width: 44%;
+  max-width: 600rpx;
+  bottom: 112rpx;
+}
+
+.pin-picker-page--wide .line-actions {
+  width: 52%;
+  max-width: 700rpx;
+  bottom: 112rpx;
+}
+

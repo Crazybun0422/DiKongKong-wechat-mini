@@ -14,6 +14,9 @@ const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const RUNTIME_IS_WECHAT = isWeChatRuntime() && !isDesktopRuntime();
 const COORD_ADJUST_STEP = 0.00001;
+const PICKER_WIDE_LAYOUT_MIN_WIDTH = 560;
+const PICKER_WIDE_LAYOUT_MIN_RATIO = 1.1;
+const WINDOW_RESIZE_DEBOUNCE_MS = 80;
 const hasSavedLocationPayload = (payload = {}) => {
   if (!payload) return false;
   const lat = normalizeCoord(payload.latitude);
@@ -55,6 +58,46 @@ const DEFAULT_TYPE = TYPE_SECTIONS[0].options[0];
 const PIN_SHAPE_COLOR = "#D3A05B";
 const PIN_SHAPE_STROKE = "#D3A05BF2";
 const PIN_SHAPE_FILL = "#D3A05B4D";
+
+function getWindowMetrics(event = {}) {
+  let windowInfo = {};
+  if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+    try {
+      windowInfo = wx.getWindowInfo() || {};
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  let size = event && event.size;
+  if (Array.isArray(size)) {
+    size = size[0] || null;
+  }
+  if (!size || typeof size !== "object") {
+    size = event;
+  }
+  const resizeWidth = Number(size.windowWidth || size.width);
+  const resizeHeight = Number(size.windowHeight || size.height);
+  const windowWidth =
+    Number.isFinite(resizeWidth) && resizeWidth > 0
+      ? resizeWidth
+      : (Number(windowInfo.windowWidth) || 375);
+  const windowHeight =
+    Number.isFinite(resizeHeight) && resizeHeight > 0
+      ? resizeHeight
+      : (Number(windowInfo.windowHeight) || 667);
+  return { windowWidth, windowHeight };
+}
+
+function resolveWideLayout(metrics = {}) {
+  const width = Number(metrics.windowWidth);
+  const height = Number(metrics.windowHeight);
+  if (!Number.isFinite(width) || width <= 0) return false;
+  if (width >= PICKER_WIDE_LAYOUT_MIN_WIDTH) return true;
+  if (Number.isFinite(height) && height > 0) {
+    return width / height >= PICKER_WIDE_LAYOUT_MIN_RATIO;
+  }
+  return false;
+}
 
 function normalizeCoord(value) {
   const num = Number(value);
@@ -235,6 +278,7 @@ Page({
     longitude: DEFAULT_CENTER.longitude,
     scale: DEFAULT_CENTER.scale,
     mapSubKey: getMapKeySync(),
+    isWideLayout: false,
     isWeChatRuntime: RUNTIME_IS_WECHAT,
     enableSatellite: false,
     showUserLocation: true,
@@ -280,6 +324,49 @@ Page({
     pointActionHint: ""
   },
 
+  applyResponsiveLayout(options = {}) {
+    const metrics = getWindowMetrics(options.event);
+    const wideLayout = resolveWideLayout(metrics);
+    if (this.data.isWideLayout !== wideLayout) {
+      this.setData({ isWideLayout: wideLayout });
+    }
+  },
+
+  registerWindowResizeListener() {
+    if (typeof wx === "undefined" || typeof wx.onWindowResize !== "function") {
+      return;
+    }
+    if (this._onWindowResize) {
+      return;
+    }
+    this._onWindowResize = (event = {}) => {
+      this._lastResizeEvent = event;
+      if (this._windowResizeTimer) {
+        clearTimeout(this._windowResizeTimer);
+      }
+      this._windowResizeTimer = setTimeout(() => {
+        this._windowResizeTimer = null;
+        this.applyResponsiveLayout({ event: this._lastResizeEvent });
+      }, WINDOW_RESIZE_DEBOUNCE_MS);
+    };
+    wx.onWindowResize(this._onWindowResize);
+  },
+
+  unregisterWindowResizeListener() {
+    if (this._windowResizeTimer) {
+      clearTimeout(this._windowResizeTimer);
+      this._windowResizeTimer = null;
+    }
+    if (!this._onWindowResize) {
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.offWindowResize === "function") {
+      wx.offWindowResize(this._onWindowResize);
+    }
+    this._onWindowResize = null;
+    this._lastResizeEvent = null;
+  },
+
   onLoad() {
     this.mapCtx = null;
     this._ready = false;
@@ -321,6 +408,11 @@ Page({
     this._shapeMarkers = Array.isArray(this.data.markers) ? this.data.markers.slice() : [];
     this._mapMarkerIdMap = new Map();
     this._mapMarkerIdSeq = 100000;
+    this._windowResizeTimer = null;
+    this._onWindowResize = null;
+    this._lastResizeEvent = null;
+    this.applyResponsiveLayout({ force: true });
+    this.registerWindowResizeListener();
     this.loadMapSubKey();
 
     if (typeof this.getOpenerEventChannel === "function") {
@@ -799,7 +891,16 @@ Page({
     this.requestInitialLocation();
   },
 
+  onShow() {
+    this.applyResponsiveLayout({ force: true });
+  },
+
+  onResize(event = {}) {
+    this.applyResponsiveLayout({ event, force: true });
+  },
+
   onUnload() {
+    this.unregisterWindowResizeListener();
     if (this._reverseTimer) {
       clearTimeout(this._reverseTimer);
       this._reverseTimer = null;

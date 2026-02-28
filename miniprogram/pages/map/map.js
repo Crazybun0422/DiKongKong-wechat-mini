@@ -66,6 +66,11 @@ const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscriptio
 const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
 const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
 const { isWeChatRuntime, isDesktopRuntime } = require("../../utils/runtime");
+const {
+  fetchCoordinateSystemDescription,
+  fetchCoordinateLongPressGuide
+} = require("../../utils/map-guides");
+const { transformHtmlContent } = require("../../utils/open-platform");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -98,6 +103,11 @@ const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const MIN_CENTER_SYNC_METERS = 6;
+const MAP_WIDE_LAYOUT_MIN_WIDTH = 560;
+const MAP_WIDE_LAYOUT_MIN_RATIO = 1.1;
+const WINDOW_RESIZE_DEBOUNCE_MS = 80;
+const MAP_UI_BASE_WIDTH_PX = 375;
+const MAP_UI_SCALE_MIN = 0.35;
 const MAP_COMPASS_ROTATE_THRESHOLD = 1;
 const MAP_COMPASS_ROTATE_SYNC_DELTA = 1;
 const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
@@ -300,6 +310,52 @@ const getWindowMetrics = () => {
     platform,
     pixelRatio
   };
+};
+
+const readResizeWindowSize = (event = {}) => {
+  if (!event || typeof event !== "object") {
+    return { windowWidth: null, windowHeight: null };
+  }
+  let size = event.size || null;
+  if (Array.isArray(size)) {
+    size = size[0] || null;
+  }
+  if (!size || typeof size !== "object") {
+    size = event;
+  }
+  const windowWidth = Number(size.windowWidth || size.width);
+  const windowHeight = Number(size.windowHeight || size.height);
+  return {
+    windowWidth: Number.isFinite(windowWidth) && windowWidth > 0 ? windowWidth : null,
+    windowHeight: Number.isFinite(windowHeight) && windowHeight > 0 ? windowHeight : null
+  };
+};
+
+const resolveWideLayout = (metrics = {}) => {
+  const width = Number(metrics.windowWidth);
+  const height = Number(metrics.windowHeight);
+  if (!Number.isFinite(width) || width <= 0) {
+    return false;
+  }
+  if (width >= MAP_WIDE_LAYOUT_MIN_WIDTH) {
+    return true;
+  }
+  if (Number.isFinite(height) && height > 0) {
+    return width / height >= MAP_WIDE_LAYOUT_MIN_RATIO;
+  }
+  return false;
+};
+
+const resolveMapUiScale = (metrics = {}, wideLayout = false) => {
+  const width = Number(metrics.windowWidth);
+  if (!wideLayout || !Number.isFinite(width) || width <= 0) {
+    return 1;
+  }
+  const scale = MAP_UI_BASE_WIDTH_PX / width;
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return 1;
+  }
+  return Math.min(1, Math.max(MAP_UI_SCALE_MIN, scale));
 };
 
 const applyMapStatusBarStyle = () => {
@@ -857,6 +913,9 @@ Page({
     maxScale: MAP_MAX_SCALE,
     mapSubKey: getMapKeySync(),
     customMapStyleId: QQMAP_CUSTOM_STYLE_ID || "",
+    isWideLayout: false,
+    mapUiScale: 1,
+    mapUiScaleStyle: "",
     statusBarHeight: 0,
     centerPinOffsetPx: 0,
     markers: [],
@@ -892,6 +951,8 @@ Page({
     coordinateSystemLabel: resolveCoordinateSystemDisplayLabel("wgs84"),
     coordinateSystemOptions: COORDINATE_SYSTEM_OPTIONS,
     coordinateSystemSheetVisible: false,
+    coordinateSystemDescriptionNodes: "",
+    coordinateLongPressGuideNodes: "",
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
@@ -1022,6 +1083,86 @@ Page({
     return mergeLaunchOptions(pending, options || {});
   },
 
+  resolveWindowMetrics(event = {}) {
+    const metrics = getWindowMetrics();
+    const resize = readResizeWindowSize(event);
+    if (Number.isFinite(resize.windowWidth) && resize.windowWidth > 0) {
+      metrics.windowWidth = resize.windowWidth;
+    }
+    if (Number.isFinite(resize.windowHeight) && resize.windowHeight > 0) {
+      metrics.windowHeight = resize.windowHeight;
+    }
+    return metrics;
+  },
+
+  refreshResponsiveLayout(options = {}) {
+    const metrics =
+      options && options.metrics && typeof options.metrics === "object"
+        ? options.metrics
+        : this.resolveWindowMetrics(options.event);
+    this.initializeSystemInfo(options.force === true, metrics);
+    const wideLayout = resolveWideLayout(metrics);
+    const uiScale = resolveMapUiScale(metrics, wideLayout);
+    const roundedScale = Number(uiScale.toFixed(4));
+    const uiScaleStyle = roundedScale < 0.9999 ? `transform: scale(${roundedScale});` : "";
+    const updates = {};
+    if (this.data.isWideLayout !== wideLayout) {
+      updates.isWideLayout = wideLayout;
+    }
+    if (this.data.mapUiScale !== roundedScale) {
+      updates.mapUiScale = roundedScale;
+    }
+    if (this.data.mapUiScaleStyle !== uiScaleStyle) {
+      updates.mapUiScaleStyle = uiScaleStyle;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+    if (options.refreshScaleBar === false) {
+      return;
+    }
+    const latitude = Number(this.data?.center?.latitude);
+    this.updateScaleBar({
+      scale: this.data.scale,
+      latitude: Number.isFinite(latitude) ? latitude : DEFAULT_CENTER.latitude
+    });
+  },
+
+  registerWindowResizeListener() {
+    if (typeof wx === "undefined" || typeof wx.onWindowResize !== "function") {
+      return;
+    }
+    if (this._onWindowResize) {
+      return;
+    }
+    this._onWindowResize = (event = {}) => {
+      this._lastResizeEvent = event;
+      if (this._windowResizeTimer) {
+        clearTimeout(this._windowResizeTimer);
+      }
+      this._windowResizeTimer = setTimeout(() => {
+        this._windowResizeTimer = null;
+        this.refreshResponsiveLayout({ event: this._lastResizeEvent, force: true });
+      }, WINDOW_RESIZE_DEBOUNCE_MS);
+    };
+    wx.onWindowResize(this._onWindowResize);
+  },
+
+  unregisterWindowResizeListener() {
+    if (this._windowResizeTimer) {
+      clearTimeout(this._windowResizeTimer);
+      this._windowResizeTimer = null;
+    }
+    if (!this._onWindowResize) {
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.offWindowResize === "function") {
+      wx.offWindowResize(this._onWindowResize);
+    }
+    this._onWindowResize = null;
+    this._lastResizeEvent = null;
+  },
+
   onLoad(options = {}) {
     const launchOptions = this.consumePendingLaunchOptions(options);
     applyMapStatusBarStyle();
@@ -1029,7 +1170,11 @@ Page({
     this._isIOS = false;
     this.loadMapSubKey();
     this.applyCustomMapStyle();
-    this.initializeSystemInfo();
+    this._windowResizeTimer = null;
+    this._onWindowResize = null;
+    this._lastResizeEvent = null;
+    this.refreshResponsiveLayout({ force: true, refreshScaleBar: false });
+    this.registerWindowResizeListener();
     let appBase = {};
     try {
       if (typeof wx !== "undefined" && typeof wx.getAppBaseInfo === "function") {
@@ -1102,6 +1247,7 @@ Page({
     this._djiPolygons = [];
     this._djiCircles = [];
     this._mapLayerSettingsInitPromise = null;
+    this._mapGuideConfigLoaded = false;
     this._nfzPolygons = [];
     this._nfzCircles = [];
     this._suggestTimer = null;
@@ -1874,6 +2020,9 @@ Page({
   autoLoginOnLaunch() {
     this.ensureAccessToken()
       .then(() => {
+        this.loadMapGuideConfigs().catch((err) => {
+          console.warn("loadMapGuideConfigs failed", err);
+        });
         wx.nextTick(() => {
           const popup = this.selectComponent("#newbie-task-popup");
           if (popup && typeof popup.loadTasks === "function") {
@@ -1884,6 +2033,54 @@ Page({
       .catch((err) => {
         console.warn("自动登录失败", err);
       });
+  },
+
+  loadMapGuideConfigs() {
+    const apiBase = this.getApiBase();
+    if (!apiBase) {
+      this.setData({
+        coordinateSystemDescriptionNodes: "",
+        coordinateLongPressGuideNodes: ""
+      });
+      this._mapGuideConfigLoaded = false;
+      return Promise.resolve();
+    }
+    const token = this.getAuthToken();
+    if (!token) {
+      this.setData({
+        coordinateSystemDescriptionNodes: "",
+        coordinateLongPressGuideNodes: ""
+      });
+      this._mapGuideConfigLoaded = false;
+      return Promise.resolve();
+    }
+    const parseRichText = (content) => {
+      const html = typeof content === "string" ? content : "";
+      if (!html.trim()) return "";
+      return transformHtmlContent(html, { apiBase });
+    };
+    const loadCoordinateSystemDescription = fetchCoordinateSystemDescription({ apiBase, token })
+      .then((payload = {}) => parseRichText(payload.content))
+      .catch((err) => {
+        console.warn("loadCoordinateSystemDescription failed", err);
+        return "";
+      });
+    const loadCoordinateLongPressGuide = fetchCoordinateLongPressGuide({ apiBase, token })
+      .then((payload = {}) => parseRichText(payload.content))
+      .catch((err) => {
+        console.warn("loadCoordinateLongPressGuide failed", err);
+        return "";
+      });
+    return Promise.all([loadCoordinateSystemDescription, loadCoordinateLongPressGuide]).then(
+      ([coordinateSystemDescriptionNodes, coordinateLongPressGuideNodes]) => {
+        this.setData({
+          coordinateSystemDescriptionNodes,
+          coordinateLongPressGuideNodes
+        });
+      }
+    ).finally(() => {
+      this._mapGuideConfigLoaded = true;
+    });
   },
 
   checkPolicyUpdateOnLaunch() {
@@ -3606,9 +3803,12 @@ Page({
 
   onShow() {
     applyMapStatusBarStyle();
+    this.refreshResponsiveLayout({ force: true });
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home", showDashboardPanel: true });
-      this.showDashboardPanel = true;
+      this.setData({
+        activeTab: "home",
+        showDashboardPanel: !!this.data.airBoardEnabled
+      });
     }
     const app = typeof getApp === "function" ? getApp() : null;
     if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
@@ -3631,7 +3831,16 @@ Page({
     } else if (this.data.showInviteGuideMap) {
       this.setData({ showInviteGuideMap: false });
     }
+    if (this.getAuthToken()) {
+      this.loadMapGuideConfigs().catch((err) => {
+        console.warn("loadMapGuideConfigs onShow failed", err);
+      });
+    }
     this.scheduleAddMiniAppPopupCheck("show");
+  },
+
+  onResize(event = {}) {
+    this.refreshResponsiveLayout({ event, force: true });
   },
 
   onHide() {
@@ -4033,6 +4242,7 @@ Page({
 
 
   onUnload() {
+    this.unregisterWindowResizeListener();
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
     setSubscribeWaitOverlay(false);
@@ -4522,10 +4732,17 @@ Page({
   },
 
   onMenuHomeTap() {
+    const updates = {};
     if (this.data.activeTab !== "home") {
-      this.setData({ activeTab: "home" });
+      updates.activeTab = "home";
     }
-    this.showPlaceholderToast("已在首页");
+    const nextDashboardVisible = !!this.data.airBoardEnabled;
+    if (this.data.showDashboardPanel !== nextDashboardVisible) {
+      updates.showDashboardPanel = nextDashboardVisible;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
   },
 
   onMenuProfileTap() {
@@ -5323,6 +5540,11 @@ Page({
   onCoordinateSystemToggle() {
     if (this.data.coordinateSystemSheetVisible) return;
     this.setData({ coordinateSystemSheetVisible: true });
+    if (this.getAuthToken()) {
+      this.loadMapGuideConfigs().catch((err) => {
+        console.warn("loadMapGuideConfigs onCoordinateSystemToggle failed", err);
+      });
+    }
   },
 
   onCoordinateSystemSheetTap() {},
@@ -5362,6 +5584,32 @@ Page({
 
   onCenterPinTap() {
     this.openMarkerOrPinAtCenter();
+  },
+
+  onCenterPinLongPress() {
+    if (!this.getAuthToken()) return;
+    this.loadMapGuideConfigs().catch((err) => {
+      console.warn("loadMapGuideConfigs onCenterPinLongPress failed", err);
+    });
+  },
+
+  onCenterPinAction(event) {
+    const action = `${event?.detail?.action || ""}`.trim();
+    if (action !== "navigate") return;
+    const center = this._centerOverride || this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      wx.showToast({ title: "暂无定位信息", icon: "none" });
+      return;
+    }
+    const pinTitle = `${this.data.centerPinTitle || ""}`.trim();
+    this.openMarkerLocation(
+      {
+        latitude: center.latitude,
+        longitude: center.longitude,
+        name: pinTitle || "中心位置",
+        locationText: ""
+      }
+    );
   },
 
   onCenterPinIndicatorTap() {
@@ -6889,11 +7137,12 @@ Page({
     return loadStoredProfileUtil();
   },
 
-  initializeSystemInfo() {
-    if (this._pxPerRpx && this._pxPerRpx > 0) {
+  initializeSystemInfo(force = false, inputMetrics = null) {
+    if (!force && this._pxPerRpx && this._pxPerRpx > 0) {
       return;
     }
-    const metrics = getWindowMetrics();
+    const metrics =
+      inputMetrics && typeof inputMetrics === "object" ? inputMetrics : getWindowMetrics();
     const width = metrics.windowWidth || 375;
     this._pxPerRpx = width / 750;
     const pxPerRpx = this._pxPerRpx || 1;

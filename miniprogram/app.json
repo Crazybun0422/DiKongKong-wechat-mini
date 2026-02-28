@@ -93,6 +93,7 @@
     "backgroundColor": "#F2F2F2",
     "backgroundTextStyle": "light"
   },
+  "resizable": true,
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
   "permission": {

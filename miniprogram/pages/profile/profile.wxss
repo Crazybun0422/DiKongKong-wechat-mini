@@ -547,24 +547,25 @@ button.profile-list-item::after {
   width: 64rpx;
   height: 64rpx;
   filter: brightness(0) saturate(100%);
-  opacity: 0.55;
+  opacity: 1;
   transition: opacity 0.2s ease;
 }
 
 .menu-label {
   font-size: 22rpx;
-  opacity: 0.55;
+  color: #000000;
+  opacity: 1;
   transition: opacity 0.2s ease;
 }
 
 .menu-btn.is-active .menu-label {
-  color: #000000;
+  color: #1c66e1;
   font-weight: 600;
   opacity: 1;
 }
 
 .menu-btn.is-active .menu-icon {
-  filter: brightness(0) saturate(100%);
+  filter: none;
   opacity: 1;
 }
 

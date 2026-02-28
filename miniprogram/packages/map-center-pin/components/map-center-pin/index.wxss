@@ -165,6 +165,38 @@
   text-align: center;
 }
 
+.center-pin-guide-section {
+  margin-top: 2rpx;
+  border-top: 1rpx solid rgba(15, 23, 42, 0.08);
+  padding-top: 14rpx;
+}
+
+.center-pin-guide-content {
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: #334155;
+  max-height: 260rpx;
+  overflow-y: auto;
+}
+
+.center-pin-guide-content p {
+  margin: 8rpx 0;
+}
+
+.center-pin-guide-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 10rpx auto;
+  border-radius: 10rpx;
+}
+
+.center-pin-guide-content .op-link {
+  color: #1c66e1;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
 @keyframes center-pin-trigger {
   0% {
     transform: scale(0.9);

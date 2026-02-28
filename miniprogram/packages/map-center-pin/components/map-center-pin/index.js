@@ -2,6 +2,7 @@ const LONGPRESS_DONE_STORAGE_KEY = "compass_center_pin_longpress_done_v1";
 const LONGPRESS_ACTION_ITEMS = [
   { id: "quickMark", label: "标记该处", icon: "/packages/map-center-pin/assets/quick-pin.png" },
   { id: "share", label: "分享", icon: "/packages/map-center-pin/assets/share-location.png" },
+  { id: "navigate", label: "导航到此处", icon: "/packages/map-center-pin/assets/navigate.png" },
   { id: "askAgent", label: "问问智能体", icon: "/packages/map-center-pin/assets/ask-ai.png" },
   { id: "bindMyLocation", label: "地标绑定", icon: "/packages/map-center-pin/assets/bind-my-location.png" }
 ];
@@ -15,6 +16,10 @@ Component({
     satellite: {
       type: Boolean,
       value: false
+    },
+    longPressGuideNodes: {
+      type: String,
+      value: ""
     }
   },
 
