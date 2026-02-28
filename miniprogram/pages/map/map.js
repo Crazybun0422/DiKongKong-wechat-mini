@@ -1015,6 +1015,7 @@ Page({
     centerPinTitle: "",
     centerPinFollowActive: false,
     centerPinFollowTipText: CENTER_PIN_FOLLOW_TIP_TEXT,
+    centerPinWelcomeBubbleDismissToken: 0,
     centerCoordinateLatText: "",
     centerCoordinateLngText: "",
     coordinateSystem: "wgs84",
@@ -1378,6 +1379,7 @@ Page({
     this._centerPinFollowTimer = null;
     this._centerPinFollowLocating = false;
     this._centerPinFollowLastErrorAt = 0;
+    this._centerPinWelcomeBubbleDismissedInGesture = false;
     this._shareCenterLaunch = null;
     this._centerShareLaunchLock = null;
     this._centerShareLaunchLockTimer = null;
@@ -5926,6 +5928,24 @@ Page({
     return null;
   },
 
+  shouldDismissCenterPinWelcomeBubbleOnRegionChange(cause = "") {
+    const normalized = `${cause || ""}`.trim().toLowerCase();
+    if (!normalized) return false;
+    return (
+      normalized === "drag" ||
+      normalized === "gesture" ||
+      normalized === "scale" ||
+      normalized === "rotate" ||
+      normalized === "skew" ||
+      normalized === "overlook"
+    );
+  },
+
+  dismissCenterPinWelcomeBubble() {
+    const nextToken = (Number(this.data.centerPinWelcomeBubbleDismissToken) || 0) + 1;
+    this.setData({ centerPinWelcomeBubbleDismissToken: nextToken });
+  },
+
   onCenterPinTap() {
     this.openMarkerOrPinAtCenter();
   },
@@ -6032,7 +6052,6 @@ Page({
     return (
       normalized === "drag" ||
       normalized === "gesture" ||
-      normalized === "scale" ||
       normalized === "rotate" ||
       normalized === "skew" ||
       normalized === "overlook"
@@ -8051,7 +8070,15 @@ Page({
   },
 
   onRegionChange(e) {
+    const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
     if (e.type !== "end") {
+      if (
+        !this._centerPinWelcomeBubbleDismissedInGesture &&
+        this.shouldDismissCenterPinWelcomeBubbleOnRegionChange(cause)
+      ) {
+        this._centerPinWelcomeBubbleDismissedInGesture = true;
+        this.dismissCenterPinWelcomeBubble();
+      }
       if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
       if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
         this._uomPlugin.startFollow();
@@ -8083,10 +8110,10 @@ Page({
       }
       return;
     }
+    this._centerPinWelcomeBubbleDismissedInGesture = false;
     if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
       this._uomPlugin.stopFollow();
     }
-      const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
       const detail = e?.detail || {};
       if (this.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
         return;

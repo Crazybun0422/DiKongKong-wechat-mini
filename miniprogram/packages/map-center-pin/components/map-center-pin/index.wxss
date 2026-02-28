@@ -57,13 +57,13 @@
   transform: translateX(-50%);
   padding: 14rpx 26rpx;
   border-radius: 999rpx;
-  border: 1rpx solid rgba(152, 122, 255, 0.42);
+  border: 1rpx solid rgba(152, 122, 255, 0.58);
   background: linear-gradient(
     135deg,
-    rgba(248, 215, 255, 0.82) 0%,
-    rgba(208, 234, 255, 0.8) 34%,
-    rgba(214, 255, 236, 0.8) 68%,
-    rgba(255, 244, 206, 0.82) 100%
+    rgba(248, 215, 255, 0.94) 0%,
+    rgba(208, 234, 255, 0.92) 34%,
+    rgba(214, 255, 236, 0.92) 68%,
+    rgba(255, 244, 206, 0.94) 100%
   );
   box-shadow: 0 10rpx 24rpx rgba(111, 95, 165, 0.2);
   -webkit-backdrop-filter: blur(10rpx);

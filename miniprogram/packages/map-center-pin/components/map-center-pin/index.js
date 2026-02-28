@@ -1,4 +1,3 @@
-const LONGPRESS_DONE_STORAGE_KEY = "compass_center_pin_longpress_done_v1";
 const LONGPRESS_ACTION_ITEMS = [
   { id: "quickMark", label: "标记该处", icon: "/packages/map-center-pin/assets/quick-pin.png" },
   { id: "share", label: "分享位置", icon: "/packages/map-center-pin/assets/share-location.png" },
@@ -28,6 +27,11 @@ Component({
     followTipText: {
       type: String,
       value: "长按解除绑定状态~"
+    },
+    welcomeBubbleDismissToken: {
+      type: Number,
+      value: 0,
+      observer: "onWelcomeBubbleDismissTokenChange"
     }
   },
 
@@ -41,7 +45,8 @@ Component({
 
   lifetimes: {
     attached() {
-      this.tryShowWelcomeBubble();
+      this._lastWelcomeBubbleDismissToken = Number(this.properties.welcomeBubbleDismissToken) || 0;
+      this.showWelcomeBubble();
     },
 
     detached() {
@@ -56,22 +61,29 @@ Component({
     }
   },
 
-  methods: {
-    tryShowWelcomeBubble() {
-      let hasLongPressed = false;
-      try {
-        hasLongPressed = !!wx.getStorageSync(LONGPRESS_DONE_STORAGE_KEY);
-      } catch (err) {}
+  pageLifetimes: {
+    show() {
+      this.showWelcomeBubble();
+    }
+  },
 
-      if (hasLongPressed) return;
+  methods: {
+    showWelcomeBubble() {
+      if (this.data.showWelcomeBubble) return;
       this.setData({ showWelcomeBubble: true });
     },
 
-    markWelcomeBubbleDone() {
-      try {
-        wx.setStorageSync(LONGPRESS_DONE_STORAGE_KEY, 1);
-      } catch (err) {}
+    hideWelcomeBubble() {
+      if (!this.data.showWelcomeBubble) return;
       this.setData({ showWelcomeBubble: false });
+    },
+
+    onWelcomeBubbleDismissTokenChange(token) {
+      const currentToken = Number(token) || 0;
+      const previousToken = Number(this._lastWelcomeBubbleDismissToken) || 0;
+      this._lastWelcomeBubbleDismissToken = currentToken;
+      if (currentToken <= previousToken) return;
+      this.hideWelcomeBubble();
     },
 
     onTap() {
@@ -129,7 +141,7 @@ Component({
     onLongPress() {
       if (this.data.sheetVisible || this.data.sheetClosing) return;
       if (this.properties.followActive) {
-        this.markWelcomeBubbleDone();
+        this.hideWelcomeBubble();
         this.setData({ triggered: true });
         this.triggerLongPressHaptic();
         if (this._triggerTimer) {
@@ -142,7 +154,7 @@ Component({
         this.triggerEvent("longpress", { unbindFollow: true });
         return;
       }
-      this.markWelcomeBubbleDone();
+      this.hideWelcomeBubble();
       this.setData({
         triggered: true,
         sheetVisible: true
