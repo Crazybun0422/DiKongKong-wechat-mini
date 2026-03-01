@@ -4,11 +4,11 @@
   bindtap="onTap"
   bindlongpress="onLongPress"
 >
-  <view wx:if="{{followActive}}" class="center-pin-tip">
-    <text class="center-pin-tip-text">{{followTipText || '长按解除绑定状态~'}}</text>
+    <view wx:if="{{followActive}}" class="center-pin-tip">
+    <text class="center-pin-tip-text">{{followTipText || '\u957f\u6309\u89e3\u9664\u7ed1\u5b9a\u72b6\u6001~'}}</text>
   </view>
   <view wx:elif="{{showWelcomeBubble}}" class="center-pin-tip">
-    <text class="center-pin-tip-text">长按中心地标触发魔法~🔮</text>
+    <text class="center-pin-tip-text">长按中心地标触发魔法🔮~</text>
   </view>
 
   <image

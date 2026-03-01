@@ -3,7 +3,8 @@ const LONGPRESS_ACTION_ITEMS = [
   { id: "share", label: "分享位置", icon: "/packages/map-center-pin/assets/share-location.png" },
   { id: "navigate", label: "导航到此处", icon: "/packages/map-center-pin/assets/navigate.png" },
   { id: "askAgent", label: "问问智能体", icon: "/packages/map-center-pin/assets/ask-ai.png" },
-  { id: "bindMyLocation", label: "地标绑定", icon: "/packages/map-center-pin/assets/bind-my-location.png" }
+  { id: "bindMyLocation", label: "地标绑定", icon: "/packages/map-center-pin/assets/bind-my-location.png" },
+  { id: "afeiAdventure", label: "阿飞历险记", icon: "/packages/map-center-pin/assets/afei-adventure.png" }
 ];
 
 Component({
