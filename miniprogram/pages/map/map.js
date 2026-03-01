@@ -6128,6 +6128,10 @@ Page({
       );
       return;
     }
+    if (action === "afeiAdventure") {
+      wx.showToast({ title: "彩蛋游戏正在上线准备中~", icon: "none" });
+      return;
+    }
     if (action === "askAgent") {
       this.openPlanetQaAtCenter();
       return;
@@ -6135,6 +6139,9 @@ Page({
   },
 
   openPlanetQaAtCenter() {
+    wx.showToast({ title: "正在努力接入中~", icon: "none" });
+
+    /*
     if (!this.getAuthToken()) {
       wx.showToast({ title: "请先登录后再试", icon: "none" });
       return;
@@ -6187,6 +6194,7 @@ Page({
         clearTimeout(fallbackTimer);
         navigateOnce();
       });
+    */
   },
 
   openMyPinCreateAtCenter() {

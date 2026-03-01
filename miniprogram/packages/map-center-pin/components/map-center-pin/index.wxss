@@ -94,7 +94,7 @@
 .center-pin-sheet-mask {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.42);
+  background: rgba(15, 23, 42, 0.84);
   z-index: 130;
   pointer-events: auto;
 }
@@ -107,10 +107,10 @@
   z-index: 131;
   background: linear-gradient(
     140deg,
-    #ffe8f4 0%,
-    #e6f3ff 34%,
-    #e9ffef 68%,
-    #fff2d9 100%
+    #f3d4e4 0%,
+    #d7e6f6 34%,
+    #d9efdd 68%,
+    #f0e1c3 100%
   );
   border-top-left-radius: 32rpx;
   border-top-right-radius: 32rpx;
@@ -136,13 +136,14 @@
 
 .center-pin-magic-fly-body {
   position: absolute;
-  left: 20rpx;
+  left: 50%;
+  margin-left: -64rpx;
   top: 6rpx;
   width: 128rpx;
   height: 128rpx;
   opacity: 0;
   transform: translate3d(0, 8rpx, 0) rotate(-10deg) scale(0.88);
-  animation: center-pin-magic-path 1650ms cubic-bezier(0.22, 1, 0.36, 1) 150ms 1 forwards;
+  animation: center-pin-magic-path 3600ms cubic-bezier(0.22, 1, 0.36, 1) 150ms 1 forwards;
 }
 
 .center-pin-magic-fly-icon {
@@ -151,29 +152,31 @@
   top: 0;
   width: 128rpx;
   height: 128rpx;
+  z-index: 1;
   transform-origin: center;
-  animation: center-pin-magic-breathe 1200ms ease-in-out 150ms 1 both;
+  animation: center-pin-magic-breathe 1500ms ease-in-out 150ms 1 both;
 }
 
 .center-pin-magic-fly-bubble {
   position: absolute;
-  left: -7rpx;
-  top: -7rpx;
-  width: 142rpx;
-  height: 142rpx;
+  left: 50%;
+  top: 50%;
+  width: 146rpx;
+  height: 146rpx;
   border-radius: 999rpx;
-  border: 2rpx solid rgba(255, 255, 255, 0.72);
+  border: 2rpx solid rgba(255, 255, 255, 0.9);
   background: radial-gradient(
     circle at 30% 28%,
-    rgba(255, 255, 255, 0.52) 0%,
-    rgba(255, 255, 255, 0.24) 42%,
-    rgba(255, 255, 255, 0.12) 70%,
-    rgba(255, 255, 255, 0.06) 100%
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.38) 42%,
+    rgba(255, 255, 255, 0.22) 70%,
+    rgba(255, 255, 255, 0.12) 100%
   );
-  box-shadow: 0 0 0 2rpx rgba(140, 220, 255, 0.18), 0 12rpx 28rpx rgba(96, 130, 196, 0.24);
+  box-shadow: 0 0 0 2rpx rgba(140, 220, 255, 0.32), 0 12rpx 28rpx rgba(96, 130, 196, 0.34);
   opacity: 0;
-  transform: scale(0.72);
-  animation: center-pin-magic-bubble 1650ms ease 150ms 1 forwards;
+  z-index: 2;
+  transform: translate(-50%, -50%) scale(0.62);
+  animation: center-pin-magic-bubble 3600ms ease 150ms 1 forwards;
 }
 
 .center-pin-sheet.is-open {
@@ -345,11 +348,11 @@
     opacity: 0;
     transform: translate3d(0, 8rpx, 0) rotate(-10deg) scale(0.88);
   }
-  10% {
+  8% {
     opacity: 1;
     transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
   }
-  72% {
+  42% {
     opacity: 1;
     transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
   }
@@ -382,20 +385,28 @@
 
 @keyframes center-pin-magic-bubble {
   0%,
-  56% {
+  12% {
     opacity: 0;
-    transform: scale(0.72);
+    transform: translate(-50%, -50%) scale(0.62);
   }
-  64% {
-    opacity: 0.84;
-    transform: scale(1);
+  28% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(0.82);
   }
-  72% {
-    opacity: 0.68;
-    transform: scale(1.04);
+  44% {
+    opacity: 0.62;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  60% {
+    opacity: 0.94;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+  76% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.06);
   }
   100% {
     opacity: 0;
-    transform: scale(0.78);
+    transform: translate(-50%, -50%) scale(0.82);
   }
 }
