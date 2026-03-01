@@ -1,0 +1,204 @@
+page {
+  height: 100%;
+  background: #77b5ff;
+}
+
+.planet-qa-page {
+  min-height: 100vh;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 10%, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 28%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 32%),
+    linear-gradient(180deg, #5f9fff 0%, #3f87ff 38%, #86b9ff 72%, #dcecff 100%);
+}
+
+.planet-qa-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 26rpx 20rpx calc(env(safe-area-inset-bottom) + 210rpx);
+  box-sizing: border-box;
+}
+
+.planet-qa-empty {
+  margin: 180rpx auto 0;
+  width: 76%;
+  padding: 24rpx 20rpx;
+  border-radius: 16rpx;
+  text-align: center;
+  color: #1a3f84;
+  font-size: 26rpx;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1rpx solid rgba(255, 255, 255, 0.5);
+}
+
+.planet-qa-item + .planet-qa-item {
+  margin-top: 26rpx;
+}
+
+.planet-qa-question-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.planet-qa-question-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10rpx;
+  margin-bottom: 10rpx;
+}
+
+.planet-qa-user-avatar {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.85);
+  background: #ffffff;
+}
+
+.planet-qa-user-name {
+  font-size: 22rpx;
+  color: #ffffff;
+  font-weight: 600;
+  text-shadow: 0 2rpx 6rpx rgba(28, 61, 125, 0.35);
+}
+
+.planet-qa-question-bubble {
+  max-width: 72%;
+  padding: 14rpx 16rpx;
+  margin-right: 50rpx;
+  border-radius: 24rpx 10rpx 30rpx 18rpx;
+  background: #95ec69;
+  border: 1rpx solid rgba(82, 184, 46, 0.45);
+  box-shadow: 0 8rpx 20rpx rgba(57, 128, 33, 0.2);
+}
+
+.planet-qa-question-text {
+  font-size: 24rpx;
+  line-height: 1.45;
+  color: #1f3f74;
+  word-break: break-all;
+}
+
+.planet-qa-answer-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 22rpx;
+}
+
+.planet-qa-answer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10rpx;
+  margin-bottom: 10rpx;
+}
+
+.planet-qa-agent-logo {
+  width: 56rpx;
+  height: 56rpx;
+}
+
+.planet-qa-agent-name {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2rpx 6rpx rgba(28, 61, 125, 0.35);
+}
+
+.planet-qa-agent-timer {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 2rpx 6rpx rgba(28, 61, 125, 0.35);
+}
+
+.planet-qa-answer {
+  max-width: 78%;
+  margin-left: 50rpx;
+  border-radius: 10rpx 22rpx 24rpx 30rpx;
+  background: linear-gradient(140deg, #ffffff 0%, #eef6ff 100%);
+  border: 1rpx solid rgba(91, 129, 205, 0.28);
+  box-shadow: 0 10rpx 28rpx rgba(53, 92, 166, 0.12);
+  padding: 16rpx 18rpx;
+}
+
+.planet-qa-answer.is-loading {
+  opacity: 0.86;
+}
+
+.planet-qa-answer-text {
+  font-size: 24rpx;
+  line-height: 1.56;
+  color: #142b54;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.planet-qa-input-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  padding: 14rpx 18rpx calc(env(safe-area-inset-bottom) + 16rpx);
+  background: #ffffff;
+  border-top-left-radius: 24rpx;
+  border-top-right-radius: 24rpx;
+  box-shadow: 0 -10rpx 24rpx rgba(36, 82, 165, 0.12);
+}
+
+.planet-qa-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.planet-qa-input {
+  flex: 1;
+  min-height: 76rpx;
+  padding: 0 18rpx;
+  border-radius: 12rpx;
+  background: #f6f9ff;
+  border: 1rpx solid rgba(84, 126, 203, 0.25);
+  font-size: 24rpx;
+  color: #2a4370;
+  box-sizing: border-box;
+}
+
+.planet-qa-send {
+  width: 88rpx !important;
+  height: 88rpx;
+  border-radius: 10rpx;
+  background: #2f6fff;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.planet-qa-send::after {
+  border: none;
+}
+
+.planet-qa-send[disabled],
+.planet-qa-send.is-disabled {
+  background: #b7c8e9;
+  color: #f4f7ff;
+  opacity: 1;
+}
+
+.planet-qa-followup-tip {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #6a7ea6;
+  line-height: 1.4;
+}

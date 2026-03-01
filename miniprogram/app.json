@@ -78,7 +78,8 @@
     {
       "root": "packages/map-center-pin",
       "pages": [
-        "placeholder/index"
+        "placeholder/index",
+        "planet-qa/index"
       ]
     },
     {

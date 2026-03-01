@@ -124,6 +124,58 @@
   pointer-events: auto;
 }
 
+.center-pin-magic-fly {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -156rpx;
+  height: 142rpx;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.center-pin-magic-fly-body {
+  position: absolute;
+  left: 20rpx;
+  top: 6rpx;
+  width: 128rpx;
+  height: 128rpx;
+  opacity: 0;
+  transform: translate3d(0, 8rpx, 0) rotate(-10deg) scale(0.88);
+  animation: center-pin-magic-path 1650ms cubic-bezier(0.22, 1, 0.36, 1) 150ms 1 forwards;
+}
+
+.center-pin-magic-fly-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 128rpx;
+  height: 128rpx;
+  transform-origin: center;
+  animation: center-pin-magic-breathe 1200ms ease-in-out 150ms 1 both;
+}
+
+.center-pin-magic-fly-bubble {
+  position: absolute;
+  left: -7rpx;
+  top: -7rpx;
+  width: 142rpx;
+  height: 142rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.72);
+  background: radial-gradient(
+    circle at 30% 28%,
+    rgba(255, 255, 255, 0.52) 0%,
+    rgba(255, 255, 255, 0.24) 42%,
+    rgba(255, 255, 255, 0.12) 70%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  box-shadow: 0 0 0 2rpx rgba(140, 220, 255, 0.18), 0 12rpx 28rpx rgba(96, 130, 196, 0.24);
+  opacity: 0;
+  transform: scale(0.72);
+  animation: center-pin-magic-bubble 1650ms ease 150ms 1 forwards;
+}
+
 .center-pin-sheet.is-open {
   animation: center-pin-sheet-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -285,5 +337,65 @@
   }
   50% {
     transform: translateX(-50%) translateY(-4rpx);
+  }
+}
+
+@keyframes center-pin-magic-path {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8rpx, 0) rotate(-10deg) scale(0.88);
+  }
+  10% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(-6deg) scale(1);
+  }
+  100% {
+    transform: translate3d(128vw, -18rpx, 0) rotate(10deg) scale(0.92);
+    opacity: 0;
+  }
+}
+
+@keyframes center-pin-magic-breathe {
+  0% {
+    transform: scale(0.95);
+  }
+  20% {
+    transform: scale(1.04);
+  }
+  40% {
+    transform: scale(0.98);
+  }
+  65% {
+    transform: scale(1.08);
+  }
+  85% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes center-pin-magic-bubble {
+  0%,
+  56% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  64% {
+    opacity: 0.84;
+    transform: scale(1);
+  }
+  72% {
+    opacity: 0.68;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.78);
   }
 }

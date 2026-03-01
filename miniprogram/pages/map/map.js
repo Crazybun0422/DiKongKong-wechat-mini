@@ -6126,7 +6126,67 @@ Page({
           locationText: ""
         }
       );
+      return;
     }
+    if (action === "askAgent") {
+      this.openPlanetQaAtCenter();
+      return;
+    }
+  },
+
+  openPlanetQaAtCenter() {
+    if (!this.getAuthToken()) {
+      wx.showToast({ title: "请先登录后再试", icon: "none" });
+      return;
+    }
+    const center = this._centerOverride || this.data.center;
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      wx.showToast({ title: "暂无定位信息", icon: "none" });
+      return;
+    }
+    const latitude = Number(center.latitude);
+    const longitude = Number(center.longitude);
+    const fallbackAddress =
+      `${this.data.centerPinTitle || ""}`.trim() || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const payload = {
+      latitude,
+      longitude,
+      address: fallbackAddress
+    };
+
+    let navigated = false;
+    const navigateOnce = () => {
+      if (navigated) return;
+      navigated = true;
+      const query = [
+        `address=${encodeURIComponent(payload.address || "")}`,
+        `lat=${encodeURIComponent(`${payload.latitude}`)}`,
+        `lng=${encodeURIComponent(`${payload.longitude}`)}`
+      ].join("&");
+      wx.navigateTo({
+        url: `/packages/map-center-pin/planet-qa/index?${query}`,
+        fail: (err) => {
+          console.warn("navigate to planet qa failed", err);
+          wx.showToast({ title: "暂时无法打开问答页面", icon: "none" });
+        }
+      });
+    };
+
+    const fallbackTimer = setTimeout(navigateOnce, 1200);
+    this.requestPinAddress(latitude, longitude)
+      .then((address) => {
+        const resolved = `${address || ""}`.trim();
+        if (resolved) {
+          payload.address = resolved;
+        }
+      })
+      .catch((err) => {
+        console.warn("resolve center address for planet qa failed", err);
+      })
+      .finally(() => {
+        clearTimeout(fallbackTimer);
+        navigateOnce();
+      });
   },
 
   openMyPinCreateAtCenter() {

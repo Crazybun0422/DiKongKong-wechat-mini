@@ -22,6 +22,16 @@
 <block wx:if="{{sheetVisible}}">
   <view class="center-pin-sheet-mask" bindtap="onMaskTap"></view>
   <view class="center-pin-sheet {{sheetClosing ? 'is-closing' : 'is-open'}}" catchtap="onSheetTap" catchtouchmove="noop">
+    <view class="center-pin-magic-fly">
+      <view class="center-pin-magic-fly-body">
+        <view class="center-pin-magic-fly-bubble"></view>
+        <image
+          class="center-pin-magic-fly-icon"
+          src="/packages/map-center-pin/assets/magic.png"
+          mode="aspectFit"
+        />
+      </view>
+    </view>
     <view class="center-pin-sheet-handle"></view>
     <view class="center-pin-sheet-actions">
       <block wx:for="{{actionItems}}" wx:key="id">
