@@ -13,6 +13,27 @@ const {
   getShareInviteCode
 } = require("../../../utils/share");
 
+const RIGHTS_ITEMS = [
+  {
+    id: "ad-free",
+    icon: "/pages/profile/assets/advertise.png",
+    title: "免开屏广告",
+    description: "FLP>2"
+  },
+  {
+    id: "merchant",
+    icon: "/pages/profile/assets/enter.png",
+    title: "商户入驻",
+    description: "可FLP抵扣"
+  },
+  {
+    id: "exhibit",
+    icon: "/pages/profile/assets/flp-exb.png",
+    title: "低空展示位",
+    description: "即将上线"
+  }
+];
+
 const BENEFIT_ITEMS = [
   {
     id: "invite",
@@ -23,33 +44,20 @@ const BENEFIT_ITEMS = [
     actionText: "分享"
   },
   {
-    id: "settlement",
-    title: "空域图入驻",
-    description: "将低空服务标记在空域图",
+    id: "checkin",
+    title: "签到/连签抽奖",
+    description: "每日领，周日再抽大奖",
+    type: "link",
+    action: "checkin",
+    actionText: "立刻签到"
+  },
+  {
+    id: "map-building",
+    title: "地图共建",
+    description: "创作标记并共享到地图",
     type: "link",
     action: "create-marker",
-    actionText: "前往"
-  },
-  {
-    id: "gallery",
-    title: "低空线上展馆",
-    description: "仅480个抢到不经营可转让",
-    type: "tag",
-    badge: "V2.0上线"
-  },
-  {
-    id: "market",
-    title: "供需大厅",
-    description: "用过都说好的低空供需撮合平台",
-    type: "tag",
-    badge: "V2.0上线"
-  },
-  {
-    id: "mall",
-    title: "兑换商城",
-    description: "你懂的。",
-    type: "tag",
-    badge: "V3.0上线"
+    actionText: "前往标记"
   }
 ];
 
@@ -71,6 +79,7 @@ Page({
   data: {
     balance: DEFAULT_BALANCE_DISPLAY,
     detailIcon: "/assets/detais.png",
+    rights: RIGHTS_ITEMS,
     benefits: BENEFIT_ITEMS,
     showInviteGuideFlp: false,
     inviteGuideOverlayStyle: "",
@@ -146,6 +155,10 @@ Page({
       this.navigateToMarkerCreation();
       return;
     }
+    if (action === "checkin") {
+      this.navigateToCheckinPage();
+      return;
+    }
     if (action === "invite") {
       const app = typeof getApp === "function" ? getApp() : null;
       if (app && app.globalData && app.globalData.inviteGuide?.active) {
@@ -172,6 +185,14 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/profile/flp/invite/index" });
+  },
+
+  navigateToCheckinPage() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/checkin/index" });
   },
 
   applyStoredBalance() {

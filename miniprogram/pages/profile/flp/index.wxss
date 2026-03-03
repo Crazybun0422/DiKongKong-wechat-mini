@@ -69,38 +69,89 @@
 .flp-benefits-card {
   width: 100%;
   max-width: 660rpx;
-  background: rgba(255, 255, 255, 0.94);
-  border-radius: 40rpx;
-  padding: 24rpx 0;
-  box-shadow: 0 18rpx 60rpx rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(8rpx);
+  background: #ffffff;
+  border-radius: 34rpx;
+  padding: 0;
+  box-shadow: 0 14rpx 40rpx rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.flp-rights-section {
+  padding: 34rpx 30rpx 46rpx;
+}
+
+.flp-rights-title {
+  display: block;
+  font-size: 26rpx;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 28rpx;
+}
+
+.flp-rights-list {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+.flp-right-item {
+  flex: 0 0 25%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.flp-right-item--placeholder {
+  visibility: hidden;
+}
+
+.flp-right-icon {
+  width: 62rpx;
+  height: 62rpx;
+  margin-bottom: 14rpx;
+}
+
+.flp-right-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.flp-right-desc {
+  margin-top: 8rpx;
+  font-size: 20rpx;
+  color: #6b7280;
+  line-height: 1.25;
 }
 
 .flp-benefit-item {
   display: flex;
   align-items: center;
-  padding: 32rpx 48rpx;
+  padding: 34rpx 34rpx;
   gap: 24rpx;
 }
 
 .flp-benefit-item + .flp-benefit-item {
-  border-top: 1px solid rgba(17, 24, 39, 0.04);
+  border-top: 1px solid rgba(17, 24, 39, 0.06);
 }
 
 .flp-benefit-info {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 10rpx;
   flex: 1;
-  min-width: 400rpx;
+  min-width: 0;
 }
 
 .flp-benefit-action {
-  /* flex: 0 0 auto; */
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-width: 60rpx;
+  flex: 0 0 auto;
 }
 
 .flp-benefit-title {
@@ -111,12 +162,12 @@
 
 .flp-benefit-desc {
   font-size: 26rpx;
-  color: #6b7280;
+  color: #7b8088;
 }
 
 .flp-action-btn {
-  margin-left: 32rpx;
-  padding: 10rpx 32rpx;
+  margin-left: 16rpx;
+  padding: 10rpx 14rpx;
   font-size: 24rpx;
   color: #ffffff;
   background: linear-gradient(135deg, #000000 0%, #3a3939 100%);
@@ -125,17 +176,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: auto;
-  min-width: 0;
+  width: 164rpx !important;
+  min-width: 164rpx !important;
+  max-width: 164rpx;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .flp-action-btn::after {
   display: none;
-}
-
-.flp-benefit-tag {
-  font-size: 26rpx;
-  color: #1f2937;
 }
 
 .flp-help-container {
@@ -202,5 +251,19 @@
 
   .flp-balance-value {
     justify-content: center;
+  }
+
+  .flp-benefit-item {
+    padding: 32rpx 28rpx;
+    gap: 18rpx;
+  }
+
+  .flp-action-btn {
+    margin-left: 12rpx;
+    padding: 8rpx 12rpx;
+    font-size: 24rpx;
+    width: 156rpx !important;
+    min-width: 156rpx !important;
+    max-width: 156rpx;
   }
 }
