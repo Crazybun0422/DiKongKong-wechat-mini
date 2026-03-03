@@ -149,6 +149,31 @@ Page({
     };
   },
 
+  onRightItemTap(event) {
+    const rightId = `${event?.currentTarget?.dataset?.rightId || ""}`.trim();
+    if (!rightId) return;
+    if (rightId === "ad-free") {
+      this.handleAdFreePrivilegeHint();
+      return;
+    }
+    if (rightId === "merchant") {
+      this.navigateToMarkersCenterTab("MERCHANT");
+      return;
+    }
+    if (rightId === "exhibit") {
+      wx.showToast({ title: "即将上线", icon: "none" });
+    }
+  },
+
+  handleAdFreePrivilegeHint() {
+    const balance = Number(this.data.balance);
+    const hasPrivilege = Number.isFinite(balance) && balance >= 2;
+    wx.showToast({
+      title: hasPrivilege ? "您已获得免开屏广告特权" : "暂未获得免开屏广告特权",
+      icon: "none"
+    });
+  },
+
   onBenefitActionTap(event) {
     const action = event?.currentTarget?.dataset?.action;
     if (action === "create-marker") {
@@ -172,11 +197,7 @@ Page({
   },
 
   navigateToMarkerCreation() {
-    if (typeof wx.navigateTo !== "function") {
-      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
-      return;
-    }
-    wx.navigateTo({ url: "/pages/markers/index" });
+    this.navigateToMarkersCenterTab("MY_MARKERS");
   },
 
   navigateToInvitePage() {
@@ -193,6 +214,22 @@ Page({
       return;
     }
     wx.navigateTo({ url: "/pages/profile/checkin/index" });
+  },
+
+  navigateToMarkersCenterTab(tabId = "MERCHANT") {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      if (app && app.globalData) {
+        app.globalData.targetMarkersCenterTab = tabId;
+      }
+    } catch (err) {
+      console.warn("set targetMarkersCenterTab failed", err);
+    }
+    wx.navigateTo({ url: "/pages/markers/index" });
   },
 
   applyStoredBalance() {

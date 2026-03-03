@@ -213,8 +213,14 @@
   padding: 8rpx 6rpx 4rpx;
   border-radius: 20rpx;
   background: transparent;
-  border: 1rpx dashed #000000;
+  border: 1rpx solid #000000;
   box-sizing: border-box;
+}
+
+.center-pin-action-item.is-preparing {
+  animation: center-pin-action-breathe 1500ms ease-in-out infinite;
+  border-color: rgba(75, 85, 99, 0.45);
+  box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.16);
 }
 
 .center-pin-action-item--share {
@@ -247,13 +253,44 @@
   display: block;
 }
 
-.center-pin-action-label {
+.center-pin-action-text-wrap {
   margin-top: 10rpx;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.center-pin-action-label {
+  margin-top: 0;
   font-size: 26rpx;
   line-height: 1.3;
   font-weight: 600;
   color: #0f172a;
   text-align: center;
+}
+
+.center-pin-action-progress {
+  margin-top: 8rpx;
+  width: 100%;
+  height: 6rpx;
+  border-radius: 999rpx;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.3);
+}
+
+.center-pin-action-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    #ff7a18 0%,
+    #f9d423 20%,
+    #52e5e7 45%,
+    #b490ca 70%,
+    #5ee7df 100%
+  );
+  background-size: 220% 100%;
+  animation: center-pin-progress-flow 1100ms linear infinite;
 }
 
 .center-pin-guide-section {
@@ -408,5 +445,24 @@
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.82);
+  }
+}
+
+@keyframes center-pin-action-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes center-pin-progress-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
   }
 }

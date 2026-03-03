@@ -19,14 +19,22 @@
       enable-zoom="{{!mapBlockerVisible}}"
       enable-rotate="{{!mapBlockerVisible}}"
       enable-overlooking="{{!mapBlockerVisible}}"
-      show-location="true"
+      show-location="{{false}}"
       markers="{{markers}}"
+      polyline="{{polylines}}"
       polygons="{{polygons}}"
       circles="{{circles}}"
       bindregionchange="onRegionChange"
       bindupdated="onMapUpdated"
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
+    />
+    <map-search-link
+      center="{{searchLinkCenter}}"
+      target="{{searchLinkTarget}}"
+      visible="{{searchLinkVisible}}"
+      satellite="{{mapLayerType === 'satellite'}}"
+      bind:graphicschange="onSearchLinkGraphicsChange"
     />
     <map-center-pin
       wx:if="{{!markerDetailVisible && !markerPageVisible}}"

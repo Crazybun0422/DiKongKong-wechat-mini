@@ -222,6 +222,212 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/easter-egg-resource:
+    get:
+      summary: 获取彩蛋游戏资源包信息
+      description: 管理员和普通用户均可调用，返回当前彩蛋游戏资源包文件名与版本号。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEasterEggResourceConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 上传彩蛋游戏资源包
+      description: 仅管理员可调用，上传 zip 资源包并保存版本号。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - version
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 彩蛋游戏资源包 zip 文件。
+                version:
+                  type: string
+                  description: 资源包版本号。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEasterEggResourceConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/easter-egg-resource/latest/download:
+    get:
+      summary: 下载最新彩蛋游戏资源包（支持分段下载）
+      description: |
+        管理员和普通用户均可调用，下载当前最新版本的资源包文件（附件流）。
+
+        - 不带 `Range` 请求头时，返回完整文件（`200 OK`）。
+        - 带单段 `Range`（如 `bytes=0-1048575`）时，返回分段文件（`206 Partial Content`）。
+        - 当前仅支持**单段范围请求**；多段或非法范围返回 `416 Requested Range Not Satisfiable`。
+        - 若运行环境无法透传 `Range` 请求头，也可使用查询参数 `start/end`（闭区间）请求分段。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Range
+          required: false
+          schema:
+            type: string
+          description: |
+            可选的字节范围请求头。示例：
+            - `bytes=0-1048575`
+            - `bytes=1048576-`
+            - `bytes=-1024`
+        - in: query
+          name: start
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 分段下载起始字节（闭区间，需与 `end` 搭配或单独使用）。
+        - in: query
+          name: end
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 分段下载结束字节（闭区间，需与 `start` 搭配或单独使用）。
+      responses:
+        '200':
+          description: 返回完整文件流。
+          headers:
+            Accept-Ranges:
+              description: 服务端支持字节范围请求。
+              schema:
+                type: string
+                example: bytes
+            Content-Disposition:
+              description: 附件下载文件名。
+              schema:
+                type: string
+            Content-Length:
+              description: 完整文件大小（字节）。
+              schema:
+                type: integer
+                format: int64
+            X-Total-Size:
+              description: 文件总大小（字节），用于客户端兜底获取总长度。
+              schema:
+                type: string
+                example: "8388608"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: 返回指定范围的文件分段。
+          headers:
+            Accept-Ranges:
+              description: 服务端支持字节范围请求。
+              schema:
+                type: string
+                example: bytes
+            Content-Range:
+              description: 当前返回分段的范围与总大小。
+              schema:
+                type: string
+                example: bytes 0-1048575/8388608
+            Content-Disposition:
+              description: 附件下载文件名。
+              schema:
+                type: string
+            Content-Length:
+              description: 当前分段大小（字节）。
+              schema:
+                type: integer
+                format: int64
+            X-Total-Size:
+              description: 文件总大小（字节），用于客户端兜底获取总长度。
+              schema:
+                type: string
+                example: "8388608"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '416':
+          description: 请求的 Range 不可满足（非法范围或多段范围）。
+          headers:
+            Content-Range:
+              description: 不可满足范围提示。
+              schema:
+                type: string
+                example: bytes */*
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
   /api/config/invite-guide:
     get:
       summary: 获取邀请攻略文案
@@ -265,6 +471,135 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-no-ads-threshold:
+    get:
+      summary: 获取免播广告 FLP 阈值配置
+      description: 仅 ADMIN 角色管理员可调用，读取免播广告所需的最小 FLP 阈值。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpNoAdsThresholdResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新免播广告 FLP 阈值配置
+      description: 仅 ADMIN 角色管理员可调用，设置免播广告所需的最小 FLP 阈值（大于等于 0）。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlpNoAdsThresholdRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpNoAdsThresholdResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-no-ads-threshold/sync-now:
+    post:
+      summary: 立即执行免广告人群同步任务
+      description: 仅 ADMIN 角色管理员可调用，立即执行一次 WeData 免广告人群同步，并返回本次执行记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeDataCrowdSyncRecordResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-no-ads-threshold/last-crowd:
+    get:
+      summary: 获取上一次免广告人群记录
+      description: 仅 ADMIN 角色管理员可调用，返回最近一次免广告人群同步记录（系统仅保存这一条最新记录，含成员详情）。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeDataCrowdSyncRecordResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
           content:
             application/json:
               schema:
@@ -871,6 +1206,56 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/FontFileConfigResponse'
+    EasterEggResourceConfigResponse:
+      type: object
+      properties:
+        fileName:
+          type: string
+          description: 彩蛋游戏资源包在存储中的对象名称。
+        version:
+          type: string
+          description: 彩蛋游戏资源包版本号。
+    ApiResponseEasterEggResourceConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/EasterEggResourceConfigResponse'
+    EasterEggResourceDownloadProgressMessage:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: 单次下载请求标识。
+        status:
+          type: string
+          description: 下载状态（STARTED/COMPLETED/FAILED）。
+        progressPercent:
+          type: integer
+          format: int32
+          description: 下载进度百分比。
+        version:
+          type: string
+          nullable: true
+          description: 当前下载资源包版本号。
+        fileName:
+          type: string
+          nullable: true
+          description: 当前下载资源包文件名。
+        message:
+          type: string
+          nullable: true
+          description: 补充说明。
+        timestamp:
+          type: integer
+          format: int64
+          description: 服务端消息时间戳（毫秒）。
+
     InviteGuideRequest:
       type: object
       required:
@@ -899,6 +1284,130 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/InviteGuideResponse'
+    FlpNoAdsThresholdRequest:
+      type: object
+      required:
+        - threshold
+      properties:
+        threshold:
+          type: number
+          format: double
+          description: 免播广告所需的 FLP 最小阈值，包含边界。
+    FlpNoAdsThresholdResponse:
+      type: object
+      properties:
+        threshold:
+          type: number
+          format: double
+          description: 免播广告所需的 FLP 最小阈值，包含边界。
+    ApiResponseFlpNoAdsThresholdResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/FlpNoAdsThresholdResponse'
+    WeDataCrowdSyncMemberResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 用户 ID。
+        username:
+          type: string
+          nullable: true
+          description: 用户名。
+        featureCode:
+          type: string
+          nullable: true
+          description: 用户 featureCode。
+        openid:
+          type: string
+          description: 微信 openid。
+        email:
+          type: string
+          nullable: true
+          description: 用户邮箱。
+        phone:
+          type: string
+          nullable: true
+          description: 用户手机号。
+        avatarUrl:
+          type: string
+          nullable: true
+          description: 用户头像 URL。
+        status:
+          type: string
+          nullable: true
+          description: 用户状态。
+        userCreatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 用户注册时间。
+        flpBalance:
+          type: number
+          format: double
+          nullable: true
+          description: 用户当前 FLP 余额。
+    WeDataCrowdSyncRecordResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Mongo 记录 ID。
+        executedAt:
+          type: string
+          format: date-time
+          description: 执行时间。
+        threshold:
+          type: number
+          format: double
+          description: 本次执行使用的 FLP 阈值。
+        crowdName:
+          type: string
+          description: 本次创建的人群名称。
+        mediaId:
+          type: string
+          nullable: true
+          description: 上传文件返回的 media_id。
+        crowdId:
+          type: string
+          nullable: true
+          description: 创建人群返回的 crowd_id。
+        status:
+          type: string
+          description: 执行状态（SUCCESS/FAILED/SKIPPED_EMPTY）。
+        errorMessage:
+          type: string
+          nullable: true
+          description: 失败错误信息。
+        totalOpenidCount:
+          type: integer
+          format: int32
+          description: 本次符合条件的 openid 数量。
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeDataCrowdSyncMemberResponse'
+          description: 本次免广告人群成员明细。
+    ApiResponseWeDataCrowdSyncRecordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeDataCrowdSyncRecordResponse'
     FlpRewardHelpRequest:
       type: object
       required:

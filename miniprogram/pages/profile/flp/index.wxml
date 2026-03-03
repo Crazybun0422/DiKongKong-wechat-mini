@@ -21,7 +21,7 @@
           <text class="flp-rights-title">可享权益</text>
           <view class="flp-rights-list">
             <block wx:for="{{rights}}" wx:key="id">
-              <view class="flp-right-item">
+              <view class="flp-right-item" data-right-id="{{item.id}}" bindtap="onRightItemTap">
                 <image class="flp-right-icon" src="{{item.icon}}" mode="aspectFit" />
                 <text class="flp-right-title">{{item.title}}</text>
                 <text class="flp-right-desc">{{item.description}}</text>

@@ -47,9 +47,19 @@
             hover-class="none"
           ></button>
         </view>
-        <view wx:else class="center-pin-action-item" data-action="{{item.id}}" bindtap="onActionTap">
+        <view
+          wx:else
+          class="center-pin-action-item {{item.id === 'afeiAdventure' && afeiPreparing ? 'is-preparing' : ''}}"
+          data-action="{{item.id}}"
+          bindtap="onActionTap"
+        >
           <image class="center-pin-action-icon" src="{{item.icon}}" mode="aspectFit" />
-          <text class="center-pin-action-label">{{item.label}}</text>
+          <view class="center-pin-action-text-wrap">
+            <text class="center-pin-action-label">{{item.label}}</text>
+            <view wx:if="{{item.id === 'afeiAdventure' && afeiPreparing}}" class="center-pin-action-progress">
+              <view class="center-pin-action-progress-fill" style="width: {{afeiProgressPercent}}%;"></view>
+            </view>
+          </view>
         </view>
       </block>
     </view>

@@ -101,6 +101,10 @@ const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
 const CSS_PIXELS_PER_CM = 96 / 2.54;
 const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
+const MY_LOCATION_MARKER_ID = 991001;
+const MY_LOCATION_MARKER_ICON_PATH = "/assets/location2.png";
+const MY_LOCATION_MARKER_SIZE = 40;
+const MY_LOCATION_DIRECTION_THRESHOLD = 1;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const MIN_CENTER_SYNC_METERS = 6;
 const CENTER_SHARE_LOCK_DURATION_MS = 10000;
@@ -987,6 +991,7 @@ Page({
     statusBarHeight: 0,
     centerPinOffsetPx: 0,
     markers: [],
+    polylines: [],
     polygons: [],
     circles: [],
     droneNames: [],
@@ -1027,6 +1032,11 @@ Page({
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
+    myLocationPoint: null,
+    myLocationVisible: false,
+    searchLinkCenter: DEFAULT_CENTER,
+    searchLinkTarget: null,
+    searchLinkVisible: false,
     cityReportCenter: null,
     cityReportDialogVisible: false,
     cityReportDialogText: "",
@@ -1306,6 +1316,9 @@ Page({
     this._pendingRegionUpdates = 0;
     this._mapSkew = 0;
     this._mapRotate = 0;
+    this._myLocationDirection = null;
+    this._onMyLocationCompassChange = null;
+    this._myLocationDirectionTracking = false;
     this._overlookSyncAvoidUntil = 0;
     this._centerOverride = this.data.center;
     this._layerPanelCloseTimer = null;
@@ -1359,6 +1372,8 @@ Page({
     this._nearbyPinPolygons = [];
     this._nearbyPinCircles = [];
     this._searchMarkers = [];
+    this._searchLinkMarkers = [];
+    this._searchLinkPolylines = [];
     this._lastMarkerDetail = null;
     this._markerDetailCloseTimer = null;
     this._markerPageCloseTimer = null;
@@ -1374,6 +1389,10 @@ Page({
     this._previewMarker = null;
     this._previewPinId = null;
     this._lastKnownLocation = null;
+    this._myLocationMarkers = [];
+    this._myLocationCircles = [];
+    this._mapGraphicsSyncTimer = null;
+    this._pendingMapGraphicsSync = null;
     this._centerPinFollowActive = false;
     this._centerPinFollowPaused = false;
     this._centerPinFollowTimer = null;
@@ -1713,6 +1732,113 @@ Page({
     if (!Array.isArray(list)) return list;
     list.forEach((marker) => this.normalizeMapMarkerId(marker));
     return list;
+  },
+
+  buildMyLocationMarker(point = {}) {
+    const latitude = Number(point?.latitude);
+    const longitude = Number(point?.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) return null;
+    const rotate = this.normalizeCompassDirection(this._myLocationDirection);
+    return {
+      id: MY_LOCATION_MARKER_ID,
+      latitude,
+      longitude,
+      iconPath: MY_LOCATION_MARKER_ICON_PATH,
+      width: MY_LOCATION_MARKER_SIZE,
+      height: MY_LOCATION_MARKER_SIZE,
+      alpha: 1,
+      zIndex: 1300,
+      rotate: Math.round(rotate || 0),
+      anchor: {
+        x: 0.5,
+        y: 0.5
+      },
+      extData: {
+        source: "my-location-map"
+      }
+    };
+  },
+
+  buildMyLocationCircles(point = {}) {
+    const latitude = Number(point?.latitude);
+    const longitude = Number(point?.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) return [];
+    const isSatellite = this.data.mapLayerType === "satellite";
+    const baseColor = isSatellite ? "rgba(125,211,252,0.92)" : "rgba(56,189,248,0.92)";
+    const baseFill = isSatellite ? "rgba(125,211,252,0.22)" : "rgba(56,189,248,0.22)";
+    const outerColor = isSatellite ? "rgba(103,232,249,0.52)" : "rgba(34,211,238,0.52)";
+    const outerFill = isSatellite ? "rgba(103,232,249,0.10)" : "rgba(34,211,238,0.10)";
+    return [
+      {
+        latitude,
+        longitude,
+        radius: 10,
+        color: baseColor,
+        fillColor: baseFill,
+        strokeWidth: 1
+      },
+      {
+        latitude,
+        longitude,
+        radius: 13,
+        color: outerColor,
+        fillColor: outerFill,
+        strokeWidth: 1
+      }
+    ];
+  },
+
+  refreshMyLocationGraphics(point = null) {
+    const latitude = Number(point?.latitude);
+    const longitude = Number(point?.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) {
+      const hadMarkers = Array.isArray(this._myLocationMarkers) && this._myLocationMarkers.length > 0;
+      const hadCircles = Array.isArray(this._myLocationCircles) && this._myLocationCircles.length > 0;
+      if (hadMarkers || hadCircles) {
+        this._myLocationMarkers = [];
+        this._myLocationCircles = [];
+        this.queueMapGraphicsSync({ markers: hadMarkers, overlay: hadCircles });
+      }
+      return;
+    }
+    const normalized = { latitude, longitude };
+    const marker = this.buildMyLocationMarker(normalized);
+    const circles = this.buildMyLocationCircles(normalized);
+    this._myLocationMarkers = marker ? [marker] : [];
+    const prevCircles = Array.isArray(this._myLocationCircles) ? this._myLocationCircles : [];
+    const circlesChanged = this.isMyLocationCirclesChanged(prevCircles, circles);
+    if (circlesChanged) {
+      this._myLocationCircles = circles;
+    }
+    this.queueMapGraphicsSync({ markers: true, overlay: circlesChanged });
+  },
+
+  setMyLocationControlPoint(point = null) {
+    const latitude = Number(point?.latitude);
+    const longitude = Number(point?.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) {
+      if (this.data.myLocationVisible || this.data.myLocationPoint) {
+        this.setData({
+          myLocationPoint: null,
+          myLocationVisible: false
+        });
+      }
+      this.refreshMyLocationGraphics(null);
+      return;
+    }
+    const normalized = { latitude, longitude };
+    const prev = this.data.myLocationPoint || {};
+    const changed =
+      !hasValidCoordinate(prev.latitude, prev.longitude) ||
+      Math.abs(Number(prev.latitude) - latitude) > 1e-8 ||
+      Math.abs(Number(prev.longitude) - longitude) > 1e-8;
+    if (changed || this.data.myLocationVisible !== true) {
+      this.setData({
+        myLocationPoint: normalized,
+        myLocationVisible: true
+      });
+    }
+    this.refreshMyLocationGraphics(normalized);
   },
 
   findMarkerById(markerId) {
@@ -4141,6 +4267,7 @@ Page({
 
   onShow() {
     applyMapStatusBarStyle();
+    this.startMyLocationDirectionTracking();
     this.refreshResponsiveLayout({ force: true });
     if (this.data.activeTab !== "home") {
       this.setData({
@@ -4186,9 +4313,73 @@ Page({
     this.refreshResponsiveLayout({ event, force: true });
   },
 
+  normalizeCompassDirection(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    let normalized = numeric % 360;
+    if (normalized < 0) normalized += 360;
+    return normalized;
+  },
+
+  startMyLocationDirectionTracking() {
+    if (this._myLocationDirectionTracking) return;
+    if (
+      typeof wx === "undefined" ||
+      typeof wx.startCompass !== "function" ||
+      typeof wx.onCompassChange !== "function"
+    ) {
+      return;
+    }
+    const onCompassChange = (res = {}) => {
+      const direction = this.normalizeCompassDirection(res.direction);
+      if (!Number.isFinite(direction)) return;
+      const prev = this.normalizeCompassDirection(this._myLocationDirection);
+      if (Number.isFinite(prev) && Math.abs(direction - prev) < MY_LOCATION_DIRECTION_THRESHOLD) {
+        return;
+      }
+      this._myLocationDirection = direction;
+      if (Array.isArray(this._myLocationMarkers) && this._myLocationMarkers.length > 0) {
+        const point = this.data.myLocationPoint || this._lastKnownLocation || null;
+        this.refreshMyLocationGraphics(point);
+      }
+    };
+    this._onMyLocationCompassChange = onCompassChange;
+    this._myLocationDirectionTracking = true;
+    wx.onCompassChange(onCompassChange);
+    wx.startCompass({
+      fail: (err) => {
+        console.warn("start compass fail", err);
+      }
+    });
+  },
+
+  stopMyLocationDirectionTracking() {
+    if (!this._myLocationDirectionTracking) return;
+    if (
+      typeof wx !== "undefined" &&
+      this._onMyLocationCompassChange &&
+      typeof wx.offCompassChange === "function"
+    ) {
+      wx.offCompassChange(this._onMyLocationCompassChange);
+    }
+    this._onMyLocationCompassChange = null;
+    this._myLocationDirectionTracking = false;
+    if (typeof wx !== "undefined" && typeof wx.stopCompass === "function") {
+      wx.stopCompass({
+        fail: () => {}
+      });
+    }
+  },
+
   onHide() {
+    this.stopMyLocationDirectionTracking();
     this.pauseCenterPinLocationFollow();
     this.clearPinPreview();
+    if (this._mapGraphicsSyncTimer) {
+      clearTimeout(this._mapGraphicsSyncTimer);
+      this._mapGraphicsSyncTimer = null;
+    }
+    this._pendingMapGraphicsSync = null;
   },
 
   noop() { },
@@ -4586,8 +4777,12 @@ Page({
 
 
   onUnload() {
+    this.stopMyLocationDirectionTracking();
     this.stopCenterPinLocationFollow({ toast: false });
     this.unregisterWindowResizeListener();
+    if (this._mapGraphicsSyncTimer) clearTimeout(this._mapGraphicsSyncTimer);
+    this._mapGraphicsSyncTimer = null;
+    this._pendingMapGraphicsSync = null;
     if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
     if (this._pendingCenterActionShareTimer) clearTimeout(this._pendingCenterActionShareTimer);
     if (this._centerShareLaunchLockTimer) clearTimeout(this._centerShareLaunchLockTimer);
@@ -4790,6 +4985,7 @@ Page({
           clearTimeout(this._suggestTimer);
           this._suggestTimer = null;
         }
+        this.clearSearchSelectionVisuals();
         this.setData({
           searchSuggestions: [],
           searchSuggestLoading: false,
@@ -5289,6 +5485,7 @@ Page({
       mapLayerType: nextType,
       enableSatellite
     }, () => {
+      this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
       this.persistMapLayerSettings();
     });
   },
@@ -5754,6 +5951,82 @@ Page({
     this.syncAllMarkers();
   },
 
+  clearSearchLinkOverlay() {
+    this._searchLinkMarkers = [];
+    this._searchLinkPolylines = [];
+    this.syncAllPolylines();
+    if (this.data.searchLinkTarget || this.data.searchLinkVisible) {
+      this.setData({
+        searchLinkTarget: null,
+        searchLinkVisible: false
+      });
+    }
+  },
+
+  clearSearchSelectionVisuals() {
+    this.clearSearchLinkOverlay();
+    this.applySearchMarkers([]);
+  },
+
+  onSearchLinkGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._searchLinkMarkers = Array.isArray(detail.markers) ? detail.markers : [];
+    this._searchLinkPolylines = Array.isArray(detail.polylines) ? detail.polylines : [];
+    this.queueMapGraphicsSync({ markers: true, polylines: true });
+  },
+
+  isMyLocationCirclesChanged(prev = [], next = []) {
+    if (!Array.isArray(prev) || !Array.isArray(next)) return true;
+    if (prev.length !== next.length) return true;
+    for (let i = 0; i < prev.length; i += 1) {
+      const a = prev[i] || {};
+      const b = next[i] || {};
+      if (
+        Number(a.latitude) !== Number(b.latitude) ||
+        Number(a.longitude) !== Number(b.longitude) ||
+        Number(a.radius) !== Number(b.radius) ||
+        Number(a.strokeWidth) !== Number(b.strokeWidth) ||
+        `${a.color || ""}` !== `${b.color || ""}` ||
+        `${a.fillColor || ""}` !== `${b.fillColor || ""}`
+      ) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  queueMapGraphicsSync(options = {}) {
+    const next = this._pendingMapGraphicsSync || {
+      markers: false,
+      polylines: false,
+      overlay: false
+    };
+    if (options.markers) next.markers = true;
+    if (options.polylines) next.polylines = true;
+    if (options.overlay) next.overlay = true;
+    this._pendingMapGraphicsSync = next;
+    if (this._mapGraphicsSyncTimer) return;
+    this._mapGraphicsSyncTimer = setTimeout(() => {
+      this._mapGraphicsSyncTimer = null;
+      const pending = this._pendingMapGraphicsSync || {};
+      this._pendingMapGraphicsSync = null;
+      if (pending.markers) {
+        this.syncAllMarkers();
+      }
+      if (pending.polylines) {
+        this.syncAllPolylines();
+      }
+      if (pending.overlay) {
+        this.updateOverlayGraphics();
+      }
+    }, 0);
+  },
+
+  syncAllPolylines() {
+    const polylines = Array.isArray(this._searchLinkPolylines) ? this._searchLinkPolylines : [];
+    this.setData({ polylines });
+  },
+
   syncAllMarkers() {
     const nearby =
       this.data.merchantMarkersEnabled !== false && Array.isArray(this._nearbyMarkers)
@@ -5761,16 +6034,20 @@ Page({
         : [];
     const pinMarkers = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const searchLink = Array.isArray(this._searchLinkMarkers) ? this._searchLinkMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
+    const myLocation = Array.isArray(this._myLocationMarkers) ? this._myLocationMarkers : [];
     const uom2 = Array.isArray(this._uom2Markers) ? this._uom2Markers : [];
     this.normalizeMapMarkerList(uom2);
     this.normalizeMapMarkerList(nearby);
     this.normalizeMapMarkerList(pinMarkers);
     this.normalizeMapMarkerList(search);
+    this.normalizeMapMarkerList(searchLink);
     this.normalizeMapMarkerList(manual);
     this.normalizeMapMarkerList(preview);
-    const combined = uom2.concat(manual, pinMarkers, nearby, search, preview);
+    this.normalizeMapMarkerList(myLocation);
+    const combined = uom2.concat(manual, pinMarkers, nearby, search, searchLink, preview, myLocation);
     this.setData({ markers: combined });
   },
 
@@ -5781,6 +6058,7 @@ Page({
         centerPinTitle: "",
         centerCoordinateLatText: "",
         centerCoordinateLngText: "",
+        searchLinkCenter: null,
         cityReportCenter: null
       });
       return;
@@ -5798,11 +6076,16 @@ Page({
     }
     const pin = this.findPinContainingPoint(center);
     const coord = formatCoordinateParts(displayLat, displayLng);
+    const normalizedCenter = {
+      latitude: Number(center.latitude),
+      longitude: Number(center.longitude)
+    };
     this.setData({
       centerPinTitle: pin ? pin.name || "" : "",
       centerCoordinateLngText: coord ? coord.lngText : "",
       centerCoordinateLatText: coord ? coord.latText : "",
-      cityReportCenter: center
+      searchLinkCenter: normalizedCenter,
+      cityReportCenter: normalizedCenter
     });
   },
 
@@ -6022,6 +6305,7 @@ Page({
         if (!hasValidCoordinate(latitude, longitude)) return;
         const point = { latitude, longitude };
         this._lastKnownLocation = point;
+        this.setMyLocationControlPoint(point);
         this.refreshMarkerPageDistance();
         this.centerOnPoint(point, this.data.scale, true);
       },
@@ -6130,7 +6414,6 @@ Page({
       return;
     }
     if (action === "afeiAdventure") {
-      wx.showToast({ title: "彩蛋游戏正在上线准备中~", icon: "none" });
       return;
     }
     if (action === "askAgent") {
@@ -6701,7 +6984,7 @@ Page({
     const keyword = this.data.keyword.trim();
     // When keyword is empty, clear search-only markers and suggestions
     if (!keyword) {
-      this.applySearchMarkers([]);
+      this.clearSearchSelectionVisuals();
       this.setData({
         searchSuggestions: [],
         searchSuggestLoading: false,
@@ -6709,6 +6992,7 @@ Page({
       });
       return;
     }
+    this.clearSearchLinkOverlay();
     wx.showLoading({ title: "Searching...", mask: true });
     let locationArgs = null;
     const center = this._centerOverride || this.data.center;
@@ -6944,48 +7228,7 @@ Page({
     const idx = Number(e.currentTarget.dataset.index);
     const suggestion = this.data.searchSuggestions?.[idx];
     if (!suggestion) return;
-    let marker = null;
-    if (suggestion.source === "marker" || suggestion.source === "pin") {
-      if (
-        Number.isFinite(suggestion.latitude) &&
-        Number.isFinite(suggestion.longitude)
-      ) {
-        this.setData({
-          keyword: suggestion.title,
-          searchSuggestions: [],
-          searchSuggestLoading: false,
-          searchSuggestError: ""
-        });
-        this.centerOnPoint(
-          { latitude: suggestion.latitude, longitude: suggestion.longitude },
-          15
-        );
-      }
-      return;
-    }
-    if (suggestion.source === "qqmap" && suggestion.rawPoi) {
-      marker = this.buildQqSearchMarker(suggestion.rawPoi, idx);
-    }
-    if (!marker) {
-      const { latitude, longitude } = suggestion;
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-      marker = {
-        id: Date.now(),
-        latitude,
-        longitude,
-        title: suggestion.title,
-        width: 24,
-        height: 24
-      };
-      if (suggestion.address) {
-        marker.callout = {
-          content: `${suggestion.title}\n${suggestion.address}`,
-          display: "ALWAYS",
-          borderRadius: 4,
-          padding: 4
-        };
-      }
-    }
+    const marker = this.buildSearchSelectionMarker(suggestion, idx);
     if (
       !marker ||
       !Number.isFinite(marker.latitude) ||
@@ -6993,17 +7236,20 @@ Page({
     ) {
       return;
     }
+    const target = {
+      latitude: Number(marker.latitude),
+      longitude: Number(marker.longitude)
+    };
     this.setData({
-      keyword: suggestion.title,
+      keyword: suggestion.title || this.data.keyword,
       searchSuggestions: [],
       searchSuggestLoading: false,
-      searchSuggestError: ""
+      searchSuggestError: "",
+      searchLinkTarget: target,
+      searchLinkVisible: true
     });
     this.applySearchMarkers([marker]);
-    this.centerOnPoint(
-      { latitude: marker.latitude, longitude: marker.longitude },
-      15
-    );
+    this.centerOnPoint(target, 15);
   },
 
   openDronePicker() {
@@ -7136,6 +7382,7 @@ Page({
           latitude: res.latitude,
           longitude: res.longitude
         };
+        this.setMyLocationControlPoint(this._lastKnownLocation);
         this.refreshMarkerPageDistance();
         let targetScale = null;
         if (typeof options.scaleMeters === "number" && options.scaleMeters > 0) {
@@ -7469,6 +7716,52 @@ Page({
       raw: rawDetail,
       detail: cloneMarkerDetail(detail)
     });
+    return marker;
+  },
+
+  buildSearchSelectionMarker(suggestion = {}, index = 0) {
+    if (!suggestion || typeof suggestion !== "object") return null;
+    if (suggestion.source === "marker" && suggestion.markerPayload) {
+      return this.buildMarkerFromSearchPayload(suggestion.markerPayload, {
+        source: "marker-search-selected"
+      });
+    }
+    if (suggestion.source === "pin" && suggestion.pinPayload) {
+      return this.buildPinSearchMarker(suggestion.pinPayload, {
+        source: "pin-search-selected"
+      });
+    }
+    if (suggestion.source === "qqmap" && suggestion.rawPoi) {
+      return this.buildQqSearchMarker(suggestion.rawPoi, index);
+    }
+    const latitude = Number(suggestion.latitude);
+    const longitude = Number(suggestion.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+    const marker = {
+      id: `search-selected-${Date.now()}`,
+      latitude,
+      longitude,
+      title: suggestion.title || "",
+      iconPath: "/assets/default.png",
+      width: 24,
+      height: 24,
+      extData: {
+        source: "search-selected",
+        raw: suggestion
+      }
+    };
+    const title = `${suggestion.title || ""}`.trim();
+    const address = `${suggestion.address || ""}`.trim();
+    if (title || address) {
+      marker.callout = {
+        content: address ? `${title}\n${address}` : title,
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
     return marker;
   },
 
@@ -8140,7 +8433,9 @@ Page({
 
   onRegionChange(e) {
     const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
+    const detail = e?.detail || {};
     if (e.type !== "end") {
+      this.updateMapGestureState(detail);
       if (
         !this._centerPinWelcomeBubbleDismissedInGesture &&
         this.shouldDismissCenterPinWelcomeBubbleOnRegionChange(cause)
@@ -8152,7 +8447,6 @@ Page({
       if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
         this._uomPlugin.startFollow();
       }
-      const detail = e?.detail || {};
       const cl = detail && (detail.centerLocation || null);
       if (cl && this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
         const region = detail.region || {
@@ -8183,7 +8477,7 @@ Page({
     if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
       this._uomPlugin.stopFollow();
     }
-      const detail = e?.detail || {};
+      this.updateMapGestureState(detail);
       if (this.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
         return;
       }
@@ -8207,7 +8501,6 @@ Page({
         }
         this._skipNextRotateRegion = false;
       }
-      this.updateMapGestureState(detail);
       if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
         this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
         return;
@@ -8706,6 +8999,9 @@ Page({
     }
     if (Array.isArray(this._previewCircles)) {
       circles.push(...this._previewCircles);
+    }
+    if (Array.isArray(this._myLocationCircles)) {
+      circles.push(...this._myLocationCircles);
     }
     this.setData({ polygons, circles });
   },

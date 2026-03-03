@@ -9,6 +9,7 @@
     "policy-update-modal": "/packages/guide/components/policy-update-modal/index",
     "map-compass": "/packages/compass/components/map-compass/index",
     "map-center-pin": "/packages/map-center-pin/components/map-center-pin/index",
+    "map-search-link": "/packages/map-center-pin/components/map-search-link/index",
     "dji-no-fly-layer": "/packages/dji/components/dji-no-fly-layer/index",
     "temporary-no-fly-layer": "/packages/dji/components/temporary-no-fly-layer/index"
   },
@@ -22,6 +23,7 @@
     "policy-update-modal": "view",
     "map-compass": "view",
     "map-center-pin": "view",
+    "map-search-link": "view",
     "dji-no-fly-layer": "view",
     "temporary-no-fly-layer": "view"
   },
