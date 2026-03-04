@@ -1,9 +1,11 @@
-const {
+﻿const {
   fetchEasterEggResourceConfig,
   readStoredEasterEggResourceLocalCache,
   hasValidEasterEggResourceLocalCache,
   startLatestEasterEggResourceDownload,
-  cacheEasterEggResourceDownload
+  cacheEasterEggResourceDownload,
+  clearMismatchedEasterEggResourceArtifacts,
+  ensureEasterEggResourceExtracted
 } = require("../../../../utils/easter-egg-resource");
 const LONGPRESS_ACTION_ITEMS = [
   { id: "quickMark", label: "标记该处", icon: "/packages/map-center-pin/assets/quick-pin.png" },
@@ -222,6 +224,8 @@ Component({
       this.setData({ afeiPreparing: true });
 
       let latestConfig = null;
+      let activeCache = null;
+      let preparedResource = null;
       fetchEasterEggResourceConfig()
         .then((config) => {
           if (this._afeiAbortByUser) {
@@ -231,6 +235,12 @@ Component({
           if (!config || !config.fileName || !config.version) {
             throw new Error("missing-easter-egg-config");
           }
+          return clearMismatchedEasterEggResourceArtifacts(config.fileName, config.version);
+        })
+        .then(() => {
+          if (this._afeiAbortByUser) {
+            throw new Error("download-aborted");
+          }
           const localCache = readStoredEasterEggResourceLocalCache();
           return hasValidEasterEggResourceLocalCache(localCache).then((isValid) => ({ localCache, isValid }));
         })
@@ -238,9 +248,13 @@ Component({
           if (this._afeiAbortByUser) {
             throw new Error("download-aborted");
           }
-          if (isValid && localCache && localCache.version === latestConfig.version) {
-            this.updateAfeiPreparationProgress(100);
-            wx.showToast({ title: "阿飞历险记已准备就绪", icon: "none" });
+          if (
+            isValid &&
+            localCache &&
+            localCache.version === latestConfig.version &&
+            localCache.fileName === latestConfig.fileName
+          ) {
+            activeCache = localCache;
             return null;
           }
           const controller = startLatestEasterEggResourceDownload({
@@ -267,8 +281,21 @@ Component({
             version: latestConfig.version
           });
         })
-        .then((cachedResult) => {
-          if (!cachedResult) return;
+        .then((cachedResult = null) => {
+          if (cachedResult) {
+            activeCache = cachedResult;
+          }
+          if (!latestConfig || !activeCache || !activeCache.path) {
+            throw new Error("missing-easter-egg-cache");
+          }
+          return ensureEasterEggResourceExtracted({
+            fileName: latestConfig.fileName,
+            version: latestConfig.version,
+            zipPath: activeCache.path
+          });
+        })
+        .then((resource) => {
+          preparedResource = resource;
           this.updateAfeiPreparationProgress(100);
           wx.showToast({ title: "阿飞历险记准备完成", icon: "none" });
         })
@@ -296,6 +323,14 @@ Component({
               afeiPreparing: false,
               afeiProgressPercent: 0
             });
+          }
+          if (preparedResource && !this._afeiAbortByUser) {
+            this.triggerEvent("action", {
+              action: "afeiAdventure",
+              resourceDir: preparedResource.extractedPath || "",
+              resourceVersion: preparedResource.version || ""
+            });
+            this.closeSheet();
           }
         });
     },
@@ -372,3 +407,4 @@ Component({
     }
   }
 });
+

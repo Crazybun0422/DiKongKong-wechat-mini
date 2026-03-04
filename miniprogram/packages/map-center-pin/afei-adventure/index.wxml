@@ -1,0 +1,141 @@
+<view class="afei-page">
+  <canvas id="afei-stage-canvas" canvas-id="afei-stage-canvas" type="2d" class="afei-stage-canvas"></canvas>
+
+  <view wx:if="{{splashVisible}}" class="intro-splash {{splashFading ? 'is-fading' : ''}}">
+    <image
+      wx:if="{{splashSrc && !splashLoadFailed}}"
+      class="intro-splash-image"
+      src="{{splashSrc}}"
+      mode="aspectFill"
+      bindload="onSplashImageLoad"
+      binderror="onSplashImageError"
+    ></image>
+    <view wx:if="{{!splashSrc || splashLoadFailed}}" class="intro-splash-fallback"></view>
+  </view>
+
+  <view class="afei-ui-layer">
+    <view class="top-actions">
+      <view
+        class="mini-btn {{pressed.sound ? 'is-active' : ''}}"
+        bindtouchstart="onSoundTouchStart"
+        bindtouchend="onSoundTouchEnd"
+        bindtouchcancel="onSoundTouchEnd"
+        bindtap="onSoundTap"
+      >
+        <text class="mini-btn-text">{{soundMuted ? '关' : '开'}}</text>
+      </view>
+      <view
+        class="mini-btn mini-btn--restart {{pressed.restart ? 'is-active' : ''}} {{!gameStarted ? 'is-disabled' : ''}}"
+        bindtouchstart="onRestartTouchStart"
+        bindtouchend="onRestartTouchEnd"
+        bindtouchcancel="onRestartTouchEnd"
+        bindtap="onRestartTap"
+      >
+        <text class="mini-btn-text">重启</text>
+      </view>
+    </view>
+
+    <view wx:if="{{gameStarted}}" class="ctrl-left">
+      <view
+        class="bubble-btn {{pressed.dec ? 'is-active' : ''}}"
+        data-control="dec"
+        bindtouchstart="onControlTouchStart"
+        bindtouchend="onControlTouchEnd"
+        bindtouchcancel="onControlTouchEnd"
+      >
+        <image class="bubble-icon" src="{{btnDeclineSrc}}" mode="aspectFit"></image>
+      </view>
+      <view
+        class="bubble-btn {{pressed.acc ? 'is-active' : ''}}"
+        data-control="acc"
+        bindtouchstart="onControlTouchStart"
+        bindtouchend="onControlTouchEnd"
+        bindtouchcancel="onControlTouchEnd"
+      >
+        <image class="bubble-icon" src="{{btnAccSrc}}" mode="aspectFit"></image>
+      </view>
+    </view>
+
+    <view wx:if="{{gameStarted}}" class="ctrl-right">
+      <view
+        class="bubble-btn {{pressed.up ? 'is-active' : ''}}"
+        data-control="up"
+        bindtouchstart="onControlTouchStart"
+        bindtouchend="onControlTouchEnd"
+        bindtouchcancel="onControlTouchEnd"
+      >
+        <image class="bubble-icon" src="{{btnUpSrc}}" mode="aspectFit"></image>
+      </view>
+      <view
+        class="bubble-btn {{pressed.down ? 'is-active' : ''}}"
+        data-control="down"
+        bindtouchstart="onControlTouchStart"
+        bindtouchend="onControlTouchEnd"
+        bindtouchcancel="onControlTouchEnd"
+      >
+        <image class="bubble-icon" src="{{btnDownSrc}}" mode="aspectFit"></image>
+      </view>
+    </view>
+
+    <view wx:if="{{showStartPanel}}" class="panel-mask">
+      <view class="start-panel">
+        <view class="panel-title">阿飞历险记</view>
+        <view class="panel-subtitle">低空闯关 · 商业化天梯赛</view>
+
+        <view class="panel-grid">
+          <view class="panel-cell">
+            <text class="panel-label">我的最好成绩</text>
+            <text class="panel-value">{{myBestScore}}m</text>
+          </view>
+          <view class="panel-cell">
+            <text class="panel-label">我的天梯排名</text>
+            <text class="panel-value">{{myRankText}}</text>
+          </view>
+          <view class="panel-cell">
+            <text class="panel-label">本局成绩</text>
+            <text class="panel-value">{{lastScore}}m</text>
+          </view>
+          <view class="panel-cell">
+            <text class="panel-label">低空编号</text>
+            <text class="panel-value">{{myFeatureCode || '--'}}</text>
+          </view>
+        </view>
+
+        <view wx:if="{{offlineMode}}" class="offline-chip">离线模式：本局成绩不会上传</view>
+        <view wx:if="{{panelStatusText}}" class="panel-status">{{panelStatusText}}</view>
+
+        <view class="panel-actions">
+          <view class="panel-btn panel-btn--primary {{startLoading ? 'is-disabled' : ''}}" bindtap="onStartGameTap">
+            <text class="panel-btn-text">{{startLoading ? '准备中...' : '开始游戏'}}</text>
+          </view>
+          <view class="panel-btn panel-btn--ghost" bindtap="onOpenLeaderboardTap">
+            <text class="panel-btn-text">天梯排行榜</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{showLeaderboardPanel}}" class="panel-mask panel-mask--leaderboard">
+      <view class="rank-panel">
+        <view class="rank-header">
+          <text class="rank-title">天梯排行榜</text>
+          <view class="rank-close" bindtap="onCloseLeaderboardTap">关闭</view>
+        </view>
+        <scroll-view class="rank-list" scroll-y>
+          <block wx:if="{{leaderboard.length}}">
+            <view wx:for="{{leaderboard}}" wx:key="id" class="rank-item">
+              <view class="rank-index">{{item.rank}}</view>
+              <image class="rank-avatar" src="{{item.avatarUrl}}" mode="aspectFill"></image>
+              <view class="rank-meta">
+                <text class="rank-name">{{item.username}}</text>
+                <text class="rank-code">{{item.featureCode || '--'}}</text>
+              </view>
+              <view class="rank-score">{{item.highestScore}}m</view>
+            </view>
+          </block>
+          <view wx:else class="rank-empty">暂无排行数据</view>
+        </scroll-view>
+      </view>
+    </view>
+  </view>
+</view>

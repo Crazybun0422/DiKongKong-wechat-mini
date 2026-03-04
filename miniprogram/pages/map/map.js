@@ -6541,6 +6541,7 @@ Page({
       return;
     }
     if (action === "afeiAdventure") {
+      this.openAfeiAdventure(event?.detail || {});
       return;
     }
     if (action === "askAgent") {
@@ -6606,6 +6607,26 @@ Page({
         navigateOnce();
       });
     */
+  },
+
+  openAfeiAdventure(detail = {}) {
+    const resourceDir = `${detail?.resourceDir || detail?.extractedPath || ""}`.trim();
+    const resourceVersion = `${detail?.resourceVersion || detail?.version || ""}`.trim();
+    if (!resourceDir) {
+      wx.showToast({ title: "资源准备中，请稍后再试", icon: "none" });
+      return;
+    }
+    const query = [
+      `resourceDir=${encodeURIComponent(resourceDir)}`,
+      `version=${encodeURIComponent(resourceVersion)}`
+    ].join("&");
+    wx.navigateTo({
+      url: `/packages/map-center-pin/afei-adventure/index?${query}`,
+      fail: (err) => {
+        console.warn("navigate to afei adventure failed", err);
+        wx.showToast({ title: "暂时无法打开阿飞历险记", icon: "none" });
+      }
+    });
   },
 
   openMyPinCreateAtCenter() {
@@ -6735,6 +6756,7 @@ Page({
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
 
       const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
+      if (src === "my-location-map") continue;
       if (src.includes("pin")) {
         const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
         if (shapeType && shapeType !== "POINT") continue;

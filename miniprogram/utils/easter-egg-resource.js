@@ -6,6 +6,7 @@ const EASTER_EGG_RESOURCE_SEGMENT_STATE_STORAGE_KEY = "easterEggResourceSegmentS
 const PROBE_BYTES = 1024;
 const DEFAULT_SEGMENT_COUNT = 20;
 const EASTER_EGG_DOWNLOAD_LOG_TAG = "[afei-download]";
+const EASTER_EGG_UNPACK_PREFIX = "easter-egg-unpacked-";
 
 const STORAGE_LIMIT_ERROR_PATTERNS = [
   "maximum size of the file storage limit",
@@ -193,6 +194,48 @@ const checkFileExists = (path) =>
     resolve(false);
   });
 
+const getPathStat = (path) =>
+  new Promise((resolve) => {
+    const target = `${path || ""}`.trim();
+    const fs = getFileSystemManager();
+    if (!target || !fs || typeof fs.stat !== "function") {
+      resolve({ exists: false, isDirectory: false });
+      return;
+    }
+    fs.stat({
+      path: target,
+      success: (res = {}) => {
+        const stats = res?.stats || res;
+        let isDirectory = false;
+        if (stats && typeof stats.isDirectory === "function") {
+          try {
+            isDirectory = !!stats.isDirectory();
+          } catch (err) {
+            isDirectory = false;
+          }
+        }
+        resolve({ exists: true, isDirectory });
+      },
+      fail: () => resolve({ exists: false, isDirectory: false })
+    });
+  });
+
+const ensureDirectory = (dirPath) =>
+  new Promise((resolve, reject) => {
+    const target = `${dirPath || ""}`.trim();
+    const fs = getFileSystemManager();
+    if (!target || !fs || typeof fs.mkdir !== "function") {
+      reject(new Error("mkdir-unsupported"));
+      return;
+    }
+    fs.mkdir({
+      dirPath: target,
+      recursive: true,
+      success: () => resolve(target),
+      fail: (err) => reject(err || new Error("mkdir-failed"))
+    });
+  });
+
 const removeFileQuietly = (path) =>
   new Promise((resolve) => {
     const target = `${path || ""}`.trim();
@@ -207,6 +250,34 @@ const removeFileQuietly = (path) =>
       fail: () => resolve(false)
     });
   });
+
+const removeDirectoryQuietly = (dirPath) =>
+  new Promise((resolve) => {
+    const target = `${dirPath || ""}`.trim();
+    const fs = getFileSystemManager();
+    if (!target || !fs || typeof fs.rmdir !== "function") {
+      resolve(false);
+      return;
+    }
+    fs.rmdir({
+      dirPath: target,
+      recursive: true,
+      success: () => resolve(true),
+      fail: () => resolve(false)
+    });
+  });
+
+const removePathQuietly = async (path) => {
+  const target = `${path || ""}`.trim();
+  if (!target) return false;
+  const stat = await getPathStat(target);
+  if (!stat.exists) return false;
+  if (stat.isDirectory) {
+    const removedDir = await removeDirectoryQuietly(target);
+    if (removedDir) return true;
+  }
+  return removeFileQuietly(target);
+};
 
 const listSavedFiles = () =>
   new Promise((resolve) => {
@@ -659,6 +730,19 @@ const emitProgress = (downloadedBytes, totalBytes, handler) => {
 
 const sanitizeName = (value = "") => `${value || ""}`.replace(/[^a-zA-Z0-9._-]+/g, "_");
 
+const stripZipExt = (value = "") => {
+  const text = `${value || ""}`.trim();
+  return text.replace(/\.zip$/i, "");
+};
+
+const buildEasterEggUnpackedDirPath = (fileName, version) => {
+  const root = `${wx?.env?.USER_DATA_PATH || ""}`.trim();
+  if (!root) return "";
+  const safeVersion = sanitizeName(version || "0");
+  const safeName = sanitizeName(stripZipExt(fileName || "easter-egg-resource"));
+  return `${root}/${EASTER_EGG_UNPACK_PREFIX}${safeVersion}-${safeName}`;
+};
+
 const buildMergedFilePath = (fileName, version) => {
   const root = `${wx?.env?.USER_DATA_PATH || ""}`.trim();
   if (!root) return "";
@@ -1005,6 +1089,88 @@ const cacheEasterEggResourceDownload = (options = {}) =>
     return normalized;
   });
 
+const unzipArchiveToDirectory = (zipFilePath, targetPath) =>
+  new Promise((resolve, reject) => {
+    const zip = `${zipFilePath || ""}`.trim();
+    const target = `${targetPath || ""}`.trim();
+    const fs = getFileSystemManager();
+    if (!zip || !target || !fs || typeof fs.unzip !== "function") {
+      reject(new Error("unzip-unsupported"));
+      return;
+    }
+    fs.unzip({
+      zipFilePath: zip,
+      targetPath: target,
+      success: () => resolve(target),
+      fail: (err) => reject(err || new Error("unzip-failed"))
+    });
+  });
+
+const cleanupStaleEasterEggUnpackedDirs = async (keepDirPath = "") => {
+  const root = `${wx?.env?.USER_DATA_PATH || ""}`.trim();
+  if (!root) return;
+  const keep = `${keepDirPath || ""}`.trim();
+  const entries = await listUserDataFiles();
+  const targets = entries
+    .filter((name) => typeof name === "string" && name.startsWith(EASTER_EGG_UNPACK_PREFIX))
+    .map((name) => `${root}/${name}`)
+    .filter((path) => !keep || path !== keep);
+  if (!targets.length) return;
+  await Promise.all(targets.map((path) => removePathQuietly(path)));
+};
+
+const clearMismatchedEasterEggResourceArtifacts = async (targetFileName, targetVersion) => {
+  const targetName = `${targetFileName || ""}`.trim();
+  const targetVer = `${targetVersion || ""}`.trim();
+  if (!targetName || !targetVer) return;
+  const targetDir = buildEasterEggUnpackedDirPath(targetName, targetVer);
+  const cached = readStoredEasterEggResourceLocalCache();
+  if (cached && (cached.fileName !== targetName || cached.version !== targetVer)) {
+    await removePathQuietly(cached.path);
+    clearStoredEasterEggResourceLocalCache();
+  }
+  await cleanupStaleEasterEggUnpackedDirs(targetDir);
+};
+
+const ensureEasterEggResourceExtracted = async (options = {}) => {
+  const fileName = `${options.fileName || ""}`.trim();
+  const version = `${options.version || ""}`.trim();
+  const zipPath = `${options.zipPath || ""}`.trim();
+  if (!fileName || !version) {
+    throw new Error("missing-resource-meta");
+  }
+  if (!zipPath || !(await checkFileExists(zipPath))) {
+    throw new Error("missing-zip-file");
+  }
+  const extractedPath = buildEasterEggUnpackedDirPath(fileName, version);
+  if (!extractedPath) {
+    throw new Error("missing-user-data-path");
+  }
+  const extractedStat = await getPathStat(extractedPath);
+  if (extractedStat.exists && extractedStat.isDirectory) {
+    return {
+      fileName,
+      version,
+      zipPath,
+      extractedPath
+    };
+  }
+
+  await removePathQuietly(extractedPath);
+  await ensureDirectory(extractedPath);
+  await unzipArchiveToDirectory(zipPath, extractedPath);
+  const extractedStatAfterUnzip = await getPathStat(extractedPath);
+  if (!extractedStatAfterUnzip.exists || !extractedStatAfterUnzip.isDirectory) {
+    throw new Error("unpacked-directory-missing");
+  }
+  return {
+    fileName,
+    version,
+    zipPath,
+    extractedPath
+  };
+};
+
 module.exports = {
   EASTER_EGG_RESOURCE_CONFIG_STORAGE_KEY,
   EASTER_EGG_RESOURCE_LOCAL_CACHE_STORAGE_KEY,
@@ -1021,5 +1187,7 @@ module.exports = {
   buildEasterEggResourceDownloadUrl,
   fetchEasterEggResourceConfig,
   startLatestEasterEggResourceDownload,
-  cacheEasterEggResourceDownload
+  cacheEasterEggResourceDownload,
+  clearMismatchedEasterEggResourceArtifacts,
+  ensureEasterEggResourceExtracted
 };
