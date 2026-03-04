@@ -131,6 +131,9 @@ components:
         platformCoConstructionEnabled:
           type: boolean
           description: 是否显示平台共建标记，默认 true。
+        useDefaultCenterPoint:
+          type: boolean
+          description: 是否使用默认中心点，默认 true。
         aircraftModel:
           type: string
           description: 执飞机型，未设置时返回空字符串。
@@ -160,6 +163,9 @@ components:
           type: boolean
         platformCoConstructionEnabled:
           type: boolean
+        useDefaultCenterPoint:
+          type: boolean
+          description: 是否使用默认中心点
         aircraftModel:
           type: string
           description: 执飞机型，未设置时返回空字符串。

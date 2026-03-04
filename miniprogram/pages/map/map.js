@@ -102,9 +102,10 @@ const CSS_PIXELS_PER_CM = 96 / 2.54;
 const DEFAULT_SCALE_BAR_BASE_RPX = 80;
 const LOCATE_SCALE_METERS = 500;
 const MY_LOCATION_MARKER_ID = 991001;
-const MY_LOCATION_MARKER_ICON_PATH = "/assets/location2.png";
+const MY_LOCATION_MARKER_ICON_PATH = "/assets/p-point.png";
 const MY_LOCATION_MARKER_SIZE = 40;
 const MY_LOCATION_DIRECTION_THRESHOLD = 1;
+const MY_LOCATION_DIRECTION_SYNC_INTERVAL_MS = 500;
 const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
 const MIN_CENTER_SYNC_METERS = 6;
 const CENTER_SHARE_LOCK_DURATION_MS = 10000;
@@ -123,6 +124,7 @@ const MAP_COMPASS_ROTATE_SYNC_DELTA = 1;
 const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
 const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
 const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
+const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
 
 const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
@@ -1133,6 +1135,8 @@ Page({
     layerPanelVisible: false,
     layerPanelClosing: false,
     airBoardEnabled: true,
+    usePlanetCenterPoint: false,
+    myLocationModeResolved: false,
     temporaryNoFlyZoneEnabled: true,
     uomDivisionEnabled: true,
     djiNoFlyZoneEnabled: true,
@@ -1245,6 +1249,11 @@ Page({
   },
 
   onLoad(options = {}) {
+    const cachedUsePlanetMyLocation = this.loadCachedUsePlanetMyLocationPreference();
+    if (typeof cachedUsePlanetMyLocation === "boolean") {
+      this.data.usePlanetCenterPoint = cachedUsePlanetMyLocation;
+      this.data.myLocationModeResolved = true;
+    }
     const launchOptions = this.consumePendingLaunchOptions(options);
     const launchCenterPreset = normalizeLaunchCenterShareOptions(launchOptions);
     if (launchCenterPreset.active) {
@@ -1319,6 +1328,7 @@ Page({
     this._myLocationDirection = null;
     this._onMyLocationCompassChange = null;
     this._myLocationDirectionTracking = false;
+    this._myLocationDirectionLastSyncAt = 0;
     this._overlookSyncAvoidUntil = 0;
     this._centerOverride = this.data.center;
     this._layerPanelCloseTimer = null;
@@ -1759,33 +1769,14 @@ Page({
     };
   },
 
+  buildMyLocationMarkers(point = {}) {
+    if (!this.data.usePlanetCenterPoint) return [];
+    const pointer = this.buildMyLocationMarker(point);
+    return pointer ? [pointer] : [];
+  },
+
   buildMyLocationCircles(point = {}) {
-    const latitude = Number(point?.latitude);
-    const longitude = Number(point?.longitude);
-    if (!hasValidCoordinate(latitude, longitude)) return [];
-    const isSatellite = this.data.mapLayerType === "satellite";
-    const baseColor = isSatellite ? "rgba(125,211,252,0.92)" : "rgba(56,189,248,0.92)";
-    const baseFill = isSatellite ? "rgba(125,211,252,0.22)" : "rgba(56,189,248,0.22)";
-    const outerColor = isSatellite ? "rgba(103,232,249,0.52)" : "rgba(34,211,238,0.52)";
-    const outerFill = isSatellite ? "rgba(103,232,249,0.10)" : "rgba(34,211,238,0.10)";
-    return [
-      {
-        latitude,
-        longitude,
-        radius: 10,
-        color: baseColor,
-        fillColor: baseFill,
-        strokeWidth: 1
-      },
-      {
-        latitude,
-        longitude,
-        radius: 13,
-        color: outerColor,
-        fillColor: outerFill,
-        strokeWidth: 1
-      }
-    ];
+    return [];
   },
 
   refreshMyLocationGraphics(point = null) {
@@ -1802,15 +1793,20 @@ Page({
       return;
     }
     const normalized = { latitude, longitude };
-    const marker = this.buildMyLocationMarker(normalized);
+    const markers = this.buildMyLocationMarkers(normalized);
+    const prevMarkers = Array.isArray(this._myLocationMarkers) ? this._myLocationMarkers : [];
+    const markersChanged = this.isMyLocationMarkersChanged(prevMarkers, markers);
+    if (markersChanged) {
+      this._myLocationMarkers = markers;
+    }
     const circles = this.buildMyLocationCircles(normalized);
-    this._myLocationMarkers = marker ? [marker] : [];
     const prevCircles = Array.isArray(this._myLocationCircles) ? this._myLocationCircles : [];
     const circlesChanged = this.isMyLocationCirclesChanged(prevCircles, circles);
     if (circlesChanged) {
       this._myLocationCircles = circles;
     }
-    this.queueMapGraphicsSync({ markers: true, overlay: circlesChanged });
+    if (!markersChanged && !circlesChanged) return;
+    this.queueMapGraphicsSync({ markers: markersChanged, overlay: circlesChanged });
   },
 
   setMyLocationControlPoint(point = null) {
@@ -4321,6 +4317,15 @@ Page({
     return normalized;
   },
 
+  computeCompassDirectionDelta(next, prev) {
+    const a = this.normalizeCompassDirection(next);
+    const b = this.normalizeCompassDirection(prev);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return Number.POSITIVE_INFINITY;
+    let delta = Math.abs(a - b) % 360;
+    if (delta > 180) delta = 360 - delta;
+    return delta;
+  },
+
   startMyLocationDirectionTracking() {
     if (this._myLocationDirectionTracking) return;
     if (
@@ -4331,13 +4336,21 @@ Page({
       return;
     }
     const onCompassChange = (res = {}) => {
+      const now = Date.now();
+      if (now - Number(this._myLocationDirectionLastSyncAt || 0) < MY_LOCATION_DIRECTION_SYNC_INTERVAL_MS) {
+        return;
+      }
       const direction = this.normalizeCompassDirection(res.direction);
       if (!Number.isFinite(direction)) return;
       const prev = this.normalizeCompassDirection(this._myLocationDirection);
-      if (Number.isFinite(prev) && Math.abs(direction - prev) < MY_LOCATION_DIRECTION_THRESHOLD) {
+      if (
+        Number.isFinite(prev) &&
+        this.computeCompassDirectionDelta(direction, prev) < MY_LOCATION_DIRECTION_THRESHOLD
+      ) {
         return;
       }
       this._myLocationDirection = direction;
+      this._myLocationDirectionLastSyncAt = now;
       if (Array.isArray(this._myLocationMarkers) && this._myLocationMarkers.length > 0) {
         const point = this.data.myLocationPoint || this._lastKnownLocation || null;
         this.refreshMyLocationGraphics(point);
@@ -4364,9 +4377,10 @@ Page({
     }
     this._onMyLocationCompassChange = null;
     this._myLocationDirectionTracking = false;
+    this._myLocationDirectionLastSyncAt = 0;
     if (typeof wx !== "undefined" && typeof wx.stopCompass === "function") {
       wx.stopCompass({
-        fail: () => {}
+        fail: () => { }
       });
     }
   },
@@ -5501,6 +5515,22 @@ Page({
     );
   },
 
+  onUsePlanetCenterPointSwitchChange(event = {}) {
+    const enabled = !!event?.detail?.value;
+    this.setData({ usePlanetCenterPoint: enabled }, () => {
+      this.cacheUsePlanetMyLocationPreference(enabled);
+      const finish = () => {
+        this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
+        this.persistMapLayerSettings();
+      };
+      if (enabled) {
+        this.syncMyLocationPoint({ silent: true }).finally(finish);
+        return;
+      }
+      finish();
+    });
+  },
+
   onMapElementToggle(event = {}) {
     const id = event?.currentTarget?.dataset?.id;
     if (!id) return;
@@ -5668,8 +5698,63 @@ Page({
       privateMarkersEnabled: !!this.data.privateMarkersEnabled,
       groupSharingEnabled: !!this.data.groupSharingEnabled,
       platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled,
+      useDefaultCenterPoint: !this.data.usePlanetCenterPoint,
       aircraftModel: this.data.selectedDrone || ""
     };
+  },
+
+  loadCachedUsePlanetMyLocationPreference() {
+    if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return null;
+    try {
+      const cached = wx.getStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY);
+      if (typeof cached === "boolean") return cached;
+    } catch (err) {
+      console.warn("load cached usePlanetMyLocation preference failed", err);
+    }
+    return null;
+  },
+
+  cacheUsePlanetMyLocationPreference(enabled) {
+    if (typeof wx === "undefined" || typeof wx.setStorageSync !== "function") return;
+    try {
+      wx.setStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY, enabled === true);
+    } catch (err) {
+      console.warn("cache usePlanetMyLocation preference failed", err);
+    }
+  },
+
+  syncMyLocationPoint(options = {}) {
+    const silent = options.silent === true;
+    return new Promise((resolve) => {
+      if (typeof wx === "undefined" || typeof wx.getLocation !== "function") {
+        resolve(false);
+        return;
+      }
+      wx.getLocation({
+        type: "gcj02",
+        isHighAccuracy: false,
+        highAccuracyExpireTime: 8000,
+        success: (res) => {
+          const latitude = Number(res?.latitude);
+          const longitude = Number(res?.longitude);
+          if (!hasValidCoordinate(latitude, longitude)) {
+            resolve(false);
+            return;
+          }
+          const point = { latitude, longitude };
+          this._lastKnownLocation = point;
+          this.setMyLocationControlPoint(point);
+          this.refreshMarkerPageDistance();
+          resolve(true);
+        },
+        fail: (err) => {
+          if (!silent) {
+            console.warn("sync my location point failed", err);
+          }
+          resolve(false);
+        }
+      });
+    });
   },
 
   applyLayerSettings(settings = {}, options = {}) {
@@ -5684,6 +5769,7 @@ Page({
     const privateMarkers = settings.privateMarkersEnabled !== false;
     const groupSharing = settings.groupSharingEnabled !== false;
     const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
+    const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
     const mapElementOptions = this.composeMapElementOptions({
       uomDivisionEnabled: uom,
       djiNoFlyZoneEnabled: dji,
@@ -5706,19 +5792,30 @@ Page({
         privateMarkersEnabled: privateMarkers,
         groupSharingEnabled: groupSharing,
         platformCoConstructionEnabled: platformCoConstruction,
+        usePlanetCenterPoint,
+        myLocationModeResolved: true,
         mapElementOptions
       },
       () => {
-        this.applyAirBoardToggle(airspace);
-        if (this._uomPlugin && typeof this._uomPlugin.setEnabled === "function") {
-          this._uomPlugin.setEnabled(uom);
+        this.cacheUsePlanetMyLocationPreference(usePlanetCenterPoint);
+        const afterLocationReady = () => {
+          this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
+          this.applyAirBoardToggle(airspace);
+          if (this._uomPlugin && typeof this._uomPlugin.setEnabled === "function") {
+            this._uomPlugin.setEnabled(uom);
+          }
+          this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
+          this.applyMerchantMarkersToggle(merchant);
+          this.applyPinLayerToggle(true);
+          if (typeof options.onApplied === "function") {
+            options.onApplied();
+          }
+        };
+        if (usePlanetCenterPoint) {
+          this.syncMyLocationPoint({ silent: true }).finally(afterLocationReady);
+          return;
         }
-        this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
-        this.applyMerchantMarkersToggle(merchant);
-        this.applyPinLayerToggle(true);
-        if (typeof options.onApplied === "function") {
-          options.onApplied();
-        }
+        afterLocationReady();
       }
     );
   },
@@ -5728,7 +5825,12 @@ Page({
     if (this._mapLayerSettingsLoaded && !force) return;
     const apiBase = this.getApiBase();
     const token = this.getAuthToken();
-    if (!apiBase || !token) return;
+    if (!apiBase || !token) {
+      if (!this.data.myLocationModeResolved) {
+        this.setData({ myLocationModeResolved: true });
+      }
+      return;
+    }
     this.setData({ mapLayerSettingsLoading: true });
     fetchMapLayerSettings({
       apiBase,
@@ -5763,7 +5865,10 @@ Page({
         console.warn("Failed to load map layer settings", err);
       })
       .finally(() => {
-        this.setData({ mapLayerSettingsLoading: false });
+        this.setData({
+          mapLayerSettingsLoading: false,
+          myLocationModeResolved: true
+        });
       });
   },
 
@@ -5995,6 +6100,28 @@ Page({
     return false;
   },
 
+  isMyLocationMarkersChanged(prev = [], next = []) {
+    if (!Array.isArray(prev) || !Array.isArray(next)) return true;
+    if (prev.length !== next.length) return true;
+    for (let i = 0; i < prev.length; i += 1) {
+      const a = prev[i] || {};
+      const b = next[i] || {};
+      if (
+        Number(a.id) !== Number(b.id) ||
+        Number(a.latitude) !== Number(b.latitude) ||
+        Number(a.longitude) !== Number(b.longitude) ||
+        Number(a.width) !== Number(b.width) ||
+        Number(a.height) !== Number(b.height) ||
+        Number(a.rotate) !== Number(b.rotate) ||
+        Number(a.zIndex) !== Number(b.zIndex) ||
+        `${a.iconPath || ""}` !== `${b.iconPath || ""}`
+      ) {
+        return true;
+      }
+    }
+    return false;
+  },
+
   queueMapGraphicsSync(options = {}) {
     const next = this._pendingMapGraphicsSync || {
       markers: false,
@@ -6177,7 +6304,7 @@ Page({
     }
   },
 
-  onCoordinateSystemSheetTap() {},
+  onCoordinateSystemSheetTap() { },
 
   onCoordinateSystemSheetMaskTap() {
     if (!this.data.coordinateSystemSheetVisible) return;
@@ -7824,15 +7951,15 @@ Page({
       name: raw.name || raw.title,
       locationText: raw.location?.text || raw.address
     });
-      const shapeRaw = raw?.shape || {};
-      const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
-      const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
-      const resolved = resolveShapeCoordinates(shape);
-      const coords = this.normalizePreviewCoordinateList(resolved.coordinates);
-      const primary =
-        coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
-        detail ||
-        {};
+    const shapeRaw = raw?.shape || {};
+    const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
+    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
+    const resolved = resolveShapeCoordinates(shape);
+    const coords = this.normalizePreviewCoordinateList(resolved.coordinates);
+    const primary =
+      coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
+      detail ||
+      {};
     const latitude = Number(primary.latitude);
     const longitude = Number(primary.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -8346,35 +8473,35 @@ Page({
       Object.assign(updates, extraUpdates);
     }
     this.setData(updates, () => {
-        if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-          this._uomPlugin.handleRegionChange({
-            center: point,
-            centerPin: point,
-            scale: targetScale,
-            region: this._lastRegion
-          });
-        }
-        this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
-        this.updateCenterPinIndicator();
-        if (this._markersFetchTimer) {
-          clearTimeout(this._markersFetchTimer);
-          this._markersFetchTimer = null;
-        }
-        const fetchOptions = {
+      if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+        this._uomPlugin.handleRegionChange({
           center: point,
-          region: this._lastRegion,
+          centerPin: point,
           scale: targetScale,
-          force: true
-        };
-        this.requestNearbyMarkers(fetchOptions);
-        this.syncTemporaryNoFlyLayerViewport(fetchOptions);
-        this.syncDjiLayerViewport({
-          center: point,
-          region: this._lastRegion,
-          scale: targetScale,
-          force: true
+          region: this._lastRegion
         });
+      }
+      this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
+      this.updateCenterPinIndicator();
+      if (this._markersFetchTimer) {
+        clearTimeout(this._markersFetchTimer);
+        this._markersFetchTimer = null;
+      }
+      const fetchOptions = {
+        center: point,
+        region: this._lastRegion,
+        scale: targetScale,
+        force: true
+      };
+      this.requestNearbyMarkers(fetchOptions);
+      this.syncTemporaryNoFlyLayerViewport(fetchOptions);
+      this.syncDjiLayerViewport({
+        center: point,
+        region: this._lastRegion,
+        scale: targetScale,
+        force: true
       });
+    });
   },
 
   ensureLocationPermission() {
@@ -8477,141 +8604,141 @@ Page({
     if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
       this._uomPlugin.stopFollow();
     }
-      this.updateMapGestureState(detail);
-      if (this.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
-        return;
-      }
-      if (this._skipNextRotateRegion) {
-        const rotate = Number(detail?.rotate);
-        if (Number.isFinite(rotate)) {
-          const cl = detail && (detail.centerLocation || null);
-          const prevCenter = this.data.center;
-          const moveMeters = (cl && prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
-            ? haversineMeters(
-              prevCenter.latitude,
-              prevCenter.longitude,
-              cl.latitude,
-              cl.longitude
-            )
-            : 0;
-          if (!Number.isFinite(moveMeters) || moveMeters < MIN_CENTER_SYNC_METERS) {
-            this._skipNextRotateRegion = false;
-            return;
-          }
-        }
-        this._skipNextRotateRegion = false;
-      }
-      if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
-        this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
-        return;
-      }
-      // 使用事件内的中心与范围，仅用于刷新覆盖物，避免 setData 改 center 造成回环抖动
-      const rawScale = Number(detail.scale);
-      const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
-      const region = detail && (detail.region || {
-        northeast: detail.northeast,
-        southwest: detail.southwest
-      });
-      const cl = detail && (detail.centerLocation || null);
-      if (region && region.northeast && region.southwest) {
-        const newCenter = cl
-          ? { latitude: cl.latitude, longitude: cl.longitude }
-          : {
-            latitude: (region.northeast.latitude + region.southwest.latitude) / 2,
-            longitude: (region.northeast.longitude + region.southwest.longitude) / 2
-          };
-        if (this.shouldIgnoreCenterShareLaunchSync(newCenter, cause)) {
-          return;
-        }
-        this._centerOverride = newCenter;
-        const prevScale = this.data.scale;
-        const scale = clampMapScale(detail.scale || prevScale);
-        this.updateDebugPanel({
-          scale: `${scale}`,
-          rawScale: `${detail.scale ?? ""}`,
-          center: this.formatDebugCoord(newCenter),
-          region: this.formatDebugRegion(region),
-          regionPhase: "end"
-        });
-        const scaleChanged = scale !== prevScale;
-        // console.log("[map] regionchange scale", scale);
-        this._lastRegion = region;
+    this.updateMapGestureState(detail);
+    if (this.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
+      return;
+    }
+    if (this._skipNextRotateRegion) {
+      const rotate = Number(detail?.rotate);
+      if (Number.isFinite(rotate)) {
+        const cl = detail && (detail.centerLocation || null);
         const prevCenter = this.data.center;
-        const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+        const moveMeters = (cl && prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
           ? haversineMeters(
             prevCenter.latitude,
             prevCenter.longitude,
-            newCenter.latitude,
-            newCenter.longitude
+            cl.latitude,
+            cl.longitude
           )
-          : Number.POSITIVE_INFINITY;
-        const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
-        const shouldSync = centerMoved || scale !== this.data.scale;
-        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
-        if (avoidCenterSync) {
-          this.data.center = newCenter;
-          this.data.scale = scale;
+          : 0;
+        if (!Number.isFinite(moveMeters) || moveMeters < MIN_CENTER_SYNC_METERS) {
+          this._skipNextRotateRegion = false;
+          return;
         }
-        const run = (forceRefresh) => {
-          if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-            this._uomPlugin.handleRegionChange({
-              center: newCenter,
-              centerPin: newCenter,
-              scale,
-              rawScale: detail.scale,
-              region
-            });
-          }
-          this.syncDjiLayerViewport({
-            center: newCenter,
-            region,
-            scale,
-            force: !!forceRefresh
-          });
-          this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
-            center: newCenter,
-            region,
-            scale,
-            force: !!forceRefresh
-          });
-          this.scheduleFetchPins(forceRefresh ? 0 : 200, {
-            center: newCenter,
-            region,
-            scale,
-            force: !!forceRefresh
-          });
-          this.syncTemporaryNoFlyLayerViewport({
-            center: newCenter,
-            region,
-            scale,
-            force: !!forceRefresh
-          });
+      }
+      this._skipNextRotateRegion = false;
+    }
+    if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
+      this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
+      return;
+    }
+    // 使用事件内的中心与范围，仅用于刷新覆盖物，避免 setData 改 center 造成回环抖动
+    const rawScale = Number(detail.scale);
+    const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
+    const region = detail && (detail.region || {
+      northeast: detail.northeast,
+      southwest: detail.southwest
+    });
+    const cl = detail && (detail.centerLocation || null);
+    if (region && region.northeast && region.southwest) {
+      const newCenter = cl
+        ? { latitude: cl.latitude, longitude: cl.longitude }
+        : {
+          latitude: (region.northeast.latitude + region.southwest.latitude) / 2,
+          longitude: (region.northeast.longitude + region.southwest.longitude) / 2
         };
-        const afterSync = () => {
-          this.updateScaleBar({ scale, latitude: newCenter.latitude });
-          run(scaleChanged);
-          this.updateCenterPinIndicator();
-        };
-        if (shouldSync || forceScaleSync) {
-          if (avoidCenterSync) {
-            afterSync();
-          } else {
-            this.queueRegionUpdateSkip(1);
-            this.setData({ center: newCenter, scale }, afterSync);
-          }
-        } else {
-          afterSync();
-        }
-        if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
-          this._uomPlugin.scheduleFinalRefresh();
-        }
+      if (this.shouldIgnoreCenterShareLaunchSync(newCenter, cause)) {
         return;
       }
-      // 兜底：取中心再刷新（少量机型可能无 centerLocation）
-      this.updateCenterAndRadius(detail);
+      this._centerOverride = newCenter;
+      const prevScale = this.data.scale;
+      const scale = clampMapScale(detail.scale || prevScale);
+      this.updateDebugPanel({
+        scale: `${scale}`,
+        rawScale: `${detail.scale ?? ""}`,
+        center: this.formatDebugCoord(newCenter),
+        region: this.formatDebugRegion(region),
+        regionPhase: "end"
+      });
+      const scaleChanged = scale !== prevScale;
+      // console.log("[map] regionchange scale", scale);
+      this._lastRegion = region;
+      const prevCenter = this.data.center;
+      const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
+        ? haversineMeters(
+          prevCenter.latitude,
+          prevCenter.longitude,
+          newCenter.latitude,
+          newCenter.longitude
+        )
+        : Number.POSITIVE_INFINITY;
+      const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
+      const shouldSync = centerMoved || scale !== this.data.scale;
+      const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
+      if (avoidCenterSync) {
+        this.data.center = newCenter;
+        this.data.scale = scale;
+      }
+      const run = (forceRefresh) => {
+        if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+          this._uomPlugin.handleRegionChange({
+            center: newCenter,
+            centerPin: newCenter,
+            scale,
+            rawScale: detail.scale,
+            region
+          });
+        }
+        this.syncDjiLayerViewport({
+          center: newCenter,
+          region,
+          scale,
+          force: !!forceRefresh
+        });
+        this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
+          center: newCenter,
+          region,
+          scale,
+          force: !!forceRefresh
+        });
+        this.scheduleFetchPins(forceRefresh ? 0 : 200, {
+          center: newCenter,
+          region,
+          scale,
+          force: !!forceRefresh
+        });
+        this.syncTemporaryNoFlyLayerViewport({
+          center: newCenter,
+          region,
+          scale,
+          force: !!forceRefresh
+        });
+      };
+      const afterSync = () => {
+        this.updateScaleBar({ scale, latitude: newCenter.latitude });
+        run(scaleChanged);
+        this.updateCenterPinIndicator();
+      };
+      if (shouldSync || forceScaleSync) {
+        if (avoidCenterSync) {
+          afterSync();
+        } else {
+          this.queueRegionUpdateSkip(1);
+          this.setData({ center: newCenter, scale }, afterSync);
+        }
+      } else {
+        afterSync();
+      }
       if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
         this._uomPlugin.scheduleFinalRefresh();
       }
+      return;
+    }
+    // 兜底：取中心再刷新（少量机型可能无 centerLocation）
+    this.updateCenterAndRadius(detail);
+    if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
+      this._uomPlugin.scheduleFinalRefresh();
+    }
   },
 
   onMapUpdated() { },

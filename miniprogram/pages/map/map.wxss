@@ -2231,6 +2231,12 @@ button.panorama-button::after,
   clip-path: polygon(0% 0%, 82% 0%, 100% 50%, 82% 100%, 0% 100%);
 }
 
+.planet-center-icon {
+  width: 60rpx;
+  height: 40rpx;
+  object-fit: contain;
+}
+
 .airboard-label {
   flex: 1;
   font-size: 26rpx;

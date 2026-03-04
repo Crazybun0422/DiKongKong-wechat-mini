@@ -19,7 +19,7 @@
       enable-zoom="{{!mapBlockerVisible}}"
       enable-rotate="{{!mapBlockerVisible}}"
       enable-overlooking="{{!mapBlockerVisible}}"
-      show-location="{{false}}"
+      show-location="{{myLocationModeResolved ? !usePlanetCenterPoint : false}}"
       markers="{{markers}}"
       polyline="{{polylines}}"
       polygons="{{polygons}}"
@@ -699,6 +699,16 @@
               checked="{{airBoardEnabled}}"
               color="#000000"
               bindchange="onAirBoardSwitchChange"
+            />
+          </view>
+          <view class="airboard-row">
+            <image class="planet-center-icon" src="/assets/p-point.svg" mode="aspectFit" />
+            <text class="airboard-label">使用星球我的位置点</text>
+            <switch
+              class="airboard-switch"
+              checked="{{usePlanetCenterPoint}}"
+              color="#000000"
+              bindchange="onUsePlanetCenterPointSwitchChange"
             />
           </view>
         </view>
