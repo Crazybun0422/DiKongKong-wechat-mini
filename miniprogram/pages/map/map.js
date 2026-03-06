@@ -113,6 +113,7 @@ const CENTER_SHARE_LOCK_MAX_DRIFT_METERS = 2000;
 const CENTER_SHARE_LOCK_ALIGN_DELAY_MS = 120;
 const CENTER_PIN_FOLLOW_INTERVAL_MS = 1000;
 const CENTER_PIN_FOLLOW_ERROR_TOAST_INTERVAL_MS = 5000;
+const CENTER_PIN_CLOSE_TAP_SUPPRESS_MS = 320;
 const CENTER_PIN_FOLLOW_TIP_TEXT = "长按解除绑定状态~";
 const MAP_WIDE_LAYOUT_MIN_WIDTH = 560;
 const MAP_WIDE_LAYOUT_MIN_RATIO = 1.1;
@@ -125,6 +126,7 @@ const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
 const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
 const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
 const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
+const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
 
 const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
@@ -1136,6 +1138,7 @@ Page({
     layerPanelClosing: false,
     airBoardEnabled: true,
     usePlanetCenterPoint: false,
+    centerTargetLinkEnabled: true,
     myLocationModeResolved: false,
     temporaryNoFlyZoneEnabled: true,
     uomDivisionEnabled: true,
@@ -1408,6 +1411,7 @@ Page({
     this._centerPinFollowTimer = null;
     this._centerPinFollowLocating = false;
     this._centerPinFollowLastErrorAt = 0;
+    this._centerPinOpenSuppressUntil = 0;
     this._centerPinWelcomeBubbleDismissedInGesture = false;
     this._shareCenterLaunch = null;
     this._centerShareLaunchLock = null;
@@ -3427,6 +3431,9 @@ Page({
     const markerId = event?.detail?.markerId;
     const marker = this.findMarkerById(markerId);
     if (!marker) return;
+    this.applySearchSelectionFromMarker(marker, {
+      keyword: marker?.title || marker?.name || this.data.keyword
+    });
     const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
     if (src.includes("pin")) {
       const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
@@ -3439,6 +3446,9 @@ Page({
     const markerId = event?.detail?.markerId;
     const marker = this.findMarkerById(markerId);
     if (!marker) return;
+    this.applySearchSelectionFromMarker(marker, {
+      keyword: marker?.title || marker?.name || this.data.keyword
+    });
     const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
     if (src.includes("pin")) {
       const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
@@ -5531,6 +5541,13 @@ Page({
     });
   },
 
+  onCenterTargetLinkSwitchChange(event = {}) {
+    const enabled = !!event?.detail?.value;
+    this.setData({ centerTargetLinkEnabled: enabled }, () => {
+      this.persistMapLayerSettings();
+    });
+  },
+
   onMapElementToggle(event = {}) {
     const id = event?.currentTarget?.dataset?.id;
     if (!id) return;
@@ -5687,6 +5704,43 @@ Page({
     }
   },
 
+  parseMapLayerExtraBoolean(value, fallback = false) {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) return fallback;
+      if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+        return true;
+      }
+      if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+        return false;
+      }
+    }
+    return fallback;
+  },
+
+  resolveCenterTargetLinkEnabled(settings = {}) {
+    const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+    const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] : undefined;
+    if (raw === undefined || raw === null) {
+      return true;
+    }
+    const disabled = this.parseMapLayerExtraBoolean(raw, false);
+    return disabled !== true;
+  },
+
+  buildMapLayerExtraConfigPayload() {
+    const existing =
+      this._mapLayerSettings && typeof this._mapLayerSettings.extraConfig === "object"
+        ? this._mapLayerSettings.extraConfig
+        : null;
+    const extraConfig = existing ? Object.assign({}, existing) : {};
+    extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] =
+      this.data.centerTargetLinkEnabled === false ? "true" : "false";
+    return extraConfig;
+  },
+
   buildMapLayerSettingsPayload() {
     return {
       mapType: this.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
@@ -5699,7 +5753,8 @@ Page({
       groupSharingEnabled: !!this.data.groupSharingEnabled,
       platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled,
       useDefaultCenterPoint: !this.data.usePlanetCenterPoint,
-      aircraftModel: this.data.selectedDrone || ""
+      aircraftModel: this.data.selectedDrone || "",
+      extraConfig: this.buildMapLayerExtraConfigPayload()
     };
   },
 
@@ -5770,6 +5825,7 @@ Page({
     const groupSharing = settings.groupSharingEnabled !== false;
     const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
     const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
+    const centerTargetLinkEnabled = this.resolveCenterTargetLinkEnabled(settings);
     const mapElementOptions = this.composeMapElementOptions({
       uomDivisionEnabled: uom,
       djiNoFlyZoneEnabled: dji,
@@ -5793,6 +5849,7 @@ Page({
         groupSharingEnabled: groupSharing,
         platformCoConstructionEnabled: platformCoConstruction,
         usePlanetCenterPoint,
+        centerTargetLinkEnabled,
         myLocationModeResolved: true,
         mapElementOptions
       },
@@ -5905,9 +5962,21 @@ Page({
     updateMapLayerSettings(payload, {
       apiBase,
       token
-    }).catch((err) => {
-      console.warn("Failed to update map layer settings", err);
-    });
+    })
+      .then((settings) => {
+        if (settings && typeof settings === "object") {
+          this._mapLayerSettings = settings;
+          return;
+        }
+        const previous =
+          this._mapLayerSettings && typeof this._mapLayerSettings === "object"
+            ? this._mapLayerSettings
+            : {};
+        this._mapLayerSettings = Object.assign({}, previous, payload);
+      })
+      .catch((err) => {
+        console.warn("Failed to update map layer settings", err);
+      });
   },
 
   onMarkerButtonTap() {
@@ -6357,7 +6426,28 @@ Page({
     this.setData({ centerPinWelcomeBubbleDismissToken: nextToken });
   },
 
+  suppressCenterPinOpenOnce(durationMs = CENTER_PIN_CLOSE_TAP_SUPPRESS_MS) {
+    const duration = Number(durationMs);
+    const windowMs = Number.isFinite(duration) && duration > 0 ? duration : CENTER_PIN_CLOSE_TAP_SUPPRESS_MS;
+    this._centerPinOpenSuppressUntil = Date.now() + windowMs;
+  },
+
+  shouldSuppressCenterPinOpen() {
+    const until = Number(this._centerPinOpenSuppressUntil) || 0;
+    if (until <= 0) return false;
+    if (Date.now() > until) {
+      this._centerPinOpenSuppressUntil = 0;
+      return false;
+    }
+    return true;
+  },
+
+  onCenterPinSheetClose() {
+    this.suppressCenterPinOpenOnce();
+  },
+
   onCenterPinTap() {
+    if (this.shouldSuppressCenterPinOpen()) return;
     this.openMarkerOrPinAtCenter();
   },
 
@@ -6702,6 +6792,7 @@ Page({
   },
 
   onCenterPinIndicatorTap() {
+    if (this.shouldSuppressCenterPinOpen()) return;
     const opened = this.openMarkerOrPinAtCenter();
     if (!opened) {
       wx.showToast({ title: "未找到标记", icon: "none" });
@@ -7385,20 +7476,11 @@ Page({
     ) {
       return;
     }
-    const target = {
-      latitude: Number(marker.latitude),
-      longitude: Number(marker.longitude)
-    };
-    this.setData({
+    this.applySearchSelectionFromMarker(marker, {
       keyword: suggestion.title || this.data.keyword,
-      searchSuggestions: [],
-      searchSuggestLoading: false,
-      searchSuggestError: "",
-      searchLinkTarget: target,
-      searchLinkVisible: true
+      centerOnPoint: true,
+      centerScale: 15
     });
-    this.applySearchMarkers([marker]);
-    this.centerOnPoint(target, 15);
   },
 
   openDronePicker() {
@@ -7914,6 +7996,70 @@ Page({
     return marker;
   },
 
+  isSearchMarkerSource(source = "") {
+    const src = `${source || ""}`.trim().toLowerCase();
+    if (!src || src.includes("search-link")) {
+      return false;
+    }
+    return (
+      src === "search" ||
+      src === "search-selected" ||
+      src === "marker-search" ||
+      src === "marker-search-selected" ||
+      src === "pin-search" ||
+      src === "pin-search-selected"
+    );
+  },
+
+  isSearchSelectionMarker(marker = {}) {
+    const source = marker?.extData?.source || marker?.source || "";
+    return this.isSearchMarkerSource(source);
+  },
+
+  cloneSearchSelectionMarker(marker = {}) {
+    if (!marker || typeof marker !== "object") {
+      return null;
+    }
+    const next = Object.assign({}, marker);
+    if (marker.extData && typeof marker.extData === "object") {
+      next.extData = Object.assign({}, marker.extData);
+      if (marker.extData.detail && typeof marker.extData.detail === "object") {
+        next.extData.detail = cloneMarkerDetail(marker.extData.detail);
+      }
+    }
+    return next;
+  },
+
+  applySearchSelectionFromMarker(marker, options = {}) {
+    if (!marker || !this.isSearchSelectionMarker(marker)) {
+      return false;
+    }
+    const latitude = Number(marker.latitude);
+    const longitude = Number(marker.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return false;
+    }
+    const selectedMarker = this.cloneSearchSelectionMarker(marker) || marker;
+    const keyword = `${options.keyword || marker.title || marker.name || this.data.keyword || ""}`.trim();
+    const target = { latitude, longitude };
+    this.setData({
+      keyword: keyword || this.data.keyword,
+      searchSuggestions: [],
+      searchSuggestLoading: false,
+      searchSuggestError: "",
+      searchLinkTarget: target,
+      searchLinkVisible: true
+    });
+    this.applySearchMarkers([selectedMarker]);
+    if (options.centerOnPoint) {
+      const centerScale = Number.isFinite(Number(options.centerScale))
+        ? Number(options.centerScale)
+        : 15;
+      this.centerOnPoint(target, centerScale);
+    }
+    return true;
+  },
+
   resolveMarkerDetail(marker) {
     if (!marker) return null;
     const extDetail = marker?.extData?.detail;
@@ -8017,7 +8163,7 @@ Page({
     };
     const calloutContent = formatNearbyMarkerLabel(payload.name || "");
     if (calloutContent) {
-      marker.callout = buildMarkerNameCallout(`${calloutContent}（低空星球）`, {
+      marker.callout = buildMarkerNameCallout(calloutContent, {
         color: "#14532d",
         borderColor: "#14532d"
       });

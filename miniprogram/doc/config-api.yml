@@ -111,6 +111,153 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/planet-merchant-advanced-guide:
+    get:
+      summary: 获取星球商户进阶攻略
+      description: 普通用户可读取，返回星球商户进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetMerchantAdvancedGuideResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新星球商户进阶攻略
+      description: 仅管理员可调用，用于创建或更新星球商户进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanetMerchantAdvancedGuideRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetMerchantAdvancedGuideResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/planet-creation-advanced-guide:
+    get:
+      summary: 获取星球创作进阶攻略
+      description: 普通用户可读取，返回星球创作进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetCreationAdvancedGuideResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新星球创作进阶攻略
+      description: 仅管理员可调用，用于创建或更新星球创作进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanetCreationAdvancedGuideRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetCreationAdvancedGuideResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/share-to-platform-copy:
+    get:
+      summary: 获取共享到平台文案
+      description: 普通用户可读取，返回共享到平台富文本文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseShareToPlatformCopyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新共享到平台文案
+      description: 仅管理员可调用，用于创建或更新共享到平台富文本文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareToPlatformCopyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseShareToPlatformCopyResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/guide-urls:
     get:
       summary: 获取引导界面 URL 数组
@@ -1158,6 +1305,93 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/MapSettlementConfigResponse'
+    PlanetMerchantAdvancedGuideRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 星球商户进阶攻略富文本文案。
+    PlanetMerchantAdvancedGuideResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlanetMerchantAdvancedGuideRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponsePlanetMerchantAdvancedGuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PlanetMerchantAdvancedGuideResponse'
+
+    PlanetCreationAdvancedGuideRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 星球创作进阶攻略富文本文案。
+    PlanetCreationAdvancedGuideResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlanetCreationAdvancedGuideRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponsePlanetCreationAdvancedGuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PlanetCreationAdvancedGuideResponse'
+
+    ShareToPlatformCopyRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 共享到平台富文本文案。
+    ShareToPlatformCopyResponse:
+      allOf:
+        - $ref: '#/components/schemas/ShareToPlatformCopyRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponseShareToPlatformCopyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/ShareToPlatformCopyResponse'
+
     OpenPlatformCopyRequest:
       type: object
       required:

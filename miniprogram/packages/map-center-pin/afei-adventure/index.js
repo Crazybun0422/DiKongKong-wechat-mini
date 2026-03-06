@@ -1,8 +1,11 @@
 const { createAfeiGame } = require("./game/runtime");
 const {
   getAuthToken,
+  fetchUserProfile,
   loadStoredProfile,
-  ensureFeatureCode
+  ensureFeatureCode,
+  extractAvatarFileName,
+  buildAvatarDownloadUrl
 } = require("../../../utils/profile");
 const {
   fetchLadderMyRank,
@@ -15,6 +18,10 @@ const CANVAS_ID = "#afei-stage-canvas";
 const BEST_SCORE_STORAGE_KEY = "afeiAdventureBestScore";
 const SPLASH_HOLD_MS = 2000;
 const SPLASH_FADE_MS = 420;
+const ORIENTATION_PORTRAIT = "portrait";
+const AFEI_GAME_FONT_FAMILY = "AfeiGameZh";
+const AFEI_GAME_FONT_PATH = "assets/font/game.zh.subset.woff2";
+const AFEI_UI_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif";
 
 const decodeParam = (value = "") => {
   const raw = `${value || ""}`.trim();
@@ -53,6 +60,14 @@ const resolveDpr = () => {
     } catch (err) {}
   }
   return 1;
+};
+
+const buildGameFontStyle = (fontFamily = "") => {
+  const family = `${fontFamily || ""}`.trim();
+  if (!family) {
+    return `font-family: ${AFEI_UI_FONT_STACK};`;
+  }
+  return `font-family: '${family}', ${AFEI_UI_FONT_STACK};`;
 };
 
 const parseLangScript = (scriptText = "") => {
@@ -141,8 +156,10 @@ Page({
     showStartPanel: false,
     showLeaderboardPanel: false,
     gameStarted: false,
+    gamePaused: false,
     startLoading: false,
     panelStatusText: "",
+    gameFontStyle: buildGameFontStyle(""),
 
     offlineMode: false,
     soundMuted: false,
@@ -158,7 +175,9 @@ Page({
       up: false,
       down: false,
       sound: false,
-      restart: false
+      pause: false,
+      restart: false,
+      exit: false
     }
   },
 
@@ -175,10 +194,21 @@ Page({
     this._activeSession = null;
     this._gameOverHandler = null;
     this._offlineLocked = false;
+    this._gameFontFamily = "";
+    this._gameFontReadyPromise = this.loadGameFont(resourceDir).then((family) => {
+      this._gameFontFamily = family || "";
+      console.info("[afei-font] resolved family:", this._gameFontFamily || "(fallback)");
+      const nextStyle = buildGameFontStyle(this._gameFontFamily);
+      if (this.data.gameFontStyle !== nextStyle) {
+        this.setData({ gameFontStyle: nextStyle });
+      }
+      return this._gameFontFamily;
+    });
 
     const localBest = this.readLocalBestScore();
     const storedProfile = loadStoredProfile();
     const featureCode = ensureFeatureCode(storedProfile?.featureCode || "");
+    this._profileFeatureCode = featureCode;
 
     this.setData({
       resourceDir,
@@ -206,6 +236,7 @@ Page({
 
   onHide() {
     this.releaseAllControls();
+    this.destroyGame();
   },
 
   onUnload() {
@@ -258,6 +289,123 @@ Page({
     }
   },
 
+  loadGameFont(resourceDir = "") {
+    const dir = normalizeDir(resourceDir);
+    if (typeof wx === "undefined" || typeof wx.loadFontFace !== "function") {
+      console.warn("[afei-font] skip: wx.loadFontFace unavailable");
+      return Promise.resolve("");
+    }
+    const loadWithSource = (source = "", sourceTag = "unknown") =>
+      new Promise((resolve) => {
+        const sourceValue = `${source || ""}`.trim();
+        if (!sourceValue) {
+          resolve("");
+          return;
+        }
+        let settled = false;
+        const done = (family = "") => {
+          if (settled) return;
+          settled = true;
+          resolve(`${family || ""}`.trim());
+        };
+        const timeoutId = setTimeout(() => {
+          console.warn("[afei-font] timeout, fallback to default font", { sourceTag });
+          done("");
+        }, 1500);
+        try {
+          wx.loadFontFace({
+            family: AFEI_GAME_FONT_FAMILY,
+            source: sourceValue,
+            global: false,
+            success: () => {
+              clearTimeout(timeoutId);
+              console.info("[afei-font] loaded", {
+                family: AFEI_GAME_FONT_FAMILY,
+                sourceTag
+              });
+              done(AFEI_GAME_FONT_FAMILY);
+            },
+            fail: (err) => {
+              clearTimeout(timeoutId);
+              console.warn("[afei-font] load failed", { sourceTag, err });
+              done("");
+            }
+          });
+        } catch (err) {
+          clearTimeout(timeoutId);
+          console.error("[afei-font] load exception", { sourceTag, err });
+          done("");
+        }
+      });
+
+    const loadFromLocalDataUrl = (fontPath = "") =>
+      new Promise((resolve) => {
+        const rawPath = `${fontPath || ""}`.trim();
+        if (!rawPath) {
+          resolve("");
+          return;
+        }
+        const fs =
+          typeof wx.getFileSystemManager === "function" ? wx.getFileSystemManager() : null;
+        if (!fs || typeof fs.readFile !== "function") {
+          console.warn("[afei-font] fs unavailable, skip local font");
+          resolve("");
+          return;
+        }
+        const candidates = [rawPath];
+        if (rawPath.startsWith("wxfile://")) {
+          candidates.push(rawPath.replace(/^wxfile:\/\//, "/"));
+        }
+        const tryRead = (index = 0) => {
+          if (index >= candidates.length) {
+            resolve("");
+            return;
+          }
+          const currentPath = candidates[index];
+          fs.readFile({
+            filePath: currentPath,
+            encoding: "base64",
+            success: (res = {}) => {
+              const base64 = `${res.data || ""}`.trim();
+              if (!base64) {
+                console.warn("[afei-font] local read empty", { fontPath: currentPath });
+                tryRead(index + 1);
+                return;
+              }
+              console.info("[afei-font] local base64 prepared", {
+                fontPath: currentPath,
+                bytes: base64.length
+              });
+              resolve(`url("data:font/woff2;base64,${base64}")`);
+            },
+            fail: (err) => {
+              console.warn("[afei-font] local read failed", { fontPath: currentPath, err });
+              tryRead(index + 1);
+            }
+          });
+        };
+        tryRead(0);
+      });
+
+    return (async () => {
+      if (!dir) {
+        console.warn("[afei-font] skip local: empty resourceDir");
+        return "";
+      }
+      const localFontPath = `${dir}/${AFEI_GAME_FONT_PATH}`;
+      console.info("[afei-font] try local font", { path: localFontPath });
+      const localSource = await loadFromLocalDataUrl(localFontPath);
+      if (!localSource) {
+        console.warn("[afei-font] local source unavailable, use default font");
+        return "";
+      }
+      const localFamily = await loadWithSource(localSource, "local-data-url");
+      if (localFamily) return localFamily;
+      console.warn("[afei-font] local load failed, use default font");
+      return "";
+    })();
+  },
+
   readLocalBestScore() {
     try {
       const score = wx.getStorageSync(BEST_SCORE_STORAGE_KEY);
@@ -281,6 +429,24 @@ Page({
     this.writeLocalBestScore(next);
     this.setData({ myBestScore: next });
     return next;
+  },
+
+  async syncFeatureCodeFromProfile(token = "") {
+    const authToken = `${token || ""}`.trim();
+    if (!authToken) return "";
+    try {
+      const profile = await fetchUserProfile({ token: authToken });
+      const featureCode = `${profile?.featureCode || profile?.loginSeq || ""}`.trim();
+      if (!featureCode) return "";
+      this._profileFeatureCode = featureCode;
+      ensureFeatureCode(featureCode);
+      if (this.data.myFeatureCode !== featureCode) {
+        this.setData({ myFeatureCode: featureCode });
+      }
+      return featureCode;
+    } catch (err) {
+      return "";
+    }
   },
 
   async ensureAccessToken() {
@@ -307,14 +473,24 @@ Page({
 
   normalizeLeaderboardEntry(raw = {}, idx = 0) {
     const rank = Number(raw.rank);
+    const avatarCandidate = raw.avatarUrl || raw.avatarFileName || raw.avatar || "";
+    const avatarFileName = extractAvatarFileName(avatarCandidate);
+    const avatarUrl = buildAvatarDownloadUrl(avatarFileName || avatarCandidate, {
+      apiBase: this.getApiBase()
+    });
     return {
       id: `${raw.featureCode || "row"}-${raw.rank || idx}`,
       rank: Number.isFinite(rank) && rank > 0 ? Math.floor(rank) : idx + 1,
       username: `${raw.username || "匿名飞手"}`,
       featureCode: `${raw.featureCode || ""}`,
       highestScore: toSafeScore(raw.highestScore, 0),
-      avatarUrl: `${raw.avatarUrl || "/assets/default-avatar.png"}`
+      avatarUrl
     };
+  },
+
+  getApiBase() {
+    const app = getAppInstance();
+    return (app && app.globalData && app.globalData.apiBase) || "";
   },
 
   async loadLadderData() {
@@ -340,6 +516,8 @@ Page({
       });
       return;
     }
+
+    await this.syncFeatureCodeFromProfile(token);
 
     try {
       const myRank = await fetchLadderMyRank({ token });
@@ -419,6 +597,11 @@ Page({
           }
 
           try {
+            if (this._gameFontReadyPromise && typeof this._gameFontReadyPromise.then === "function") {
+              try {
+                await this._gameFontReadyPromise;
+              } catch (err) {}
+            }
             const lang = await readRuntimeLang(this.data.resourceDir);
             this._game = createAfeiGame({
               canvas,
@@ -427,7 +610,9 @@ Page({
               height,
               dpr,
               assetsBase: this.data.assetsBase,
-              lang
+              lang,
+              fontFamily: this._gameFontFamily,
+              startPaused: true
             });
 
             this._gameOverHandler = (event = {}) => {
@@ -437,7 +622,10 @@ Page({
               this._game.on("gameover", this._gameOverHandler);
             }
 
-            this.setData({ soundMuted: this._game.isMuted() });
+            this.setData({
+              soundMuted: this._game.isMuted(),
+              gamePaused: typeof this._game.isPaused === "function" ? this._game.isPaused() : false
+            });
             resolve(this._game);
           } catch (err) {
             reject(err);
@@ -461,6 +649,9 @@ Page({
       this._game.destroy();
     }
     this._game = null;
+    if (this.data.gamePaused) {
+      this.setData({ gamePaused: false });
+    }
   },
 
   releaseAllControls() {
@@ -473,12 +664,48 @@ Page({
       }
     }
     this.updatePressed("sound", false);
+    this.updatePressed("pause", false);
     this.updatePressed("restart", false);
+    this.updatePressed("exit", false);
+  },
+
+  setGameplayPaused(nextPaused) {
+    const paused = !!nextPaused;
+    if (!this._game) {
+      if (this.data.gamePaused !== paused) {
+        this.setData({ gamePaused: paused });
+      }
+      return paused;
+    }
+    if (paused) {
+      const controls = ["acc", "dec", "up", "down"];
+      for (let i = 0; i < controls.length; i += 1) {
+        const control = controls[i];
+        this.updatePressed(control, false);
+        if (typeof this._game.setControl === "function") {
+          this._game.setControl(control, false);
+        }
+      }
+      if (typeof this._game.pause === "function") {
+        this._game.pause();
+      }
+    } else if (typeof this._game.resume === "function") {
+      this._game.resume();
+    }
+    const actualPaused =
+      typeof this._game.isPaused === "function" ? !!this._game.isPaused() : paused;
+    if (this.data.gamePaused !== actualPaused) {
+      this.setData({ gamePaused: actualPaused });
+    }
+    return actualPaused;
   },
 
   buildSessionPayload() {
     const profile = loadStoredProfile() || {};
-    const featureCode = ensureFeatureCode(profile.featureCode || this.data.myFeatureCode || "");
+    const featureCode = ensureFeatureCode(
+      this._profileFeatureCode || this.data.myFeatureCode || profile.featureCode || ""
+    );
+    this._profileFeatureCode = featureCode;
     this.setData({ myFeatureCode: featureCode });
     return {
       featureCode,
@@ -503,6 +730,7 @@ Page({
       return;
     }
 
+    this.setGameplayPaused(true);
     this.releaseAllControls();
 
     let writable = !this._offlineLocked && !this.data.offlineMode;
@@ -510,6 +738,7 @@ Page({
 
     if (writable) {
       const token = getAuthToken();
+      await this.syncFeatureCodeFromProfile(token);
       const payload = this.buildSessionPayload();
       session = {
         token,
@@ -550,20 +779,26 @@ Page({
     if (this._game && typeof this._game.restart === "function") {
       this._game.restart();
     }
-
-    this.setData({
-      showStartPanel: false,
-      showLeaderboardPanel: false,
-      gameStarted: true,
-      startLoading: false,
-      lastScore: 0
-    });
+    this.setData(
+      {
+        showStartPanel: false,
+        showLeaderboardPanel: false,
+        gameStarted: true,
+        gamePaused: false,
+        startLoading: false,
+        lastScore: 0
+      },
+      () => {
+        this.setGameplayPaused(false);
+      }
+    );
   },
 
   async handleGameOver(event = {}) {
     if (!this.data.gameStarted) return;
     const score = toSafeScore(event?.score, 0);
     this.updateBestScore(score);
+    this.setGameplayPaused(true);
     this.releaseAllControls();
 
     if (this._activeSession?.writable) {
@@ -599,6 +834,7 @@ Page({
     this._activeSession = null;
     this.setData({
       gameStarted: false,
+      gamePaused: false,
       showStartPanel: true,
       showLeaderboardPanel: false,
       lastScore: score,
@@ -623,6 +859,7 @@ Page({
 
   onControlTouchStart(event = {}) {
     if (!this.data.gameStarted) return;
+    if (this.data.gamePaused) return;
     const control = `${event?.currentTarget?.dataset?.control || ""}`.trim();
     if (!control) return;
     this.updatePressed(control, true);
@@ -642,16 +879,31 @@ Page({
 
   onSoundTouchStart() {
     this.updatePressed("sound", true);
+    if (!this._game || typeof this._game.toggleMuted !== "function") return;
+    const muted = this._game.toggleMuted();
+    this.setData({ soundMuted: !!muted });
   },
 
   onSoundTouchEnd() {
     this.updatePressed("sound", false);
   },
 
-  onSoundTap() {
-    if (!this._game || typeof this._game.toggleMuted !== "function") return;
-    const muted = this._game.toggleMuted();
-    this.setData({ soundMuted: !!muted });
+  onSoundTap() {},
+
+  onPauseTouchStart() {
+    if (!this.data.gameStarted) return;
+    this.updatePressed("pause", true);
+  },
+
+  onPauseTouchEnd() {
+    this.updatePressed("pause", false);
+  },
+
+  onPauseTap() {
+    if (!this.data.gameStarted) return;
+    if (!this._game || typeof this._game.isPaused !== "function") return;
+    const nextPaused = !this._game.isPaused();
+    this.setGameplayPaused(nextPaused);
   },
 
   onRestartTouchStart() {
@@ -671,5 +923,78 @@ Page({
       this._game.stopAllAudio();
     }
     this._game.restart();
+  },
+
+  onExitTouchStart() {
+    this.updatePressed("exit", true);
+  },
+
+  onExitTouchEnd() {
+    this.updatePressed("exit", false);
+  },
+
+  onExitTap() {
+    this.releaseAllControls();
+    this.destroyGame();
+    this.exitToMap();
+  },
+
+  onBackPress() {
+    this.releaseAllControls();
+    this.destroyGame();
+    this.exitToMap();
+    return true;
+  },
+
+  switchToPortraitForMapExit() {
+    return new Promise((resolve) => {
+      if (typeof wx === "undefined" || typeof wx.setPageOrientation !== "function") {
+        resolve();
+        return;
+      }
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const finishTimer = setTimeout(done, 140);
+      try {
+        wx.setPageOrientation({
+          orientation: ORIENTATION_PORTRAIT,
+          success: () => {
+            clearTimeout(finishTimer);
+            setTimeout(done, 36);
+          },
+          fail: () => {
+            clearTimeout(finishTimer);
+            done();
+          }
+        });
+      } catch (err) {
+        clearTimeout(finishTimer);
+        done();
+      }
+    });
+  },
+
+  async exitToMap() {
+    if (this._exitingToMap) return;
+    this._exitingToMap = true;
+    await this.switchToPortraitForMapExit();
+    if (typeof wx !== "undefined" && typeof wx.navigateBack === "function") {
+      wx.navigateBack({
+        delta: 1,
+        fail: () => {
+          if (typeof wx.reLaunch === "function") {
+            wx.reLaunch({ url: "/pages/map/map" });
+          }
+        }
+      });
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.reLaunch === "function") {
+      wx.reLaunch({ url: "/pages/map/map" });
+    }
   }
 });

@@ -20,7 +20,7 @@
 </view>
 
 <block wx:if="{{sheetVisible}}">
-  <view class="center-pin-sheet-mask" bindtap="onMaskTap"></view>
+  <view class="center-pin-sheet-mask" catchtap="onMaskTap"></view>
   <view class="center-pin-sheet {{sheetClosing ? 'is-closing' : 'is-open'}}" catchtap="onSheetTap" catchtouchmove="noop">
     <view class="center-pin-magic-fly">
       <view class="center-pin-magic-fly-body">

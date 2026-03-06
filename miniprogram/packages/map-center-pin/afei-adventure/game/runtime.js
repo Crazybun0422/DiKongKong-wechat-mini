@@ -399,6 +399,8 @@ const createAfeiGame = (options = {}) => {
   const height = Math.max(1, safeNumber(options.height, 1));
   const dpr = Math.max(1, safeNumber(options.dpr, 1));
   const assetsBase = normalizeAssetBase(options.assetsBase);
+  const startPaused = options.startPaused === true;
+  const gameFontFamily = `${options.fontFamily || ""}`.trim();
   const runtimeLang =
     options.lang && typeof options.lang === "object" ? options.lang : gameLang;
 
@@ -424,6 +426,7 @@ const createAfeiGame = (options = {}) => {
 
   const runtimeWindow = {
     GAME_LANG: runtimeLang,
+    GAME_FONT_FAMILY: gameFontFamily,
     devicePixelRatio: dpr,
     addEventListener: eventHub.addEventListener,
     removeEventListener: eventHub.removeEventListener,
@@ -450,7 +453,8 @@ const createAfeiGame = (options = {}) => {
     cancelAnimationFrame: rafBridge.cancelAnimationFrame,
     Audio: audioFactory.Audio,
     Image: ImageAdapter,
-    assetsBase
+    assetsBase,
+    startPaused
   };
 
   attachRuralHouse(runtime);
@@ -500,6 +504,30 @@ const createAfeiGame = (options = {}) => {
         return game.isMuted();
       }
       return audioFactory.isMuted();
+    },
+    pause() {
+      if (game && typeof game.pause === "function") {
+        return game.pause();
+      }
+      return false;
+    },
+    resume() {
+      if (game && typeof game.resume === "function") {
+        return game.resume();
+      }
+      return false;
+    },
+    togglePaused() {
+      if (game && typeof game.togglePaused === "function") {
+        return game.togglePaused();
+      }
+      return false;
+    },
+    isPaused() {
+      if (game && typeof game.isPaused === "function") {
+        return game.isPaused();
+      }
+      return false;
     },
     restart() {
       releaseAll();

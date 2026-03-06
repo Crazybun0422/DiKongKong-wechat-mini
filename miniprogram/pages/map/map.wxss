@@ -708,7 +708,7 @@ button.search-btn::after {
 }
 
 .suggest-title-pin {
-  color: #16a34a;
+  color: #22c55e;
 }
 
 .suggest-address {

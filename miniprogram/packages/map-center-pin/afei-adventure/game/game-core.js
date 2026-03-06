@@ -36,6 +36,12 @@
   const TXT = LANG.label || {};
   const REASON = LANG.reason || {};
   const t = (obj, key, fallback) => (obj && obj[key]) || fallback;
+  const startPaused = runtime.startPaused === true;
+  const customFontFamily = `${window.GAME_FONT_FAMILY || ""}`.trim();
+  const defaultGameFontStack = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif";
+  const gameFontStack = customFontFamily ? `'${customFontFamily}', ${defaultGameFontStack}` : defaultGameFontStack;
+  const buildGameFont = (sizePx, weight = "") =>
+    `${weight ? `${weight} ` : ""}${sizePx}px ${gameFontStack}`;
 
   // ---------- Helpers ----------
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -57,12 +63,24 @@
   }
 
   // ---------- HiDPI ----------
+  function applyImageSmoothing() {
+    try {
+      ctx.imageSmoothingEnabled = true;
+    } catch (err) {}
+    if ("imageSmoothingQuality" in ctx) {
+      try {
+        ctx.imageSmoothingQuality = "high";
+      } catch (err) {}
+    }
+  }
+
   function resize() {
     const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     canvas.width = Math.floor(cssW * dpr);
     canvas.height = Math.floor(cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    applyImageSmoothing();
   }
   window.addEventListener("resize", resize);
   resize();
@@ -140,10 +158,14 @@
   const PLAYER_VERTICAL_MAX_SPEED = 190;
   const ENTITY_SCALE = 0.5;
   const SZ = (value) => value * ENTITY_SCALE;
+  const AIRCRAFT_SIZE_SCALE = 1.5;
+  const AIRCRAFT_SPEED_SCALE = 1.5;
+  const HOT_BALLOON_SIZE_SCALE = 1.2;
   const DRONE_DISPLAY_WIDTH = 48;
-  const DRONE_DISPLAY_HEIGHT = 33;
+  const DRONE_DISPLAY_HEIGHT = 32;
   const BIRD_DISPLAY_WIDTH = 48;
-  const BIRD_DISPLAY_HEIGHT = 33;
+  const BIRD_DISPLAY_HEIGHT = 32;
+  const VISUAL_SPEED_SCALE = 1.2;
   const SHIELD_GUARANTEE_LEAD_DISTANCE = 1200;
   const NORMALIZED_SPRITE_SOURCE_WIDTH = 144;
   const NORMALIZED_SPRITE_SOURCE_HEIGHT = 96;
@@ -161,7 +183,7 @@
   const AudioBus = (() => {
     let started = false;
     let muted = false;
-    let gameplayActive = true;
+    let gameplayActive = !startPaused;
     const BGM_TRACKS = [
       assetPath("bgm/bgm_fly.wav"),
       assetPath("bgm/bgm_control.wav"),
@@ -563,7 +585,7 @@
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, w, h);
 
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, 'Microsoft YaHei', sans-serif";
+    ctx.font = buildGameFont(12);
     const tw = ctx.measureText(label).width;
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.fillRect(x, y - 16, tw + 10, 16);
@@ -696,6 +718,7 @@
 
   // ---------- Game State ----------
   let state;
+  let paused = startPaused;
 
   function reset() {
     clearInput();
@@ -760,7 +783,7 @@
     const groundY = groundBasePx() - terrain.heightAt(state.worldX + px);
     state.player.y = clamp(groundY - SZ(140), skyTopPx + 10, groundBasePx() - SZ(30));
 
-    AudioBus.setGameplayActive(true);
+    AudioBus.setGameplayActive(!paused);
     AudioBus.setMode("fly");
   }
 
@@ -858,8 +881,8 @@
           label: LABEL.FIGHTER,
           x: W() + 60,
           y: m2y(rnd(500, 3500)),
-          w: SZ(144), h: SZ(96),
-          vx: -SPEED_BY_STAGE[3], // G4
+          w: SZ(144 * AIRCRAFT_SIZE_SCALE), h: SZ(96 * AIRCRAFT_SIZE_SCALE),
+          vx: -(SPEED_BY_STAGE[3] * AIRCRAFT_SPEED_SCALE), // G4
           vy: rnd(-18, 18),
           ttl: 14,
         });
@@ -869,8 +892,8 @@
           label: LABEL.AIRLINER,
           x: W() + 60,
           y: m2y(rnd(2500, 9000)),
-          w: SZ(288), h: SZ(192),
-          vx: -SPEED_BY_STAGE[2], // G3
+          w: SZ(288 * AIRCRAFT_SIZE_SCALE), h: SZ(192 * AIRCRAFT_SIZE_SCALE),
+          vx: -(SPEED_BY_STAGE[2] * AIRCRAFT_SPEED_SCALE), // G3
           vy: rnd(-10, 10),
           ttl: 22,
         });
@@ -928,7 +951,7 @@
           label,
           x: W() + rnd(20, 180),
           y: m2y(rnd(600, 2000)),
-          w: SZ(96), h: SZ(144),
+          w: SZ(96 * HOT_BALLOON_SIZE_SCALE), h: SZ(144 * HOT_BALLOON_SIZE_SCALE),
           vx: -rnd(45, 95),
           vy: rnd(-6, 6),
           ttl: 30,
@@ -994,11 +1017,11 @@
       if (chance(0.85)) {
         const rr = Math.random();
         let kind = "report200", label = LABEL.REPORT200, alt = rnd(180, 260);
-        if (rr < 0.37) {
+        if (rr < 0.40) {
           kind = "report200"; label = LABEL.REPORT200; alt = rnd(170, 250);
-        } else if (rr < 0.67) {
+        } else if (rr < 0.72) {
           kind = "report500"; label = LABEL.REPORT500; alt = rnd(430, 520);
-        } else if (rr < 0.84) {
+        } else if (rr < 0.95) {
           kind = "special"; label = LABEL.SPECIAL; alt = rnd(260, 580);
         } else {
           const playerAlt = y2m(state.player.y + state.player.h * 0.5);
@@ -1596,7 +1619,8 @@
 
     updateZone();
     updateBoostLevel(dt);
-    const spd = updateWorldSpeed(dt);
+    const displaySpd = updateWorldSpeed(dt);
+    const spd = displaySpd * VISUAL_SPEED_SCALE;
     const hadShield = state.shield > 0;
     if (hadShield) {
       state.shield = Math.max(0, state.shield - dt);
@@ -1606,7 +1630,7 @@
     // Keep gameplay progression on internal world speed.
     state.logicDistance = state.worldX * WORLD_UNIT_TO_METER;
     // Keep HUD distance consistent with displayed speed scale (10~60 m/s).
-    state.score += toDisplaySpeedMs(spd) * dt;
+    state.score += toDisplaySpeedMs(displaySpd) * dt;
 
     if (state.crash.active) {
       // Keep third-party entities running on their normal trajectories during crash animation.
@@ -1775,7 +1799,7 @@
     ctx.lineTo(axisX, yBottom);
     ctx.stroke();
 
-    ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, 'Microsoft YaHei', sans-serif";
+    ctx.font = buildGameFont(11);
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
 
@@ -1941,7 +1965,7 @@
         ctx.drawImage(sprite.img, -icon * 0.5, -icon * 0.5, icon, icon);
       } else {
         ctx.fillStyle = "#7a5b14";
-        ctx.font = "700 10px system-ui, -apple-system, Segoe UI, Roboto, 'Microsoft YaHei', sans-serif";
+        ctx.font = buildGameFont(10, "700");
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(e.label, 0, 0);
@@ -2163,8 +2187,8 @@
     const amnestyText = state.amnesty > 0 ? `${state.amnesty.toFixed(0)}s` : "-";
     const shieldText = state.shield > 0 ? `${state.shield.toFixed(0)}s` : "-";
 
-    const fontUi = "13px 'Segoe UI', 'Microsoft YaHei', sans-serif";
-    const fontBold = "700 13px 'Segoe UI', 'Microsoft YaHei', sans-serif";
+    const fontUi = buildGameFont(13);
+    const fontBold = buildGameFont(13, "700");
 
     const drawPill = (x, y, text, bgA, bgB, border) => {
       ctx.save();
@@ -2182,7 +2206,8 @@
       ctx.stroke();
       ctx.fillStyle = "#f8fcff";
       ctx.textBaseline = "middle";
-      ctx.fillText(text, x + 14, y + h * 0.52);
+      ctx.textAlign = "center";
+      ctx.fillText(text, x + w * 0.5, y + h * 0.52);
       ctx.restore();
       return w;
     };
@@ -2200,11 +2225,13 @@
     ctx.lineTo(W(), hudH + 0.5);
     ctx.stroke();
 
+    const leftSafeReserved = 102;
     ctx.fillStyle = "#f3f8ff";
     ctx.font = fontUi;
+    ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(`${t(UI, "distance", "")}: ${Math.floor(state.score)}m`, 16, 24);
-    ctx.fillText(`${t(UI, "altitude", "")}: ${alt.toFixed(0)}m`, 16, 47);
+    ctx.fillText(`${t(UI, "distance", "")}: ${Math.floor(state.score)}m`, leftSafeReserved, 24);
+    ctx.fillText(`${t(UI, "altitude", "")}: ${alt.toFixed(0)}m`, leftSafeReserved, 47);
     ctx.fillText(`${t(UI, "amnesty", "")}: ${amnestyText}`, 218, 24);
     ctx.fillText(`${t(UI, "speed", "速度")}: ${speedMs}米/S`, 218, 47);
     ctx.fillText(`${t(UI, "shield", "")}: ${shieldText}`, 360, 24);
@@ -2212,7 +2239,7 @@
     const rightSafeReserved = 210;
     const right = Math.max(420, W() - rightSafeReserved);
     drawPill(
-      right - 140,
+      right - 190,
       18,
       zoneText,
       state.controlled ? "rgba(255, 92, 112, 0.58)" : "rgba(0, 226, 170, 0.56)",
@@ -2224,10 +2251,10 @@
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.fillRect(0, 0, W(), H());
       ctx.fillStyle = "#fff";
-      ctx.font = "700 28px system-ui, -apple-system, Segoe UI, Roboto, 'Microsoft YaHei', sans-serif";
+      ctx.font = buildGameFont(28, "700");
       const gameOverText = t(UI, "game_over", "");
       ctx.fillText(gameOverText, W() * 0.5 - ctx.measureText(gameOverText).width / 2, H() * 0.45);
-      ctx.font = "16px system-ui, -apple-system, Segoe UI, Roboto, 'Microsoft YaHei', sans-serif";
+      ctx.font = buildGameFont(16);
       ctx.fillText(state.reason, W() * 0.5 - ctx.measureText(state.reason).width / 2, H() * 0.45 + 28);
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       const retry = t(UI, "retry", "");
@@ -2239,7 +2266,7 @@
   function drawPickupToasts(camY) {
     if (!state.pickupToasts || state.pickupToasts.length === 0) return;
     ctx.save();
-    ctx.font = "700 14px 'Segoe UI', 'Microsoft YaHei', sans-serif";
+    ctx.font = buildGameFont(14, "700");
     for (const tToast of state.pickupToasts) {
       const a = clamp(tToast.life / tToast.maxLife, 0, 1);
       const sy = tToast.y + camY;
@@ -2268,6 +2295,7 @@
   }
   function draw() {
     const camY = cameraOffsetY();
+    applyImageSmoothing();
 
     drawBackground(camY);
     drawAlarmOverlay();
@@ -2290,6 +2318,34 @@
   // ---------- Loop ----------
   let rafId = 0;
   let destroyed = false;
+
+  function pauseGame() {
+    if (paused) return true;
+    paused = true;
+    clearInput();
+    AudioBus.setGameplayActive(false);
+    return true;
+  }
+
+  function resumeGame() {
+    if (!paused) return false;
+    paused = false;
+    state.last = performance.now();
+    if (!state.gameOver) {
+      AudioBus.setGameplayActive(true);
+    }
+    return true;
+  }
+
+  function togglePauseState() {
+    if (paused) {
+      resumeGame();
+    } else {
+      pauseGame();
+    }
+    return paused;
+  }
+
   function tick(now) {
     if (destroyed) return;
     const last = state.last || now;
@@ -2298,7 +2354,9 @@
     state.last = now;
 
     ctx.clearRect(0, 0, W(), H());
-    update(dt);
+    if (!paused) {
+      update(dt);
+    }
     draw();
 
     rafId = requestAnimationFrame(tick);
@@ -2327,6 +2385,18 @@
     },
     isMuted() {
       return AudioBus.isMuted();
+    },
+    pause() {
+      return pauseGame();
+    },
+    resume() {
+      return resumeGame();
+    },
+    togglePaused() {
+      return togglePauseState();
+    },
+    isPaused() {
+      return paused;
     },
     restart() {
       AudioBus.stopAll();

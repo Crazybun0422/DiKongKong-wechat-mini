@@ -32,7 +32,7 @@
     <map-search-link
       center="{{searchLinkCenter}}"
       target="{{searchLinkTarget}}"
-      visible="{{searchLinkVisible}}"
+      visible="{{searchLinkVisible && centerTargetLinkEnabled}}"
       satellite="{{mapLayerType === 'satellite'}}"
       bind:graphicschange="onSearchLinkGraphicsChange"
     />
@@ -46,6 +46,7 @@
       welcome-bubble-dismiss-token="{{centerPinWelcomeBubbleDismissToken}}"
       bind:tap="onCenterPinTap"
       bind:longpress="onCenterPinLongPress"
+      bind:close="onCenterPinSheetClose"
       bind:action="onCenterPinAction"
     />
     <dji-no-fly-layer
@@ -235,7 +236,7 @@
                     bindtap="onSuggestionTap"
                   >
                     <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : (item.source === 'pin' ? 'suggest-title-pin' : '')}}">
-                      {{item.source === 'marker' || item.source === 'pin' ? (item.title || '') + '（低空星球）' : item.title}}
+                      {{item.title}}
                     </text>
                     <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
                   </view>
@@ -709,6 +710,16 @@
               checked="{{usePlanetCenterPoint}}"
               color="#000000"
               bindchange="onUsePlanetCenterPointSwitchChange"
+            />
+          </view>
+          <view class="airboard-row">
+            <image class="planet-center-icon" src="/assets/line.png" mode="aspectFit" />
+            <text class="airboard-label">开启中心点到目标连线/距离</text>
+            <switch
+              class="airboard-switch"
+              checked="{{centerTargetLinkEnabled}}"
+              color="#000000"
+              bindchange="onCenterTargetLinkSwitchChange"
             />
           </view>
         </view>

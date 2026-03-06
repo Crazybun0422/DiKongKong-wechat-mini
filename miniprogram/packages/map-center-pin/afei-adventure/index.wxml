@@ -1,4 +1,4 @@
-<view class="afei-page">
+<view class="afei-page" style="{{gameFontStyle}}">
   <canvas id="afei-stage-canvas" canvas-id="afei-stage-canvas" type="2d" class="afei-stage-canvas"></canvas>
 
   <view wx:if="{{splashVisible}}" class="intro-splash {{splashFading ? 'is-fading' : ''}}">
@@ -14,24 +14,35 @@
   </view>
 
   <view class="afei-ui-layer">
-    <view class="top-actions">
+    <view wx:if="{{gameStarted}}" class="game-back-anchor">
+      <view
+        class="mini-btn {{pressed.exit ? 'is-active' : ''}}"
+        bindtouchstart="onExitTouchStart"
+        bindtouchend="onExitTouchEnd"
+        bindtouchcancel="onExitTouchEnd"
+        bindtap="onExitTap"
+      >
+        <text class="mini-btn-text">返回</text>
+      </view>
+    </view>
+
+    <view wx:if="{{gameStarted}}" class="game-tools-anchor">
       <view
         class="mini-btn {{pressed.sound ? 'is-active' : ''}}"
         bindtouchstart="onSoundTouchStart"
         bindtouchend="onSoundTouchEnd"
         bindtouchcancel="onSoundTouchEnd"
-        bindtap="onSoundTap"
       >
-        <text class="mini-btn-text">{{soundMuted ? '关' : '开'}}</text>
+        <text class="mini-btn-text">{{soundMuted ? '🔇' : '📢'}}</text>
       </view>
       <view
-        class="mini-btn mini-btn--restart {{pressed.restart ? 'is-active' : ''}} {{!gameStarted ? 'is-disabled' : ''}}"
-        bindtouchstart="onRestartTouchStart"
-        bindtouchend="onRestartTouchEnd"
-        bindtouchcancel="onRestartTouchEnd"
-        bindtap="onRestartTap"
+        class="mini-btn {{pressed.pause ? 'is-active' : ''}}"
+        bindtouchstart="onPauseTouchStart"
+        bindtouchend="onPauseTouchEnd"
+        bindtouchcancel="onPauseTouchEnd"
+        bindtap="onPauseTap"
       >
-        <text class="mini-btn-text">重启</text>
+        <text class="mini-btn-text">{{gamePaused ? '▶' : '⏸️'}}</text>
       </view>
     </view>
 
@@ -79,25 +90,27 @@
 
     <view wx:if="{{showStartPanel}}" class="panel-mask">
       <view class="start-panel">
-        <view class="panel-title">阿飞历险记</view>
-        <view class="panel-subtitle">低空闯关 · 商业化天梯赛</view>
+        <view class="panel-header">
+          <view class="panel-title">阿飞历险记</view>
+          <view class="panel-back-btn" bindtap="onExitTap">返回地图</view>
+        </view>
 
-        <view class="panel-grid">
-          <view class="panel-cell">
-            <text class="panel-label">我的最好成绩</text>
-            <text class="panel-value">{{myBestScore}}m</text>
+        <view class="metric-grid">
+          <view class="metric-item">
+            <text class="metric-name">我的最好成绩</text>
+            <text class="metric-value">{{myBestScore}}m</text>
           </view>
-          <view class="panel-cell">
-            <text class="panel-label">我的天梯排名</text>
-            <text class="panel-value">{{myRankText}}</text>
+          <view class="metric-item">
+            <text class="metric-name">本局成绩</text>
+            <text class="metric-value">{{lastScore}}m</text>
           </view>
-          <view class="panel-cell">
-            <text class="panel-label">本局成绩</text>
-            <text class="panel-value">{{lastScore}}m</text>
+          <view class="metric-item">
+            <text class="metric-name">我的天梯排名</text>
+            <text class="metric-value">{{myRankText}}</text>
           </view>
-          <view class="panel-cell">
-            <text class="panel-label">低空编号</text>
-            <text class="panel-value">{{myFeatureCode || '--'}}</text>
+          <view class="metric-item">
+            <text class="metric-name">FeatureCode</text>
+            <text class="metric-value">{{myFeatureCode || '--'}}</text>
           </view>
         </view>
 
