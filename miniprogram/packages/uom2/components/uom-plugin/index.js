@@ -1288,10 +1288,7 @@ Component({
         return { status: "空域数据加载失败", tone: "warn" };
       }
       if (entry.maskStatus === "unsupported") {
-        const withinBounds = this.pointInBounds(center, tile.bounds);
-        return withinBounds
-          ? { status: SAFE_STATUS_TEXT, tone: "safe" }
-          : { status: RESTRICTED_STATUS_TEXT, tone: "alert" };
+        return { status: "当前环境不支持空域判定", tone: "warn" };
       }
       if (entry.maskStatus !== "ready" || !entry.maskData) {
         return { status: RESTRICTED_STATUS_TEXT, tone: "alert" };
