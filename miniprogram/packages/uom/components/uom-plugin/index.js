@@ -25,6 +25,9 @@ const UOM_MASK_RETRY_DELAY_MS = 1200;
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
 const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
 const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
+const WMS_OVERLAY_SWAP_DELAY_MS = 280;
+const WMS_TILE_LOAD_TIMEOUT_MS = 8000;
+const WMS_TILE_RESOURCE_CACHE_LIMIT = 72;
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
 const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
@@ -197,7 +200,11 @@ Component({
       this._wmsOverlayRemoving = false;
       this._wmsOverlayClearCallbacks = [];
       this._wmsOverlayRemovalTimer = null;
+      this._wmsOverlaySwapTimer = null;
+      this._wmsPendingBatch = null;
+      this._wmsBatchSeq = 0;
       this._wmsFinalRefreshTimer = null;
+      this._wmsTileResourceCache = new Map();
       this._uomEnvReported = false;
       this._uomModalShown = false;
       this._uomFallbackTimer = null;
@@ -249,7 +256,14 @@ Component({
       this._destroyed = true;
       if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
       if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
+      if (this._wmsOverlaySwapTimer) clearTimeout(this._wmsOverlaySwapTimer);
       if (this._wmsFinalRefreshTimer) clearTimeout(this._wmsFinalRefreshTimer);
+      if (this._wmsTileResourceCache) {
+        for (const entry of this._wmsTileResourceCache.values()) {
+          this.clearWmsTileResourceEntry(entry, { abort: true });
+        }
+        this._wmsTileResourceCache.clear();
+      }
       if (this._uomTileMasks) {
         for (const entry of this._uomTileMasks.values()) {
           this.clearUomMaskEntryTimeout(entry);
@@ -665,11 +679,11 @@ Component({
         this._currentWmsTileKey = overlayKey;
         const maskTiles = this.pickUomMaskTiles(overlays, center, UOM_MASK_KEEP_RADIUS);
         this.pruneUomTileMasks(maskTiles);
+        this.pruneWmsTileResourceCache(new Set(overlays.map((tile) => `${tile?.src || ""}`.trim()).filter(Boolean)));
         this.updateStatusPanel();
         maskTiles.forEach((tile) => this.ensureUomMask(tile));
         if (overlayKey !== this._currentWmsTileKeyApplied) {
-          this.applyWmsOverlays(overlays);
-          this._currentWmsTileKeyApplied = overlayKey;
+          this.applyWmsOverlays(overlays, { overlayKey });
         }
         this._wmsOverlayZoom = scale;
       };
@@ -859,71 +873,253 @@ Component({
       this._wmsOverlayMap.delete(tileId);
     },
 
+    cancelPendingWmsBatch() {
+      const batch = this._wmsPendingBatch;
+      if (!batch) return;
+      this._wmsPendingBatch = null;
+      if (!batch.createdHandles || !batch.createdHandles.size) return;
+      for (const handle of batch.createdHandles.values()) {
+        if (!handle) continue;
+        this.clearWmsOverlayHandleTimer(handle);
+        this.queueWmsOverlayRemoval(handle.overlayId);
+      }
+      this.processWmsOverlayRemovalQueue();
+    },
+
+    touchWmsTileResourceEntry(src) {
+      if (!this._wmsTileResourceCache || !src) return;
+      const entry = this._wmsTileResourceCache.get(src);
+      if (!entry) return;
+      this._wmsTileResourceCache.delete(src);
+      this._wmsTileResourceCache.set(src, entry);
+    },
+
+    clearWmsTileResourceEntry(entry, options = {}) {
+      if (!entry) return;
+      if (entry.downloadTimer) {
+        clearTimeout(entry.downloadTimer);
+        entry.downloadTimer = null;
+      }
+      if (options.abort && entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+        try {
+          entry.downloadTask.abort();
+        } catch (err) {
+          // ignore
+        }
+      }
+      entry.downloadTask = null;
+      entry.promise = null;
+    },
+
+    pruneWmsTileResourceCache(keepSrcSet) {
+      if (!this._wmsTileResourceCache || !this._wmsTileResourceCache.size) return;
+      if (this._wmsTileResourceCache.size <= WMS_TILE_RESOURCE_CACHE_LIMIT) return;
+      const keep = keepSrcSet instanceof Set ? keepSrcSet : new Set();
+      for (const [src, entry] of Array.from(this._wmsTileResourceCache.entries())) {
+        if (this._wmsTileResourceCache.size <= WMS_TILE_RESOURCE_CACHE_LIMIT) break;
+        if (keep.has(src)) continue;
+        if (entry?.status === "pending") continue;
+        this.clearWmsTileResourceEntry(entry, { abort: false });
+        this._wmsTileResourceCache.delete(src);
+      }
+      for (const [src, entry] of Array.from(this._wmsTileResourceCache.entries())) {
+        if (this._wmsTileResourceCache.size <= WMS_TILE_RESOURCE_CACHE_LIMIT) break;
+        if (entry?.status === "pending") continue;
+        this.clearWmsTileResourceEntry(entry, { abort: false });
+        this._wmsTileResourceCache.delete(src);
+      }
+    },
+
+    ensureWmsTileResource(src) {
+      const normalized = `${src || ""}`.trim();
+      if (!normalized) return Promise.resolve("");
+      if (!isHttpUrl(normalized) || typeof wx === "undefined" || typeof wx.downloadFile !== "function") {
+        return Promise.resolve(normalized);
+      }
+      if (!this._wmsTileResourceCache) {
+        this._wmsTileResourceCache = new Map();
+      }
+      let entry = this._wmsTileResourceCache.get(normalized);
+      if (!entry) {
+        entry = {
+          src: normalized,
+          status: "idle",
+          localSrc: "",
+          promise: null,
+          downloadTask: null,
+          downloadTimer: null
+        };
+        this._wmsTileResourceCache.set(normalized, entry);
+      }
+      this.touchWmsTileResourceEntry(normalized);
+      if (entry.status === "ready" && entry.localSrc) {
+        return Promise.resolve(entry.localSrc);
+      }
+      if (entry.status === "pending" && entry.promise) {
+        return entry.promise;
+      }
+      entry.status = "pending";
+      entry.promise = new Promise((resolve) => {
+        const finalize = (value, status) => {
+          if (entry.downloadTimer) {
+            clearTimeout(entry.downloadTimer);
+            entry.downloadTimer = null;
+          }
+          entry.downloadTask = null;
+          entry.promise = null;
+          entry.status = status;
+          if (status !== "ready") {
+            entry.localSrc = "";
+          }
+          this.touchWmsTileResourceEntry(normalized);
+          resolve(value || "");
+        };
+        entry.downloadTask = wx.downloadFile({
+          url: normalized,
+          success: (res) => {
+            const statusCode = Number(res?.statusCode);
+            const filePath = `${res?.tempFilePath || ""}`.trim();
+            if (statusCode === 200 && filePath) {
+              entry.localSrc = filePath;
+              finalize(filePath, "ready");
+              return;
+            }
+            finalize("", "error");
+          },
+          fail: () => finalize("", "error")
+        });
+        if (WMS_TILE_LOAD_TIMEOUT_MS > 0) {
+          entry.downloadTimer = setTimeout(() => {
+            if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+              try {
+                entry.downloadTask.abort();
+              } catch (err) {
+                // ignore
+              }
+            }
+            finalize("", "error");
+          }, WMS_TILE_LOAD_TIMEOUT_MS);
+        }
+      });
+      return entry.promise;
+    },
+
     applyWmsOverlays(tiles, options = {}) {
       if (!this.mapCtx) return;
       this.processWmsOverlayRemovalQueue();
+      this.cancelPendingWmsBatch();
       const ctx = this.mapCtx;
       const epoch = Number.isFinite(options.epoch) ? options.epoch : this._wmsOverlayEpoch;
+      const overlayKey = typeof options.overlayKey === "string"
+        ? options.overlayKey
+        : buildWmsTileListKey(tiles);
       this._wmsOverlayMap = this._wmsOverlayMap || new Map();
       this._wmsOverlaySeed = this._wmsOverlaySeed || 0;
-      const nextIds = new Set();
-      (tiles || []).forEach((tile) => {
-        if (tile && tile.id) nextIds.add(tile.id);
-      });
-      if (this._wmsOverlayMap.size) {
-        for (const [tileId, handle] of Array.from(this._wmsOverlayMap.entries())) {
-          if (!nextIds.has(tileId)) {
-            this.markWmsOverlayStale(tileId, handle);
-            continue;
-          }
-          if (handle && handle.stale) {
-            this.clearWmsOverlayHandleTimer(handle);
+      const currentHandles = this._wmsOverlayMap;
+      const nextHandles = new Map();
+      const obsoleteHandles = new Map(currentHandles);
+      const additions = [];
+      const batchId = `${Date.now()}-${this._wmsBatchSeq++}`;
+      let pendingCount = 0;
+      let committed = false;
+      const commitBatch = () => {
+        if (committed) return;
+        committed = true;
+        if (!this._wmsPendingBatch || this._wmsPendingBatch.id !== batchId) return;
+        this._wmsPendingBatch = null;
+        for (const [tileId, handle] of obsoleteHandles.entries()) {
+          if (!handle) continue;
+          this.clearWmsOverlayHandleTimer(handle);
+          this.queueWmsOverlayRemoval(handle.overlayId);
+          if (this._wmsOverlayMap.get(tileId) === handle) {
+            this._wmsOverlayMap.delete(tileId);
           }
         }
-      }
+        this._wmsOverlayMap = nextHandles;
+        this._currentWmsTileKeyApplied = overlayKey;
+        this.processWmsOverlayRemovalQueue();
+      };
+      const settleTile = () => {
+        pendingCount = Math.max(0, pendingCount - 1);
+        if (pendingCount === 0) {
+          commitBatch();
+        }
+      };
+      const pendingBatch = {
+        id: batchId,
+        createdHandles: new Map()
+      };
+      this._wmsPendingBatch = pendingBatch;
       (tiles || []).forEach((tile) => {
         if (!tile || !tile.id || !tile.bounds) return;
         const signature = this.tileSignature(tile);
-        const existing = this._wmsOverlayMap.get(tile.id);
+        const existing = currentHandles.get(tile.id);
         if (existing && existing.signature === signature) {
           if (existing.stale) this.clearWmsOverlayHandleTimer(existing);
-          existing.epoch = epoch;
+          nextHandles.set(tile.id, existing);
+          obsoleteHandles.delete(tile.id);
           return;
         }
-
-        if (existing) {
-          this.dropWmsOverlay(tile.id, existing);
-        }
-        this._wmsOverlaySeed += 1;
-        const overlayId = this._wmsOverlaySeed;
-
-        const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
-        ctx.addGroundOverlay({
-          id: overlayId,
-          src: tile.src,
-          bounds: tile.bounds,
-          alpha,
-          success: () => {
-            if (this._wmsOverlayRemovals && this._wmsOverlayRemovals.has(overlayId)) {
-              this.queueWmsOverlayRemoval(overlayId);
-              return;
-            }
-            if (epoch !== this._wmsOverlayEpoch) {
-              this.queueWmsOverlayRemoval(overlayId);
-            }
-          },
-          fail: (err) => {
-            console.error("addGroundOverlay failed", tile.id, err);
-            this._uomOverlayFailed = true;
-            this.updateUomTileWarning();
-
-            this.queueWmsOverlayRemoval(overlayId);
-            this._wmsOverlayMap.delete(tile.id);
-          }
-        });
-        this._wmsOverlayMap.set(tile.id, { overlayId, signature, epoch, stale: false, staleTimer: null });
+        additions.push({ tile, signature });
       });
-      this.processWmsOverlayRemovalQueue();
+      const startAdditions = () => {
+        if (!this._wmsPendingBatch || this._wmsPendingBatch.id !== batchId || epoch !== this._wmsOverlayEpoch) {
+          return;
+        }
+        additions.forEach(({ tile, signature, src }) => {
+          this._wmsOverlaySeed += 1;
+          const overlayId = this._wmsOverlaySeed;
+          pendingCount += 1;
+          const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
+          ctx.addGroundOverlay({
+            id: overlayId,
+            src: src || tile.src,
+            bounds: tile.bounds,
+            alpha,
+            success: () => {
+              const handle = { overlayId, signature, epoch, stale: false, staleTimer: null };
+              if (!this._wmsPendingBatch || this._wmsPendingBatch.id !== batchId || epoch !== this._wmsOverlayEpoch) {
+                this.queueWmsOverlayRemoval(overlayId);
+                settleTile();
+                return;
+              }
+              pendingBatch.createdHandles.set(tile.id, handle);
+              nextHandles.set(tile.id, handle);
+              settleTile();
+            },
+            fail: (err) => {
+              console.error("addGroundOverlay failed", tile.id, err);
+              this._uomOverlayFailed = true;
+              this.updateUomTileWarning();
+              settleTile();
+            }
+          });
+        });
+        if (pendingCount === 0) {
+          commitBatch();
+        }
+      };
+      if (!additions.length) {
+        commitBatch();
+        return;
+      }
+      Promise.all(
+        additions.map((item) =>
+          this.ensureWmsTileResource(item.tile?.src)
+            .then((localSrc) => {
+              item.src = localSrc || item.tile?.src || "";
+              return item.src;
+            })
+            .catch(() => {
+              item.src = item.tile?.src || "";
+              return item.src;
+            })
+        )
+      ).then(() => {
+        startAdditions();
+      }).catch(() => {
+        startAdditions();
+      });
     },
     tileSignature(tile) {
       if (!tile) return "";
@@ -943,6 +1139,11 @@ Component({
 
     clearMapOverlays(options = {}) {
       this.bumpWmsOverlayEpoch();
+      if (this._wmsOverlaySwapTimer) {
+        clearTimeout(this._wmsOverlaySwapTimer);
+        this._wmsOverlaySwapTimer = null;
+      }
+      this.cancelPendingWmsBatch();
       this._wmsOverlayMap = this._wmsOverlayMap || new Map();
       if (options && typeof options.onCleared === "function") {
         if (!this._wmsOverlayClearCallbacks) this._wmsOverlayClearCallbacks = [];

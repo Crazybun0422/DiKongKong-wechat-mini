@@ -68,6 +68,17 @@ function lonLatToTileFloat(lng, lat, zoom) {
   return { x, y };
 }
 
+function tilePriorityDistance(tileX, tileY, centerTileFloat) {
+  if (!centerTileFloat) return Number.POSITIVE_INFINITY;
+  const minDx = centerTileFloat.x < tileX
+    ? tileX - centerTileFloat.x
+    : (centerTileFloat.x > tileX + 1 ? centerTileFloat.x - (tileX + 1) : 0);
+  const minDy = centerTileFloat.y < tileY
+    ? tileY - centerTileFloat.y
+    : (centerTileFloat.y > tileY + 1 ? centerTileFloat.y - (tileY + 1) : 0);
+  return minDx * minDx + minDy * minDy;
+}
+
 // Build WMS overlays centered on GCJ center, covering the viewport.
 function buildWmsOverlay(center, zoom, region, options = {}) {
   if (!center || zoom < WMS_MIN_ZOOM || zoom > WMS_MAX_ZOOM) {
@@ -108,10 +119,12 @@ function buildWmsOverlay(center, zoom, region, options = {}) {
   let tilesY = Math.ceil(effectiveHeight / WEB_TILE_SIZE);
   if (tilesX % 2 === 0) tilesX += 1;
   if (tilesY % 2 === 0) tilesY += 1;
-  let xMin = Math.round(centerTileFloat.x - tilesX / 2);
-  let xMax = xMin + tilesX - 1;
-  let yMin = Math.round(centerTileFloat.y - tilesY / 2);
-  let yMax = yMin + tilesY - 1;
+  const halfTilesX = Math.floor(tilesX / 2);
+  const halfTilesY = Math.floor(tilesY / 2);
+  let xMin = centerTile.x - halfTilesX;
+  let xMax = centerTile.x + halfTilesX;
+  let yMin = centerTile.y - halfTilesY;
+  let yMax = centerTile.y + halfTilesY;
   xMin = Math.max(0, xMin);
   yMin = Math.max(0, yMin);
   xMax = Math.min(maxIndex, xMax);
@@ -129,11 +142,27 @@ function buildWmsOverlay(center, zoom, region, options = {}) {
 
   if (centerTile && tileCoords.length > 1) {
     tileCoords.sort((a, b) => {
-      const dxA = a.x - centerTile.x;
-      const dyA = a.y - centerTile.y;
-      const dxB = b.x - centerTile.x;
-      const dyB = b.y - centerTile.y;
-      return dxA * dxA + dyA * dyA - (dxB * dxB + dyB * dyB);
+      const distA = tilePriorityDistance(a.x, a.y, centerTileFloat);
+      const distB = tilePriorityDistance(b.x, b.y, centerTileFloat);
+      if (Math.abs(distA - distB) > 1e-9) {
+        return distA - distB;
+      }
+      const centerXA = a.x + 0.5;
+      const centerYA = a.y + 0.5;
+      const centerXB = b.x + 0.5;
+      const centerYB = b.y + 0.5;
+      const dxA = Math.abs(centerXA - centerTileFloat.x);
+      const dyA = Math.abs(centerYA - centerTileFloat.y);
+      const dxB = Math.abs(centerXB - centerTileFloat.x);
+      const dyB = Math.abs(centerYB - centerTileFloat.y);
+      if (Math.abs(dxA - dxB) > 1e-9) {
+        return dxA - dxB;
+      }
+      if (Math.abs(dyA - dyB) > 1e-9) {
+        return dyA - dyB;
+      }
+      if (a.y !== b.y) return a.y - b.y;
+      return a.x - b.x;
     });
   }
 

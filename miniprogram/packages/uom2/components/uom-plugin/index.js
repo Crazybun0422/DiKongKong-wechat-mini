@@ -182,6 +182,10 @@ Component({
         !!this._miniApi && typeof this._miniApi.createOffscreenCanvas === "function";
       this._currentTiles = [];
       this._currentTileKey = "";
+      this._lastRenderedZoom = null;
+      this._lastRenderedTileKey = "";
+      this._committedMarkers = [];
+      this._retainMarkersOnZoom = false;
       this._lastStatusPayload = null;
     },
     ready() {
@@ -286,7 +290,8 @@ Component({
       this.stopFollow();
       this.stopScaleWatch();
       this.clearTileSession();
-      this.emitTileMarkers([]);
+      this._retainMarkersOnZoom = false;
+      this.emitTileMarkers([], { force: true });
       this.mapCtx = null;
       this._lastStatusPayload = null;
     },
@@ -298,7 +303,8 @@ Component({
       this.setData({ uomDivisionEnabled: next });
       if (!next) {
         this.clearTiles();
-        this.emitTileMarkers([]);
+        this._retainMarkersOnZoom = false;
+        this.emitTileMarkers([], { force: true });
         this.updateStatusPanel();
         return;
       }
@@ -657,6 +663,8 @@ Component({
     },
 
     clearTiles() {
+      this._lastRenderedZoom = null;
+      this._lastRenderedTileKey = "";
       if (this.data.tiles && this.data.tiles.length) {
         this.setData({ tiles: [] });
       }
@@ -666,6 +674,15 @@ Component({
     },
 
     createTileSession(zoom) {
+      if (
+        this._renderMode === "marker" &&
+        Number.isFinite(this._lastRenderedZoom) &&
+        this._lastRenderedZoom !== zoom &&
+        Array.isArray(this._committedMarkers) &&
+        this._committedMarkers.length
+      ) {
+        this._retainMarkersOnZoom = true;
+      }
       this.clearTileSession();
       const sessionId = `${zoom}-${Date.now()}-${this._sessionSeq++}`;
       this._tileSession = {
@@ -1121,12 +1138,16 @@ Component({
       if (this._destroyed) return;
       const session = this._tileSession;
       if (!session) {
+        this._lastRenderedZoom = null;
+        this._lastRenderedTileKey = "";
         this.clearTiles();
         this.emitTileMarkers([]);
         return;
       }
       const tiles = Array.isArray(this._currentTiles) ? this._currentTiles : [];
       if (!tiles.length) {
+        this._lastRenderedZoom = null;
+        this._lastRenderedTileKey = "";
         this.clearTiles();
         this.emitTileMarkers([]);
         return;
@@ -1147,14 +1168,35 @@ Component({
         render.src = entry.src || tile.src;
         renders.push(render);
       });
+      const sessionSettled = tiles.every((tile) => {
+        const entry = session.tiles.get(tile.id);
+        return !!entry && (entry.status === "ready" || entry.status === "error");
+      });
+      const isZoomTransition =
+        Number.isFinite(this._lastRenderedZoom) &&
+        this._lastRenderedZoom !== session.zoom;
+      const hasPreviousDisplay =
+        Number.isFinite(this._lastRenderedZoom) ||
+        (this.data.tiles && this.data.tiles.length > 0);
+      if (isZoomTransition && !sessionSettled && hasPreviousDisplay) {
+        return;
+      }
       if (this._renderMode === "marker") {
         const markers = this.buildTileMarkers(renders);
-        this.emitTileMarkers(markers);
+        const forceCommitEmpty = !!(isZoomTransition && sessionSettled && !markers.length);
+        this.emitTileMarkers(markers, { force: forceCommitEmpty });
+        if (markers.length || forceCommitEmpty) {
+          this._retainMarkersOnZoom = false;
+        }
         this.setData({ tiles: [] });
+        this._lastRenderedZoom = session.zoom;
+        this._lastRenderedTileKey = this._currentTileKey || "";
         return;
       }
       this.emitTileMarkers([]);
       this.setData({ tiles: renders });
+      this._lastRenderedZoom = session.zoom;
+      this._lastRenderedTileKey = this._currentTileKey || "";
     },
 
     buildTileRender(tile, centerWorld, viewport, region, moving) {
@@ -1276,8 +1318,19 @@ Component({
       return Math.abs(scale - Math.round(scale)) > 0.001;
     },
 
-    emitTileMarkers(markers = []) {
-      this.triggerEvent("tileschanged", { markers });
+    emitTileMarkers(markers = [], options = {}) {
+      const nextMarkers = Array.isArray(markers) ? markers : [];
+      const force = options && options.force === true;
+      if (
+        this._renderMode === "marker" &&
+        this._retainMarkersOnZoom &&
+        !force &&
+        !nextMarkers.length
+      ) {
+        return;
+      }
+      this._committedMarkers = nextMarkers;
+      this.triggerEvent("tileschanged", { markers: nextMarkers });
     },
 
     scheduleStatusEvaluation(delayOverride) {
