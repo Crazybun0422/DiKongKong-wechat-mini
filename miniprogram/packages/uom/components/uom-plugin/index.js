@@ -877,6 +877,9 @@ Component({
       const batch = this._wmsPendingBatch;
       if (!batch) return;
       this._wmsPendingBatch = null;
+      if (batch.requestedSrcs && batch.requestedSrcs.size) {
+        batch.requestedSrcs.forEach((src) => this.releaseWmsTileResource(src, batch.id));
+      }
       if (!batch.createdHandles || !batch.createdHandles.size) return;
       for (const handle of batch.createdHandles.values()) {
         if (!handle) continue;
@@ -909,6 +912,7 @@ Component({
       }
       entry.downloadTask = null;
       entry.promise = null;
+      entry.finalize = null;
     },
 
     pruneWmsTileResourceCache(keepSrcSet) {
@@ -930,7 +934,34 @@ Component({
       }
     },
 
-    ensureWmsTileResource(src) {
+    releaseWmsTileResource(src, consumerId) {
+      const normalized = `${src || ""}`.trim();
+      if (!normalized || !this._wmsTileResourceCache) return;
+      const entry = this._wmsTileResourceCache.get(normalized);
+      if (!entry) return;
+      if (consumerId && entry.consumers) {
+        entry.consumers.delete(consumerId);
+      }
+      if (entry.consumers && entry.consumers.size > 0) return;
+      if (entry.status === "pending") {
+        if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+          try {
+            entry.downloadTask.abort();
+          } catch (err) {
+            // ignore
+          }
+        }
+        if (typeof entry.finalize === "function") {
+          entry.finalize("", "idle");
+          return;
+        }
+        this.clearWmsTileResourceEntry(entry, { abort: false });
+        entry.status = "idle";
+        entry.localSrc = "";
+      }
+    },
+
+    ensureWmsTileResource(src, consumerId) {
       const normalized = `${src || ""}`.trim();
       if (!normalized) return Promise.resolve("");
       if (!isHttpUrl(normalized) || typeof wx === "undefined" || typeof wx.downloadFile !== "function") {
@@ -947,10 +978,15 @@ Component({
           localSrc: "",
           promise: null,
           downloadTask: null,
-          downloadTimer: null
+          downloadTimer: null,
+          finalize: null,
+          requestId: 0,
+          consumers: new Set()
         };
         this._wmsTileResourceCache.set(normalized, entry);
       }
+      if (!entry.consumers) entry.consumers = new Set();
+      if (consumerId) entry.consumers.add(consumerId);
       this.touchWmsTileResourceEntry(normalized);
       if (entry.status === "ready" && entry.localSrc) {
         return Promise.resolve(entry.localSrc);
@@ -959,24 +995,33 @@ Component({
         return entry.promise;
       }
       entry.status = "pending";
+      entry.requestId = Number.isFinite(entry.requestId) ? entry.requestId + 1 : 1;
+      const requestId = entry.requestId;
       entry.promise = new Promise((resolve) => {
         const finalize = (value, status) => {
+          if (entry.requestId !== requestId) return;
           if (entry.downloadTimer) {
             clearTimeout(entry.downloadTimer);
             entry.downloadTimer = null;
           }
           entry.downloadTask = null;
           entry.promise = null;
+          entry.finalize = null;
           entry.status = status;
           if (status !== "ready") {
             entry.localSrc = "";
           }
+          if (entry.consumers) {
+            entry.consumers.clear();
+          }
           this.touchWmsTileResourceEntry(normalized);
           resolve(value || "");
         };
+        entry.finalize = finalize;
         entry.downloadTask = wx.downloadFile({
           url: normalized,
           success: (res) => {
+            if (entry.requestId !== requestId) return;
             const statusCode = Number(res?.statusCode);
             const filePath = `${res?.tempFilePath || ""}`.trim();
             if (statusCode === 200 && filePath) {
@@ -986,10 +1031,14 @@ Component({
             }
             finalize("", "error");
           },
-          fail: () => finalize("", "error")
+          fail: () => {
+            if (entry.requestId !== requestId) return;
+            finalize("", "error");
+          }
         });
         if (WMS_TILE_LOAD_TIMEOUT_MS > 0) {
           entry.downloadTimer = setTimeout(() => {
+            if (entry.requestId !== requestId) return;
             if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
               try {
                 entry.downloadTask.abort();
@@ -1047,7 +1096,8 @@ Component({
       };
       const pendingBatch = {
         id: batchId,
-        createdHandles: new Map()
+        createdHandles: new Map(),
+        requestedSrcs: new Set()
       };
       this._wmsPendingBatch = pendingBatch;
       (tiles || []).forEach((tile) => {
@@ -1104,8 +1154,11 @@ Component({
         return;
       }
       Promise.all(
-        additions.map((item) =>
-          this.ensureWmsTileResource(item.tile?.src)
+        additions.map((item) => {
+          if (item.tile?.src) {
+            pendingBatch.requestedSrcs.add(item.tile.src);
+          }
+          return this.ensureWmsTileResource(item.tile?.src, batchId)
             .then((localSrc) => {
               item.src = localSrc || item.tile?.src || "";
               return item.src;
@@ -1113,8 +1166,8 @@ Component({
             .catch(() => {
               item.src = item.tile?.src || "";
               return item.src;
-            })
-        )
+            });
+        })
       ).then(() => {
         startAdditions();
       }).catch(() => {
