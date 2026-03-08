@@ -14,6 +14,40 @@ const DEFAULT_VIEWPORT_WIDTH = 375;
 const DEFAULT_VIEWPORT_HEIGHT = 667;
 const MAX_WMS_TILE_SIZE = 256;
 const DEFAULT_WMS_FORMAT = "image/png";
+const DEFAULT_LAYER_NAMESPACE = "QGSFKYFW";
+const DEFAULT_STYLE_NAME = "shifeikongyu";
+const DEFAULT_PROVINCE_CODES = [
+  "12",
+  "13",
+  "14",
+  "15",
+  "21",
+  "22",
+  "23",
+  "31",
+  "32",
+  "33",
+  "34",
+  "35",
+  "36",
+  "37",
+  "41",
+  "42",
+  "43",
+  "44",
+  "45",
+  "46",
+  "50",
+  "51",
+  "52",
+  "53",
+  "54",
+  "61",
+  "62",
+  "63",
+  "64",
+  "65"
+];
 
 function normalizeTileSize(value, fallback) {
   const num = Number(value);
@@ -45,7 +79,10 @@ function buildWmsOverlay(center, zoom, region, options = {}) {
     return [];
   }
   const base = "https://uom.caac.gov.cn/map/airspace/wms";
-  const { layers, styles } = buildProvinceLayers();
+  const resolveLayerParams = typeof options.resolveLayerParams === "function"
+    ? options.resolveLayerParams
+    : null;
+  const fallbackLayerParams = buildProvinceLayers(options);
   const tileSize = normalizeTileSize(options.tileSize, DEFAULT_WMS_TILE_SIZE);
   const maskSize = normalizeTileSize(options.maskSize, DEFAULT_WMS_TILE_SIZE);
   const format = options.format || DEFAULT_WMS_FORMAT;
@@ -116,6 +153,22 @@ function buildWmsOverlay(center, zoom, region, options = {}) {
       Math.max(mSW.x, mNE.x),
       Math.max(mSW.y, mNE.y)
     ];
+    const tileBounds = {
+      southwest: { longitude: gcjSW.lng, latitude: gcjSW.lat },
+      northeast: { longitude: gcjNE.lng, latitude: gcjNE.lat }
+    };
+    const layerParams = resolveLayerParams
+      ? resolveLayerParams(tileBounds, {
+        x,
+        y,
+        zoom,
+        bounds: tileBounds,
+        bbox3857: reqBBox
+      })
+      : fallbackLayerParams;
+    const layers = `${layerParams?.layers || ""}`.trim();
+    const styles = `${layerParams?.styles || ""}`.trim();
+    if (!layers || !styles) return;
 
     const queryParams = {
       token: CAAC_TOKEN,
@@ -136,54 +189,25 @@ function buildWmsOverlay(center, zoom, region, options = {}) {
     tiles.push({
       id: `${zoom}-${x}-${y}`,
       src: `${base}?${q}`,
-      bounds: {
-        southwest: { longitude: gcjSW.lng, latitude: gcjSW.lat },
-        northeast: { longitude: gcjNE.lng, latitude: gcjNE.lat }
-      },
+      bounds: tileBounds,
       alpha: 0.65,
       opacity: 0.65,
       zIndex: 1,
-      maskSize
+      maskSize,
+      provinceCodes: Array.isArray(layerParams?.provinceCodes) ? layerParams.provinceCodes.slice() : []
     });
   });
   return tiles;
 }
 
-function buildProvinceLayers() {
-  const PROVINCE_CODES = [
-    "12",
-    "13",
-    "14",
-    "15",
-    "21",
-    "22",
-    "23",
-    "31",
-    "32",
-    "33",
-    "34",
-    "35",
-    "36",
-    "37",
-    "41",
-    "42",
-    "43",
-    "44",
-    "45",
-    "46",
-    "50",
-    "51",
-    "52",
-    "53",
-    "54",
-    "61",
-    "62",
-    "63",
-    "64",
-    "65"
-  ];
-  const layers = PROVINCE_CODES.map((c) => `QGSFKYFW:sf${c}0000`).join(",");
-  const styles = PROVINCE_CODES.map(() => "QGSFKYFW:shifeikongyu").join(",");
+function buildProvinceLayers(options = {}) {
+  const layerNamespace = options.layerNamespace || DEFAULT_LAYER_NAMESPACE;
+  const styleName = options.styleName || DEFAULT_STYLE_NAME;
+  const provinceCodes = Array.isArray(options.provinceCodes) && options.provinceCodes.length
+    ? options.provinceCodes
+    : DEFAULT_PROVINCE_CODES;
+  const layers = provinceCodes.map((code) => `${layerNamespace}:sf${code}0000`).join(",");
+  const styles = provinceCodes.map(() => `${layerNamespace}:${styleName}`).join(",");
   return { layers, styles };
 }
 

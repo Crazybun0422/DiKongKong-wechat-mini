@@ -1,4 +1,9 @@
 const { buildWmsOverlay, WMS_MIN_ZOOM, WMS_MAX_ZOOM } = require("../../../../utils/wms");
+const {
+  buildProvinceLayerRecords,
+  buildProvinceLayerParams
+} = require("../../../../utils/uomProvinceSelector");
+const provinceGeojson = require("../../map-meta-data/China.js");
 
 const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
 const MIN_GROUND_OVERLAY_SDK = "2.21.2";
@@ -21,6 +26,36 @@ const WMS_FINAL_REFRESH_DELAY_MS = 150;
 const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
 const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
+const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
+const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
+const UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT = 256;
+
+const getProvinceLayerCacheKey = (bbox) => {
+  const sw = bbox?.southwest || {};
+  const ne = bbox?.northeast || {};
+  return [
+    Number(sw.longitude).toFixed(6),
+    Number(sw.latitude).toFixed(6),
+    Number(ne.longitude).toFixed(6),
+    Number(ne.latitude).toFixed(6)
+  ].join(",");
+};
+
+const resolveProvinceLayerParams = (bbox) => {
+  const key = getProvinceLayerCacheKey(bbox);
+  if (UOM_PROVINCE_LAYER_PARAM_CACHE.has(key)) {
+    return UOM_PROVINCE_LAYER_PARAM_CACHE.get(key);
+  }
+  const params = buildProvinceLayerParams(UOM_PROVINCE_LAYER_RECORDS, bbox);
+  if (UOM_PROVINCE_LAYER_PARAM_CACHE.size >= UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT) {
+    const oldestKey = UOM_PROVINCE_LAYER_PARAM_CACHE.keys().next().value;
+    if (oldestKey) {
+      UOM_PROVINCE_LAYER_PARAM_CACHE.delete(oldestKey);
+    }
+  }
+  UOM_PROVINCE_LAYER_PARAM_CACHE.set(key, params);
+  return params;
+};
 
 const normalizeRuntimeField = (value) => `${value || ""}`.toLowerCase();
 const getRuntimeInfo = () => {
@@ -610,7 +645,8 @@ Component({
           maxTiles: UOM_TILE_MAX_TILES,
           viewportWidth: viewport?.width,
           viewportHeight: viewport?.height,
-          viewportPaddingPx: UOM_VIEWPORT_PADDING_PX
+          viewportPaddingPx: UOM_VIEWPORT_PADDING_PX,
+          resolveLayerParams: resolveProvinceLayerParams
         }
       );
       const applyOverlays = () => {

@@ -33,7 +33,12 @@
   "libVersion": "3.8.10",
   "description": "Converted from vue map demo to WeChat Mini Program.",
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "miniprogram/map-meta-data"
+      }
+    ],
     "include": []
   },
   "condition": {},
