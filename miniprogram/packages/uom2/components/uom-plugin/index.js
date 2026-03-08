@@ -101,6 +101,11 @@ const buildCenterTileIdSet = (center, zoom, radius = TILE_KEEP_RADIUS) => {
   return ids;
 };
 
+const buildTileIdSetKey = (tileIds) => {
+  if (!(tileIds instanceof Set) || !tileIds.size) return "";
+  return Array.from(tileIds).sort().join("|");
+};
+
 const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
 const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
 const UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT = 128;
@@ -176,6 +181,7 @@ Component({
       this._offscreenSupported =
         !!this._miniApi && typeof this._miniApi.createOffscreenCanvas === "function";
       this._currentTiles = [];
+      this._currentTileKey = "";
       this._lastStatusPayload = null;
     },
     ready() {
@@ -596,8 +602,30 @@ Component({
         this.updateStatusPanel();
         return;
       }
+      const keepIds = buildCenterTileIdSet(center, zoom, TILE_KEEP_RADIUS);
+      const tileKey = buildTileIdSetKey(keepIds);
       if (!this._tileSession || forceZoomSession || this._tileSession.zoom !== zoom) {
         this.createTileSession(zoom);
+      }
+      if (
+        !forceZoomSession &&
+        this._tileSession &&
+        this._tileSession.zoom === zoom &&
+        tileKey &&
+        tileKey === this._currentTileKey &&
+        Array.isArray(this._currentTiles) &&
+        this._currentTiles.length
+      ) {
+        const session = this._tileSession;
+        this._currentTiles.forEach((tile) => {
+          this.ensureTileEntry(session, tile);
+          this.ensureTileSrc(session, tile);
+        });
+        this.requestRender();
+        if (!this._isMoving) {
+          this.scheduleStatusEvaluation();
+        }
+        return;
       }
       const viewport = this._viewport;
       let tiles = buildWmsOverlay(center, zoom, this._region, {
@@ -610,9 +638,9 @@ Component({
         resolveLayerParams: resolveProvinceLayerParams
       });
       if (!Array.isArray(tiles)) tiles = [];
-      const keepIds = buildCenterTileIdSet(center, zoom, TILE_KEEP_RADIUS);
       tiles = tiles.filter((tile) => keepIds.has(tile.id));
       this._currentTiles = tiles;
+      this._currentTileKey = tileKey;
       const session = this._tileSession;
       tiles.forEach((tile) => this.ensureTileEntry(session, tile));
       this.enforceTileCacheLimit(session, keepIds);
@@ -655,6 +683,7 @@ Component({
       }
       session.tiles.clear();
       this._tileSession = null;
+      this._currentTileKey = "";
     },
 
     ensureTileEntry(session, tile) {

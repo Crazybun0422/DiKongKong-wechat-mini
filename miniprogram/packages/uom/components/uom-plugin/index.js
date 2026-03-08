@@ -146,6 +146,12 @@ const sameStatusPayload = (a, b) => {
   );
 };
 
+const buildWmsTileListKey = (tiles = []) =>
+  (Array.isArray(tiles) ? tiles : [])
+    .map((tile) => `${tile?.id || ""}@${tile?.src || ""}`)
+    .sort()
+    .join("|");
+
 Component({
   options: { virtualHost: true },
   data: {
@@ -204,6 +210,8 @@ Component({
       this._devicePixelRatio = 1;
       this._sdkVersion = "";
       this._destroyed = false;
+      this._currentWmsTileKey = "";
+      this._currentWmsTileKeyApplied = "";
 
       const updates = {};
       if (center) {
@@ -628,6 +636,7 @@ Component({
       if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
         this.clearMapOverlays();
         this._currentWmsTiles = [];
+        this._currentWmsTileKey = "";
         this.updateStatusPanel();
         return;
       }
@@ -649,14 +658,19 @@ Component({
           resolveLayerParams: resolveProvinceLayerParams
         }
       );
+      const overlayKey = buildWmsTileListKey(overlays);
       const applyOverlays = () => {
         if (this.data.uomDivisionEnabled === false) return;
         this._currentWmsTiles = overlays;
+        this._currentWmsTileKey = overlayKey;
         const maskTiles = this.pickUomMaskTiles(overlays, center, UOM_MASK_KEEP_RADIUS);
         this.pruneUomTileMasks(maskTiles);
         this.updateStatusPanel();
         maskTiles.forEach((tile) => this.ensureUomMask(tile));
-        this.applyWmsOverlays(overlays);
+        if (overlayKey !== this._currentWmsTileKeyApplied) {
+          this.applyWmsOverlays(overlays);
+          this._currentWmsTileKeyApplied = overlayKey;
+        }
         this._wmsOverlayZoom = scale;
       };
       if (this._wmsOverlayZoom !== null && this._wmsOverlayZoom !== scale) {
@@ -950,6 +964,8 @@ Component({
         this._uomTileMasks.clear();
       }
       this._currentWmsTiles = [];
+      this._currentWmsTileKey = "";
+      this._currentWmsTileKeyApplied = "";
       this.updateStatusPanel();
     },
 
