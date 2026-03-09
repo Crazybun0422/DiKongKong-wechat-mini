@@ -144,6 +144,7 @@ const sameStatusPayload = (a, b) => {
   return (
     a.uomStatus === b.uomStatus &&
     a.uomTone === b.uomTone &&
+    a.uomLoading === b.uomLoading &&
     a.uomTileWarningVisible === b.uomTileWarningVisible &&
     a.uomTileWarningDismissed === b.uomTileWarningDismissed
   );
@@ -160,6 +161,7 @@ Component({
   data: {
     uomStatus: "评估中",
     uomTone: "neutral",
+    uomLoading: false,
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     uomDivisionEnabled: true,
@@ -249,6 +251,15 @@ Component({
       const initialCenter = centerPin || center;
       if (this.mapCtx && initialCenter && Number.isFinite(scale)) {
         this.refreshWmsOverlay(initialCenter, scale, region || this._lastRegion);
+      }
+      if (this.mapCtx) {
+        this.scheduleFinalRefresh();
+        if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+        this._uomFallbackTimer = setTimeout(() => {
+          this._uomFallbackTimer = null;
+          if (this._destroyed || !this.mapCtx) return;
+          this.scheduleFinalRefresh();
+        }, 600);
       }
     },
     destroy() {
@@ -388,6 +399,7 @@ Component({
         {
           uomStatus: this.data.uomStatus,
           uomTone: this.data.uomTone,
+          uomLoading: this.data.uomLoading,
           uomTileWarningVisible: this.data.uomTileWarningVisible,
           uomTileWarningDismissed: this.data.uomTileWarningDismissed
         },
@@ -411,6 +423,24 @@ Component({
         uomTileWarningDismissed: dismissed
       };
       this.setData(updates, () => this.emitStatus(updates));
+    },
+
+    isBatchDownloading(batch = this._wmsPendingBatch) {
+      if (!batch || !batch.requestedSrcs || !batch.requestedSrcs.size) return false;
+      for (const src of batch.requestedSrcs) {
+        const entry = this._wmsTileResourceCache?.get(src);
+        if (entry && entry.status === "pending") {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    syncUomLoadingState() {
+      if (this._destroyed) return;
+      const loading = this.isBatchDownloading();
+      if (this.data.uomLoading === loading) return;
+      this.setData({ uomLoading: loading }, () => this.emitStatus({ uomLoading: loading }));
     },
 
     shouldShowUomTileWarning() {
@@ -693,11 +723,8 @@ Component({
       applyOverlays();
     },
     getMapViewportSize() {
-      if (this._mapViewport && this._mapViewport.width && this._mapViewport.height) {
-        return this._mapViewport;
-      }
-      let width = 375;
-      let height = 667;
+      let width = Number(this._mapViewport?.width) || 375;
+      let height = Number(this._mapViewport?.height) || 667;
       try {
         if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
           const info = wx.getWindowInfo();
@@ -887,6 +914,7 @@ Component({
         this.queueWmsOverlayRemoval(handle.overlayId);
       }
       this.processWmsOverlayRemovalQueue();
+      this.syncUomLoadingState();
     },
 
     touchWmsTileResourceEntry(src) {
@@ -959,6 +987,7 @@ Component({
         entry.status = "idle";
         entry.localSrc = "";
       }
+      this.syncUomLoadingState();
     },
 
     ensureWmsTileResource(src, consumerId) {
@@ -1015,6 +1044,7 @@ Component({
             entry.consumers.clear();
           }
           this.touchWmsTileResourceEntry(normalized);
+          this.syncUomLoadingState();
           resolve(value || "");
         };
         entry.finalize = finalize;
@@ -1150,10 +1180,11 @@ Component({
         }
       };
       if (!additions.length) {
+        this.syncUomLoadingState();
         commitBatch();
         return;
       }
-      Promise.all(
+      const downloadPromise = Promise.all(
         additions.map((item) => {
           if (item.tile?.src) {
             pendingBatch.requestedSrcs.add(item.tile.src);
@@ -1168,7 +1199,9 @@ Component({
               return item.src;
             });
         })
-      ).then(() => {
+      );
+      this.syncUomLoadingState();
+      downloadPromise.then(() => {
         startAdditions();
       }).catch(() => {
         startAdditions();
@@ -1220,6 +1253,7 @@ Component({
       this._currentWmsTiles = [];
       this._currentWmsTileKey = "";
       this._currentWmsTileKeyApplied = "";
+      this.syncUomLoadingState();
       this.updateStatusPanel();
     },
 
