@@ -167,9 +167,7 @@ Page({
     }
     this.refreshSubscriptionRedDot();
     this.loadCheckinStatus();
-    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "profile") {
-      this.showCheckinGuideProfile();
-    } else if (this.data.showCheckinGuideProfile) {
+    if (this.data.showCheckinGuideProfile) {
       this.setData({ showCheckinGuideProfile: false });
     }
     if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "profile") {

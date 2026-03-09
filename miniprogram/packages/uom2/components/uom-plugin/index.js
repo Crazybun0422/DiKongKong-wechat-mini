@@ -54,6 +54,7 @@ const sameStatusPayload = (a, b) => {
   return (
     a.uomStatus === b.uomStatus &&
     a.uomTone === b.uomTone &&
+    a.uomLoading === b.uomLoading &&
     a.uomTileWarningVisible === b.uomTileWarningVisible &&
     a.uomTileWarningDismissed === b.uomTileWarningDismissed
   );
@@ -143,6 +144,7 @@ Component({
     tiles: [],
     uomStatus: "评估中",
     uomTone: "neutral",
+    uomLoading: false,
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     uomDivisionEnabled: true
@@ -701,6 +703,25 @@ Component({
       session.tiles.clear();
       this._tileSession = null;
       this._currentTileKey = "";
+      this.syncUomLoadingState();
+    },
+
+    resolveUomLoadingState() {
+      const session = this._tileSession;
+      if (!session || !session.tiles || !session.tiles.size) return false;
+      for (const entry of session.tiles.values()) {
+        if (entry && (entry.status === "pending" || entry.maskStatus === "pending")) {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    syncUomLoadingState() {
+      if (this._destroyed) return;
+      const loading = this.resolveUomLoadingState();
+      if (this.data.uomLoading === loading) return;
+      this.setData({ uomLoading: loading }, () => this.emitStatus({ uomLoading: loading }));
     },
 
     ensureTileEntry(session, tile) {
@@ -751,6 +772,7 @@ Component({
       if (entry.status === "pending" && entry.promise) return entry.promise;
       console.log("[uom2] download tile", tile.id);
       entry.status = "pending";
+      this.syncUomLoadingState();
       entry.promise = this.downloadTile(tile.src, entry)
         .then((src) => {
           if (this._destroyed || session !== this._tileSession) return "";
@@ -758,11 +780,13 @@ Component({
           if (!src) {
             entry.status = "error";
             entry.promise = null;
+            this.syncUomLoadingState();
             return "";
           }
           entry.status = "ready";
           entry.src = src || "";
           entry.promise = null;
+          this.syncUomLoadingState();
           this.requestRender();
           if (!this._isMoving) {
             this.scheduleStatusEvaluation();
@@ -774,6 +798,7 @@ Component({
           if (!session.tiles.has(tile.id)) return "";
           entry.status = "error";
           entry.promise = null;
+          this.syncUomLoadingState();
           return "";
         });
       return entry.promise;
@@ -781,6 +806,7 @@ Component({
 
     abortTileEntry(entry) {
       if (!entry) return;
+      const wasPending = entry.status === "pending" || entry.maskStatus === "pending";
       if (entry.downloadTimer) {
         clearTimeout(entry.downloadTimer);
         entry.downloadTimer = null;
@@ -802,6 +828,11 @@ Component({
       entry.maskHeight = 0;
       entry.httpMarkerSrc = "";
       entry.httpMarkerVerified = undefined;
+      if (wasPending) {
+        entry.status = "idle";
+        entry.maskStatus = "idle";
+        this.syncUomLoadingState();
+      }
     },
 
     downloadTile(src, entry) {
@@ -1352,6 +1383,7 @@ Component({
         {
           uomStatus: this.data.uomStatus,
           uomTone: this.data.uomTone,
+          uomLoading: this.data.uomLoading,
           uomTileWarningVisible: this.data.uomTileWarningVisible,
           uomTileWarningDismissed: this.data.uomTileWarningDismissed
         },
@@ -1368,6 +1400,7 @@ Component({
       const updates = {
         uomStatus: uom.status,
         uomTone: uom.tone,
+        uomLoading: this.resolveUomLoadingState(),
         uomTileWarningVisible: false,
         uomTileWarningDismissed: false
       };
@@ -1450,12 +1483,14 @@ Component({
       if (entry.maskStatus === "ready" || entry.maskStatus === "pending") return;
       if (!this._offscreenSupported) {
         entry.maskStatus = "unsupported";
+        this.syncUomLoadingState();
         if (!this._isMoving) {
           this.updateStatusPanel();
         }
         return;
       }
       entry.maskStatus = "pending";
+      this.syncUomLoadingState();
       const sessionRef = session;
       const maskSrcPromise = this._forceHttpMarker
         ? this.downloadTileForMask(tile.src, entry)
@@ -1467,6 +1502,7 @@ Component({
           if (!sessionRef.tiles.has(tile.id)) return;
           if (!mask) {
             entry.maskStatus = "error";
+            this.syncUomLoadingState();
             this.updateStatusPanel();
             return;
           }
@@ -1474,6 +1510,7 @@ Component({
           entry.maskData = mask.data;
           entry.maskWidth = mask.width;
           entry.maskHeight = mask.height;
+          this.syncUomLoadingState();
           if (!this._isMoving) {
             this.updateStatusPanel();
           }
@@ -1482,6 +1519,7 @@ Component({
           if (this._destroyed || this._tileSession !== sessionRef) return;
           if (!sessionRef.tiles.has(tile.id)) return;
           entry.maskStatus = "error";
+          this.syncUomLoadingState();
           this.updateStatusPanel();
         });
     },

@@ -95,6 +95,23 @@
         立即开启
       </button>
     </view>
+    <view
+      class="map-checkin-entry-wrap map-ui-scale-right"
+      wx:if="{{activeTab === 'home'}}"
+      style="{{checkinEntryStyle}} {{mapUiScaleStyle}}"
+    >
+      <button
+        id="map-checkin-entry-btn"
+        class="map-checkin-entry {{checkinTodaySigned ? '' : 'is-breathing'}}"
+        bindtap="onMapCheckinEntryTap"
+      >
+        <image
+          class="map-checkin-entry-image"
+          src="{{checkinTodaySigned ? '/assets/map-checkin-signed.png' : '/assets/map-checkin-unsigned.png'}}"
+          mode="aspectFit"
+        />
+      </button>
+    </view>
     <view class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}" wx:if="{{compassVisible}}" style="{{mapUiScaleStyle}}">
       <map-compass
         rotate="{{compassRotate}}"
@@ -185,7 +202,12 @@
           </view>
           <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
         </view>
-        <view class="preflight-row">
+        <view class="preflight-row preflight-row--uom">
+          <view wx:if="{{uomLoading}}" class="preflight-inline-loading" aria-hidden="true">
+            <view class="preflight-inline-loading-trace"></view>
+            <view class="preflight-inline-loading-ring"></view>
+            <view class="preflight-inline-loading-core"></view>
+          </view>
           <text class="preflight-label">位于UOM划分：</text>
           <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
         </view>

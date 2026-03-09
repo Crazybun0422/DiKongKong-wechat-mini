@@ -62,7 +62,8 @@ const {
   normalizeTemplateIds,
   extractAcceptedTemplateIdsFromWxSetting
 } = require("../../utils/subscriptions");
-const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
+const { fetchCheckinDetail } = require("../../utils/checkin");
+const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS, SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
 const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
 const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
 const { isWeChatRuntime, isDesktopRuntime } = require("../../utils/runtime");
@@ -118,6 +119,8 @@ const CENTER_PIN_FOLLOW_TIP_TEXT = "长按解除绑定状态~";
 const MAP_WIDE_LAYOUT_MIN_WIDTH = 560;
 const MAP_WIDE_LAYOUT_MIN_RATIO = 1.1;
 const WINDOW_RESIZE_DEBOUNCE_MS = 80;
+const DEFAULT_MAP_CHECKIN_ENTRY_STYLE =
+  "top: calc(env(safe-area-inset-top) + 96rpx); right: 24rpx; width: 150rpx; height: 50rpx;";
 const MAP_UI_BASE_WIDTH_PX = 375;
 const MAP_UI_SCALE_MIN = 0.35;
 const MAP_COMPASS_ROTATE_THRESHOLD = 1;
@@ -1010,8 +1013,11 @@ Page({
     selectedDroneName: "",
     levelsInput: DEFAULT_LEVELS_PARAM,
     loadingDji: false,
+    checkinTodaySigned: false,
+    checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE,
     uomStatus: "评估中",
     uomTone: "neutral",
+    uomLoading: false,
     djiStatus: "评估中",
     djiTone: "neutral",
     djiColor: "",
@@ -1334,6 +1340,7 @@ Page({
     this._myLocationDirectionLastSyncAt = 0;
     this._overlookSyncAvoidUntil = 0;
     this._centerOverride = this.data.center;
+    this.updateMapCheckinEntryStyle();
     this._layerPanelCloseTimer = null;
     this._addMiniAppPopupChecking = false;
     this._addMiniAppPopupVisible = false;
@@ -1468,10 +1475,13 @@ Page({
     this.autoLoginOnLaunch();
     this.checkPolicyUpdateOnLaunch();
     this.initSubscriptionBanner();
+    this.loadCheckinStatus();
 
   },
 
   onReady() {
+    this.updateMapCheckinEntryStyle();
+    this.scheduleMapCheckinEntryStyleRefresh();
     this.ensureUomPluginReady();
     this.ensureDjiLayerReady();
     this.ensureTemporaryNoFlyLayerReady();
@@ -4275,6 +4285,9 @@ Page({
     applyMapStatusBarStyle();
     this.startMyLocationDirectionTracking();
     this.refreshResponsiveLayout({ force: true });
+    this.updateMapCheckinEntryStyle();
+    this.scheduleMapCheckinEntryStyleRefresh();
+    this.loadCheckinStatus();
     if (this.data.activeTab !== "home") {
       this.setData({
         activeTab: "home",
@@ -4317,6 +4330,7 @@ Page({
 
   onResize(event = {}) {
     this.refreshResponsiveLayout({ event, force: true });
+    this.updateMapCheckinEntryStyle();
   },
 
   normalizeCompassDirection(value) {
@@ -4399,6 +4413,10 @@ Page({
     this.stopMyLocationDirectionTracking();
     this.pauseCenterPinLocationFollow();
     this.clearPinPreview();
+    if (this._checkinEntryStyleTimer) {
+      clearTimeout(this._checkinEntryStyleTimer);
+      this._checkinEntryStyleTimer = null;
+    }
     if (this._mapGraphicsSyncTimer) {
       clearTimeout(this._mapGraphicsSyncTimer);
       this._mapGraphicsSyncTimer = null;
@@ -4416,6 +4434,9 @@ Page({
     }
     if (Object.prototype.hasOwnProperty.call(detail, "uomTone")) {
       updates.uomTone = detail.uomTone;
+    }
+    if (Object.prototype.hasOwnProperty.call(detail, "uomLoading")) {
+      updates.uomLoading = !!detail.uomLoading;
     }
     if (Object.prototype.hasOwnProperty.call(detail, "uomTileWarningVisible")) {
       updates.uomTileWarningVisible = detail.uomTileWarningVisible;
@@ -4566,7 +4587,7 @@ Page({
   measureCheckinGuideTarget() {
     return new Promise((resolve) => {
       const query = wx.createSelectorQuery().in(this);
-      query.select("#menu-profile-btn").boundingClientRect();
+      query.select("#map-checkin-entry-btn").boundingClientRect();
       query.exec((res) => {
         const rect = res && res[0];
         if (!rect) {
@@ -4574,7 +4595,7 @@ Page({
           return;
         }
         const { windowWidth, windowHeight } = getWindowMetrics();
-        const padding = 10;
+        const padding = 10 + (20 * windowWidth / 750);
         const size = Math.max(rect.width, rect.height) + padding * 2;
         const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
         const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
@@ -4617,6 +4638,71 @@ Page({
         });
       });
     });
+  },
+
+  updateMapCheckinEntryStyle() {
+    if (typeof wx === "undefined" || typeof wx.getMenuButtonBoundingClientRect !== "function") {
+      if (!this.data.checkinEntryStyle) {
+        this.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
+      }
+      return;
+    }
+    const menuRect = wx.getMenuButtonBoundingClientRect();
+    if (!menuRect || !menuRect.right) {
+      if (!this.data.checkinEntryStyle) {
+        this.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
+      }
+      return;
+    }
+    const { screenWidth } = getWindowMetrics();
+    if (!screenWidth) {
+      if (!this.data.checkinEntryStyle) {
+        this.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
+      }
+      return;
+    }
+    const rpx = screenWidth / 750;
+    const buttonWidth = 150 * rpx;
+    const buttonHeight = 50 * rpx;
+    const gapY = 16 * rpx;
+    const top = menuRect.bottom + gapY;
+    const right = Math.max(12 * rpx, screenWidth - menuRect.right);
+    this.setData({
+      checkinEntryStyle: `top:${top.toFixed(2)}px;right:${right.toFixed(2)}px;width:${buttonWidth.toFixed(2)}px;height:${buttonHeight.toFixed(2)}px;`
+    });
+  },
+
+  scheduleMapCheckinEntryStyleRefresh(delay = 180) {
+    if (this._checkinEntryStyleTimer) {
+      clearTimeout(this._checkinEntryStyleTimer);
+    }
+    this._checkinEntryStyleTimer = setTimeout(() => {
+      this._checkinEntryStyleTimer = null;
+      this.updateMapCheckinEntryStyle();
+    }, Math.max(0, Number(delay) || 0));
+  },
+
+  loadCheckinStatus() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) {
+      if (this.data.checkinTodaySigned) {
+        this.setData({ checkinTodaySigned: false });
+      }
+      return;
+    }
+    fetchCheckinDetail({ apiBase, token })
+      .then((detail = {}) => {
+        this.setData({ checkinTodaySigned: !!detail.todaySigned });
+      })
+      .catch((err) => {
+        if (err?.message === "missing-token") {
+          this.setData({ checkinTodaySigned: false });
+          return;
+        }
+        console.warn("map loadCheckinStatus failed", err);
+        this.setData({ checkinTodaySigned: false });
+      });
   },
 
   buildGuideOverlayStyle(mask) {
@@ -4818,6 +4904,7 @@ Page({
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
+    if (this._checkinEntryStyleTimer) clearTimeout(this._checkinEntryStyleTimer);
     if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
     if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
     if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
@@ -5283,6 +5370,32 @@ Page({
     this.showPlaceholderToast("您暂未获得低空智能体（Agent）体验特权");
   },
 
+  onMapCheckinEntryTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app && app.globalData && app.globalData.checkinGuide?.active) {
+      app.globalData.checkinGuide = { active: true, step: "checkin" };
+      if (this.data.showCheckinGuideMap) {
+        this.setData({ showCheckinGuideMap: false, checkinGuideOverlayStyle: "" });
+      }
+    }
+    wx.navigateTo({ url: "/pages/profile/checkin/index" });
+    this.ensureProfileAuthenticated()
+      .then(() =>
+        Promise.allSettled([
+          this.ensureCheckinSubscriptionOnEntry(),
+          this.requestProfileSubscriptions()
+        ])
+      )
+      .catch((err) => {
+        if (err?.message === "user-cancel") return;
+        console.warn("map checkin subscriptions failed", err);
+      });
+  },
+
   onTemporaryZoneLinkTap(event) {
     const info = this.data.temporaryNoFlyZoneInfo;
     if (!info || !info.hasLink) {
@@ -5317,12 +5430,6 @@ Page({
       this.setData({ activeTab: "profile" });
     }
     const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData && app.globalData.checkinGuide?.active) {
-      app.globalData.checkinGuide = { active: true, step: "profile" };
-      if (this.data.showCheckinGuideMap) {
-        this.setData({ showCheckinGuideMap: false });
-      }
-    }
     if (app && app.globalData && app.globalData.inviteGuide?.active) {
       app.globalData.inviteGuide = { active: true, step: "profile" };
       if (this.data.showInviteGuideMap) {
@@ -7658,6 +7765,22 @@ Page({
   getApiBase() {
     const app = getApp ? getApp() : null;
     return (app && app.globalData && app.globalData.apiBase) || "";
+  },
+
+  ensureCheckinSubscriptionOnEntry() {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) return Promise.resolve();
+    const templateId = SUBSCRIPTION_TEMPLATE_IDS.checkinReminder;
+    return fetchSubscriptions({ apiBase, token })
+      .then((serverIds = []) => {
+        const normalized = normalizeTemplateIds(serverIds);
+        if (!normalized.includes(templateId)) return null;
+        return requestSubscribeMessageForTemplateIds([templateId]).catch(() => null);
+      })
+      .catch((err) => {
+        console.warn("map ensureCheckinSubscriptionOnEntry fetch failed", err);
+      });
   },
 
   normalizeMarkerDetail(raw = {}) {
