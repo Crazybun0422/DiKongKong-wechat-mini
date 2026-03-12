@@ -763,6 +763,10 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/PinReviewStatus'
+        rejectDetail:
+          type: string
+          nullable: true
+          description: 驳回详情，当 status=REJECTED 时建议填写。
       required: [status]
     PinStatusUpdateRequest:
       type: object
@@ -797,6 +801,10 @@ components:
             $ref: '#/components/schemas/WorkGroupResponse'
         reviewStatus:
           $ref: '#/components/schemas/PinReviewStatus'
+        reviewRejectDetail:
+          type: string
+          nullable: true
+          description: 驳回详情，仅当 reviewStatus=REJECTED 时可能返回。
         shape:
           $ref: '#/components/schemas/PinShapeResponse'
         featureCode:

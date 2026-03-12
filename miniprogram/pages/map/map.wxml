@@ -431,7 +431,15 @@
         <view class="marker-detail-handle"></view>
         <view class="marker-detail-header">
           <view class="marker-detail-info">
-            <text class="marker-detail-name">{{detailCard.name || '未命名商户'}}</text>
+            <view class="marker-detail-title-row">
+              <text class="marker-detail-name">{{detailCard.name || '未命名商户'}}</text>
+              <image
+                wx:if="{{detailCard.isCertified}}"
+                class="marker-certification-badge marker-certification-badge--detail"
+                src="{{markerSvipIconPath}}"
+                mode="aspectFit"
+              />
+            </view>
             <text
               class="marker-detail-location"
               wx:if="{{detailCard.locationText}}"
@@ -515,7 +523,16 @@
           <view class="marker-page-body">
             <view class="marker-page-header">
               <view class="marker-page-header-top">
-                <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
+                <view class="marker-page-title-row">
+                  <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
+                  <image
+                    wx:if="{{markerPageDetail.isCertified}}"
+                    class="marker-certification-badge marker-certification-badge--page"
+                    src="{{markerSvipIconPath}}"
+                    mode="aspectFit"
+                    bindtap="onMarkerCertificationBadgeTap"
+                  />
+                </view>
                 <view class="marker-page-header-actions">
                   <view
                     class="like-badge like-badge--page like-badge--inline {{markerPageLikeAnimating ? 'is-anim' : ''}}"
@@ -677,6 +694,34 @@
         </scroll-view>
 
         <view class="marker-page-close-hint">下滑关闭详情</view>
+      </view>
+    </block>
+
+    <block wx:if="{{markerCertificationSheetVisible}}">
+      <view
+        class="marker-certification-mask {{markerCertificationSheetClosing ? 'is-closing' : ''}}"
+        bindtap="onMarkerCertificationSheetMaskTap"
+        catchtouchmove="noop"
+      ></view>
+      <view
+        class="marker-certification-sheet {{markerCertificationSheetClosing ? 'is-closing' : ''}}"
+        catchtap="noop"
+        catchtouchmove="noop"
+      >
+        <view class="marker-certification-sheet-head">
+          <text class="marker-certification-sheet-brand">低空星球</text>
+          <image class="marker-certification-sheet-head-icon" src="{{markerSvipIconPath}}" mode="aspectFit" />
+          <text class="marker-certification-sheet-head-text">认证商家</text>
+        </view>
+        <block wx:for="{{markerCertificationInfoItems}}" wx:key="id">
+          <view class="marker-certification-item">
+            <image class="marker-certification-item-icon" src="{{item.icon}}" mode="aspectFit" />
+            <view class="marker-certification-item-content">
+              <text class="marker-certification-item-title">{{item.title}}</text>
+              <text class="marker-certification-item-description">{{item.description}}</text>
+            </view>
+          </view>
+        </block>
       </view>
     </block>
 

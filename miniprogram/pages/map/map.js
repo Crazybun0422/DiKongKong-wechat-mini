@@ -10,7 +10,8 @@ const {
 } = require("../../utils/markers");
 const { fetchNearbyPins, searchPins, incrementPinExposure, fetchPinDetail } = require("../../utils/pins");
 const {
-  normalizeMarkerDetail: normalizeMarkerDetailUtil
+  normalizeMarkerDetail: normalizeMarkerDetailUtil,
+  resolveCertifiedState
 } = require("../../utils/marker-detail");
 const { reverseGeocode } = require("../../utils/geocoder");
 const {
@@ -87,6 +88,28 @@ const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
 const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
+const MARKER_SVIP_ICON_PATH = "/pages/markers/assets/svip.png";
+const MARKER_CERTIFICATION_SHEET_CLOSE_DURATION = 220;
+const MARKER_CERTIFICATION_INFO_ITEMS = [
+  {
+    id: "location",
+    icon: "/pages/markers/assets/position-2.png",
+    title: "位置准确",
+    description: "校验店铺位置，导航更准确"
+  },
+  {
+    id: "auth",
+    icon: "/pages/markers/assets/w-check.png",
+    title: "信息真实有效",
+    description: "每年认证，人工严格校验信息有效性"
+  },
+  {
+    id: "more",
+    icon: "/pages/markers/assets/more.png",
+    title: "更丰富的产品业务资料",
+    description: "主页提供更丰富的案例、产品文档等展示"
+  }
+];
 
 const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
 const MAX_SEARCH_SUGGESTIONS = 10;
@@ -1123,6 +1146,10 @@ Page({
     markerPageShareEnabled: true,
     markerPageIsPin: false,
     markerPageDistanceText: "",
+    markerCertificationSheetVisible: false,
+    markerCertificationSheetClosing: false,
+    markerCertificationInfoItems: MARKER_CERTIFICATION_INFO_ITEMS,
+    markerSvipIconPath: MARKER_SVIP_ICON_PATH,
     callSheetVisible: false,
     callSheetPhone: "",
     callSheetMarkerId: "",
@@ -3411,7 +3438,7 @@ Page({
       return;
     }
 
-    const viewDetail = cloneMarkerDetail(detail);
+    const viewDetail = this.applyMarkerCertificationState(cloneMarkerDetail(detail));
     this._lastMarkerDetail = viewDetail;
     if (this._markerDetailCloseTimer) {
       clearTimeout(this._markerDetailCloseTimer);
@@ -3423,6 +3450,7 @@ Page({
     }
     this._markerDetailExpandLock = false;
     console.log("Displaying marker detail", viewDetail);
+    this.hideMarkerCertificationSheet(true);
     this.setData({
       markerDetailVisible: true,
       markerDetailClosing: false,
@@ -3479,6 +3507,7 @@ Page({
     }
     this._markerDetailExpandLock = false;
     if (immediate) {
+      this.hideMarkerCertificationSheet(true);
       this.setData({
         markerDetailVisible: false,
         markerDetailClosing: false,
@@ -3487,6 +3516,7 @@ Page({
       });
       return;
     }
+    this.hideMarkerCertificationSheet(true);
     this.setData({ markerDetailClosing: true });
     this._markerDetailCloseTimer = setTimeout(() => {
       this._markerDetailCloseTimer = null;
@@ -3585,6 +3615,72 @@ Page({
     if (Number.isFinite(idx)) {
       this.setData({ markerDetailCurrentImage: idx });
     }
+  },
+
+  isMarkerCertified(detail = {}) {
+    if (!detail || typeof detail !== "object") {
+      return false;
+    }
+    if (isTruthyFlag(detail.isCertified) || isTruthyFlag(detail.paid)) {
+      return true;
+    }
+    return resolveCertifiedState(detail.raw || {});
+  },
+
+  applyMarkerCertificationState(detail = {}) {
+    if (!detail || typeof detail !== "object") {
+      return detail;
+    }
+    const isCertified = this.isMarkerCertified(detail);
+    detail.isCertified = isCertified;
+    if (isCertified && detail.paid === undefined) {
+      detail.paid = true;
+    }
+    return detail;
+  },
+
+  onMarkerCertificationBadgeTap() {
+    const detail = this.data.markerPageDetail || this.data.detailCard || this._lastMarkerDetail;
+    if (!this.isMarkerCertified(detail)) {
+      return;
+    }
+    if (this._markerCertificationSheetCloseTimer) {
+      clearTimeout(this._markerCertificationSheetCloseTimer);
+      this._markerCertificationSheetCloseTimer = null;
+    }
+    this.setData({
+      markerCertificationSheetVisible: true,
+      markerCertificationSheetClosing: false
+    });
+  },
+
+  hideMarkerCertificationSheet(immediate = false) {
+    if (!this.data.markerCertificationSheetVisible) {
+      return;
+    }
+    if (this._markerCertificationSheetCloseTimer) {
+      clearTimeout(this._markerCertificationSheetCloseTimer);
+      this._markerCertificationSheetCloseTimer = null;
+    }
+    if (immediate) {
+      this.setData({
+        markerCertificationSheetVisible: false,
+        markerCertificationSheetClosing: false
+      });
+      return;
+    }
+    this.setData({ markerCertificationSheetClosing: true });
+    this._markerCertificationSheetCloseTimer = setTimeout(() => {
+      this._markerCertificationSheetCloseTimer = null;
+      this.setData({
+        markerCertificationSheetVisible: false,
+        markerCertificationSheetClosing: false
+      });
+    }, MARKER_CERTIFICATION_SHEET_CLOSE_DURATION);
+  },
+
+  onMarkerCertificationSheetMaskTap() {
+    this.hideMarkerCertificationSheet();
   },
 
   makePhoneCall(phone, options = {}) {
@@ -3805,7 +3901,7 @@ Page({
       clearTimeout(this._restoreMarkerDetailTimer);
       this._restoreMarkerDetailTimer = null;
     }
-    const pageDetail = cloneMarkerDetail(detail);
+    const pageDetail = this.applyMarkerCertificationState(cloneMarkerDetail(detail));
     // console.log("pageDetail->>", pageDetail)
     this.normalizeMarkerPageDetail(pageDetail);
     this._lastMarkerDetail = pageDetail;
@@ -3906,6 +4002,7 @@ Page({
   closeMarkerPage(options = {}) {
     const { restoreDetail = true } = options || {};
     if (!this.data.markerPageVisible) return;
+    this.hideMarkerCertificationSheet(true);
     if (this._markerPageCloseTimer) {
       clearTimeout(this._markerPageCloseTimer);
       this._markerPageCloseTimer = null;
@@ -4413,6 +4510,7 @@ Page({
     this.stopMyLocationDirectionTracking();
     this.pauseCenterPinLocationFollow();
     this.clearPinPreview();
+    this.hideMarkerCertificationSheet(true);
     if (this._checkinEntryStyleTimer) {
       clearTimeout(this._checkinEntryStyleTimer);
       this._checkinEntryStyleTimer = null;
@@ -4901,6 +4999,7 @@ Page({
     if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
     if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
     if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
+    if (this._markerCertificationSheetCloseTimer) clearTimeout(this._markerCertificationSheetCloseTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
@@ -7894,7 +7993,7 @@ Page({
         detail.shareDisabled = shareDisabled;
       }
     }
-    return detail;
+    return this.applyMarkerCertificationState(detail);
   },
 
   createMarkerSearchPayload(raw = {}, options = {}) {

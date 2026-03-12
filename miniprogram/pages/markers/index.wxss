@@ -457,6 +457,107 @@
   border: none;
 }
 
+.merchant-empty-state {
+  min-height: calc(100vh - 520rpx);
+  padding: 6rpx 0 150rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 28rpx;
+}
+
+.merchant-overview-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f4f6 100%);
+  border-radius: 30rpx;
+  padding: 34rpx 28rpx 30rpx;
+  box-shadow: 0 12rpx 32rpx rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.merchant-overview-update {
+  width: 100%;
+  font-size: 25rpx;
+  color: #7b8190;
+  line-height: 1.4;
+}
+
+.merchant-overview-stats {
+  width: 100%;
+  margin-top: 28rpx;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.merchant-overview-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.merchant-overview-number {
+  font-size: 58rpx;
+  line-height: 1;
+  font-weight: 500;
+  color: #203dff;
+  font-family: "ZhSubset", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Heiti SC", "Microsoft YaHei", sans-serif;
+}
+
+.merchant-overview-label {
+  font-size: 25rpx;
+  line-height: 1.4;
+  color: #707784;
+  text-align: center;
+}
+
+.merchant-overview-tip {
+  margin-top: 34rpx;
+  font-size: 27rpx;
+  line-height: 1.6;
+  color: #6b7280;
+  text-align: center;
+}
+
+.merchant-overview-action {
+  margin-top: 28rpx;
+  min-width: 260rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+  padding: 0 54rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #020202 0%, #3a3a3d 100%);
+  color: #fff;
+  font-size: 29rpx;
+  font-weight: 600;
+  box-shadow: 0 14rpx 24rpx rgba(0, 0, 0, 0.12);
+}
+
+.merchant-overview-action::after {
+  border: none;
+}
+
+.merchant-guide-entry {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8rpx 0 0;
+}
+
+.merchant-guide-entry-text {
+  font-size: 32rpx;
+  line-height: 1.5;
+  color: #111827;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
 .empty-card {
   background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
   border-radius: 28rpx;
@@ -523,6 +624,38 @@
   overflow: hidden;
 }
 
+.reject-reason-icon-hit {
+  position: absolute;
+  top: 6rpx;
+  right: 0rpx;
+  z-index: 5;
+  width: 30rpx;
+  height: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reject-reason-icon {
+  width: 22rpx;
+  height: 22rpx;
+  display: block;
+  transform-origin: center;
+  animation: reject-bubble-breath 2.2s ease-in-out infinite;
+}
+
+@keyframes reject-bubble-breath {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: rotate(0deg) translateY(0) scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(0deg) translateY(-6rpx) scale(1.22);
+  }
+}
+
 .workgroup-list {
   padding: 0 12rpx 32rpx;
   display: flex;
@@ -554,34 +687,68 @@
 .card-top {
   display: flex;
   gap: 32rpx;
-  align-items: stretch;
+  align-items: flex-start;
 }
 
 .card-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 10rpx;
+  min-width: 0;
+}
+
+.marker-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 0;
 }
 
 .marker-name {
-  font-size: 40rpx;
+  font-size: 38rpx;
   font-weight: 700;
   color: #111827;
   line-height: 1.3;
+  min-width: 0;
+}
+
+.marker-certified-icon {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+  flex-shrink: 0;
 }
 
 .marker-location,
-.marker-created {
+.marker-created,
+.marker-expire {
   font-size: 22rpx;
   color: #6b7280;
   line-height: 1.4;
 }
 
+.marker-expire {
+  color: #8a6a12;
+}
+
+.marker-auth-action {
+  display: inline-block;
+  margin-top: 2rpx;
+  font-size: 24rpx;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #111111;
+  text-decoration: underline;
+  text-decoration-thickness: 2rpx;
+  text-underline-offset: 4rpx;
+  align-self: flex-start;
+}
+
 .marker-cover {
-  width: 220rpx;
-  height: 160rpx;
-  margin-top: 32rpx;
+  width: 188rpx;
+  height: 140rpx;
+  margin-top: 8rpx;
   border-radius: 20rpx;
   background: #f3f4f6;
   align-self: flex-start;
@@ -589,18 +756,18 @@
 
 .card-stats {
   display: flex;
-  gap: 5rpx;
-  margin-top: 16rpx;
+  gap: 4rpx;
+  margin-top: 12rpx;
   flex-wrap: nowrap;
 }
 
 .stat-item {
-  flex: 0 0 160rpx;
+  flex: 0 0 138rpx;
   display: flex;
   align-items: center;
-  gap: 12rpx;
+  gap: 10rpx;
   justify-content: flex-start;
-  max-width: 180rpx;
+  max-width: 150rpx;
   overflow: hidden;
 }
 
@@ -884,6 +1051,14 @@
 
 .status-corner.danger {
   background: #ef4444;
+  width: 92rpx;
+  height: 92rpx;
+}
+
+.status-corner.danger .status-corner-text {
+  font-size: 18rpx;
+  margin-right: -24rpx;
+  margin-top: -24rpx;
 }
 
 .status-corner.draft {
@@ -1682,6 +1857,10 @@
   box-shadow: 0 12rpx 40rpx rgba(15, 23, 42, 0.05);
 }
 
+.field-block + .field-block {
+  margin-top: 32rpx;
+}
+
 .field-row {
   display: flex;
   flex-direction: column;
@@ -1713,6 +1892,19 @@
   font-size: 24rpx;
   color: #6b7280;
   margin-bottom: 24rpx;
+}
+
+.field-tip-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8rpx;
+  row-gap: 6rpx;
+}
+
+.field-tip-link {
+  color: #111111;
+  text-decoration: underline;
 }
 
 .required-star {
@@ -1774,6 +1966,13 @@
   color: #111827;
   background: #f9fafb;
   min-height: 180rpx;
+}
+
+.form-input[disabled],
+.form-textarea[disabled] {
+  opacity: 0.7;
+  color: #94a3b8;
+  background: #f3f4f6;
 }
 
 .location-box {
@@ -1944,6 +2143,11 @@
   padding: 32rpx 0;
 }
 
+.media-add.is-disabled,
+.attachment-add.is-disabled {
+  opacity: 0.55;
+}
+
 .media-add-icon {
   font-size: 40rpx;
   color: #000000;
@@ -1988,6 +2192,80 @@
   color: #1f2937;
 }
 
+.decoration-card {
+  background: #ffffff;
+  border: 1rpx solid rgba(148, 163, 184, 0.18);
+}
+
+.decoration-card.is-locked {
+  background: #ffffff;
+}
+
+.decoration-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+}
+
+.decoration-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.decoration-card-status {
+  min-width: 108rpx;
+  height: 42rpx;
+  padding: 0 18rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.decoration-card-status-text {
+  display: inline-block;
+  line-height: 1;
+  transform: translateY(-2rpx);
+}
+
+.decoration-card-status.is-certified {
+  background: rgba(17, 24, 39, 0.08);
+  color: #111827;
+}
+
+.decoration-card-status.is-locked {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.decoration-card-arrow {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+  opacity: 0.72;
+}
+
+.decoration-card-body {
+  margin-top: 28rpx;
+  padding-top: 28rpx;
+  border-top: 1rpx solid rgba(148, 163, 184, 0.18);
+}
+
+.decoration-card-lock-tip {
+  margin-bottom: 24rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 18rpx;
+  background: rgba(245, 158, 11, 0.08);
+  color: #92400e;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
 .helper-text {
   margin-top: 16rpx;
   font-size: 24rpx;
@@ -1999,6 +2277,146 @@
   display: flex;
   flex-direction: column;
   gap: 20rpx;
+}
+
+.merchant-entry-card {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: 0 14rpx 36rpx rgba(15, 23, 42, 0.08);
+}
+
+.merchant-entry-card-shell {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 0;
+  background-color: #f3df8a;
+  border: 0;
+}
+
+.merchant-entry-card-skin-stack {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.merchant-entry-card-skin {
+  width: 100%;
+  display: block;
+  flex-shrink: 0;
+}
+
+.merchant-entry-card-skin-top,
+.merchant-entry-card-skin-bottom {
+  height: auto;
+}
+
+.merchant-entry-card-skin-middle-fill {
+  flex: 1;
+  min-height: 0;
+  background: #ffffff;
+}
+
+.merchant-entry-card-content {
+  position: relative;
+  z-index: 2;
+  padding: 26rpx 28rpx 28rpx;
+  box-sizing: border-box;
+}
+
+.merchant-entry-tabs {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-radius: 24rpx;
+  background: transparent;
+  padding: 0;
+  overflow: hidden;
+}
+
+.merchant-entry-tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 108rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.merchant-entry-tab-inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  padding: 0 16rpx;
+}
+
+.merchant-entry-tab.is-left .merchant-entry-tab-inner {
+  transform: translate(-25rpx, -30rpx);
+}
+
+.merchant-entry-tab.is-right .merchant-entry-tab-inner {
+  transform: translate(25rpx, -30rpx);
+}
+
+.merchant-entry-tab-label {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.merchant-entry-tab.is-active .merchant-entry-tab-label {
+  color: #46351b;
+}
+
+.merchant-entry-tab-icon {
+  width: 34rpx;
+  height: 34rpx;
+  display: block;
+}
+
+.merchant-entry-panel {
+  position: relative;
+  margin-top: 28rpx;
+}
+
+.merchant-entry-panel.free-mode {
+  margin-top: 24rpx;
+}
+
+.merchant-entry-placeholder {
+  min-height: 320rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-size: 26rpx;
+  text-align: center;
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+.merchant-entry-placeholder.is-error {
+  color: #b91c1c;
+}
+
+.merchant-intro-long-image {
+  width: 100%;
+  display: block;
+  border-radius: 24rpx;
+  background: #ffffff;
 }
 
 .payment-option {

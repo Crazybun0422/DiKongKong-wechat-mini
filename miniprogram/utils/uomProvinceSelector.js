@@ -83,6 +83,11 @@ const pointInRect = (point, rect) =>
   point.latitude >= rect.minLat - EPSILON &&
   point.latitude <= rect.maxLat + EPSILON;
 
+const rectCenter = (rect) => ({
+  longitude: (rect.minLng + rect.maxLng) / 2,
+  latitude: (rect.minLat + rect.maxLat) / 2
+});
+
 const onSegment = (a, b, p) =>
   Math.min(a.longitude, b.longitude) - EPSILON <= p.longitude &&
   p.longitude <= Math.max(a.longitude, b.longitude) + EPSILON &&
@@ -129,6 +134,46 @@ const pointInPolygon = (point, polygon) => {
     if (point.longitude < xAtY) inside = !inside;
   }
   return inside;
+};
+
+const pointToSegmentDistanceSquared = (point, start, end) => {
+  const dx = end.longitude - start.longitude;
+  const dy = end.latitude - start.latitude;
+  if (Math.abs(dx) <= EPSILON && Math.abs(dy) <= EPSILON) {
+    const px = point.longitude - start.longitude;
+    const py = point.latitude - start.latitude;
+    return px * px + py * py;
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      (
+        (point.longitude - start.longitude) * dx +
+        (point.latitude - start.latitude) * dy
+      ) / (dx * dx + dy * dy)
+    )
+  );
+  const nearestLng = start.longitude + dx * t;
+  const nearestLat = start.latitude + dy * t;
+  const diffLng = point.longitude - nearestLng;
+  const diffLat = point.latitude - nearestLat;
+  return diffLng * diffLng + diffLat * diffLat;
+};
+
+const pointToPolygonDistanceSquared = (point, polygon) => {
+  if (!Array.isArray(polygon) || polygon.length < 3) return Number.POSITIVE_INFINITY;
+  if (pointInPolygon(point, polygon)) return 0;
+
+  let minDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const start = polygon[i];
+    const end = polygon[(i + 1) % polygon.length];
+    const distance = pointToSegmentDistanceSquared(point, start, end);
+    if (distance < minDistance) minDistance = distance;
+  }
+  return minDistance;
 };
 
 const polygonIntersectsRect = (polygon, rect) => {
@@ -211,14 +256,41 @@ function findIntersectingProvinceLayerRecords(records, bbox) {
   });
 }
 
+function findNearestProvinceLayerRecord(records, bbox) {
+  const rect = normalizeRectBbox(bbox);
+  if (!rect) return null;
+
+  const center = rectCenter(rect);
+  let nearestRecord = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const record of Array.isArray(records) ? records : []) {
+    if (!record?.polygons?.length) continue;
+    const distance = record.polygons.reduce((minDistance, polygon) => {
+      const polygonDistance = pointToPolygonDistanceSquared(center, polygon);
+      return Math.min(minDistance, polygonDistance);
+    }, Number.POSITIVE_INFINITY);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestRecord = record;
+    }
+  }
+
+  return nearestRecord;
+}
+
 function buildProvinceLayerParams(records, bbox) {
   const matched = findIntersectingProvinceLayerRecords(records, bbox);
+  const resolvedRecords = matched.length
+    ? matched
+    : [findNearestProvinceLayerRecord(records, bbox)].filter(Boolean);
   return {
-    provinceCodes: matched.map((record) => record.provinceCode),
-    provinceNames: matched.map((record) => record.name),
-    layers: matched.map((record) => record.layerName).join(","),
-    styles: matched.map((record) => record.styleName).join(","),
-    matchedRecords: matched
+    provinceCodes: resolvedRecords.map((record) => record.provinceCode),
+    provinceNames: resolvedRecords.map((record) => record.name),
+    layers: resolvedRecords.map((record) => record.layerName).join(","),
+    styles: resolvedRecords.map((record) => record.styleName).join(","),
+    matchedRecords: resolvedRecords
   };
 }
 
@@ -226,6 +298,7 @@ module.exports = {
   MAINLAND_PROVINCE_CODES,
   buildProvinceLayerRecords,
   findIntersectingProvinceLayerRecords,
+  findNearestProvinceLayerRecord,
   buildProvinceLayerParams
 };
 

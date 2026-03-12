@@ -37,13 +37,25 @@
           </view>
         </block>
         <block wx:elif="{{!visibleMarkers.length}}">
-          <view class="empty-card">
-            <view class="empty-icon-wrapper">
-              <image class="empty-icon" src="/assets/idea.png" mode="aspectFit" />
+          <view class="merchant-empty-state">
+            <view class="merchant-overview-card">
+              <text class="merchant-overview-update">更新时间{{merchantOverview.updateTimeDisplay}}</text>
+              <view class="merchant-overview-stats">
+                <view class="merchant-overview-stat">
+                  <text class="merchant-overview-number">{{merchantOverview.registeredUserDisplay}}</text>
+                  <text class="merchant-overview-label">注册飞友数</text>
+                </view>
+                <view class="merchant-overview-stat">
+                  <text class="merchant-overview-number">{{merchantOverview.averageMonthlyExposureDisplay}}</text>
+                  <text class="merchant-overview-label">商户平均月曝光量</text>
+                </view>
+              </view>
+              <text class="merchant-overview-tip">*入驻低空门店（服务），获取精准客户。</text>
+              <button class="merchant-overview-action" bindtap="onCreateTap">立即入驻</button>
             </view>
-            <text class="empty-title">暂未入驻</text>
-            <text class="empty-desc">在空域图获得展示并作为可信资料被平台首选引用，也将作为空域插件（MCP）自带数据，通过开放平台获得站外曝光和豆包、元宝等引用。</text>
-            <button class="empty-action" bindtap="onCreateTap">立即入驻</button>
+            <view class="merchant-guide-entry" bindtap="onMerchantGuideTap">
+              <text class="merchant-guide-entry-text">星球商户进阶攻略 ></text>
+            </view>
           </view>
         </block>
         <block wx:else>
@@ -53,12 +65,42 @@
                 <view class="status-corner {{item.reviewTone}}">
                   <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
                 </view>
+                <view
+                  wx:if="{{item.reviewStatus === 'REJECTED' && item.reviewRejectDetail}}"
+                  class="reject-reason-icon-hit"
+                  data-type="marker"
+                  data-reason="{{item.reviewRejectDetail}}"
+                  catchtap="onOpenRejectReason"
+                >
+                  <image
+                    class="reject-reason-icon"
+                    src="{{assetPaths.exclPoint}}"
+                    mode="aspectFit"
+                  />
+                </view>
                 <view class="card-body">
                   <view class="card-top">
                     <view class="card-info">
-                      <text class="marker-name">{{item.name || '未命名标记'}}</text>
+                      <view class="marker-title-row">
+                        <text class="marker-name">{{item.name || '未命名标记'}}</text>
+                        <image
+                          wx:if="{{item.isCertified}}"
+                          class="marker-certified-icon"
+                          src="{{assetPaths.svip}}"
+                          mode="aspectFit"
+                        />
+                      </view>
                       <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
-                      <text class="marker-created">{{item.timelineLabel}}: {{item.timelineDisplay}}</text>
+                      <text wx:if="{{item.isCertified && item.expireAtDisplay}}" class="marker-expire">
+                        {{item.expireAtDisplay}}认证到期
+                      </text>
+                      <text
+                        class="marker-auth-action"
+                        data-id="{{item.id}}"
+                        catchtap="onMarkerAuthTap"
+                      >
+                        {{item.authActionText}}
+                      </text>
                       <view class="card-stats">
                         <view class="stat-item">
                           <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
@@ -130,6 +172,19 @@
               <view class="marker-card" bindtap="onPinCardTap" data-pin-id="{{item.id}}">
                 <view class="status-corner {{item.reviewTone}}">
                   <text class="status-corner-text">{{item.reviewStatusLabel}}</text>
+                </view>
+                <view
+                  wx:if="{{item.scope === 'PUBLIC' && item.reviewStatus === 'REJECTED' && item.reviewRejectDetail}}"
+                  class="reject-reason-icon-hit"
+                  data-type="pin"
+                  data-reason="{{item.reviewRejectDetail}}"
+                  catchtap="onOpenRejectReason"
+                >
+                  <image
+                    class="reject-reason-icon"
+                    src="{{assetPaths.exclPoint}}"
+                    mode="aspectFit"
+                  />
                 </view>
                 <view class="card-body">
                   <view class="card-top">
@@ -239,7 +294,7 @@
         <view class="detail-section">
           <text class="detail-title">基础信息</text>
           <view class="detail-item">
-            <text class="detail-label">入驻名称</text>
+            <text class="detail-label">商户（门店）名称</text>
             <text class="detail-value">{{activeMarker.name}}</text>
           </view>
           <view class="detail-item">
@@ -247,19 +302,19 @@
             <text class="detail-value status-text {{activeMarker.reviewTone}}">{{activeMarker.reviewStatusLabel}}</text>
           </view>
           <view class="detail-item">
-            <text class="detail-label">支付状态</text>
-            <text class="detail-value">{{activeMarker.paidLabel}}</text>
+            <text class="detail-label">认证状态</text>
+            <text class="detail-value">{{activeMarker.paid ? '已认证' : '未认证'}}</text>
           </view>
           <view class="detail-item">
-            <text class="detail-label">位置</text>
+            <text class="detail-label">门店（服务）位置</text>
             <text class="detail-value">{{activeMarker.locationText || '未填写'}}</text>
           </view>
           <view class="detail-item">
-            <text class="detail-label">联系电话</text>
+            <text class="detail-label">商家电话</text>
             <text class="detail-value">{{activeMarker.phone || '未填写'}}</text>
           </view>
           <view class="detail-item">
-            <text class="detail-label">简介</text>
+            <text class="detail-label">业务简介</text>
             <text class="detail-value">{{activeMarker.description || '未填写'}}</text>
           </view>
           <view class="detail-item">
@@ -282,7 +337,7 @@
         </view>
 
         <view class="detail-section" wx:if="{{activeMarker.images && activeMarker.images.length}}">
-          <text class="detail-title">展示图</text>
+          <text class="detail-title">门店（服务）图片</text>
           <view class="media-preview-grid">
             <block wx:for="{{activeMarker.images}}" wx:key="id">
               <image class="media-preview" src="{{item.url}}" mode="aspectFill" />
@@ -296,19 +351,19 @@
         </view>
 
         <view class="detail-section" wx:if="{{activeMarker.attachments && activeMarker.attachments.length}}">
-          <text class="detail-title">附件</text>
+          <text class="detail-title">产品业务资料</text>
           <view class="attachment-list">
             <block wx:for="{{activeMarker.attachments}}" wx:key="id">
               <view class="attachment-item">
                 <text class="attachment-icon">📎</text>
-                <text class="attachment-name">{{item.label || '企业产品和业务介绍'}}</text>
+                <text class="attachment-name">{{item.label || '产品业务资料'}}</text>
               </view>
             </block>
           </view>
         </view>
 
         <view class="detail-section" wx:if="{{activeMarker.qrCodes && activeMarker.qrCodes.length}}">
-          <text class="detail-title">二维码</text>
+          <text class="detail-title">产品体验二维码</text>
           <view class="qr-code-list">
             <block wx:for="{{activeMarker.qrCodes}}" wx:key="id">
               <image class="qr-code-preview" src="{{item.url}}" mode="widthFix" show-menu-by-longpress />
@@ -317,7 +372,7 @@
         </view>
 
         <view class="detail-section" wx:if="{{activeMarker.videoChannelUrls && activeMarker.videoChannelUrls.length}}">
-          <text class="detail-title">视频号链接</text>
+          <text class="detail-title">挂载视频号视频</text>
           <view class="detail-list">
             <block wx:for="{{activeMarker.videoChannelUrls}}" wx:key="*this">
               <text class="detail-link">{{item}}</text>
@@ -325,15 +380,11 @@
           </view>
         </view>
 
-        <view class="detail-section" wx:if="{{activeMarker.adminInfo &&(activeMarker.adminInfo.name || activeMarker.adminInfo.phone || activeMarker.adminInfo.title)}}">
+        <view class="detail-section" wx:if="{{activeMarker.adminInfo &&(activeMarker.adminInfo.name || activeMarker.adminInfo.phone)}}">
           <text class="detail-title">管理员联系</text>
           <view class="detail-item">
             <text class="detail-label">姓名</text>
             <text class="detail-value">{{activeMarker.adminInfo.name || '未填写'}}</text>
-          </view>
-          <view class="detail-item">
-            <text class="detail-label">职位</text>
-            <text class="detail-value">{{activeMarker.adminInfo.title || '未填写'}}</text>
           </view>
           <view class="detail-item">
             <text class="detail-label">电话</text>
@@ -593,7 +644,7 @@
             <view class="field-row">
               <view class="field-label required">
                 <text class="required-star">*</text>
-                <text>图片</text>
+                <text>门店（服务）图片</text>
               </view>
               <view class="image-uploader">
                 <block wx:for="{{form.images}}" wx:key="fileName">
@@ -612,7 +663,7 @@
             <view class="field-row">
               <view class="field-label required">
                 <text class="required-star">*</text>
-                <text>名称</text>
+                <text>商户（门店）名称</text>
               </view>
               <input class="field-input form-input" placeholder="请输入" value="{{form.name}}" data-field="name" bindinput="onFormInput" />
             </view>
@@ -620,7 +671,7 @@
             <view class="field-row">
               <view class="field-label required">
                 <text class="required-star">*</text>
-                <text>简介</text>
+                <text>业务简介</text>
               </view>
               <textarea class="field-textarea form-textarea" placeholder="请输入" value="{{form.description}}" data-field="description" bindinput="onFormInput" maxlength="500" auto-height />
             </view>
@@ -628,7 +679,7 @@
             <view class="field-row">
               <view class="field-label required">
                 <text class="required-star">*</text>
-                <text>位置</text>
+                <text>门店（服务）位置</text>
               </view>
               <view class="location-box location-selector" bindtap="onChooseLocation">
                 <text class="location-text">{{form.locationText || '点击选择'}}</text>
@@ -638,7 +689,7 @@
             <view class="field-row">
               <view class="field-label required">
                 <text class="required-star">*</text>
-                <text>电话</text>
+                <text>商家电话</text>
               </view>
               <input class="field-input form-input" placeholder="请输入联系电话" value="{{form.phone}}" data-field="phone" bindinput="onFormInput" />
             </view>
@@ -651,6 +702,7 @@
               <text class="required-star">*</text>
               <text>营业执照</text>
             </view>
+            <view class="field-tip">个人可提供执照、技能证书等</view>
             <view class="media-grid">
               <block wx:if="{{form.businessLicense}}">
                 <view class="media-item">
@@ -679,47 +731,68 @@
             </view>
           </view>
 
-          <view class="form-card">
-            <view class="field-label">附件上传</view>
-            <view class="field-tip">请先将文件发送到微信文件传输助手对话框，再点击"上传附件"。</view>
-            <view class="attachment-list">
-              <block wx:for="{{form.attachmentFiles}}" wx:key="fileName">
-                <view class="attachment-item">
-                  <text class="attachment-icon">📎</text>
-                  <text class="attachment-name">{{item.label || '企业产品和业务介绍'}}</text>
-                  <view class="attachment-remove" data-type="attachments" data-index="{{index}}" bindtap="onRemoveMediaTap">删除</view>
-                </view>
-              </block>
-              <view wx:if="{{form.attachmentFiles.length < 1}}" class="attachment-add" data-type="attachments" bindtap="onAddMediaTap">上传附件</view>
-            </view>
-          </view>
-
-          <view class="form-card">
-            <view class="field-label">二维码</view>
-            <view class="media-grid">
-              <block wx:for="{{form.qrCodeImages}}" wx:key="fileName">
-                <view class="media-item">
-                  <image class="media-image" src="{{item.url}}" mode="aspectFill" />
-                  <view class="media-remove" data-type="qrCodeImages" data-index="{{index}}" bindtap="onRemoveMediaTap">✕</view>
-                </view>
-              </block>
-              <view wx:if="{{form.qrCodeImages.length < qrCodeMaxCount}}" class="media-add" data-type="qrCodeImages" bindtap="onAddMediaTap">
-                <text class="media-add-icon">＋</text>
-                <text class="media-add-text">上传二维码</text>
+          <view class="form-card decoration-card {{!merchantCertified ? 'is-locked' : ''}}">
+            <view class="decoration-card-header" bindtap="onToggleMerchantDecoration">
+              <view class="decoration-card-title-group">
+                <text class="field-label">店铺主页装修（认证后可完善）</text>
+                <text class="decoration-card-status {{merchantCertified ? 'is-certified' : 'is-locked'}}">
+                  <text class="decoration-card-status-text">{{merchantCertified ? '已认证' : '未认证'}}</text>
+                </text>
               </view>
+              <image
+                class="decoration-card-arrow"
+                src="{{merchantDecorationExpanded ? assetPaths.collapse : assetPaths.expand}}"
+                mode="aspectFit"
+              />
             </view>
-          </view>
-
-          <view class="form-card">
-            <view class="field-label">挂载视频号视频</view>
-            <view class="video-form">
-              <view class="video-field">
-                <text class="video-field-label">视频号ID</text>
-                <input class="field-input form-input" placeholder="请输入" value="{{form.videoChannelId}}" data-field="videoChannelId" bindinput="onFormInput" />
+            <view wx:if="{{merchantDecorationExpanded}}" class="decoration-card-body">
+              <view wx:if="{{!merchantCertified}}" class="decoration-card-lock-tip">
+                认证入驻后可继续完善产品业务资料、体验二维码和视频号内容
               </view>
-              <view class="video-field">
-                <text class="video-field-label">视频ID</text>
-                <input class="field-input form-input" placeholder="请输入" value="{{form.videoId}}" data-field="videoId" bindinput="onFormInput" />
+
+              <view class="field-block">
+                <view class="field-label">产品业务资料</view>
+                <view class="field-tip">请先将文件发送到微信文件传输助手对话框，再点击“上传（PPT/PDF）”。</view>
+                <view class="attachment-list">
+                  <block wx:for="{{form.attachmentFiles}}" wx:key="fileName">
+                    <view class="attachment-item">
+                      <text class="attachment-icon">📎</text>
+                      <text class="attachment-name">{{item.label || '产品业务资料'}}</text>
+                      <view wx:if="{{merchantCertified}}" class="attachment-remove" data-type="attachments" data-index="{{index}}" bindtap="onRemoveMediaTap">删除</view>
+                    </view>
+                  </block>
+                  <view wx:if="{{form.attachmentFiles.length < 1}}" class="attachment-add {{!merchantCertified ? 'is-disabled' : ''}}" data-type="attachments" bindtap="onAddMediaTap">上传（PPT/PDF）</view>
+                </view>
+              </view>
+
+              <view class="field-block">
+                <view class="field-label">产品体验二维码</view>
+                <view class="media-grid">
+                  <block wx:for="{{form.qrCodeImages}}" wx:key="fileName">
+                    <view class="media-item">
+                      <image class="media-image" src="{{item.url}}" mode="aspectFill" />
+                      <view wx:if="{{merchantCertified}}" class="media-remove" data-type="qrCodeImages" data-index="{{index}}" bindtap="onRemoveMediaTap">✕</view>
+                    </view>
+                  </block>
+                  <view wx:if="{{form.qrCodeImages.length < qrCodeMaxCount}}" class="media-add {{!merchantCertified ? 'is-disabled' : ''}}" data-type="qrCodeImages" bindtap="onAddMediaTap">
+                    <text class="media-add-icon">＋</text>
+                    <text class="media-add-text">上传二维码</text>
+                  </view>
+                </view>
+              </view>
+
+              <view class="field-block">
+                <view class="field-label">挂载视频号视频</view>
+                <view class="video-form">
+                  <view class="video-field">
+                    <text class="video-field-label">视频号ID</text>
+                    <input class="field-input form-input" placeholder="请输入" value="{{form.videoChannelId}}" data-field="videoChannelId" bindinput="onFormInput" disabled="{{!merchantCertified}}" />
+                  </view>
+                  <view class="video-field">
+                    <text class="video-field-label">视频ID</text>
+                    <input class="field-input form-input" placeholder="请输入" value="{{form.videoId}}" data-field="videoId" bindinput="onFormInput" disabled="{{!merchantCertified}}" />
+                  </view>
+                </view>
               </view>
             </view>
           </view>
@@ -734,46 +807,91 @@
             <text class="field-tip">不对外展示，仅用于审核等重要通知</text>
             <view class="admin-grid">
               <input class="field-input form-input" placeholder="姓名" value="{{form.adminInfo.name}}" data-group="adminInfo" data-field="name" bindinput="onFormInput" />
-              <input class="field-input form-input" placeholder="职位" value="{{form.adminInfo.title}}" data-group="adminInfo" data-field="title" bindinput="onFormInput" />
               <input class="field-input form-input" placeholder="联系电话" value="{{form.adminInfo.phone}}" data-group="adminInfo" data-field="phone" bindinput="onFormInput" />
             </view>
           </view>
 
-          <view class="form-card" wx:if="{{showPaymentSection}}">
-            <view class="field-label required">
-              <text class="required-star">*</text>
-              <text>支付认证费</text>
-            </view>
-            <view class="payment-options">
-              <block wx:for="{{paymentMethods}}" wx:key="id">
-                <view class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}} {{item.id === 'FLP' && flpPaymentDisabled ? 'is-disabled' : ''}}" data-method="{{item.id}}" bindtap="onSelectPaymentMethod">
-                  <view class="payment-option-header">
-                    <text class="payment-option-title">{{item.label}}</text>
-                    <text class="payment-option-note" wx:if="{{item.id === 'FLP'}}">{{flpPaymentNote}}</text>
-                    <text class="payment-option-note" wx:elif="{{item.note}}">{{item.note}}</text>
+          <view class="form-card merchant-entry-card">
+            <view class="merchant-entry-card-shell {{activeMerchantEntryTab === 'FREE' ? 'is-free' : 'is-certified'}}">
+              <view class="merchant-entry-card-skin-stack">
+                <image
+                  class="merchant-entry-card-skin merchant-entry-card-skin-top"
+                  src="{{activeMerchantEntryTab === 'FREE' ? assetPaths.tabSkinCheckLeftTop : assetPaths.tabSkinCheckRightTop}}"
+                  mode="widthFix"
+                />
+                <view class="merchant-entry-card-skin-middle-fill"></view>
+                <image
+                  class="merchant-entry-card-skin merchant-entry-card-skin-bottom"
+                  src="{{activeMerchantEntryTab === 'FREE' ? assetPaths.tabSkinCheckLeftBottom : assetPaths.tabSkinCheckRightBottom}}"
+                  mode="widthFix"
+                />
+              </view>
+              <view class="merchant-entry-card-content">
+                <view class="merchant-entry-tabs">
+                  <block wx:for="{{merchantEntryTabs}}" wx:key="id">
+                    <view
+                    class="merchant-entry-tab {{activeMerchantEntryTab === item.id ? 'is-active' : ''}} {{item.id === 'FREE' ? 'is-left' : 'is-right'}}"
+                    data-tab="{{item.id}}"
+                    bindtap="onMerchantEntryTabTap"
+                  >
+                    <view class="merchant-entry-tab-inner">
+                      <image wx:if="{{item.id === 'CERTIFIED'}}" class="merchant-entry-tab-icon" src="{{assetPaths.svip}}" mode="aspectFit" />
+                      <text class="merchant-entry-tab-label">{{item.label}}</text>
+                    </view>
                   </view>
-                  <view class="payment-price" wx:if="{{item.id === 'WECHAT'}}">
-                    <text class="price-tag">{{wechatPriceDisplay || '¥--'}}</text>
-                    <text class="price-original" wx:if="{{wechatListPriceDisplay}}">{{wechatListPriceDisplay}}</text>
+                </block>
+              </view>
+
+              <view wx:if="{{activeMerchantEntryTab === 'FREE'}}" class="merchant-entry-panel free-mode">
+                <view wx:if="{{merchantIntroLongImageLoading}}" class="merchant-entry-placeholder">加载中...</view>
+                <view wx:elif="{{merchantIntroLongImageError && !merchantIntroLongImageUrl}}" class="merchant-entry-placeholder is-error">{{merchantIntroLongImageError}}</view>
+                <image
+                  wx:elif="{{merchantIntroLongImageUrl}}"
+                  class="merchant-intro-long-image"
+                  src="{{merchantIntroLongImageUrl}}"
+                  mode="widthFix"
+                  bindtap="onPreviewMerchantIntroLongImage"
+                />
+              </view>
+
+              <view wx:elif="{{showPaymentSection}}" class="merchant-entry-panel">
+                <view class="field-label required">
+                  <text class="required-star">*</text>
+                  <text>支付认证费</text>
+                </view>
+                <text wx:if="{{paymentPromptMessage}}" class="field-tip">{{paymentPromptMessage}}</text>
+                <view class="payment-options">
+                  <block wx:for="{{paymentMethods}}" wx:key="id">
+                    <view class="payment-option {{selectedPaymentMethod === item.id ? 'is-active' : ''}} {{item.id === 'FLP' && flpPaymentDisabled ? 'is-disabled' : ''}}" data-method="{{item.id}}" bindtap="onSelectPaymentMethod">
+                      <view class="payment-option-header">
+                        <text class="payment-option-title">{{item.label}}</text>
+                        <text class="payment-option-note" wx:if="{{item.id === 'FLP'}}">{{flpPaymentNote}}</text>
+                        <text class="payment-option-note" wx:elif="{{item.note}}">{{item.note}}</text>
+                      </view>
+                      <view class="payment-price" wx:if="{{item.id === 'WECHAT'}}">
+                        <text class="price-tag">{{wechatPriceDisplay || '¥--'}}</text>
+                        <text class="price-original" wx:if="{{wechatListPriceDisplay}}">{{wechatListPriceDisplay}}</text>
+                      </view>
+                      <view class="payment-price" wx:elif="{{item.id === 'FLP'}}">
+                        <text class="price-tag">{{flpPriceDisplay || 'FLP--'}}</text>
+                        <text class="price-original" wx:if="{{flpListPriceDisplay}}">{{flpListPriceDisplay}}</text>
+                      </view>
+                    </view>
+                  </block>
+                </view>
+              </view>
+
+                <view wx:else class="merchant-entry-panel">
+                  <view class="field-label">
+                    <text>认证状态</text>
                   </view>
-                  <view class="payment-price" wx:elif="{{item.id === 'FLP'}}">
-                    <text class="price-tag">{{flpPriceDisplay || 'FLP--'}}</text>
-                    <text class="price-original" wx:if="{{flpListPriceDisplay}}">{{flpListPriceDisplay}}</text>
+                  <view class="field-tip field-tip-inline">
+                    <text>{{paymentStatusMessage}}</text>
+                    <text class="field-tip-link" bindtap="onPaymentDecorationLinkTap">修改店铺装修信息</text>
                   </view>
                 </view>
-              </block>
+              </view>
             </view>
-            <!-- <view class="payment-summary">
-              <text class="payment-summary-item" wx:if="{{wechatPriceDisplay}}">{{wechatPriceDisplay}}</text>
-              <text class="payment-summary-item" wx:if="{{flpPriceDisplay}}">{{flpPriceDisplay}}</text>
-            </view> -->
-          </view>
-
-          <view class="form-card" wx:if="{{!showPaymentSection}}">
-            <view class="field-label">
-              <text>支付认证费</text>
-            </view>
-            <text class="field-tip">当前标记已完成支付，无需再次选择支付方式。</text>
           </view>
 
           <block wx:if="{{creationError}}">
@@ -786,9 +904,9 @@
             <view class="result-icon success">✓</view>
             <text class="result-title">{{creationResult.title || '提交成功'}}</text>
             <text class="result-desc">{{creationResult.message}}</text>
-            <view class="result-info">
-              <text>标记名称：{{creationResult.marker.name}}</text>
-            </view>
+          <view class="result-info">
+              <text>商户名称：{{creationResult.marker.name}}</text>
+          </view>
             <button class="result-btn" bindtap="onCloseCreate">完成</button>
           </view>
           <view class="result-card error" wx:elif="{{creationError}}">
@@ -970,6 +1088,19 @@
         <view class="kml-tips-dialog-card">
           <text class="kml-tips-dialog-text" decode="true">受限于小程序性能，KML/KMZ功能暂仅支持导入导出<text class="kml-tips-dialog-text-highlight" decode="true">（&lt;1M）</text>。</text>
           <view class="kml-tips-dialog-btn" catchtap="onCloseKmlTips">我知道了</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{rejectReasonDialogVisible}}">
+    <view class="reject-reason-dialog-overlay" catchtouchmove="noop" catchtap="onCloseRejectReasonDialog">
+      <view class="reject-reason-dialog-container" catchtap="noop">
+        <view class="reject-reason-dialog-card">
+          <text class="reject-reason-dialog-title">{{rejectReasonDialogTitle || '驳回理由'}}</text>
+          <text class="reject-reason-dialog-text">{{rejectReasonDialogMessage}}</text>
+          <text class="reject-reason-dialog-note">{{rejectReasonDialogNote}}</text>
+          <view class="reject-reason-dialog-btn" catchtap="onCloseRejectReasonDialog">我知道了</view>
         </view>
       </view>
     </view>

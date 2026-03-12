@@ -12,7 +12,7 @@
     boost: "加速",
     shield: "护盾",
     game_over: "游戏结束",
-    retry: "按 R 重新开始",
+    retry: "",
     toast_shield: "护盾+15s~",
     toast_report200: "200报备+豁免15s~",
     toast_report500: "500报备+豁免15s~",

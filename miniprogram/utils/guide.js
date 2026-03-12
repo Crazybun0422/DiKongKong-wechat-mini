@@ -74,5 +74,6 @@ function fetchGuideUrls(options = {}) {
 
 module.exports = {
   fetchGuideUrls,
-  normalizeGuideUrls
+  normalizeGuideUrls,
+  resolveGuideAssetBase
 };

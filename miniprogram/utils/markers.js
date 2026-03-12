@@ -165,7 +165,6 @@ function postMarkerMetric(markerId, metricPath, options = {}) {
 
 function listMarkers(params = {}, options = {}) {
   const query = [];
-  console.log("params,options",params,options)
   if (params.page !== undefined && params.page !== null) {
     const page = Number(params.page);
     if (Number.isFinite(page) && page >= 0) {
@@ -177,6 +176,15 @@ function listMarkers(params = {}, options = {}) {
     if (Number.isFinite(size) && size > 0) {
       query.push(`size=${size}`);
     }
+  }
+  if (typeof params.status === "string" && params.status.trim()) {
+    query.push(`status=${encodeURIComponent(params.status.trim())}`);
+  }
+  if (typeof params.sortOrder === "string" && params.sortOrder.trim()) {
+    query.push(`sortOrder=${encodeURIComponent(params.sortOrder.trim())}`);
+  }
+  if (params.draft !== undefined && params.draft !== null) {
+    query.push(`draft=${params.draft ? "true" : "false"}`);
   }
   const qs = query.length ? `?${query.join("&")}` : "";
   return authorizedRequest({
@@ -232,6 +240,16 @@ function createMarker(payload = {}, options = {}) {
     apiBase: options.apiBase,
     token: options.token,
     path,
+    method: "POST",
+    data: payload
+  }).then((body = {}) => body.data || {});
+}
+
+function createMarkerDraft(payload = {}, options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/markers/draft",
     method: "POST",
     data: payload
   }).then((body = {}) => body.data || {});
@@ -382,6 +400,7 @@ module.exports = {
   fetchNearbyMarkers,
   fetchMarkerDetail,
   createMarker,
+  createMarkerDraft,
   updateMarker,
   deleteMarker,
   uploadMarkerFile,

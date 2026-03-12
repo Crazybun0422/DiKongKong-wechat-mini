@@ -1,12 +1,17 @@
 ﻿const {
   listMarkers,
   createMarker,
+  createMarkerDraft,
   updateMarker,
   deleteMarker,
   uploadMarkerFile,
   buildFileDownloadUrl,
   fetchMapSettlementConfig
 } = require("../../utils/markers");
+const {
+  fetchLatestMerchantOperationData,
+  fetchMerchantIntroLongImageConfig
+} = require("../../utils/merchant-operation");
 const {
   resolveApiBase,
   ensureFeatureCode,
@@ -19,6 +24,7 @@ const {
   createWechatPrepayOrder,
   fetchWechatPaymentStatus
 } = require("../../utils/payments");
+const { getLatestFontFileSource } = require("../../utils/font-config");
 const { getShareInviteCode } = require("../../utils/share");
 const { payWithFlp } = require("../../utils/flp");
 const { reverseGeocode } = require("../../utils/geocoder");
@@ -46,6 +52,8 @@ const {
   joinWorkGroup
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
+const { resolveAssetUrl } = require("../../utils/open-platform");
+const { resolveGuideAssetBase } = require("../../utils/guide");
 
 const STATIC_ASSETS = {
   add: "/pages/markers/assets/add.png",
@@ -54,9 +62,20 @@ const STATIC_ASSETS = {
   defaultCover: "/pages/markers/assets/no-image.png",
   emptyPin: "/pages/markers/assets/empty-pin.png",
   workGroup: "/pages/markers/assets/work-group.png",
+  svip: "/pages/markers/assets/svip.png",
+  tabSkinCheckLeftTop: "/pages/markers/assets/tab-skin-check/left-top.png",
+  tabSkinCheckLeftMiddle: "/pages/markers/assets/tab-skin-check/left-middle.png",
+  tabSkinCheckLeftBottom: "/pages/markers/assets/tab-skin-check/left-bottom.png",
+  tabSkinCheckRightTop: "/pages/markers/assets/tab-skin-check/right-top.png",
+  tabSkinCheckRightMiddle: "/pages/markers/assets/tab-skin-check/right-middle.png",
+  tabSkinCheckRightBottom: "/pages/markers/assets/tab-skin-check/right-bottom.png",
+  expand: "/pages/markers/assets/expand.png",
+  collapse: "/pages/markers/assets/collapse.png",
   arrowRight: "/assets/arrow-right.png",
   plus: "/pages/markers/assets/plus-circle-fill.png",
   defaultAvatar: "/assets/default-avatar.png",
+  exclPoint: "/assets/excl-point.png",
+  bubbleDialog: "/assets/bubble-dialog.png",
   publish: "/pages/markers/assets/publish.png",
   revoke: "/pages/markers/assets/revoke.png",
   home: "/assets/home.png",
@@ -90,6 +109,7 @@ const STATUS_TABS = [
 ];
 
 const REVIEW_STATUS_META = {
+  DRAFT: { label: "草稿", tone: "draft" },
   PENDING: { label: "审核中", tone: "pending" },
   APPROVED: { label: "在线", tone: "online" },
   REJECTED: { label: "被驳回", tone: "danger" }
@@ -102,6 +122,11 @@ const CREATE_STEPS = [
   { label: "提交审核" }
 ];
 
+const MERCHANT_ENTRY_TABS = [
+  { id: "FREE", label: "免费标记" },
+  { id: "CERTIFIED", label: "认证入驻" }
+];
+
 const DRAFT_PAYMENT_METHOD = "NONE";
 const PAYMENT_METHODS = [
   { id: "WECHAT", label: "微信支付" },
@@ -112,7 +137,12 @@ const WECHAT_PAYMENT_METHOD = "WECHAT";
 const INDUSTRY_HONOR_TAG_LIMIT = 5;
 const ATTACHMENT_MAX_COUNT = 1;
 const QR_CODE_MAX_COUNT = 2;
-const ATTACHMENT_FIXED_LABEL = "企业产品和业务介绍";
+const ATTACHMENT_FIXED_LABEL = "产品业务资料";
+const DEFAULT_CERTIFIED_STATUS_MESSAGE = "已完成认证支付，可继续完善店铺信息。";
+const POST_PAYMENT_STATUS_MESSAGE = "当前商户已完成认证支付，可继续完善店铺主页信息，或直接退出";
+const CREATE_ENTRY_MODE_NORMAL = "NORMAL";
+const CREATE_ENTRY_MODE_CERTIFY = "CERTIFY";
+const CREATE_ENTRY_MODE_RENEW = "RENEW";
 const PIN_MEDIA_MAX_COUNT = 3;
 const KML_FILE_SIZE_LIMIT = 1024 * 1024;
 const KML_IMPORT_MAX_COUNT = 10;
@@ -281,7 +311,7 @@ function createEmptyForm() {
     qrCodeImages: [],
     videoChannelId: "",
     videoId: "",
-    adminInfo: { name: "", title: "", phone: "" }
+    adminInfo: { name: "", phone: "" }
   };
 }
 
@@ -310,6 +340,47 @@ function createEmptyPinForm() {
     workspace: "",
     publishToPlatform: false,
     groupIds: []
+  };
+}
+
+function normalizeMarkerFormForComparison(form = {}) {
+  const normalizeText = (value) => (typeof value === "string" ? value.trim() : `${value ?? ""}`.trim());
+  const normalizeCoordinate = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Number(numeric.toFixed(6));
+  };
+  const normalizeFileList = (list) =>
+    (Array.isArray(list) ? list : [])
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+        if (item && typeof item === "object") {
+          return normalizeText(item.fileName || item.url || item.id || "");
+        }
+        return "";
+      })
+      .filter(Boolean);
+
+  return {
+    name: normalizeText(form.name),
+    locationText: normalizeText(form.locationText),
+    locationLatitude: normalizeCoordinate(form.locationLatitude),
+    locationLongitude: normalizeCoordinate(form.locationLongitude),
+    phone: normalizeText(form.phone),
+    description: normalizeText(form.description),
+    images: normalizeFileList(form.images),
+    businessLicense: normalizeText(form.businessLicense?.fileName || ""),
+    industryHonorTags: (Array.isArray(form.industryHonorTags) ? form.industryHonorTags : [])
+      .map((item) => normalizeText(item))
+      .filter(Boolean),
+    attachmentFiles: normalizeFileList(form.attachmentFiles),
+    qrCodeImages: normalizeFileList(form.qrCodeImages),
+    videoChannelId: normalizeText(form.videoChannelId),
+    videoId: normalizeText(form.videoId),
+    adminInfo: {
+      name: normalizeText(form.adminInfo?.name),
+      phone: normalizeText(form.adminInfo?.phone)
+    }
   };
 }
 
@@ -372,6 +443,10 @@ Page({
     kmlImporting: false,
     showKmlTips: false,
     showPinCreateSheet: false,
+    rejectReasonDialogVisible: false,
+    rejectReasonDialogTitle: "",
+    rejectReasonDialogMessage: "",
+    rejectReasonDialogNote: "",
     markers: [],
     visibleMarkers: [],
     error: "",
@@ -381,6 +456,14 @@ Page({
     createStep: 0,
     maxStepReached: 0,
     createSteps: CREATE_STEPS,
+    merchantEntryTabs: MERCHANT_ENTRY_TABS,
+    activeMerchantEntryTab: "CERTIFIED",
+    merchantCertified: false,
+    merchantDecorationExpanded: false,
+    merchantIntroLongImageUrl: "",
+    merchantIntroLongImageLoading: false,
+    merchantIntroLongImageLoaded: false,
+    merchantIntroLongImageError: "",
     form: createEmptyForm(),
     tagInput: "",
     paymentMethods: PAYMENT_METHODS.map((item) => Object.assign({}, item)),
@@ -417,11 +500,23 @@ Page({
     publishPlatformPendingMarker: null,
     deletingId: "",
     hasLoaded: false,
+    merchantOverviewLoaded: false,
+    merchantOverviewLoading: false,
+    merchantOverview: {
+      updateTimeDisplay: "--",
+      registeredUserDisplay: "--",
+      averageMonthlyExposureDisplay: "--"
+    },
     editingMarkerId: "",
+    editingMarkerReviewStatus: "",
+    createEntryMode: CREATE_ENTRY_MODE_NORMAL,
+    createPaymentRequired: false,
     assetPaths: STATIC_ASSETS,
     defaultCoverImage: STATIC_ASSETS.defaultCover,
     submitButtonText: "提交审核",
     showPaymentSection: true,
+    paymentPromptMessage: "",
+    paymentStatusMessage: DEFAULT_CERTIFIED_STATUS_MESSAGE,
     resultStepsLocked: false,
     qrCodeMaxCount: QR_CODE_MAX_COUNT,
     // 工作组
@@ -468,11 +563,13 @@ Page({
   onLoad(options = {}) {
     this.apiBase = resolveApiBase();
     this._pinActionPending = false;
+    this.ensureMerchantOverviewFontLoaded();
     this.initializeProfileInfo();
     this.ensureAccessToken().catch((err) => {
       console.warn("ensureAccessToken failed before loading markers", err);
     });
     this.refreshMarkers({ initial: true });
+    this.refreshMerchantEmptyStateContent();
     this.fetchSettlementConfig();
     this.refreshWorkGroups({ initial: true });
     this.consumePendingCenterTab();
@@ -495,14 +592,19 @@ Page({
       this.promptJoinWorkGroup(pendingInvite);
     }
     const needMarkers = !this.data.hasLoaded && !this.data.loading;
+    const needMerchantOverview =
+      this.data.activeCenterTab === "MERCHANT" && !this.data.merchantOverviewLoaded;
     const needPins = this.data.activeCenterTab === "MY_MARKERS" && !this.data.pinsLoaded && !this.data.pinsLoading;
     const needWorkGroups =
       this.data.activeCenterTab === "WORKGROUP" &&
       !this.data.workGroupsLoaded &&
       !this.data.workGroupsLoading;
-    if (!needMarkers && !needPins && !needWorkGroups) return;
+    if (!needMarkers && !needMerchantOverview && !needPins && !needWorkGroups) return;
     if (needMarkers) {
       this.refreshMarkers({ initial: true });
+    }
+    if (needMerchantOverview) {
+      this.refreshMerchantEmptyStateContent();
     }
     if (needPins) {
       this.refreshPins({ silent: false });
@@ -662,6 +764,185 @@ Page({
       .catch((err) => {
         console.warn("获取入驻配置失败", err);
       });
+  },
+
+  requestWithAuthRetry(request) {
+    let retriedWithAuth = false;
+    const run = () =>
+      request().catch((err) => {
+        if (!retriedWithAuth && err?.message === "missing-token") {
+          retriedWithAuth = true;
+          return this.ensureAccessToken().then(() => request());
+        }
+        throw err;
+      });
+    return run();
+  },
+
+  loadMerchantIntroLongImage(options = {}) {
+    const { force = false } = options;
+    if (!force && this.data.merchantIntroLongImageLoaded) {
+      return Promise.resolve(this.data.merchantIntroLongImageUrl || "");
+    }
+    if (this._merchantIntroLongImagePromise) {
+      return this._merchantIntroLongImagePromise;
+    }
+    this.setData({
+      merchantIntroLongImageLoading: true,
+      merchantIntroLongImageError: ""
+    });
+    this._merchantIntroLongImagePromise = this.requestWithAuthRetry(() =>
+      fetchMerchantIntroLongImageConfig({ apiBase: this.apiBase })
+    )
+      .then((payload = {}) => {
+        const rawImageValue =
+          typeof payload.imageUrl === "string" ? payload.imageUrl.trim() : "";
+        const guideAssetBase = resolveGuideAssetBase();
+        const imageUrl = rawImageValue
+          ? resolveAssetUrl(rawImageValue, { apiBase: guideAssetBase })
+          : "";
+        this.setData({
+          merchantIntroLongImageUrl: imageUrl,
+          merchantIntroLongImageLoaded: true,
+          merchantIntroLongImageLoading: false,
+          merchantIntroLongImageError: imageUrl ? "" : "暂无免费标记介绍图"
+        });
+        return imageUrl;
+      })
+      .catch((err) => {
+        const message = err?.message || "免费标记介绍图加载失败";
+        this.setData({
+          merchantIntroLongImageUrl: "",
+          merchantIntroLongImageLoaded: false,
+          merchantIntroLongImageLoading: false,
+          merchantIntroLongImageError: message
+        });
+        return "";
+      })
+      .finally(() => {
+        this._merchantIntroLongImagePromise = null;
+      });
+    return this._merchantIntroLongImagePromise;
+  },
+
+  ensureMerchantOverviewFontLoaded() {
+    if (this._merchantOverviewFontLoaded) return;
+    const apiBase = this.apiBase || resolveApiBase();
+    this._merchantOverviewFontLoaded = true;
+    getLatestFontFileSource({ apiBase })
+      .then((source) => {
+        if (!source || typeof wx === "undefined" || typeof wx.loadFontFace !== "function") {
+          this._merchantOverviewFontLoaded = false;
+          return;
+        }
+        wx.loadFontFace({
+          family: "ZhSubset",
+          source: `url("${source}")`,
+          global: false,
+          success: () => {},
+          fail: (err) => {
+            this._merchantOverviewFontLoaded = false;
+            console.warn("load merchant overview font failed", err);
+          }
+        });
+      })
+      .catch((err) => {
+        this._merchantOverviewFontLoaded = false;
+        console.warn("load merchant overview font source failed", err);
+      });
+  },
+
+  refreshMerchantEmptyStateContent(options = {}) {
+    const { force = false } = options;
+    if (!force && this.data.merchantOverviewLoaded) {
+      return Promise.resolve();
+    }
+    if (this._merchantOverviewPromise) {
+      return this._merchantOverviewPromise;
+    }
+
+    const requestWithAuthRetry = (request) => {
+      let retriedWithAuth = false;
+      const run = () =>
+        request().catch((err) => {
+          if (!retriedWithAuth && err?.message === "missing-token") {
+            retriedWithAuth = true;
+            return this.ensureAccessToken().then(() => request());
+          }
+          throw err;
+        });
+      return run();
+    };
+
+    this.setData({ merchantOverviewLoading: true });
+    this._merchantOverviewPromise = requestWithAuthRetry(() =>
+      fetchLatestMerchantOperationData({ apiBase: this.apiBase })
+    )
+      .then((payload) => {
+        this.applyMerchantOverview(payload || {});
+      })
+      .catch((err) => {
+        console.warn("获取商户运营数据失败", err);
+        this.applyMerchantOverview({});
+      })
+      .finally(() => {
+        this._merchantOverviewPromise = null;
+        this.setData({ merchantOverviewLoading: false });
+      });
+
+    return this._merchantOverviewPromise;
+  },
+
+  applyMerchantOverview(payload = {}) {
+    this.setData({
+      merchantOverviewLoaded: true,
+      merchantOverview: {
+        updateTimeDisplay: this.formatMerchantOverviewTime(
+          payload.statisticsTime || payload.statsDate || ""
+        ),
+        registeredUserDisplay: this.formatMerchantRegisteredUsers(payload.totalUserCount),
+        averageMonthlyExposureDisplay: this.formatMerchantExposureValue(payload.dailyExposure)
+      }
+    });
+  },
+
+  formatMerchantOverviewTime(value) {
+    if (!value) return "--";
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "--";
+      const yyyy = date.getFullYear();
+      const mm = date.getMonth() + 1;
+      const dd = date.getDate();
+      const hh = `${date.getHours()}`.padStart(2, "0");
+      const mi = `${date.getMinutes()}`.padStart(2, "0");
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+    } catch (err) {
+      return "--";
+    }
+  },
+
+  formatMerchantRegisteredUsers(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return "--";
+    }
+    return `${Math.floor(numeric)}`;
+  },
+
+  formatMerchantExposureValue(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return "--";
+    }
+    if (numeric >= 1000) {
+      const base = numeric >= 10000 ? 1000 : 100;
+      return `${Math.floor(numeric / base) * base}+`;
+    }
+    if (numeric >= 100) {
+      return `${Math.floor(numeric / 10) * 10}+`;
+    }
+    return `${Math.floor(numeric)}+`;
   },
 
   applySettlementConfig(config = {}) {
@@ -889,6 +1170,9 @@ Page({
     if (nextTab === "MERCHANT" && !this.data.hasLoaded && !this.data.loading) {
       this.refreshMarkers({ silent: false });
     }
+    if (nextTab === "MERCHANT" && !this.data.merchantOverviewLoaded) {
+      this.refreshMerchantEmptyStateContent();
+    }
     if (nextTab === "MY_MARKERS") {
       if (!this.data.pinsLoaded && !this.data.pinsLoading) {
         this.refreshPins({ silent: false, filter: this.data.activePinFilter });
@@ -928,7 +1212,10 @@ Page({
       this.refreshWorkGroups({ silent: false }).finally(finalize);
       return;
     }
-    this.refreshMarkers({ silent: true }).finally(finalize);
+    Promise.all([
+      this.refreshMarkers({ silent: true }),
+      this.refreshMerchantEmptyStateContent({ force: true })
+    ]).finally(finalize);
   },
 
   applyPinFilters(list = this.data.pins, filter = this.data.activePinFilter) {
@@ -1662,6 +1949,8 @@ Page({
       workGroupId: primaryGroupId,
       workGroupIds: workGroupIds,
       hasWorkGroup,
+      reviewRejectDetail:
+        typeof raw.reviewRejectDetail === "string" ? raw.reviewRejectDetail.trim() : "",
       raw
     };
   },
@@ -2563,11 +2852,11 @@ Page({
   },
 
   normalizeMarker(raw = {}) {
-    const reviewStatus = raw.reviewStatus || "PENDING";
+    const reviewStatus = `${raw.reviewStatus || (raw.paid ? "PENDING" : "DRAFT") || "PENDING"}`.toUpperCase();
     const statusMeta = REVIEW_STATUS_META[reviewStatus] || REVIEW_STATUS_META.PENDING;
-    const isDraft = !raw.paid;
-    const statusLabel = isDraft ? "草稿" : statusMeta.label;
-    const statusTone = isDraft ? "draft" : statusMeta.tone;
+    const isDraft = reviewStatus === "DRAFT";
+    const statusLabel = statusMeta.label;
+    const statusTone = statusMeta.tone;
     const disableModifyActions = !!raw.paid && reviewStatus === "PENDING";
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
     const markerIdValue = raw.markIdNew ?? raw.markId ?? raw.id ?? "";
@@ -2612,6 +2901,12 @@ Page({
       raw.phoneCallCount !== undefined && raw.phoneCallCount !== null
         ? Number(raw.phoneCallCount)
         : 0;
+    const expireAtSeconds =
+      raw.expireAtSeconds !== undefined && raw.expireAtSeconds !== null
+        ? Number(raw.expireAtSeconds)
+        : 0;
+    const expireAtDisplay = this.formatExpireAtDisplay(expireAtSeconds);
+    const isCertified = !!raw.paid;
     return {
       id: markerId,
       name: raw.name || "",
@@ -2640,10 +2935,16 @@ Page({
       reviewStatusLabel: statusLabel,
       reviewTone: statusTone,
       paid: !!raw.paid,
+      isCertified,
       isDraft,
       paidLabel: raw.paid ? "已完成支付" : "待支付",
       paymentMethod: raw.paymentMethod || "",
+      authActionText: isCertified ? "立即续认证>" : "立即认证入驻>",
+      expireAtSeconds: Number.isFinite(expireAtSeconds) ? expireAtSeconds : 0,
+      expireAtDisplay,
       featureCode: raw.featureCode || "",
+      reviewRejectDetail:
+        typeof raw.reviewRejectDetail === "string" ? raw.reviewRejectDetail.trim() : "",
       createdAtDisplay,
       updatedAtDisplay,
       timelineLabel,
@@ -2665,9 +2966,9 @@ Page({
     if (filter === "ALL") {
       filtered = list;
     } else if (filter === "DRAFT") {
-      filtered = list.filter((marker) => !marker.paid);
+      filtered = list.filter((marker) => `${marker.reviewStatus || ""}`.toUpperCase() === "DRAFT");
     } else {
-      filtered = list.filter((marker) => marker.paid && marker.reviewStatus === filter);
+      filtered = list.filter((marker) => `${marker.reviewStatus || ""}`.toUpperCase() === filter);
     }
     this.setData({
       visibleMarkers: filtered,
@@ -2688,6 +2989,23 @@ Page({
       return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
     } catch (err) {
       return "--";
+    }
+  },
+
+  formatExpireAtDisplay(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return "";
+    try {
+      const date = new Date(seconds * 1000);
+      if (Number.isNaN(date.getTime())) return "";
+      const yyyy = date.getFullYear();
+      const mm = date.getMonth() + 1;
+      const dd = date.getDate();
+      const hh = `${date.getHours()}`.padStart(2, "0");
+      const mi = `${date.getMinutes()}`.padStart(2, "0");
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+    } catch (err) {
+      return "";
     }
   },
 
@@ -3311,6 +3629,166 @@ Page({
     this.setData({ showDetail: false, activeMarker: null });
   },
 
+  onOpenRejectReason(event = {}) {
+    const type = `${event?.currentTarget?.dataset?.type || ""}`.trim();
+    const rawReason = event?.currentTarget?.dataset?.reason;
+    const reason = typeof rawReason === "string" ? rawReason.trim() : `${rawReason || ""}`.trim();
+    const isMerchant = type !== "pin";
+    const title = isMerchant ? "商户驳回理由" : "标记驳回理由";
+    const note = isMerchant
+      ? "*如果依旧要发布商户信息，请按照审核要求改动后再提交。"
+      : "*如果依旧要发布标记，请按照审核要求改动后再提交。";
+    this.setData({
+      rejectReasonDialogVisible: true,
+      rejectReasonDialogTitle: title,
+      rejectReasonDialogMessage: reason || "暂无驳回详情，请联系管理员。",
+      rejectReasonDialogNote: note
+    });
+  },
+
+  onCloseRejectReasonDialog() {
+    this.setData({
+      rejectReasonDialogVisible: false,
+      rejectReasonDialogTitle: "",
+      rejectReasonDialogMessage: "",
+      rejectReasonDialogNote: ""
+    });
+  },
+
+  onMerchantGuideTap() {
+    wx.navigateTo({ url: "/pages/markers/merchant-guide/index" });
+  },
+
+  captureCreateFormSnapshot(form = this.data.form) {
+    this._createFormSnapshot = normalizeMarkerFormForComparison(form || {});
+  },
+
+  hasCreateFormChanges() {
+    if (!this.data.showCreate) return false;
+    const current = normalizeMarkerFormForComparison(this.data.form || {});
+    const snapshot = this._createFormSnapshot || normalizeMarkerFormForComparison(createEmptyForm());
+    return JSON.stringify(current) !== JSON.stringify(snapshot);
+  },
+
+  getCreateEntryMode() {
+    const mode = `${this.data.createEntryMode || CREATE_ENTRY_MODE_NORMAL}`.trim().toUpperCase();
+    return this.normalizeCreateEntryMode(mode);
+  },
+
+  normalizeCreateEntryMode(mode) {
+    const normalized = `${mode || ""}`.trim().toUpperCase();
+    if (
+      normalized === CREATE_ENTRY_MODE_CERTIFY ||
+      normalized === CREATE_ENTRY_MODE_RENEW
+    ) {
+      return normalized;
+    }
+    return CREATE_ENTRY_MODE_NORMAL;
+  },
+
+  isAuthEntryModeValue(mode) {
+    return this.normalizeCreateEntryMode(mode) !== CREATE_ENTRY_MODE_NORMAL;
+  },
+
+  isAuthEntryMode() {
+    return this.isAuthEntryModeValue(this.getCreateEntryMode());
+  },
+
+  shouldShowCertifiedPaymentSection(tab = this.data.activeMerchantEntryTab) {
+    if (`${tab || ""}`.trim().toUpperCase() !== "CERTIFIED") {
+      return false;
+    }
+    if (this.data.createPaymentRequired) {
+      return true;
+    }
+    return !this.data.merchantCertified;
+  },
+
+  buildPaymentPromptMessage(options = {}) {
+    const tab = options.activeMerchantEntryTab || this.data.activeMerchantEntryTab;
+    const showPaymentSection =
+      typeof options.showPaymentSection === "boolean"
+        ? options.showPaymentSection
+        : this.shouldShowCertifiedPaymentSection(tab);
+    if (!showPaymentSection) return "";
+    if (this.getCreateEntryMode() !== CREATE_ENTRY_MODE_RENEW) {
+      return "";
+    }
+    const expireAtDisplay =
+      `${options.expireAtDisplay || this.data.expireAtDisplay || this._editingMarkerExpireAtDisplay || ""}`.trim() || "--";
+    return `认证将于${expireAtDisplay}到期，请确认后续费。`;
+  },
+
+  shouldUseImmediatePaymentAction() {
+    if (this.data.createStep !== 2) return false;
+    if (!this.isAuthEntryMode()) return false;
+    if (!this.data.editingMarkerId) return false;
+    if (!this.data.showPaymentSection) return false;
+    return !this.hasCreateFormChanges();
+  },
+
+  refreshCreateSubmitButtonText() {
+    if (!this.data.showCreate) return;
+    const nextText = this.shouldUseImmediatePaymentAction() ? "立即付费" : "提交审核";
+    if (this.data.submitButtonText === nextText) return;
+    this.setData({ submitButtonText: nextText });
+  },
+
+  onPaymentDecorationLinkTap() {
+    if (!this.data.showCreate) return;
+    const nextMax = Math.max(Number(this.data.maxStepReached) || 0, 1);
+    this.setData({
+      createStep: 1,
+      maxStepReached: nextMax,
+      activeMerchantEntryTab: "CERTIFIED",
+      merchantDecorationExpanded: true
+    }, () => {
+      this.refreshCreateSubmitButtonText();
+    });
+  },
+
+  onMerchantEntryTabTap(e = {}) {
+    const tab = `${e?.currentTarget?.dataset?.tab || ""}`.trim();
+    if (!tab || tab === this.data.activeMerchantEntryTab) return;
+    const showPaymentSection = this.shouldShowCertifiedPaymentSection(tab);
+    const updates = {
+      activeMerchantEntryTab: tab,
+      showPaymentSection,
+      paymentPromptMessage: this.buildPaymentPromptMessage({
+        activeMerchantEntryTab: tab,
+        showPaymentSection
+      })
+    };
+    this.setData(updates, () => {
+      if (tab === "CERTIFIED") {
+        this.ensureValidPaymentSelection();
+      } else {
+        this.loadMerchantIntroLongImage();
+      }
+      this.refreshCreateSubmitButtonText();
+    });
+  },
+
+  onToggleMerchantDecoration() {
+    this.setData({ merchantDecorationExpanded: !this.data.merchantDecorationExpanded });
+  },
+
+  onMerchantDecorationLockedTap() {
+    wx.showToast({ title: "认证入驻后可完善", icon: "none" });
+  },
+
+  onPreviewMerchantIntroLongImage() {
+    const url = `${this.data.merchantIntroLongImageUrl || ""}`.trim();
+    if (!url) return;
+    if (typeof wx.previewImage === "function") {
+      wx.previewImage({
+        urls: [url],
+        current: url,
+        showmenu: true
+      });
+    }
+  },
+
   onCreateTap() {
     if (this.data.activeCenterTab === "MY_MARKERS") {
       this.setData({ showPinCreateSheet: true });
@@ -3323,17 +3801,26 @@ Page({
         maxStepReached: 0,
         form: createEmptyForm(),
         tagInput: "",
+        activeMerchantEntryTab: "CERTIFIED",
+        merchantCertified: false,
+        merchantDecorationExpanded: false,
         selectedPaymentMethod: PAYMENT_METHODS[0].id,
         creationSubmitting: false,
         creationError: "",
         creationResult: null,
         editingMarkerId: "",
+        createEntryMode: CREATE_ENTRY_MODE_NORMAL,
+        createPaymentRequired: false,
         submitButtonText: "提交审核",
         showPaymentSection: true,
+        paymentPromptMessage: "",
+        paymentStatusMessage: DEFAULT_CERTIFIED_STATUS_MESSAGE,
         resultStepsLocked: false
       },
       () => {
+        this.captureCreateFormSnapshot(this.data.form);
         this.ensureValidPaymentSelection();
+        this.refreshCreateSubmitButtonText();
       }
     );
   },
@@ -4058,6 +4545,7 @@ Page({
 
   onEditMarkerTap(e) {
     const markerId = e?.currentTarget?.dataset?.id;
+    const forceEntryTab = e?.currentTarget?.dataset?.entrytab || "";
     if (!markerId) return;
     const marker = this.findAnyMarkerById(markerId);
     if (!marker) {
@@ -4091,6 +4579,18 @@ Page({
       return;
     }
     const form = this.buildFormFromMarker(marker);
+    const activeMerchantEntryTab = forceEntryTab === "CERTIFIED"
+      ? "CERTIFIED"
+      : (
+        marker.paid || (marker.paymentMethod && marker.paymentMethod !== DRAFT_PAYMENT_METHOD)
+          ? "CERTIFIED"
+          : "FREE"
+      );
+    const createEntryMode = forceEntryTab === "CERTIFIED"
+      ? (marker.paid ? CREATE_ENTRY_MODE_RENEW : CREATE_ENTRY_MODE_CERTIFY)
+      : CREATE_ENTRY_MODE_NORMAL;
+    const createPaymentRequired = createEntryMode === CREATE_ENTRY_MODE_RENEW;
+    const showPaymentSection = createPaymentRequired || (activeMerchantEntryTab === "CERTIFIED" && !marker.paid);
     const selectedPaymentMethod =
       marker.paymentMethod && marker.paymentMethod !== DRAFT_PAYMENT_METHOD
         ? marker.paymentMethod
@@ -4098,23 +4598,50 @@ Page({
     this.setData(
       {
         showCreate: true,
-        createStep: 0,
-        maxStepReached: 0,
+        createStep: this.isAuthEntryModeValue(createEntryMode) ? 2 : 0,
+        maxStepReached: this.isAuthEntryModeValue(createEntryMode) ? 2 : 0,
         form,
         tagInput: "",
+        activeMerchantEntryTab,
+        merchantCertified: !!marker.paid,
+        merchantDecorationExpanded: !!marker.paid,
         selectedPaymentMethod,
         creationSubmitting: false,
         creationError: "",
         creationResult: null,
         editingMarkerId: marker.id,
-        submitButtonText: "保存修改",
-        showPaymentSection: !marker.paid,
+        editingMarkerReviewStatus: marker.reviewStatus || "",
+        createEntryMode,
+        createPaymentRequired,
+        submitButtonText: "提交审核",
+        showPaymentSection,
+        paymentPromptMessage: createEntryMode === CREATE_ENTRY_MODE_RENEW
+          ? `您的到期时间是${marker.expireAtDisplay || "--"},请确认后继续付费。`
+          : "",
+        paymentStatusMessage: DEFAULT_CERTIFIED_STATUS_MESSAGE,
         resultStepsLocked: false
       },
       () => {
+        this._editingMarkerExpireAtDisplay = marker.expireAtDisplay || "";
+        this.captureCreateFormSnapshot(this.data.form);
+        if (activeMerchantEntryTab === "FREE") {
+          this.loadMerchantIntroLongImage();
+        }
         this.ensureValidPaymentSelection();
+        this.refreshCreateSubmitButtonText();
       }
     );
+  },
+
+  onMarkerAuthTap(e) {
+    this.onEditMarkerTap({
+      currentTarget: {
+        dataset: {
+          id: e?.currentTarget?.dataset?.id || "",
+          entrytab: "CERTIFIED"
+        }
+      }
+    });
   },
 
   buildFormFromMarker(marker = {}) {
@@ -4160,7 +4687,6 @@ Page({
     form.videoId = marker.videoId || "";
     form.adminInfo = {
       name: marker.adminInfo?.name || "",
-      title: marker.adminInfo?.title || "",
       phone: marker.adminInfo?.phone || ""
     };
     return form;
@@ -4169,8 +4695,20 @@ Page({
   onCloseCreate() {
     if (this.data.creationSubmitting) return;
     const shouldRefreshAfterClose = this.shouldRefreshMarkersAfterClose();
-    if (this.shouldShowDraftExitPrompt()) {
-      this.showDraftExitPrompt();
+    const hasChanges = this.hasCreateFormChanges();
+    if (!hasChanges) {
+      this.exitCreateFlow();
+      if (shouldRefreshAfterClose) {
+        this.refreshMarkers({ silent: true });
+      }
+      return;
+    }
+    if (this.shouldConfirmAbandonChangesOnClose(hasChanges)) {
+      this.showAbandonChangesPrompt();
+      return;
+    }
+    if (this.shouldSaveDraftOnClose(hasChanges)) {
+      this.saveDraftAndExit();
       return;
     }
     if (this.data.createStep === 0 || this.data.createStep === 3) {
@@ -4193,11 +4731,18 @@ Page({
     });
   },
 
-  shouldShowDraftExitPrompt() {
+  shouldConfirmAbandonChangesOnClose(hasChanges = this.hasCreateFormChanges()) {
     if (!this.data.showCreate) return false;
-    if (!this.data.showPaymentSection) return false;
     if (this.data.createStep === 3) return false;
-    return true;
+    if (!hasChanges) return false;
+    const reviewStatus = `${this.data.editingMarkerReviewStatus || ""}`.toUpperCase();
+    return reviewStatus === "PENDING" || reviewStatus === "APPROVED";
+  },
+
+  shouldSaveDraftOnClose(hasChanges = this.hasCreateFormChanges()) {
+    if (!this.data.showCreate) return false;
+    if (this.data.createStep === 3) return false;
+    return !!hasChanges;
   },
 
   shouldRefreshMarkersAfterClose() {
@@ -4212,30 +4757,15 @@ Page({
     return !!marker.paid;
   },
 
-  showDraftExitPrompt() {
-    const nameFilled = !!(this.data.form?.name && this.data.form.name.trim());
-    if (!nameFilled) {
-      wx.showModal({
-        title: "确认退出",
-        content: "未填写名称，关闭后内容将丢失，确认退出？",
-        cancelText: "继续编辑",
-        confirmText: "退出",
-        success: (res) => {
-          if (res.confirm) {
-            this.exitCreateFlow();
-          }
-        }
-      });
-      return;
-    }
+  showAbandonChangesPrompt() {
     wx.showModal({
-      title: "保存草稿",
-      content: "地图可预览(仅自己可见)\r\n可随时继续提交",
+      title: "确认退出",
+      content: "是否放弃已修改的内容？",
       cancelText: "继续编辑",
-      confirmText: "保存草稿",
+      confirmText: "退出",
       success: (res) => {
         if (res.confirm) {
-          this.saveDraftAndExit();
+          this.exitCreateFlow();
         }
       }
     });
@@ -4243,34 +4773,54 @@ Page({
 
   saveDraftAndExit() {
     if (this.data.creationSubmitting) return;
-    const previousMethod =
-      this.data.selectedPaymentMethod && this.data.selectedPaymentMethod !== DRAFT_PAYMENT_METHOD
-        ? this.data.selectedPaymentMethod
-        : PAYMENT_METHODS[0].id;
-    this.setData({ selectedPaymentMethod: DRAFT_PAYMENT_METHOD }, () => {
-      this.submitMarker({ skipResultPage: true, draft: true }).then((result = {}) => {
-        if (result.success) {
-          wx.showToast({ title: "草稿已保存", icon: "success" });
-          this.exitCreateFlow();
-        } else if (previousMethod !== DRAFT_PAYMENT_METHOD) {
-          this.setData({ selectedPaymentMethod: previousMethod });
-        }
+    const payload = this.buildMarkerPayload({ draft: true });
+    const editingId = this.data.editingMarkerId;
+    this.setData({ creationSubmitting: true, creationError: "" });
+    const request = editingId
+      ? updateMarker(editingId, payload, { apiBase: this.apiBase, query: { draft: true } })
+      : createMarkerDraft(payload, { apiBase: this.apiBase });
+    request
+      .then(() => {
+        wx.showToast({ title: "草稿已保存", icon: "success" });
+        this.exitCreateFlow();
+        this.refreshMarkers({ silent: true });
+      })
+      .catch((err) => {
+        const message = err?.displayMessage || err?.message || "保存草稿失败";
+        this.setData({ creationError: message });
+        wx.showToast({ title: message, icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ creationSubmitting: false });
       });
-    });
   },
 
   exitCreateFlow() {
+    this._createFormSnapshot = null;
+    this._editingMarkerExpireAtDisplay = "";
     this.setData({
       showCreate: false,
       creationResult: null,
       maxStepReached: 0,
       editingMarkerId: "",
+      editingMarkerReviewStatus: "",
+      createEntryMode: CREATE_ENTRY_MODE_NORMAL,
+      createPaymentRequired: false,
       submitButtonText: "提交审核",
       createStep: 0,
+      activeMerchantEntryTab: "CERTIFIED",
+      merchantCertified: false,
+      merchantDecorationExpanded: false,
       showPaymentSection: true,
+      paymentPromptMessage: "",
+      paymentStatusMessage: DEFAULT_CERTIFIED_STATUS_MESSAGE,
       selectedPaymentMethod: PAYMENT_METHODS[0].id,
       resultStepsLocked: false
     });
+  },
+
+  isMerchantDecorationField(field = "") {
+    return ["attachments", "qrCodeImages", "videoChannelId", "videoId"].includes(`${field || ""}`);
   },
 
   onFormInput(e) {
@@ -4278,6 +4828,10 @@ Page({
     const group = e?.currentTarget?.dataset?.group;
     const value = e?.detail?.value ?? "";
     if (!field) return;
+    if (!this.data.merchantCertified && this.isMerchantDecorationField(field)) {
+      this.onMerchantDecorationLockedTap();
+      return;
+    }
     if (group) {
       const path = `form.${group}.${field}`;
       this.setData({ [path]: value });
@@ -4285,6 +4839,7 @@ Page({
       const path = `form.${field}`;
       this.setData({ [path]: value });
     }
+    this.refreshCreateSubmitButtonText();
   },
 
   onTagInput(e) {
@@ -4311,6 +4866,7 @@ Page({
       "form.industryHonorTags": updated,
       tagInput: ""
     });
+    this.refreshCreateSubmitButtonText();
   },
 
   onRemoveTag(e) {
@@ -4319,6 +4875,7 @@ Page({
     const tags = this.data.form.industryHonorTags.slice();
     tags.splice(index, 1);
     this.setData({ "form.industryHonorTags": tags });
+    this.refreshCreateSubmitButtonText();
   },
 
   onChooseLocation() {
@@ -4342,6 +4899,7 @@ Page({
             "form.locationLatitude": detail.latitude,
             "form.locationLongitude": detail.longitude
           });
+          this.refreshCreateSubmitButtonText();
         }
       },
       success: (res) => {
@@ -4356,11 +4914,15 @@ Page({
   onAddMediaTap(e) {
     const type = e?.currentTarget?.dataset?.type;
     if (!type) return;
+    if (!this.data.merchantCertified && this.isMerchantDecorationField(type)) {
+      this.onMerchantDecorationLockedTap();
+      return;
+    }
     let count = 9;
     if (type === "images") {
       count = Math.max(0, 9 - this.data.form.images.length);
       if (count <= 0) {
-        wx.showToast({ title: "最多上传9张图片", icon: "none" });
+        wx.showToast({ title: "最多上传9张门店图片", icon: "none" });
         return;
       }
     }
@@ -4496,6 +5058,7 @@ Page({
             "form.attachmentFiles": current.concat(additions)
           });
         }
+        this.refreshCreateSubmitButtonText();
       })
       .catch((err) => {
         console.error("上传文件失败", err);
@@ -4510,8 +5073,13 @@ Page({
   onRemoveMediaTap(e) {
     const type = e?.currentTarget?.dataset?.type;
     if (!type) return;
+    if (!this.data.merchantCertified && this.isMerchantDecorationField(type)) {
+      this.onMerchantDecorationLockedTap();
+      return;
+    }
     if (type === "businessLicense") {
       this.setData({ "form.businessLicense": null });
+      this.refreshCreateSubmitButtonText();
       return;
     }
     const index = e?.currentTarget?.dataset?.index;
@@ -4529,6 +5097,7 @@ Page({
       list.splice(index, 1);
       this.setData({ "form.attachmentFiles": list });
     }
+    this.refreshCreateSubmitButtonText();
   },
 
   goToNextStep() {
@@ -4537,13 +5106,17 @@ Page({
     if (step === 1 && !this.validateMediaStep()) return;
     const next = Math.min(step + 1, 3);
     const updatedMax = Math.max(this.data.maxStepReached, next);
-    this.setData({ createStep: next, maxStepReached: updatedMax });
+    this.setData({ createStep: next, maxStepReached: updatedMax }, () => {
+      this.refreshCreateSubmitButtonText();
+    });
   },
 
   goToPrevStep() {
     const step = this.data.createStep;
     const prev = Math.max(step - 1, 0);
-    this.setData({ createStep: prev });
+    this.setData({ createStep: prev }, () => {
+      this.refreshCreateSubmitButtonText();
+    });
   },
 
   onStepIndicatorTap(e) {
@@ -4579,33 +5152,37 @@ Page({
       this.setData({
         createStep: target,
         maxStepReached: Math.max(this.data.maxStepReached, target)
+      }, () => {
+        this.refreshCreateSubmitButtonText();
       });
       return;
     }
 
-    this.setData({ createStep: target });
+    this.setData({ createStep: target }, () => {
+      this.refreshCreateSubmitButtonText();
+    });
   },
 
   validateBasicStep() {
     const form = this.data.form;
     if (!form.images.length) {
-      wx.showToast({ title: "请上传图片", icon: "none" });
+      wx.showToast({ title: "请上传门店图片", icon: "none" });
       return false;
     }
     if (!form.name.trim()) {
-      wx.showToast({ title: "请填写标记名称", icon: "none" });
+      wx.showToast({ title: "请填写商户名称", icon: "none" });
       return false;
     }
     if (!form.description.trim()) {
-      wx.showToast({ title: "请填写标记简介", icon: "none" });
+      wx.showToast({ title: "请填写业务简介", icon: "none" });
       return false;
     }
     if (!form.phone.trim()) {
-      wx.showToast({ title: "请填写联系电话", icon: "none" });
+      wx.showToast({ title: "请填写商家电话", icon: "none" });
       return false;
     }
     if (!form.locationText || form.locationLatitude === null || form.locationLongitude === null) {
-      wx.showToast({ title: "请选择标记位置", icon: "none" });
+      wx.showToast({ title: "请选择门店位置", icon: "none" });
       return false;
     }
     return true;
@@ -4626,15 +5203,77 @@ Page({
       wx.showToast({ title: "请填写管理员姓名", icon: "none" });
       return false;
     }
-    if (!admin.title || !admin.title.trim()) {
-      wx.showToast({ title: "请填写管理员职位", icon: "none" });
-      return false;
-    }
     if (!admin.phone || !admin.phone.trim()) {
       wx.showToast({ title: "请填写管理员联系电话", icon: "none" });
       return false;
     }
     return true;
+  },
+
+  submitImmediatePayment() {
+    if (this.data.creationSubmitting) {
+      return Promise.resolve({ success: false, reason: "submitting" });
+    }
+    const editingId = `${this.data.editingMarkerId || ""}`.trim();
+    if (!editingId) {
+      wx.showToast({ title: "缺少商户信息", icon: "none" });
+      return Promise.resolve({ success: false, reason: "missing-marker-id" });
+    }
+    const marker = this.findAnyMarkerById(editingId);
+    if (!marker) {
+      wx.showToast({ title: "未找到商户信息", icon: "none" });
+      return Promise.resolve({ success: false, reason: "missing-marker" });
+    }
+
+    const normalized = this.normalizeMarker(marker.raw || marker);
+    this.setData({ creationSubmitting: true, creationError: "" });
+    let request = null;
+    if (this.shouldUseWechatPayment()) {
+      request = this.handleWechatPaymentFlow(marker.raw || marker, normalized);
+    } else if (this.shouldUseFlpPayment()) {
+      request = this.handleFlpPaymentFlow(marker.raw || marker, normalized);
+    } else {
+      const error = new Error("请选择有效的支付方式");
+      error.displayMessage = "请选择有效的支付方式";
+      request = Promise.reject(error);
+    }
+
+    return request
+      .then((status) => {
+        if (status && status.paid === false) {
+          return { success: false, status };
+        }
+        normalized.paid = true;
+        normalized.isCertified = true;
+        normalized.paidLabel = "已完成支付";
+        normalized.paymentMethod = this.data.selectedPaymentMethod;
+        if (normalized.raw && typeof normalized.raw === "object") {
+          normalized.raw.paid = true;
+          normalized.raw.paymentMethod = this.data.selectedPaymentMethod;
+        }
+        this.applySubmittedMarkerToList(normalized, editingId);
+        this.setData({
+          merchantCertified: true,
+          createPaymentRequired: false,
+          showPaymentSection: false,
+          paymentPromptMessage: "",
+          paymentStatusMessage: POST_PAYMENT_STATUS_MESSAGE,
+          creationError: ""
+        });
+        this.refreshCreateSubmitButtonText();
+        this.refreshMarkers({ silent: true });
+        wx.showToast({ title: "支付成功", icon: "success" });
+        return { success: true, marker: normalized };
+      })
+      .catch((err) => {
+        const message = err?.displayMessage || err?.message || "支付失败，请稍后重试";
+        this.setData({ creationError: message });
+        wx.showToast({ title: message, icon: "none" });
+        return { success: false, error: err };
+      })
+      .finally(() => {
+        this.setData({ creationSubmitting: false });
+      });
   },
 
   submitMarker(eventOrOptions) {
@@ -4645,6 +5284,9 @@ Page({
     const options = isEventArgument ? {} : eventOrOptions || {};
     const skipResultPage = !!options.skipResultPage;
     const isDraftRequest = !!options.draft;
+    if (!isDraftRequest && this.shouldUseImmediatePaymentAction()) {
+      return this.submitImmediatePayment();
+    }
     if (this.data.creationSubmitting) {
       return Promise.resolve({ success: false, reason: "submitting" });
     }
@@ -4657,13 +5299,21 @@ Page({
     this.setData({ creationSubmitting: true, creationError: "" });
     const payload = this.buildMarkerPayload({ draft: isDraftRequest });
     const editingId = this.data.editingMarkerId;
-    const requestOptions = { apiBase: this.apiBase };
-    if (isDraftRequest) {
-      requestOptions.query = { draft: true };
-    }
-    const request = editingId
-      ? updateMarker(editingId, payload, requestOptions)
-      : createMarker(payload, requestOptions);
+    const draftUpdateOptions =
+      `${this.data.editingMarkerReviewStatus || ""}`.toUpperCase() === "DRAFT"
+        ? { apiBase: this.apiBase }
+        : { apiBase: this.apiBase, query: { draft: true } };
+    const request = isDraftRequest
+      ? (
+        editingId
+          ? updateMarker(editingId, payload, draftUpdateOptions)
+          : createMarkerDraft(payload, { apiBase: this.apiBase })
+      )
+      : (
+        editingId
+          ? updateMarker(editingId, payload, { apiBase: this.apiBase })
+          : createMarker(payload, { apiBase: this.apiBase })
+      );
     return request
       .then((marker) => {
         const normalized = this.normalizeMarker(marker);
@@ -4672,9 +5322,12 @@ Page({
           if (skipResultPage) {
             return { success: true, marker: normalized };
           }
-          const resultTitle = editingId ? "更新成功" : "提交成功";
-          const resultMessage = editingId ? "标记信息已更新。" : "提交成功，请等待审核。";
-          const toastTitle = editingId ? "已保存" : "提交成功";
+          const isFreeEntry = !normalized.paid && this.data.activeMerchantEntryTab === "FREE";
+          const resultTitle = editingId ? "更新成功" : (isFreeEntry ? "保存成功" : "提交成功");
+          const resultMessage = editingId
+            ? "商户信息已更新。"
+            : (isFreeEntry ? "免费标记信息已保存，可稍后继续认证入驻。" : "提交成功，请等待审核。");
+          const toastTitle = editingId ? "已保存" : (isFreeEntry ? "已保存" : "提交成功");
           this.setData({
             creationResult: {
               status: "success",
@@ -4782,10 +5435,9 @@ Page({
     if (form.videoId && form.videoId.trim()) {
       payload.videoId = form.videoId.trim();
     }
-    if (form.adminInfo && (form.adminInfo.name || form.adminInfo.title || form.adminInfo.phone)) {
+    if (form.adminInfo && (form.adminInfo.name || form.adminInfo.phone)) {
       payload.adminInfo = {
         name: (form.adminInfo.name || "").trim(),
-        title: (form.adminInfo.title || "").trim(),
         phone: (form.adminInfo.phone || "").trim()
       };
     }

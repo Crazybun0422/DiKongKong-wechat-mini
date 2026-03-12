@@ -258,6 +258,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/merchant-intro-long-image:
+    get:
+      summary: 获取商户介绍长图配置
+      description: 普通用户可读取，返回商户介绍长图 URL 配置。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantIntroLongImageResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新商户介绍长图配置
+      description: 仅管理员可调用，用于创建或更新商户介绍长图 URL。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantIntroLongImageRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantIntroLongImageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/guide-urls:
     get:
       summary: 获取引导界面 URL 数组
@@ -1220,6 +1269,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/poster-service-version:
+    get:
+      summary: 获取海报服务版本
+      description: 读取 system_setting 中保存的海报服务版本号。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePosterServiceVersionResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/poster-service-version/refresh:
+    post:
+      summary: 刷新海报服务版本
+      description: 仅管理员可调用，向 poster-service 的 /version 接口发起请求并覆盖保存到 system_setting。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePosterServiceVersionResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
 components:
   securitySchemes:
     bearerAuth:
@@ -1363,6 +1454,35 @@ components:
         data:
           $ref: '#/components/schemas/PlanetCreationAdvancedGuideResponse'
 
+
+    MerchantIntroLongImageRequest:
+      type: object
+      required:
+        - imageUrl
+      properties:
+        imageUrl:
+          type: string
+          description: 商户介绍长图 URL。
+    MerchantIntroLongImageResponse:
+      allOf:
+        - $ref: '#/components/schemas/MerchantIntroLongImageRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponseMerchantIntroLongImageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MerchantIntroLongImageResponse'
     ShareToPlatformCopyRequest:
       type: object
       required:
@@ -1919,6 +2039,23 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/GuideUrlsResponse'
+    PosterServiceVersionResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          description: 海报服务版本号。
+    ApiResponsePosterServiceVersionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PosterServiceVersionResponse'
     ApiResponseObject:
       type: object
       properties:
