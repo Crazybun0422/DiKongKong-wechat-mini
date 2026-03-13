@@ -22,6 +22,11 @@ Component({
       type: Number,
       value: 0
     },
+    uiScale: {
+      type: Number,
+      value: 1,
+      observer: "updateScaleStyles"
+    },
     satellite: {
       type: Boolean,
       value: false
@@ -50,6 +55,8 @@ Component({
     sheetVisible: false,
     sheetClosing: false,
     showWelcomeBubble: false,
+    touchAreaScaleStyle: "",
+    sheetScaleStyle: "",
     actionItems: LONGPRESS_ACTION_ITEMS,
     afeiPreparing: false,
     afeiProgressPercent: 0
@@ -58,6 +65,7 @@ Component({
   lifetimes: {
     attached() {
       this._lastWelcomeBubbleDismissToken = Number(this.properties.welcomeBubbleDismissToken) || 0;
+      this.updateScaleStyles(this.properties.uiScale);
       this.showWelcomeBubble();
     },
 
@@ -81,6 +89,25 @@ Component({
   },
 
   methods: {
+    updateScaleStyles(scaleValue) {
+      const rawScale = Number(scaleValue);
+      const resolvedScale =
+        Number.isFinite(rawScale) && rawScale > 0 ? Math.min(1, Math.max(0.35, rawScale)) : 1;
+      const scaleStyle = resolvedScale < 0.9999 ? `transform: scale(${resolvedScale});` : "";
+      const touchAreaScaleStyle = scaleStyle;
+      const sheetScaleStyle = scaleStyle;
+      if (
+        this.data.touchAreaScaleStyle === touchAreaScaleStyle
+        && this.data.sheetScaleStyle === sheetScaleStyle
+      ) {
+        return;
+      }
+      this.setData({
+        touchAreaScaleStyle,
+        sheetScaleStyle
+      });
+    },
+
     showWelcomeBubble() {
       if (this.data.showWelcomeBubble) return;
       this.setData({ showWelcomeBubble: true });

@@ -54,6 +54,13 @@ const {
 const { buildImageUrl } = require("../../utils/images");
 const { resolveAssetUrl } = require("../../utils/open-platform");
 const { resolveGuideAssetBase } = require("../../utils/guide");
+const {
+  fetchSubscriptions,
+  requestSubscribeMessageForTemplateIds,
+  updateSubscriptions,
+  normalizeTemplateIds
+} = require("../../utils/subscriptions");
+const { SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
 
 const STATIC_ASSETS = {
   add: "/pages/markers/assets/add.png",
@@ -140,6 +147,10 @@ const QR_CODE_MAX_COUNT = 2;
 const ATTACHMENT_FIXED_LABEL = "产品业务资料";
 const DEFAULT_CERTIFIED_STATUS_MESSAGE = "已完成认证支付，可继续完善店铺信息。";
 const POST_PAYMENT_STATUS_MESSAGE = "当前商户已完成认证支付，可继续完善店铺主页信息，或直接退出";
+const CREATION_SUBSCRIPTION_TEMPLATE_IDS = normalizeTemplateIds([
+  SUBSCRIPTION_TEMPLATE_IDS.reviewResult,
+  SUBSCRIPTION_TEMPLATE_IDS.achievementReached
+]);
 const CREATE_ENTRY_MODE_NORMAL = "NORMAL";
 const CREATE_ENTRY_MODE_CERTIFY = "CERTIFY";
 const CREATE_ENTRY_MODE_RENEW = "RENEW";
@@ -1123,6 +1134,74 @@ Page({
         this._ensureLoginPromise = null;
       });
     return this._ensureLoginPromise;
+  },
+
+  mergeGlobalSubscriptionAcceptedIds(list = []) {
+    const normalized = normalizeTemplateIds(list);
+    const app = typeof getApp === "function" ? getApp() : null;
+    const existing = Array.isArray(app?.globalData?.subscriptionAcceptedTemplateIds)
+      ? app.globalData.subscriptionAcceptedTemplateIds
+      : [];
+    const merged = normalizeTemplateIds(existing.concat(normalized));
+    if (app && app.globalData) {
+      app.globalData.subscriptionAcceptedTemplateIds = merged;
+      app.globalData.subscriptionSettingsReady = true;
+    }
+    return merged;
+  },
+
+  requestCreationSubscriptions(options = {}) {
+    const apiBase = this.apiBase || resolveApiBase();
+    const templateIds = normalizeTemplateIds(options.templateIds || CREATION_SUBSCRIPTION_TEMPLATE_IDS);
+    if (!apiBase || !templateIds.length) {
+      return Promise.resolve([]);
+    }
+    return this.ensureAccessToken()
+      .then(() => {
+        const token = this.getAuthToken();
+        if (!token) return [];
+        return fetchSubscriptions({ apiBase, token })
+          .catch((err) => {
+            console.warn("fetch creation subscriptions failed", err);
+            return [];
+          })
+          .then((serverIds) => {
+            const normalizedServerIds = normalizeTemplateIds(serverIds);
+            const requestIds = options.onlyIfServerRecorded
+              ? templateIds.filter((id) => normalizedServerIds.includes(id))
+              : templateIds;
+            if (!requestIds.length) {
+              return [];
+            }
+            return requestSubscribeMessageForTemplateIds(requestIds)
+              .then(({ acceptedIds = [] }) => {
+                if (!acceptedIds.length) {
+                  return [];
+                }
+                const mergedAcceptedIds = this.mergeGlobalSubscriptionAcceptedIds(acceptedIds);
+                const nextServerIds = normalizeTemplateIds(normalizedServerIds.concat(mergedAcceptedIds));
+                return updateSubscriptions(nextServerIds, { apiBase, token })
+                  .catch((err) => {
+                    console.warn("update creation subscriptions failed", err);
+                    return null;
+                  })
+                  .then(() => acceptedIds);
+              });
+          });
+      });
+  },
+
+  triggerCreationSubscriptions(options = {}) {
+    return this.requestCreationSubscriptions(options).catch((err) => {
+      console.warn("requestCreationSubscriptions failed", err);
+      return [];
+    });
+  },
+
+  shouldTriggerMerchantCreationSubscriptionsOnClose() {
+    if (this.data.createStep !== 3) return false;
+    if (!this._pendingMerchantCreationSubscription) return false;
+    return this.data.creationResult?.status === "success";
   },
 
   ensureValidPaymentSelection() {
@@ -3794,6 +3873,7 @@ Page({
       this.setData({ showPinCreateSheet: true });
       return;
     }
+    this._pendingMerchantCreationSubscription = false;
     this.setData(
       {
         showCreate: true,
@@ -4232,6 +4312,9 @@ Page({
       });
     run()
       .then(() => {
+        if (payload.visibility === "PUBLIC") {
+          this.triggerCreationSubscriptions({ source: "pin-submit-public" });
+        }
         this.setData({ pinSubmitting: false, showMyPinCreate: false, editingPinId: "" });
         wx.showToast({ title: editingId ? "已更新标记" : "已保存标记", icon: "success" });
         this.refreshPins({ silent: true });
@@ -4311,6 +4394,10 @@ Page({
   },
 
   navigateToMapHome() {
+    this.triggerCreationSubscriptions({
+      source: "markers-map-button",
+      onlyIfServerRecorded: true
+    });
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     if (
       Array.isArray(pages) &&
@@ -4622,6 +4709,7 @@ Page({
         resultStepsLocked: false
       },
       () => {
+        this._pendingMerchantCreationSubscription = false;
         this._editingMarkerExpireAtDisplay = marker.expireAtDisplay || "";
         this.captureCreateFormSnapshot(this.data.form);
         if (activeMerchantEntryTab === "FREE") {
@@ -4694,9 +4782,14 @@ Page({
 
   onCloseCreate() {
     if (this.data.creationSubmitting) return;
+    const shouldTriggerSubscription = this.shouldTriggerMerchantCreationSubscriptionsOnClose();
     const shouldRefreshAfterClose = this.shouldRefreshMarkersAfterClose();
     const hasChanges = this.hasCreateFormChanges();
     if (!hasChanges) {
+      if (shouldTriggerSubscription) {
+        this.triggerCreationSubscriptions({ source: "merchant-result-close" });
+        this._pendingMerchantCreationSubscription = false;
+      }
       this.exitCreateFlow();
       if (shouldRefreshAfterClose) {
         this.refreshMarkers({ silent: true });
@@ -4712,6 +4805,10 @@ Page({
       return;
     }
     if (this.data.createStep === 0 || this.data.createStep === 3) {
+      if (shouldTriggerSubscription) {
+        this.triggerCreationSubscriptions({ source: "merchant-result-close" });
+        this._pendingMerchantCreationSubscription = false;
+      }
       this.exitCreateFlow();
       if (shouldRefreshAfterClose) {
         this.refreshMarkers({ silent: true });
@@ -4798,6 +4895,7 @@ Page({
   exitCreateFlow() {
     this._createFormSnapshot = null;
     this._editingMarkerExpireAtDisplay = "";
+    this._pendingMerchantCreationSubscription = false;
     this.setData({
       showCreate: false,
       creationResult: null,
@@ -5323,6 +5421,7 @@ Page({
             return { success: true, marker: normalized };
           }
           const isFreeEntry = !normalized.paid && this.data.activeMerchantEntryTab === "FREE";
+          this._pendingMerchantCreationSubscription = !isFreeEntry;
           const resultTitle = editingId ? "更新成功" : (isFreeEntry ? "保存成功" : "提交成功");
           const resultMessage = editingId
             ? "商户信息已更新。"

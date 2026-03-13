@@ -479,9 +479,11 @@ const decodeMaybeURI = (text = "") => {
   return current;
 };
 
-const hasAllRequiredSubscriptions = (ids = []) => {
+const hasAllRequiredSubscriptions = (ids = [], requiredIds = REQUIRED_SUBSCRIPTION_TEMPLATE_IDS) => {
   const normalized = normalizeTemplateIds(ids);
-  return REQUIRED_SUBSCRIPTION_TEMPLATE_IDS.every((id) => normalized.includes(id));
+  const normalizedRequired = normalizeTemplateIds(requiredIds);
+  if (!normalizedRequired.length) return true;
+  return normalizedRequired.every((id) => normalized.includes(id));
 };
 
 const resolvePanoramaSource = (apiBase) => {
@@ -1010,6 +1012,7 @@ Page({
     keyword: "",
     djiMsg: "",
     center: DEFAULT_CENTER,
+    mapCenterReady: false,
     scale: DEFAULT_MAP_SCALE,
     minScale: MAP_MIN_SCALE,
     maxScale: MAP_MAX_SCALE,
@@ -1018,6 +1021,7 @@ Page({
     isWideLayout: false,
     mapUiScale: 1,
     mapUiScaleStyle: "",
+    subscriptionBannerScaleStyle: "transform: translateY(-50%); transform-origin: left center;",
     statusBarHeight: 0,
     centerPinOffsetPx: 0,
     markers: [],
@@ -1067,7 +1071,7 @@ Page({
     searchSuggestError: "",
     myLocationPoint: null,
     myLocationVisible: false,
-    searchLinkCenter: DEFAULT_CENTER,
+    searchLinkCenter: null,
     searchLinkTarget: null,
     searchLinkVisible: false,
     cityReportCenter: null,
@@ -1104,7 +1108,8 @@ Page({
     showSubscriptionBanner: false,
     subscriptionBannerLoading: false,
     showSubscribeWaitOverlay: false,
-    subscriptionBannerTopRpx: 90,
+    subscriptionBannerTopPx: 44,
+    subscriptionBannerHeightPx: 0,
     subscriptionBannerHeightRpx: 70,
     preflightBaseTopRpx: 120,
     preflightTopRpx: 120,
@@ -1226,6 +1231,10 @@ Page({
     const uiScale = resolveMapUiScale(metrics, wideLayout);
     const roundedScale = Number(uiScale.toFixed(4));
     const uiScaleStyle = roundedScale < 0.9999 ? `transform: scale(${roundedScale});` : "";
+    const subscriptionBannerScaleStyle =
+      roundedScale < 0.9999
+        ? `transform: translateY(-50%) scale(${roundedScale}); transform-origin: left center;`
+        : "transform: translateY(-50%); transform-origin: left center;";
     const updates = {};
     if (this.data.isWideLayout !== wideLayout) {
       updates.isWideLayout = wideLayout;
@@ -1235,6 +1244,9 @@ Page({
     }
     if (this.data.mapUiScaleStyle !== uiScaleStyle) {
       updates.mapUiScaleStyle = uiScaleStyle;
+    }
+    if (this.data.subscriptionBannerScaleStyle !== subscriptionBannerScaleStyle) {
+      updates.subscriptionBannerScaleStyle = subscriptionBannerScaleStyle;
     }
     if (Object.keys(updates).length) {
       this.setData(updates);
@@ -1298,6 +1310,7 @@ Page({
       if (hasValidCoordinate(presetLat, presetLng)) {
         this.data.center = { latitude: presetLat, longitude: presetLng };
         this.data.scale = clampMapScale(launchCenterPreset.scale || 15);
+        this.data.mapCenterReady = true;
       }
     }
     applyMapStatusBarStyle();
@@ -1368,6 +1381,7 @@ Page({
     this._overlookSyncAvoidUntil = 0;
     this._centerOverride = this.data.center;
     this.updateMapCheckinEntryStyle();
+    this.updateSubscriptionBannerLayout();
     this._layerPanelCloseTimer = null;
     this._addMiniAppPopupChecking = false;
     this._addMiniAppPopupVisible = false;
@@ -1473,32 +1487,34 @@ Page({
       this.requestInitialLocation();
       this.consumePendingMarkerFocus({ immediate: true });
     }
-    const initialViewportCenter = this._centerOverride || this.data.center;
-    const initialViewportScale = this.data.scale;
-    this.scheduleFetchMarkers(0, {
-      center: initialViewportCenter,
-      scale: initialViewportScale,
-      force: true
-    });
-    this.scheduleFetchPins(0, {
-      center: initialViewportCenter,
-      scale: initialViewportScale,
-      force: true
-    });
-    this.syncTemporaryNoFlyLayerViewport({
-      center: initialViewportCenter,
-      region: this._lastRegion || null,
-      scale: initialViewportScale,
-      force: true
-    });
-    this.syncDjiLayerViewport({
-      center: initialViewportCenter,
-      region: this._lastRegion || null,
-      scale: initialViewportScale,
-      force: true
-    });
-    this.updateScaleBar();
-    this.updateCenterPinIndicator();
+    if (this.isMapCenterReady()) {
+      const initialViewportCenter = this._centerOverride || this.data.center;
+      const initialViewportScale = this.data.scale;
+      this.scheduleFetchMarkers(0, {
+        center: initialViewportCenter,
+        scale: initialViewportScale,
+        force: true
+      });
+      this.scheduleFetchPins(0, {
+        center: initialViewportCenter,
+        scale: initialViewportScale,
+        force: true
+      });
+      this.syncTemporaryNoFlyLayerViewport({
+        center: initialViewportCenter,
+        region: this._lastRegion || null,
+        scale: initialViewportScale,
+        force: true
+      });
+      this.syncDjiLayerViewport({
+        center: initialViewportCenter,
+        region: this._lastRegion || null,
+        scale: initialViewportScale,
+        force: true
+      });
+      this.updateScaleBar();
+      this.updateCenterPinIndicator();
+    }
     this.autoLoginOnLaunch();
     this.checkPolicyUpdateOnLaunch();
     this.initSubscriptionBanner();
@@ -1508,10 +1524,18 @@ Page({
 
   onReady() {
     this.updateMapCheckinEntryStyle();
+    this.updateSubscriptionBannerLayout();
     this.scheduleMapCheckinEntryStyleRefresh();
-    this.ensureUomPluginReady();
-    this.ensureDjiLayerReady();
-    this.ensureTemporaryNoFlyLayerReady();
+    if (this.isMapCenterReady()) {
+      this.ensureUomPluginReady();
+      this.ensureDjiLayerReady();
+      this.ensureTemporaryNoFlyLayerReady();
+    }
+  },
+
+  isMapCenterReady() {
+    const center = this._centerOverride || this.data.center;
+    return this.data.mapCenterReady === true && hasValidCoordinate(center?.latitude, center?.longitude);
   },
 
   loadMapSubKey() {
@@ -2562,17 +2586,58 @@ Page({
     return normalized;
   },
 
+  setGlobalRequiredSubscriptionIds(list = []) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const normalized = normalizeTemplateIds(list);
+    if (app && app.globalData) {
+      app.globalData.subscriptionRequiredTemplateIds = normalized;
+    }
+    return normalized;
+  },
+
+  resolveRequiredSubscriptionTemplateIds() {
+    const configured = normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS);
+    const app = typeof getApp === "function" ? getApp() : null;
+    const cached = normalizeTemplateIds(app?.globalData?.subscriptionRequiredTemplateIds || []);
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) {
+      return Promise.resolve(cached);
+    }
+    return fetchTemplateSettings({ apiBase, token })
+      .then(({ templateIds = [] }) => {
+        const available = normalizeTemplateIds(templateIds);
+        const required = configured.filter((id) => available.includes(id));
+        return this.setGlobalRequiredSubscriptionIds(required);
+      })
+      .catch((err) => {
+        console.warn("resolveRequiredSubscriptionTemplateIds failed", err);
+        return cached;
+      });
+  },
+
   setSubscriptionBannerVisibility(show) {
     const visible = !!show;
-    this.setData({ showSubscriptionBanner: visible });
-    this.updatePreflightOverlayTop(visible);
+    this.setData({ showSubscriptionBanner: visible }, () => {
+      if (visible) {
+        this.updateSubscriptionBannerLayout();
+        this.scheduleSubscriptionBannerLayoutRefresh(48, 1);
+      } else {
+        this.updatePreflightOverlayTop(false);
+      }
+    });
   },
 
   updatePreflightOverlayTop(showBanner = this.data.showSubscriptionBanner) {
-    const bannerTop = Number(this.data.subscriptionBannerTopRpx) || 0;
-    const bannerHeight = Number(this.data.subscriptionBannerHeightRpx) || 0;
     const baseTop = Number(this.data.preflightBaseTopRpx) || 120;
-    const top = showBanner ? bannerTop + bannerHeight + 15 : baseTop;
+    const { screenWidth } = getWindowMetrics();
+    const rpx = screenWidth ? screenWidth / 750 : 0;
+    const bannerTopPx = Number(this.data.subscriptionBannerTopPx) || 0;
+    const bannerHeightPx =
+      Number(this.data.subscriptionBannerHeightPx) > 0
+        ? Number(this.data.subscriptionBannerHeightPx)
+        : (Number(this.data.subscriptionBannerHeightRpx) || 70) * (rpx || 1);
+    const top = showBanner && rpx > 0 ? (bannerTopPx + bannerHeightPx) / rpx + 15 : baseTop;
     this.setData({ preflightTopRpx: top });
   },
 
@@ -2585,11 +2650,18 @@ Page({
   },
 
   evaluateSubscriptionBannerVisibility() {
-    return this.waitForSubscriptionSettingsReady()
-      .then((payload = {}) => {
+    return Promise.all([
+      this.waitForSubscriptionSettingsReady(),
+      this.resolveRequiredSubscriptionTemplateIds()
+    ])
+      .then(([payload = {}, requiredIds = []]) => {
         const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
         const mainSwitch = payload.mainSwitch !== false;
         const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
+        if (!requiredIds.length) {
+          this.setSubscriptionBannerVisibility(false);
+          return normalizedClient;
+        }
         // console.log("mainSwitch =", mainSwitch, "clientIds =", normalizedClient);
         if (!mainSwitch) {
           this.setSubscriptionBannerVisibility(true);
@@ -2598,18 +2670,18 @@ Page({
         const apiBase = this.getApiBase();
         const token = this.getAuthToken();
         if (!apiBase || !token) {
-          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
+          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient, requiredIds));
           return normalizedClient;
         }
         return fetchSubscriptions({ apiBase, token })
           .then((serverIds) => {
             const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
-            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized));
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized, requiredIds));
             return normalized;
           })
           .catch((err) => {
             console.warn("evaluateSubscriptionBannerVisibility failed", err);
-            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient, requiredIds));
             return normalizedClient;
           });
       })
@@ -4383,6 +4455,7 @@ Page({
     this.startMyLocationDirectionTracking();
     this.refreshResponsiveLayout({ force: true });
     this.updateMapCheckinEntryStyle();
+    this.updateSubscriptionBannerLayout();
     this.scheduleMapCheckinEntryStyleRefresh();
     this.loadCheckinStatus();
     if (this.data.activeTab !== "home") {
@@ -4428,6 +4501,7 @@ Page({
   onResize(event = {}) {
     this.refreshResponsiveLayout({ event, force: true });
     this.updateMapCheckinEntryStyle();
+    this.updateSubscriptionBannerLayout();
   },
 
   normalizeCompassDirection(value) {
@@ -4770,6 +4844,60 @@ Page({
     });
   },
 
+  updateSubscriptionBannerLayout(retry = 0) {
+    const { screenWidth } = getWindowMetrics();
+    const fallbackTopPx = screenWidth ? (90 * screenWidth) / 750 : 44;
+    const applyFallback = () => {
+      this.setData({
+        subscriptionBannerTopPx: fallbackTopPx
+      }, () => {
+        this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
+      });
+    };
+    if (!this.data.showSubscriptionBanner) {
+      return;
+    }
+    if (typeof wx === "undefined" || typeof wx.getMenuButtonBoundingClientRect !== "function") {
+      applyFallback();
+      return;
+    }
+    const menuRect = wx.getMenuButtonBoundingClientRect();
+    if (!menuRect || !Number.isFinite(Number(menuRect.top)) || !Number.isFinite(Number(menuRect.bottom))) {
+      applyFallback();
+      return;
+    }
+    const query =
+      typeof this.createSelectorQuery === "function"
+        ? this.createSelectorQuery()
+        : wx.createSelectorQuery();
+    query.select("#subscription-banner").boundingClientRect();
+    query.exec((result = []) => {
+      const rect = Array.isArray(result) ? result[0] : null;
+      const measuredHeight = Number(rect?.height);
+      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {
+        if (retry < 6) {
+          this.scheduleSubscriptionBannerLayoutRefresh(32 * (retry + 1), retry + 1);
+          return;
+        }
+        applyFallback();
+        return;
+      }
+      const capsuleCenterY = (Number(menuRect.top) + Number(menuRect.bottom)) / 2;
+      const nextTopPx = capsuleCenterY - measuredHeight / 2;
+      const currentTopPx = Number(this.data.subscriptionBannerTopPx) || 0;
+      const currentHeightPx = Number(this.data.subscriptionBannerHeightPx) || 0;
+      if (Math.abs(currentTopPx - nextTopPx) < 0.5 && Math.abs(currentHeightPx - measuredHeight) < 0.5) {
+        return;
+      }
+      this.setData({
+        subscriptionBannerTopPx: nextTopPx,
+        subscriptionBannerHeightPx: measuredHeight
+      }, () => {
+        this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
+      });
+    });
+  },
+
   scheduleMapCheckinEntryStyleRefresh(delay = 180) {
     if (this._checkinEntryStyleTimer) {
       clearTimeout(this._checkinEntryStyleTimer);
@@ -4777,6 +4905,17 @@ Page({
     this._checkinEntryStyleTimer = setTimeout(() => {
       this._checkinEntryStyleTimer = null;
       this.updateMapCheckinEntryStyle();
+      this.updateSubscriptionBannerLayout();
+    }, Math.max(0, Number(delay) || 0));
+  },
+
+  scheduleSubscriptionBannerLayoutRefresh(delay = 32, retry = 0) {
+    if (this._subscriptionBannerLayoutTimer) {
+      clearTimeout(this._subscriptionBannerLayoutTimer);
+    }
+    this._subscriptionBannerLayoutTimer = setTimeout(() => {
+      this._subscriptionBannerLayoutTimer = null;
+      this.updateSubscriptionBannerLayout(retry);
     }, Math.max(0, Number(delay) || 0));
   },
 
@@ -5004,6 +5143,7 @@ Page({
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
     if (this._checkinEntryStyleTimer) clearTimeout(this._checkinEntryStyleTimer);
+    if (this._subscriptionBannerLayoutTimer) clearTimeout(this._subscriptionBannerLayoutTimer);
     if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
     if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
     if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
@@ -7803,6 +7943,9 @@ Page({
       .then(() => this.pullAndCenterLocation({ silent: true }))
       .catch(() => {
         // 用户拒绝初始授权时不打扰，仍可手动定位
+        if (!this.isMapCenterReady()) {
+          this.centerOnPoint(DEFAULT_CENTER, this.data.scale, true);
+        }
       })
       .finally(() => {
         this.markSharePermissionAttempted();
@@ -7856,6 +7999,9 @@ Page({
       },
       fail: (err) => {
         console.warn("getLocation fail", err);
+        if (!this.isMapCenterReady()) {
+          this.centerOnPoint(DEFAULT_CENTER, this.data.scale, true);
+        }
         wx.showToast({ title: "定位失败，请在设置中开启定位权限", icon: "none" });
       }
     });
@@ -8430,8 +8576,11 @@ Page({
       });
     return checkSubscriptionsNotFound()
       .then(() => fetchTemplateSettings({ apiBase, token }))
-      .then(() => {
-        const templateIds = normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS);
+      .then(({ templateIds: availableTemplateIds = [] }) => {
+        const templateIds = this.setGlobalRequiredSubscriptionIds(
+          normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS)
+            .filter((id) => normalizeTemplateIds(availableTemplateIds).includes(id))
+        );
         if (!templateIds.length) return null;
         return requestSubscribeMessageForTemplateIds(templateIds)
           .then(({ acceptedIds }) => {
@@ -8500,8 +8649,8 @@ Page({
                 console.warn("updateSubscriptions after openSetting failed", err);
               })
               : Promise.resolve();
-          const finalize = () => {
-            const shouldShow = !enabled || !hasAllRequiredSubscriptions(normalized);
+          const finalize = (requiredIds = []) => {
+            const shouldShow = requiredIds.length > 0 && (!enabled || !hasAllRequiredSubscriptions(normalized, requiredIds));
             console.log("openSubscriptionSettingPicker accepted ids", normalized.length, "mainSwitch", enabled, "show", shouldShow);
             this.setSubscriptionBannerVisibility(shouldShow);
             if (normalized.length === 0) {
@@ -8511,7 +8660,12 @@ Page({
             // Double-check with backend/state to avoid偶发悬挂
             this.evaluateSubscriptionBannerVisibility().catch(() => { });
           };
-          syncPromise.then(finalize).catch(finalize);
+          Promise.allSettled([syncPromise, this.resolveRequiredSubscriptionTemplateIds()])
+            .then((results) => {
+              const requiredIds = results[1]?.status === "fulfilled" ? results[1].value : [];
+              finalize(requiredIds);
+            })
+            .catch(() => finalize([]));
         },
         fail: (err) => {
           console.warn("openSubscriptionSettingPicker failed", err);
@@ -8857,12 +9011,16 @@ Page({
     const targetScale = clampMapScale(scale);
     const updates = {
       center: point,
+      mapCenterReady: true,
       scale: targetScale
     };
     if (extraUpdates && typeof extraUpdates === "object") {
       Object.assign(updates, extraUpdates);
     }
     this.setData(updates, () => {
+      this.ensureUomPluginReady();
+      this.ensureDjiLayerReady();
+      this.ensureTemporaryNoFlyLayerReady();
       if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
         this._uomPlugin.handleRegionChange({
           center: point,
@@ -8949,6 +9107,9 @@ Page({
   },
 
   onRegionChange(e) {
+    if (!this.isMapCenterReady()) {
+      return;
+    }
     const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
     const detail = e?.detail || {};
     if (e.type !== "end") {

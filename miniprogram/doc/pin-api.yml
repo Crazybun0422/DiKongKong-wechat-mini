@@ -738,6 +738,9 @@ components:
           type: string
         description:
           type: string
+        videoLink:
+          type: string
+          description: 视频外链 URL。
         visibility:
           $ref: '#/components/schemas/PinVisibility'
         groups:
@@ -792,6 +795,9 @@ components:
           type: string
         description:
           type: string
+        videoLink:
+          type: string
+          description: 视频外链 URL。
         visibility:
           $ref: '#/components/schemas/PinVisibility'
         groups:

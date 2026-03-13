@@ -1,75 +1,79 @@
-<view
-  class="center-pin-touch-area"
-  style="top: calc(50% - {{topOffsetPx}}px);"
-  bindtap="onTap"
-  bindlongpress="onLongPress"
->
+<view class="center-pin-touch-scale" style="{{touchAreaScaleStyle}}">
+  <view
+    class="center-pin-touch-area"
+    style="top: calc(50% - {{topOffsetPx}}px);"
+    bindtap="onTap"
+    bindlongpress="onLongPress"
+  >
     <view wx:if="{{followActive}}" class="center-pin-tip">
-    <text class="center-pin-tip-text">{{followTipText || '\u957f\u6309\u89e3\u9664\u7ed1\u5b9a\u72b6\u6001~'}}</text>
-  </view>
-  <view wx:elif="{{showWelcomeBubble}}" class="center-pin-tip">
-    <text class="center-pin-tip-text">长按中心地标触发魔法🔮~</text>
-  </view>
+      <text class="center-pin-tip-text">{{followTipText || '长按解除绑定状态~'}}</text>
+    </view>
+    <view wx:elif="{{showWelcomeBubble}}" class="center-pin-tip">
+      <text class="center-pin-tip-text">长按中心地标触发魔法🔮~</text>
+    </view>
 
-  <image
-    class="center-pin {{satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}}"
-    src="/assets/position.png"
-    mode="widthFix"
-  />
-  <view class="center-pin-ring {{triggered ? 'is-visible' : ''}}"></view>
+    <image
+      class="center-pin {{satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}}"
+      src="/assets/position.png"
+      mode="widthFix"
+    />
+    <view class="center-pin-ring {{triggered ? 'is-visible' : ''}}"></view>
+  </view>
 </view>
 
 <block wx:if="{{sheetVisible}}">
   <view class="center-pin-sheet-mask" catchtap="onMaskTap"></view>
-  <view class="center-pin-sheet {{sheetClosing ? 'is-closing' : 'is-open'}}" catchtap="onSheetTap" catchtouchmove="noop">
-    <view class="center-pin-magic-fly">
-      <view class="center-pin-magic-fly-body">
-        <view class="center-pin-magic-fly-bubble"></view>
-        <image
-          class="center-pin-magic-fly-icon"
-          src="/packages/map-center-pin/assets/magic.png"
-          mode="aspectFit"
-        />
+  <view class="center-pin-sheet-scale" style="{{sheetScaleStyle}}">
+    <view class="center-pin-sheet {{sheetClosing ? 'is-closing' : 'is-open'}}" catchtap="onSheetTap" catchtouchmove="noop">
+      <view class="center-pin-magic-fly">
+        <view class="center-pin-magic-fly-body">
+          <view class="center-pin-magic-fly-bubble"></view>
+          <image
+            class="center-pin-magic-fly-icon"
+            src="/packages/map-center-pin/assets/magic.png"
+            mode="aspectFit"
+          />
+        </view>
       </view>
-    </view>
-    <view class="center-pin-sheet-handle"></view>
-    <view class="center-pin-sheet-actions">
-      <block wx:for="{{actionItems}}" wx:key="id">
-        <view wx:if="{{item.id === 'share'}}" class="center-pin-action-item center-pin-action-item--share">
-          <image class="center-pin-action-icon" src="{{item.icon}}" mode="aspectFit" />
-          <text class="center-pin-action-label">{{item.label}}</text>
-          <button
-            open-type="share"
-            class="center-pin-action-share-hit"
-            data-share-source="center-pin"
+      <view class="center-pin-sheet-handle"></view>
+      <view class="center-pin-sheet-actions">
+        <block wx:for="{{actionItems}}" wx:key="id">
+          <view wx:if="{{item.id === 'share'}}" class="center-pin-action-item center-pin-action-item--share">
+            <image class="center-pin-action-icon" src="{{item.icon}}" mode="aspectFit" />
+            <text class="center-pin-action-label">{{item.label}}</text>
+            <button
+              open-type="share"
+              class="center-pin-action-share-hit"
+              data-share-source="center-pin"
+              data-action="{{item.id}}"
+              bindtap="onActionTap"
+              hover-class="none"
+            ></button>
+          </view>
+          <view
+            wx:else
+            class="center-pin-action-item {{item.id === 'afeiAdventure' && afeiPreparing ? 'is-preparing' : ''}}"
             data-action="{{item.id}}"
             bindtap="onActionTap"
-            hover-class="none"
-          ></button>
-        </view>
-        <view
-          wx:else
-          class="center-pin-action-item {{item.id === 'afeiAdventure' && afeiPreparing ? 'is-preparing' : ''}}"
-          data-action="{{item.id}}"
-          bindtap="onActionTap"
-        >
-          <image class="center-pin-action-icon" src="{{item.icon}}" mode="aspectFit" />
-          <view class="center-pin-action-text-wrap">
-            <text class="center-pin-action-label">{{item.label}}</text>
-            <view wx:if="{{item.id === 'afeiAdventure' && afeiPreparing}}" class="center-pin-action-progress">
-              <view class="center-pin-action-progress-fill" style="width: {{afeiProgressPercent}}%;"></view>
+          >
+            <image class="center-pin-action-icon" src="{{item.icon}}" mode="aspectFit" />
+            <view class="center-pin-action-text-wrap">
+              <text class="center-pin-action-label">{{item.label}}</text>
+              <view wx:if="{{item.id === 'afeiAdventure' && afeiPreparing}}" class="center-pin-action-progress">
+                <view class="center-pin-action-progress-fill" style="width: {{afeiProgressPercent}}%;"></view>
+              </view>
             </view>
           </view>
-        </view>
-      </block>
-    </view>
-    <view wx:if="{{longPressGuideNodes}}" class="center-pin-guide-section">
-      <rich-text
-        class="center-pin-guide-content"
-        nodes="{{longPressGuideNodes}}"
-        selectable="true"
-        space="nbsp"
-      />
+        </block>
+      </view>
+      <view wx:if="{{longPressGuideNodes}}" class="center-pin-guide-section">
+        <rich-text
+          class="center-pin-guide-content"
+          nodes="{{longPressGuideNodes}}"
+          selectable="true"
+          space="nbsp"
+        />
+      </view>
     </view>
   </view>
 </block>

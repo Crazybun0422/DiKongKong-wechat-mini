@@ -6,6 +6,7 @@ const {
 } = require("../../../utils/open-platform");
 const { resolveApiBase } = require("../../../utils/profile");
 const {
+  fetchTemplateSettings,
   fetchLatestSubscriptionPush,
   SUBSCRIPTION_TEMPLATE_ID,
   fetchSubscriptions,
@@ -27,9 +28,11 @@ const TOAST_LINK_COPIED = "链接已复制";
 const TOAST_COPY_FAIL = "复制失败";
 const TOAST_CANNOT_OPEN = "无法打开链接";
 
-const hasAllRequiredSubscriptions = (ids = []) => {
+const hasAllRequiredSubscriptions = (ids = [], requiredIds = REQUIRED_SUBSCRIPTION_TEMPLATE_IDS) => {
   const normalized = normalizeTemplateIds(ids);
-  return REQUIRED_SUBSCRIPTION_TEMPLATE_IDS.every((id) => normalized.includes(id));
+  const normalizedRequired = normalizeTemplateIds(requiredIds);
+  if (!normalizedRequired.length) return true;
+  return normalizedRequired.every((id) => normalized.includes(id));
 };
 
 function buildKeyVariants(key) {
@@ -330,17 +333,54 @@ Page({
     return normalized;
   },
 
+  setGlobalRequiredSubscriptionIds(list = []) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const normalized = normalizeTemplateIds(list);
+    if (app && app.globalData) {
+      app.globalData.subscriptionRequiredTemplateIds = normalized;
+    }
+    return normalized;
+  },
+
+  resolveRequiredSubscriptionTemplateIds() {
+    const configured = normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS);
+    const app = typeof getApp === "function" ? getApp() : null;
+    const cached = normalizeTemplateIds(app?.globalData?.subscriptionRequiredTemplateIds || []);
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) {
+      return Promise.resolve(cached);
+    }
+    return fetchTemplateSettings({ apiBase, token })
+      .then(({ templateIds = [] }) => {
+        const available = normalizeTemplateIds(templateIds);
+        const required = configured.filter((id) => available.includes(id));
+        return this.setGlobalRequiredSubscriptionIds(required);
+      })
+      .catch((err) => {
+        console.warn("resolveRequiredSubscriptionTemplateIds failed", err);
+        return cached;
+      });
+  },
+
   setSubscriptionBannerVisibility(show) {
     const visible = !!show;
     this.setData({ showSubscriptionBanner: visible });
   },
 
   evaluateSubscriptionBannerVisibility() {
-    return this.waitForSubscriptionSettingsReady()
-      .then((payload = {}) => {
+    return Promise.all([
+      this.waitForSubscriptionSettingsReady(),
+      this.resolveRequiredSubscriptionTemplateIds()
+    ])
+      .then(([payload = {}, requiredIds = []]) => {
         const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
         const mainSwitch = payload.mainSwitch !== false;
         const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
+        if (!requiredIds.length) {
+          this.setSubscriptionBannerVisibility(false);
+          return normalizedClient;
+        }
         if (!mainSwitch) {
           this.setSubscriptionBannerVisibility(true);
           return normalizedClient;
@@ -348,18 +388,18 @@ Page({
         const apiBase = this.getApiBase();
         const token = this.getAuthToken();
         if (!apiBase || !token) {
-          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
+          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient, requiredIds));
           return normalizedClient;
         }
         return fetchSubscriptions({ apiBase, token })
           .then((serverIds) => {
             const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
-            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized));
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized, requiredIds));
             return normalized;
           })
           .catch((err) => {
             console.warn("evaluateSubscriptionBannerVisibility failed", err);
-            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient));
+            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient, requiredIds));
             return normalizedClient;
           });
       })
@@ -412,8 +452,8 @@ Page({
                 console.warn("updateSubscriptions after openSetting failed", err);
               })
               : Promise.resolve();
-          const finalize = () => {
-            const shouldShow = !enabled || !hasAllRequiredSubscriptions(normalized);
+          const finalize = (requiredIds = []) => {
+            const shouldShow = requiredIds.length > 0 && (!enabled || !hasAllRequiredSubscriptions(normalized, requiredIds));
             this.setSubscriptionBannerVisibility(shouldShow);
             if (normalized.length === 0) {
               wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
@@ -421,7 +461,12 @@ Page({
             resolve(normalized);
             this.evaluateSubscriptionBannerVisibility().catch(() => { });
           };
-          syncPromise.then(finalize).catch(finalize);
+          Promise.allSettled([syncPromise, this.resolveRequiredSubscriptionTemplateIds()])
+            .then((results) => {
+              const requiredIds = results[1]?.status === "fulfilled" ? results[1].value : [];
+              finalize(requiredIds);
+            })
+            .catch(() => finalize([]));
         },
         fail: (err) => {
           console.warn("openSubscriptionSettingPicker failed", err);

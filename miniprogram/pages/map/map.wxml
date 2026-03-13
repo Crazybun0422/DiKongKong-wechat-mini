@@ -4,7 +4,7 @@
       id="main-map"
       class="map-canvas"
       style="height: calc(100vh + {{statusBarHeight}}px); margin-top: -{{statusBarHeight}}px;"
-      hidden="{{mapBlockerVisible}}"
+      hidden="{{mapBlockerVisible || !mapCenterReady}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
@@ -32,13 +32,14 @@
     <map-search-link
       center="{{searchLinkCenter}}"
       target="{{searchLinkTarget}}"
-      visible="{{searchLinkVisible && centerTargetLinkEnabled}}"
+      visible="{{mapCenterReady && searchLinkVisible && centerTargetLinkEnabled}}"
       satellite="{{mapLayerType === 'satellite'}}"
       bind:graphicschange="onSearchLinkGraphicsChange"
     />
     <map-center-pin
-      wx:if="{{!markerDetailVisible && !markerPageVisible}}"
+      wx:if="{{mapCenterReady && !markerDetailVisible && !markerPageVisible}}"
       top-offset-px="{{centerPinOffsetPx}}"
+      ui-scale="{{mapUiScale}}"
       satellite="{{mapLayerType === 'satellite'}}"
       long-press-guide-nodes="{{coordinateLongPressGuideNodes}}"
       follow-active="{{centerPinFollowActive}}"
@@ -79,9 +80,10 @@
     />
     <map-debug-panel wx:if="{{debugEnabled}}" info="{{debugInfo}}" />
     <view
+      id="subscription-banner"
       class="subscription-banner map-ui-scale-left"
       wx:if="{{activeTab === 'home' && showSubscriptionBanner}}"
-      style="top: calc(env(safe-area-inset-top) + {{subscriptionBannerTopRpx}}rpx); {{mapUiScaleStyle}}"
+      style="top: {{subscriptionBannerTopPx}}px; {{subscriptionBannerScaleStyle}}"
     >
       <view class="subscription-banner-text">
         确保有新功能、空投福利时，您永远是第一批知道的~

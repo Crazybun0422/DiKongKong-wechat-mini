@@ -76,7 +76,6 @@
 
 .subscription-banner {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 90rpx);
   left: 16rpx;
   display: flex;
   align-items: center;
@@ -2897,32 +2896,6 @@ button.panorama-button::after,
 
 .city-report-dialog-btn::after {
   border: none;
-}
-
-.page--wide .subscription-banner {
-  left: 24rpx;
-  min-width: 560rpx;
-  max-width: 680rpx;
-}
-
-.page--wide .subscription-banner-text {
-  max-width: 460rpx;
-}
-
-.page--wide .preflight-overlay {
-  left: 24rpx;
-  width: 560rpx;
-  min-width: 560rpx;
-  max-width: 560rpx;
-}
-
-.page--wide .map-scale-container,
-.page--wide .map-compass-anchor {
-  left: 48rpx;
-}
-
-.page--wide .floating-controls {
-  right: 48rpx;
 }
 
 .page--wide .drone-picker-sheet,

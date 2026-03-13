@@ -229,6 +229,11 @@ paths:
             type: string
             enum: [APPROVED, DRAFT]
           description: 搜索状态，默认 APPROVED。选择 DRAFT 时需要登录。
+        - in: query
+          name: paid
+          schema:
+            type: boolean
+          description: 仅在 status=APPROVED 时生效；true 表示付费商户，false 表示普通用户。
       responses:
         '200':
           description: OK
@@ -554,6 +559,9 @@ components:
         videoId:
           type: string
           description: 视频 ID。
+        videoLink:
+          type: string
+          description: 视频外链 URL。
         adminInfo:
           $ref: '#/components/schemas/MarkerAdminInfoDto'
     MarkerResponse:

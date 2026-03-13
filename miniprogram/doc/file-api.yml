@@ -119,6 +119,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/tencent-cos/config:
+    get:
+      summary: 读取腾讯 COS 配置
+      responses:
+        '200':
+          description: 配置读取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTencentCosConfig'
+    put:
+      summary: 更新腾讯 COS 配置
+      description: 仅管理员可调用。
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {admin_token}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TencentCosConfigRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTencentCosConfig'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/tencent-cos/sts:
+    get:
+      summary: 下发腾讯 COS STS 临时密钥
+      description: 需要通过 Authorization Bearer Token 验证（普通用户和管理员均可调用）。有效期固定不超过 30 分钟。
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      responses:
+        '200':
+          description: 下发成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseTencentCosSts'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
 components:
   schemas:
     ApiResponseString:
@@ -159,3 +222,87 @@ components:
               type: string
             location:
               type: string
+    TencentCosConfigResponse:
+      type: object
+      properties:
+        secretId:
+          type: string
+        region:
+          type: string
+        roleArn:
+          type: string
+        roleSessionName:
+          type: string
+        buckets:
+          type: array
+          items:
+            type: string
+        durationSeconds:
+          type: integer
+        configured:
+          type: boolean
+    TencentCosConfigRequest:
+      type: object
+      properties:
+        secretId:
+          type: string
+        secretKey:
+          type: string
+        region:
+          type: string
+        roleArn:
+          type: string
+        roleSessionName:
+          type: string
+        durationSeconds:
+          type: integer
+        buckets:
+          type: array
+          items:
+            type: string
+    TencentCosStsResponse:
+      type: object
+      properties:
+        tmpSecretId:
+          type: string
+        tmpSecretKey:
+          type: string
+        sessionToken:
+          type: string
+        expiredTime:
+          type: integer
+          format: int64
+        startTime:
+          type: string
+        expiration:
+          type: string
+        region:
+          type: string
+        buckets:
+          type: array
+          items:
+            type: string
+        durationSeconds:
+          type: integer
+    ApiResponseTencentCosConfig:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/TencentCosConfigResponse'
+    ApiResponseTencentCosSts:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/TencentCosStsResponse'

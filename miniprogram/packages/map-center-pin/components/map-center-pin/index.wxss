@@ -4,6 +4,13 @@
   pointer-events: none;
 }
 
+.center-pin-touch-scale {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: center center;
+}
+
 .center-pin-touch-area {
   position: absolute;
   left: 50%;
@@ -97,6 +104,16 @@
   background: rgba(15, 23, 42, 0.84);
   z-index: 130;
   pointer-events: auto;
+}
+
+.center-pin-sheet-scale {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 131;
+  pointer-events: none;
+  transform-origin: center bottom;
 }
 
 .center-pin-sheet {
