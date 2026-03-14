@@ -43,10 +43,12 @@
 }
 
 .modal-title-share {
+  display: block;
+  width: 100%;
   font-size: 40rpx;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 auto;
+  margin: 0;
   text-align: center;
 }
 

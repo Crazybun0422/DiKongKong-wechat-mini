@@ -15,6 +15,9 @@
             <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
             <text class="create-btn-text">新增</text>
           </button>
+          <view class="create-guide-tip" catchtap="onMerchantGuideTap">
+            <image class="create-guide-tip-icon" src="{{assetPaths.tips}}" mode="aspectFit" />
+          </view>
         </view>
 
         <view class="status-tabs">
@@ -156,6 +159,9 @@
             <image class="create-btn-icon" src="{{assetPaths.add}}" mode="aspectFit" />
             <text class="create-btn-text">新增</text>
           </button>
+          <view class="create-guide-tip" catchtap="onPinCreationGuideTap">
+            <image class="create-guide-tip-icon" src="{{assetPaths.tips}}" mode="aspectFit" />
+          </view>
         </view>
 
         <view class="my-marker-filters">

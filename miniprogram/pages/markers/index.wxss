@@ -435,6 +435,22 @@
   margin-bottom: 24rpx;
 }
 
+.create-guide-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52rpx;
+  height: 52rpx;
+  margin-left: 12rpx;
+  flex-shrink: 0;
+}
+
+.create-guide-tip-icon {
+  width: 38rpx;
+  height: 38rpx;
+  display: block;
+}
+
 .page-header-actions {
   margin-left: auto;
   display: flex;
