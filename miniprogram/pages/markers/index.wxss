@@ -224,6 +224,14 @@
   line-height: 1.5;
 }
 
+.pin-video-flp-hint {
+  margin-left: 10rpx;
+  font-size: 22rpx;
+  color: #6b7280;
+  font-style: italic;
+  font-weight: 400;
+}
+
 .my-pin-media-grid {
   display: flex;
   gap: 16rpx;

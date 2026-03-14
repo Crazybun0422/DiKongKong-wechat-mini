@@ -78,6 +78,7 @@ const {
   isTencentCosStsValid,
   buildTencentCosSignedUrl
 } = require("../../utils/tencent-cos");
+const { fetchPinVideoUploadFlpLimit } = require("../../utils/pin-video-config");
 
 const STATIC_ASSETS = {
   add: "/pages/markers/assets/add.png",
@@ -173,6 +174,7 @@ const CREATE_ENTRY_MODE_CERTIFY = "CERTIFY";
 const CREATE_ENTRY_MODE_RENEW = "RENEW";
 const PIN_MEDIA_MAX_COUNT = 3;
 const PIN_VIDEO_MAX_COUNT = 1;
+const PIN_VIDEO_LOW_FLP_MAX_SIZE = 50 * 1024 * 1024;
 const PIN_VIDEO_MAX_SIZE = 200 * 1024 * 1024;
 const KML_FILE_SIZE_LIMIT = 1024 * 1024;
 const KML_IMPORT_MAX_COUNT = 10;
@@ -700,7 +702,9 @@ Page({
     joinInvitePrompt: null,
     joinInviting: false,
     customerServiceSessionFrom: "marker-create-support",
-    planetCreationGuideReady: false
+    planetCreationGuideReady: false,
+    pinVideoUploadFlpLimit: null,
+    pinVideoUploadFlpLimitDisplay: ""
   },
 
   onLoad(options = {}) {
@@ -714,6 +718,7 @@ Page({
     this.refreshMarkers({ initial: true });
     this.refreshMerchantEmptyStateContent();
     this.fetchSettlementConfig();
+    this.fetchPinVideoUploadFlpLimit();
     this.prefetchPlanetCreationGuide();
     this.prefetchTencentCosConfig();
     this.ensureTencentCosSts();
@@ -909,6 +914,26 @@ Page({
       })
       .catch((err) => {
         console.warn("获取入驻配置失败", err);
+      });
+  },
+
+  fetchPinVideoUploadFlpLimit() {
+    this.requestWithAuthRetry(() =>
+      fetchPinVideoUploadFlpLimit({
+        apiBase: this.apiBase,
+        token: this.getAuthToken()
+      })
+    )
+      .then((config = {}) => {
+        const threshold = Number(config?.threshold);
+        const normalizedThreshold = Number.isFinite(threshold) ? threshold : null;
+        this.setData({
+          pinVideoUploadFlpLimit: normalizedThreshold,
+          pinVideoUploadFlpLimitDisplay: this.formatFlpThresholdValue(normalizedThreshold)
+        });
+      })
+      .catch((err) => {
+        console.warn("获取 Pin 视频上传 FLP 门槛失败", err);
       });
   },
 
@@ -1116,6 +1141,12 @@ Page({
     if (!Number.isFinite(number)) return "";
     const formatted = number.toFixed(2).replace(/\.00$/, "");
     return `${prefix}${formatted}`;
+  },
+
+  formatFlpThresholdValue(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "";
+    return number % 1 === 0 ? `${number}` : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   },
 
   initializeProfileInfo() {
@@ -4240,6 +4271,19 @@ Page({
     );
   },
 
+  getPinVideoUploadPolicy() {
+    const threshold = Number(this.data.pinVideoUploadFlpLimit);
+    const balance = Number(this.data.flpBalance);
+    const hasThreshold = Number.isFinite(threshold);
+    const highQualityEnabled = hasThreshold && Number.isFinite(balance) && balance > threshold;
+    return {
+      highQualityEnabled,
+      useCompression: !highQualityEnabled,
+      sizeLimit: highQualityEnabled ? PIN_VIDEO_MAX_SIZE : PIN_VIDEO_LOW_FLP_MAX_SIZE,
+      oversizeMessage: highQualityEnabled ? "视频不能超过200MB" : "FLP不足哦"
+    };
+  },
+
   onClosePinCreateSheet() {
     this.setData({ showPinCreateSheet: false });
   },
@@ -4606,6 +4650,7 @@ Page({
       wx.showToast({ title: "当前版本不支持媒体上传", icon: "none" });
       return;
     }
+    const uploadPolicy = this.getPinVideoUploadPolicy();
     wx.chooseMedia({
       count: remaining,
       mediaType: ["image", "video"],
@@ -4622,8 +4667,8 @@ Page({
         const videos = videoFiles
           .map((item) => item.tempFilePath || item.path)
           .filter(Boolean);
-        this.validatePinVideoSizes(videoFiles)
-          .then(() => {
+        this.preparePinVideoFilesForUpload(videoFiles.slice(0, PIN_VIDEO_MAX_COUNT), uploadPolicy)
+          .then((preparedVideos = []) => {
             if (videos.length > PIN_VIDEO_MAX_COUNT || (videos.length && this.data.myPinForm.video)) {
               wx.showToast({ title: "视频仅支持上传一个", icon: "none" });
               return;
@@ -4635,43 +4680,138 @@ Page({
             if (images.length) {
               this.uploadFiles("pinImages", images.slice(0, nextImageSlots));
             }
-            if (videos.length) {
-              this.uploadFiles("pinVideo", videos.slice(0, PIN_VIDEO_MAX_COUNT));
+            if (preparedVideos.length) {
+              this.uploadFiles("pinVideo", preparedVideos.slice(0, PIN_VIDEO_MAX_COUNT));
             }
           })
           .catch((err) => {
-            wx.showToast({ title: err?.message || "视频不能超过200MB", icon: "none" });
+            wx.showToast({ title: err?.message || "视频处理失败", icon: "none" });
           });
       }
     });
   },
 
-  validatePinVideoSizes(files = []) {
+  validatePinVideoSizes(files = [], uploadPolicy = {}) {
     const list = Array.isArray(files) ? files.filter(Boolean) : [];
     if (!list.length) return Promise.resolve();
-    const fetchSize = (item = {}) =>
-      new Promise((resolve, reject) => {
-        const inlineSize = Number(item.size);
-        if (Number.isFinite(inlineSize) && inlineSize >= 0) {
-          resolve(inlineSize);
-          return;
-        }
-        const filePath = item.tempFilePath || item.path || "";
-        if (!filePath || typeof wx.getFileInfo !== "function") {
-          resolve(0);
-          return;
-        }
-        wx.getFileInfo({
-          filePath,
-          success: (res) => resolve(Number(res?.size) || 0),
-          fail: reject
-        });
-      });
-    return Promise.all(list.map((item) => fetchSize(item))).then((sizes) => {
-      const oversized = sizes.some((size) => Number(size) > PIN_VIDEO_MAX_SIZE);
+    const sizeLimit = Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_MAX_SIZE;
+    const oversizeMessage = uploadPolicy?.oversizeMessage || "视频不能超过200MB";
+    return Promise.all(list.map((item) => this.fetchPinVideoFileSize(item))).then((sizes) => {
+      const oversized = sizes.some((size) => Number(size) > sizeLimit);
       if (oversized) {
-        throw new Error("视频不能超过200MB");
+        throw new Error(oversizeMessage);
       }
+    });
+  },
+
+  fetchPinVideoFileSize(item = {}) {
+    return new Promise((resolve, reject) => {
+      const inlineSize = Number(item.size);
+      if (Number.isFinite(inlineSize) && inlineSize >= 0) {
+        resolve(inlineSize);
+        return;
+      }
+      const filePath = item.tempFilePath || item.path || "";
+      if (!filePath || typeof wx.getFileInfo !== "function") {
+        resolve(0);
+        return;
+      }
+      wx.getFileInfo({
+        filePath,
+        success: (res) => resolve(Number(res?.size) || 0),
+        fail: reject
+      });
+    });
+  },
+
+  confirmPinVideoCompressionForOversize() {
+    return new Promise((resolve) => {
+      wx.showModal({
+        title: "视频过大",
+        content: "视频超过200MB，是否压缩后上传？",
+        confirmText: "压缩上传",
+        cancelText: "取消",
+        success: (res) => resolve(!!res?.confirm),
+        fail: () => resolve(false)
+      });
+    });
+  },
+
+  preparePinVideoFilesForUpload(files = [], uploadPolicy = {}) {
+    const list = Array.isArray(files) ? files.filter(Boolean) : [];
+    if (!list.length) return Promise.resolve([]);
+    if (!uploadPolicy?.useCompression) {
+      return this.validatePinVideoSizes(list, uploadPolicy)
+        .then(() =>
+          list
+            .map((item) => item?.tempFilePath || item?.path || "")
+            .filter(Boolean)
+        )
+        .catch((err) => {
+          if (err?.message !== "视频不能超过200MB") {
+            throw err;
+          }
+          return this.confirmPinVideoCompressionForOversize().then((confirmed) => {
+            if (!confirmed) {
+              throw err;
+            }
+            const paths = list
+              .map((item) => item?.tempFilePath || item?.path || "")
+              .filter(Boolean);
+            return this.compressPinVideosForUpload(paths).then((compressedFiles = []) =>
+              this.validatePinVideoSizes(
+                compressedFiles.map((item) => ({
+                  tempFilePath: item,
+                  path: item
+                })),
+                uploadPolicy
+              ).then(() => compressedFiles)
+            );
+          });
+        });
+    }
+    const paths = list
+      .map((item) => item?.tempFilePath || item?.path || "")
+      .filter(Boolean);
+    return this.compressPinVideosForUpload(paths).then((compressedFiles = []) =>
+      this.validatePinVideoSizes(
+        compressedFiles.map((item) => ({
+          tempFilePath: item,
+          path: item
+        })),
+        uploadPolicy
+      ).then(() => compressedFiles)
+    );
+  },
+
+  compressPinVideosForUpload(filePaths = []) {
+    const list = Array.isArray(filePaths) ? filePaths.filter(Boolean) : [];
+    if (!list.length) return Promise.resolve([]);
+    if (typeof wx.compressVideo !== "function") {
+      return Promise.reject(new Error("当前版本不支持视频压缩"));
+    }
+    wx.showLoading({
+      title: "视频压缩中",
+      mask: true
+    });
+    return Promise.all(
+      list.map(
+        (filePath) =>
+          new Promise((resolve, reject) => {
+            wx.compressVideo({
+              src: filePath,
+              quality: "medium",
+              success: (res) => {
+                resolve(res?.tempFilePath || filePath);
+              },
+              fail: () => {
+                reject(new Error("视频压缩失败"));
+              }
+            });
+          })
+      )
+    ).finally(() => {
+      wx.hideLoading();
     });
   },
 

@@ -141,6 +141,14 @@ paths:
             format: double
             minimum: 0
           description: 查询半径（公里）。
+        - in: query
+          name: scaleInMeters
+          required: false
+          schema:
+            type: integer
+            default: 2000
+            minimum: 0
+          description: 地图比例尺（米），用于后端按点赞等级返回可显示的商户标记；不满足展示条件的标记不会返回。
       responses:
         '200':
           description: OK
@@ -609,6 +617,16 @@ components:
               type: integer
               format: int64
               description: 标记被拨打电话的次数。
+            mapDisplayMode:
+              type: string
+              nullable: true
+              enum: [ICON_WITH_NAME, ICON_ONLY, SMALL_ICON_ONLY]
+              description: 默认按 scaleInMeters=2000 计算的展示模式；为 null 表示不展示。
+            mapDisplayModes:
+              type: object
+              description: 各比例尺下展示模式映射，值为 ICON_WITH_NAME/ICON_ONLY/SMALL_ICON_ONLY/HIDDEN。
+              additionalProperties:
+                type: string
             creatorName:
               type: string
               description: 创建者用户名。

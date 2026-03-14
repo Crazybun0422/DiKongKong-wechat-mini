@@ -1032,6 +1032,7 @@
             <view class="field-label required">
               <text class="required-star">*</text>
               <text>图片/视频</text>
+              <text wx:if="{{pinVideoUploadFlpLimitDisplay}}" class="pin-video-flp-hint">（FLP>{{pinVideoUploadFlpLimitDisplay}}可上传高清视频）</text>
             </view>
             <view class="my-pin-media-grid">
               <block wx:for="{{myPinForm.images}}" wx:key="fileName">
