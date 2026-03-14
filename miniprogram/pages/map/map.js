@@ -81,6 +81,22 @@ const {
   isTencentCosStsValid,
   buildTencentCosSignedUrl
 } = require("../../utils/tencent-cos");
+const {
+  DISPLAY_MODE_ICON_WITH_NAME,
+  DISPLAY_MODE_SMALL_ICON_ONLY,
+  DISPLAY_MODE_HIDDEN,
+  resolveMapDisplayMode,
+  getDisplayModeMarkerSize
+} = require("../../utils/map-display-mode");
+const {
+  normalizeMapTapPoint,
+  canReplaceMapTapTarget,
+  buildMapTapTargetState,
+  updateMapTapTargetAddress,
+  buildMapTapTargetMarker,
+  isMapTapTargetMarker,
+  shouldRemoveMapTapTarget
+} = require("../../utils/map-target-link");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -96,24 +112,24 @@ const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
 const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
-const MARKER_SVIP_ICON_PATH = "/pages/markers/assets/svip.png";
+const MARKER_SVIP_ICON_PATH = "/assets/svip.png";
 const MARKER_CERTIFICATION_SHEET_CLOSE_DURATION = 220;
 const MARKER_CERTIFICATION_INFO_ITEMS = [
   {
     id: "location",
-    icon: "/pages/markers/assets/position-2.png",
+    icon: "/assets/position-2.png",
     title: "位置准确",
     description: "校验店铺位置，导航更准确"
   },
   {
     id: "auth",
-    icon: "/pages/markers/assets/w-check.png",
+    icon: "/assets/w-check.png",
     title: "信息真实有效",
     description: "每年认证，人工严格校验信息有效性"
   },
   {
     id: "more",
-    icon: "/pages/markers/assets/more.png",
+    icon: "/assets/more.png",
     title: "更丰富的产品业务资料",
     description: "主页提供更丰富的案例、产品文档等展示"
   }
@@ -161,6 +177,8 @@ const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
 const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
 const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
 const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
+const SEARCH_LINK_OWNER_SEARCH = "search";
+const SEARCH_LINK_OWNER_MAP_TAP = "map-tap";
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
 
 const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
@@ -1138,6 +1156,8 @@ Page({
     searchLinkCenter: null,
     searchLinkTarget: null,
     searchLinkVisible: false,
+    centerPinLinkActive: false,
+    centerPinLinkTipText: "",
     cityReportCenter: null,
     cityReportDialogVisible: false,
     cityReportDialogText: "",
@@ -1495,6 +1515,7 @@ Page({
     this._lastNearbyFetch = null;
     this._activePinsRequest = null;
     this._lastNearbyPinFetch = null;
+    this._nearbyMarkersRaw = [];
     this._nearbyMarkers = [];
     this._nearbyPinsRaw = [];
     this._nearbyPinMarkers = [];
@@ -1503,6 +1524,7 @@ Page({
     this._searchMarkers = [];
     this._searchLinkMarkers = [];
     this._searchLinkPolylines = [];
+    this._searchLinkOwner = "";
     this._lastMarkerDetail = null;
     this._markerDetailCloseTimer = null;
     this._markerPageCloseTimer = null;
@@ -1513,6 +1535,11 @@ Page({
     this._markerDetailExpandLock = false;
     this._restoreMarkerDetailTimer = null;
     this._manualMarkers = [];
+    this._mapTapTarget = null;
+    this._mapTapTargetMarkers = [];
+    this._mapTapTargetTapAt = 0;
+    this._mapTapTargetResolveToken = 0;
+    this._mapTapSuppressUntil = 0;
     this._previewPolygons = [];
     this._previewCircles = [];
     this._previewMarker = null;
@@ -1877,6 +1904,100 @@ Page({
     return list;
   },
 
+  getCurrentScaleInMeters(scale = this.data.scale, latitude) {
+    const latSource =
+      latitude ??
+      this._centerOverride?.latitude ??
+      this.data.center?.latitude;
+    return this.estimateScaleBarMeters(scale, latSource);
+  },
+
+  resolveMarkerDisplayMode(raw = {}, scaleInMeters) {
+    return resolveMapDisplayMode(raw, scaleInMeters);
+  },
+
+  applyDisplayModeToMarker(marker = {}, raw = {}, options = {}) {
+    if (!marker || typeof marker !== "object") {
+      return null;
+    }
+    const hasDisplayConfig =
+      !!raw &&
+      typeof raw === "object" &&
+      (
+        Object.prototype.hasOwnProperty.call(raw, "mapDisplayMode") ||
+        (
+          raw.mapDisplayModes &&
+          typeof raw.mapDisplayModes === "object" &&
+          Object.keys(raw.mapDisplayModes).length > 0
+        )
+      );
+    if (!hasDisplayConfig) {
+      return Object.assign({}, marker);
+    }
+    const mode = this.resolveMarkerDisplayMode(raw, options.scaleInMeters);
+    if (!mode || mode === DISPLAY_MODE_HIDDEN) {
+      return null;
+    }
+    const next = Object.assign({}, marker);
+    const extData = Object.assign({}, next.extData || {});
+    extData.mapDisplayMode = mode;
+    next.extData = extData;
+    if (mode !== DISPLAY_MODE_ICON_WITH_NAME && next.callout) {
+      delete next.callout;
+    }
+    if (mode === DISPLAY_MODE_SMALL_ICON_ONLY) {
+      const size = getDisplayModeMarkerSize(mode, options.baseSize || next.width || next.height);
+      next.width = size;
+      next.height = size;
+    }
+    return next;
+  },
+
+  buildCanonicalMarkerKey(marker = {}) {
+    if (!marker || typeof marker !== "object") return "";
+    const source = `${marker?.extData?.source || marker?.source || ""}`.trim().toLowerCase();
+    const raw = marker?.extData?.raw || {};
+    const detail = marker?.extData?.detail || {};
+    const isPin =
+      source.includes("pin") ||
+      raw?.pinIdNew !== undefined ||
+      raw?.shape ||
+      raw?.visibility ||
+      detail?.shape;
+    const candidates = isPin
+      ? [raw?.pinIdNew, raw?.id, detail?.markerId, detail?.id, marker?.markerId, marker?.id]
+      : [raw?.markIdNew, raw?.markId, raw?.id, detail?.markerId, detail?.id, marker?.markerId, marker?.id];
+    for (const candidate of candidates) {
+      if (candidate !== undefined && candidate !== null && `${candidate}`.trim()) {
+        return `${isPin ? "pin" : "marker"}:${`${candidate}`.trim()}`;
+      }
+    }
+    const latitude = Number(marker?.latitude);
+    const longitude = Number(marker?.longitude);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return `${source || "map"}:${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+    }
+    return "";
+  },
+
+  dedupeMapMarkers(list = []) {
+    if (!Array.isArray(list) || !list.length) return [];
+    const seen = new Set();
+    const result = [];
+    for (let i = list.length - 1; i >= 0; i -= 1) {
+      const marker = list[i];
+      const key = this.buildCanonicalMarkerKey(marker);
+      if (key && seen.has(key)) {
+        continue;
+      }
+      if (key) {
+        seen.add(key);
+      }
+      result.unshift(marker);
+    }
+    return result;
+  },
+
   buildMyLocationMarker(point = {}) {
     const latitude = Number(point?.latitude);
     const longitude = Number(point?.longitude);
@@ -1976,9 +2097,10 @@ Page({
     const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
     const nearbyPins = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
+    const mapTapTarget = Array.isArray(this._mapTapTargetMarkers) ? this._mapTapTargetMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const combined = manual.concat(nearbyPins, nearby, search, preview);
+    const combined = manual.concat(nearbyPins, nearby, search, mapTapTarget, preview);
     for (const marker of combined) {
       const currentId = this.ensureMapMarkerId(marker?.id ?? marker?.markerId ?? marker?.markerID);
       if (currentId === targetId) {
@@ -2315,10 +2437,14 @@ Page({
       TALL_BUILDING: "/assets/elevation.png"
     };
     const iconPath = ICON_MAP[category] || "/assets/default.png";
+    const displayMode = this.resolveMarkerDisplayMode(payload.raw || payload, payload.scaleInMeters);
+    if (displayMode === DISPLAY_MODE_HIDDEN) {
+      return null;
+    }
     const contentParts = [];
     const hasName = !!payload.name;
     const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
-    if (hasName) {
+    if (hasName && displayMode !== DISPLAY_MODE_SMALL_ICON_ONLY && displayMode !== "ICON_ONLY") {
       const formattedName = formatNearbyMarkerLabel(payload.name);
       if (formattedName) {
         contentParts.push(formattedName);
@@ -2333,19 +2459,24 @@ Page({
       }
     }
     const content = contentParts.join(" ") || "标记位置";
-    const callout = buildMarkerNameCallout(content, {
-      fontSize: 10,
-      fontWeight: "normal"
-    });
-    return {
+    const marker = {
       id: payload.id || `pin-preview-${Date.now()}`,
       latitude,
       longitude,
       iconPath,
       width: 32,
-      height: 32,
-      callout
+      height: 32
     };
+    if (displayMode === DISPLAY_MODE_ICON_WITH_NAME && content) {
+      marker.callout = buildMarkerNameCallout(content, {
+        fontSize: 10,
+        fontWeight: "normal"
+      });
+    }
+    return this.applyDisplayModeToMarker(marker, payload.raw || payload, {
+      scaleInMeters: payload.scaleInMeters,
+      baseSize: 32
+    });
   },
 
   computePinPreviewCenter(shape = {}, payload = {}) {
@@ -3714,8 +3845,10 @@ Page({
 
   onMarkerTap(event) {
     const markerId = event?.detail?.markerId;
+    this._mapTapSuppressUntil = Date.now() + 300;
     const marker = this.findMarkerById(markerId);
     if (!marker) return;
+    if (isMapTapTargetMarker(marker)) return;
     this.applySearchSelectionFromMarker(marker, {
       keyword: marker?.title || marker?.name || this.data.keyword
     });
@@ -3729,8 +3862,10 @@ Page({
 
   onMarkerCalloutTap(event) {
     const markerId = event?.detail?.markerId;
+    this._mapTapSuppressUntil = Date.now() + 300;
     const marker = this.findMarkerById(markerId);
     if (!marker) return;
+    if (isMapTapTargetMarker(marker)) return;
     this.applySearchSelectionFromMarker(marker, {
       keyword: marker?.title || marker?.name || this.data.keyword
     });
@@ -6151,6 +6286,7 @@ Page({
   onCenterTargetLinkSwitchChange(event = {}) {
     const enabled = !!event?.detail?.value;
     this.setData({ centerTargetLinkEnabled: enabled }, () => {
+      this.updateCenterPinIndicator();
       this.persistMapLayerSettings();
     });
   },
@@ -6287,6 +6423,7 @@ Page({
 
   applyMerchantMarkersToggle(enabled) {
     if (enabled === false) {
+      this._nearbyMarkersRaw = [];
       this._nearbyMarkers = [];
       this._lastNearbyFetch = null;
       this.syncAllMarkers();
@@ -6639,19 +6776,93 @@ Page({
     }
   },
 
-  applyNearbyMarkers(markers) {
-    this._nearbyMarkers = Array.isArray(markers)
-      ? markers.map((marker) => {
-        if (marker && marker.extData && marker.extData.detail) {
-          marker.extData = Object.assign({}, marker.extData, {
-            detail: cloneMarkerDetail(marker.extData.detail)
-          });
-        }
-        return marker;
-      })
-      : [];
+  applyNearbyMarkers(list) {
+    this._nearbyMarkersRaw = Array.isArray(list) ? list.slice() : [];
+    this.rebuildNearbyMarkerGraphics();
+  },
+
+  buildNearbyMerchantMarker(item = {}, index = 0, scaleInMeters = null) {
+    const latValue = Number(
+      item?.location?.latitude ??
+      item?.location?.lat ??
+      item?.latitude ??
+      item?.lat
+    );
+    const lngValue = Number(
+      item?.location?.longitude ??
+      item?.location?.lng ??
+      item?.longitude ??
+      item?.lng
+    );
+    if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return null;
+    const gcj = wgs84ToGcj02(lngValue, latValue);
+    const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latValue;
+    const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : lngValue;
+    const name =
+      (typeof item?.name === "string" && item.name) ||
+      (typeof item?.title === "string" && item.title) ||
+      (typeof item?.location?.text === "string" && item.location.text) ||
+      "";
+    const locationText =
+      (typeof item?.location?.text === "string" && item.location.text) ||
+      (typeof item?.address === "string" && item.address) ||
+      (typeof item?.locationText === "string" && item.locationText) ||
+      "";
+    const marker = {
+      id: item?.id || `nearby-${index}`,
+      latitude: latitudeGcj,
+      longitude: longitudeGcj,
+      title: name,
+      iconPath: "/assets/drone.png",
+      width: 40,
+      height: 40
+    };
+    const displayMode = this.resolveMarkerDisplayMode(item, scaleInMeters);
+    if (displayMode === DISPLAY_MODE_HIDDEN) {
+      return null;
+    }
+    const calloutContent = formatNearbyMarkerLabel(name);
+    if (calloutContent && (!displayMode || displayMode === DISPLAY_MODE_ICON_WITH_NAME)) {
+      marker.callout = buildMarkerNameCallout(calloutContent);
+    }
+    const detail = this.composeMarkerDetail(item, marker, {
+      source: "nearby",
+      name,
+      locationText,
+      latitude: latitudeGcj,
+      longitude: longitudeGcj,
+      id: item?.id || marker.id
+    });
+    marker.extData = Object.assign({}, marker.extData, {
+      source: "nearby",
+      raw: item,
+      detail: cloneMarkerDetail(detail)
+    });
+    return this.applyDisplayModeToMarker(marker, item, {
+      scaleInMeters,
+      baseSize: 40
+    });
+  },
+
+  rebuildNearbyMarkerGraphics() {
+    const rawList = Array.isArray(this._nearbyMarkersRaw) ? this._nearbyMarkersRaw : [];
+    const scaleInMeters = this.getCurrentScaleInMeters(this.data.scale);
+    this._nearbyMarkers = rawList
+      .map((item, index) => this.buildNearbyMerchantMarker(item, index, scaleInMeters))
+      .filter(Boolean);
     this.trackMarkerExposure(this._nearbyMarkers);
     this.syncAllMarkers();
+  },
+
+  refreshNearbyDisplayModes() {
+    if (Array.isArray(this._nearbyMarkersRaw) && this._nearbyMarkersRaw.length) {
+      this.rebuildNearbyMarkerGraphics();
+    } else {
+      this.syncAllMarkers();
+    }
+    if (Array.isArray(this._nearbyPinsRaw) && this._nearbyPinsRaw.length) {
+      this.rebuildNearbyPinGraphics();
+    }
   },
 
   applyNearbyPins(list) {
@@ -6677,6 +6888,7 @@ Page({
     const polygons = [];
     const circles = [];
     const rawList = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
+    const scaleInMeters = this.getCurrentScaleInMeters(this.data.scale);
     rawList.forEach((item, index) => {
       const pin = this.normalizeNearbyPin(item);
       if (!pin || !this.isPinVisibilityEnabled(pin.visibility)) return;
@@ -6689,7 +6901,9 @@ Page({
           location: pin.location,
           shape: pin.shape,
           height: pin.height,
-          coordsAreGcj: true
+          coordsAreGcj: true,
+          raw: item,
+          scaleInMeters
         });
         if (marker) {
           marker.extData = Object.assign({}, marker.extData, {
@@ -6732,21 +6946,198 @@ Page({
     this.syncAllMarkers();
   },
 
-  clearSearchLinkOverlay() {
+  formatCenterPinLinkDistance(distanceMeters) {
+    const meters = Number(distanceMeters);
+    if (!Number.isFinite(meters) || meters < 0) return "";
+    if (meters >= 1000) {
+      const km = meters / 1000;
+      const display = km >= 10 ? Math.round(km) : Math.round(km * 10) / 10;
+      return `${display}km`;
+    }
+    return `${Math.max(1, Math.round(meters))}m`;
+  },
+
+  buildCenterPinLinkState(center, options = {}) {
+    const target = options.target;
+    const owner = `${options.owner || ""}`.trim();
+    const visible = options.visible === true;
+    if (
+      this.data.centerTargetLinkEnabled === false ||
+      !visible ||
+      !owner ||
+      !hasValidCoordinate(center?.latitude, center?.longitude) ||
+      !hasValidCoordinate(target?.latitude, target?.longitude)
+    ) {
+      return {
+        centerPinLinkActive: false,
+        centerPinLinkTipText: ""
+      };
+    }
+    const distanceMeters = computeGreatCircleDistance(center, target);
+    if (!Number.isFinite(distanceMeters) || distanceMeters < 0.5) {
+      return {
+        centerPinLinkActive: false,
+        centerPinLinkTipText: ""
+      };
+    }
+    const distanceText = this.formatCenterPinLinkDistance(distanceMeters);
+    return {
+      centerPinLinkActive: true,
+      centerPinLinkTipText: `距离${distanceText}，长按解除`
+    };
+  },
+
+  clearCenterPinLinkState() {
+    if (!this.data.centerPinLinkActive && !this.data.centerPinLinkTipText) {
+      return;
+    }
+    this.setData({
+      centerPinLinkActive: false,
+      centerPinLinkTipText: ""
+    });
+  },
+
+  clearActiveCenterTargetLink() {
+    if (this._searchLinkOwner === SEARCH_LINK_OWNER_MAP_TAP) {
+      this.clearMapTapTargetPoint();
+      return true;
+    }
+    if (this._searchLinkOwner === SEARCH_LINK_OWNER_SEARCH) {
+      this.clearSearchSelectionVisuals();
+      return true;
+    }
+    return false;
+  },
+
+  applySearchLinkTarget(target, options = {}) {
+    const owner = `${options.owner || ""}`.trim();
+    const latitude = Number(target?.latitude);
+    const longitude = Number(target?.longitude);
+    const hasTarget = Number.isFinite(latitude) && Number.isFinite(longitude);
+    const nextTarget = hasTarget ? { latitude, longitude } : null;
+    this._searchLinkOwner = owner;
+    const linkState = this.buildCenterPinLinkState(this.data.searchLinkCenter, {
+      target: nextTarget,
+      visible: hasTarget && options.visible !== false,
+      owner
+    });
+    this.setData({
+      searchLinkTarget: nextTarget,
+      searchLinkVisible: hasTarget && options.visible !== false,
+      ...linkState
+    });
+  },
+
+  clearSearchLinkOverlay(options = {}) {
+    const owner = `${options.owner || ""}`.trim();
+    if (
+      options.force !== true &&
+      owner &&
+      this._searchLinkOwner &&
+      this._searchLinkOwner !== owner
+    ) {
+      return false;
+    }
     this._searchLinkMarkers = [];
     this._searchLinkPolylines = [];
     this.syncAllPolylines();
-    if (this.data.searchLinkTarget || this.data.searchLinkVisible) {
+    this.syncAllMarkers();
+    if (
+      this.data.searchLinkTarget ||
+      this.data.searchLinkVisible ||
+      this.data.centerPinLinkActive ||
+      this.data.centerPinLinkTipText ||
+      this._searchLinkOwner
+    ) {
+      this._searchLinkOwner = "";
       this.setData({
         searchLinkTarget: null,
-        searchLinkVisible: false
+        searchLinkVisible: false,
+        centerPinLinkActive: false,
+        centerPinLinkTipText: ""
       });
+      return true;
     }
+    this._searchLinkOwner = "";
+    return true;
   },
 
   clearSearchSelectionVisuals() {
-    this.clearSearchLinkOverlay();
+    this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_SEARCH });
     this.applySearchMarkers([]);
+  },
+
+  rebuildMapTapTargetMarker() {
+    const marker = buildMapTapTargetMarker(this._mapTapTarget);
+    this._mapTapTargetMarkers = marker ? [marker] : [];
+    this.syncAllMarkers();
+  },
+
+  clearMapTapTargetPoint(options = {}) {
+    const hadTarget = !!this._mapTapTarget || (Array.isArray(this._mapTapTargetMarkers) && this._mapTapTargetMarkers.length > 0);
+    this._mapTapTarget = null;
+    this._mapTapTargetMarkers = [];
+    this._mapTapTargetResolveToken += 1;
+    if (hadTarget) {
+      this.syncAllMarkers();
+    }
+    if (options.preserveSearchLink !== true) {
+      this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_MAP_TAP });
+    }
+  },
+
+  applyMapTapTargetPoint(point, options = {}) {
+    const target = buildMapTapTargetState(point, options);
+    if (!target) return false;
+    const tappedAt = Number(options.tappedAt);
+    this._mapTapTargetTapAt = Number.isFinite(tappedAt) ? tappedAt : Date.now();
+    this._mapTapTargetResolveToken += 1;
+    const resolveToken = this._mapTapTargetResolveToken;
+    this._mapTapTarget = target;
+    this.rebuildMapTapTargetMarker();
+    this.applySearchLinkTarget(target, {
+      owner: SEARCH_LINK_OWNER_MAP_TAP,
+      visible: true
+    });
+    this.requestPinAddress(target.latitude, target.longitude)
+      .then((address) => {
+        if (resolveToken !== this._mapTapTargetResolveToken || !this._mapTapTarget) {
+          return;
+        }
+        this._mapTapTarget = updateMapTapTargetAddress(this._mapTapTarget, address);
+        this.rebuildMapTapTargetMarker();
+      })
+      .catch((err) => console.warn("resolve map tap target address failed", err));
+    return true;
+  },
+
+  onMapTap(event = {}) {
+    if (this.data.centerTargetLinkEnabled === false) {
+      return;
+    }
+    if (Date.now() < (Number(this._mapTapSuppressUntil) || 0)) {
+      return;
+    }
+    const point = normalizeMapTapPoint(event?.detail || event);
+    if (!point) return;
+    const now = Date.now();
+    if (!canReplaceMapTapTarget(this._mapTapTargetTapAt, now)) {
+      wx.showToast({ title: "请2秒后再选下一个目标点", icon: "none" });
+      return;
+    }
+    this.clearSearchSelectionVisuals();
+    this.applyMapTapTargetPoint(point, { tappedAt: now });
+  },
+
+  onMapLongPress(event = {}) {
+    if (!this._mapTapTarget) return;
+    const point = normalizeMapTapPoint(event?.detail || event);
+    if (!point) return;
+    if (!shouldRemoveMapTapTarget(this._mapTapTarget, point)) {
+      return;
+    }
+    this._mapTapSuppressUntil = Date.now() + 800;
+    this.clearMapTapTargetPoint();
   },
 
   onSearchLinkGraphicsChange(event = {}) {
@@ -6838,6 +7229,7 @@ Page({
     const pinMarkers = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
     const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
     const searchLink = Array.isArray(this._searchLinkMarkers) ? this._searchLinkMarkers : [];
+    const mapTapTarget = Array.isArray(this._mapTapTargetMarkers) ? this._mapTapTargetMarkers : [];
     const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
     const preview = this._previewMarker ? [this._previewMarker] : [];
     const myLocation = Array.isArray(this._myLocationMarkers) ? this._myLocationMarkers : [];
@@ -6847,10 +7239,13 @@ Page({
     this.normalizeMapMarkerList(pinMarkers);
     this.normalizeMapMarkerList(search);
     this.normalizeMapMarkerList(searchLink);
+    this.normalizeMapMarkerList(mapTapTarget);
     this.normalizeMapMarkerList(manual);
     this.normalizeMapMarkerList(preview);
     this.normalizeMapMarkerList(myLocation);
-    const combined = uom2.concat(manual, pinMarkers, nearby, search, searchLink, preview, myLocation);
+    const combined = this.dedupeMapMarkers(
+      uom2.concat(manual, pinMarkers, nearby, search, searchLink, mapTapTarget, preview, myLocation)
+    );
     this.setData({ markers: combined });
   },
 
@@ -6862,6 +7257,8 @@ Page({
         centerCoordinateLatText: "",
         centerCoordinateLngText: "",
         searchLinkCenter: null,
+        centerPinLinkActive: false,
+        centerPinLinkTipText: "",
         cityReportCenter: null
       });
       return;
@@ -6883,12 +7280,18 @@ Page({
       latitude: Number(center.latitude),
       longitude: Number(center.longitude)
     };
+    const linkState = this.buildCenterPinLinkState(normalizedCenter, {
+      target: this.data.searchLinkTarget,
+      visible: this.data.searchLinkVisible,
+      owner: this._searchLinkOwner
+    });
     this.setData({
       centerPinTitle: pin ? pin.name || "" : "",
       centerCoordinateLngText: coord ? coord.lngText : "",
       centerCoordinateLatText: coord ? coord.latText : "",
       searchLinkCenter: normalizedCenter,
-      cityReportCenter: normalizedCenter
+      cityReportCenter: normalizedCenter,
+      ...linkState
     });
   },
 
@@ -7184,7 +7587,11 @@ Page({
     this.scheduleCenterPinLocationFollow(0);
   },
 
-  onCenterPinLongPress() {
+  onCenterPinLongPress(event = {}) {
+    if (event?.detail?.clearLink || this.data.centerPinLinkActive) {
+      this.clearActiveCenterTargetLink();
+      return;
+    }
     if (this._centerPinFollowActive) {
       this.stopCenterPinLocationFollow({ toast: true });
       return;
@@ -7455,6 +7862,7 @@ Page({
 
       const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
       if (src === "my-location-map") continue;
+      if (isMapTapTargetMarker(marker)) continue;
       if (src.includes("pin")) {
         const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
         if (shapeType && shapeType !== "POINT") continue;
@@ -7839,7 +8247,7 @@ Page({
       });
       return;
     }
-    this.clearSearchLinkOverlay();
+    this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_SEARCH });
     wx.showLoading({ title: "Searching...", mask: true });
     let locationArgs = null;
     const center = this._centerOverride || this.data.center;
@@ -8510,11 +8918,19 @@ Page({
         detail: cloneMarkerDetail(detail)
       }
     };
+    const scaleInMeters = this.getCurrentScaleInMeters();
+    const displayMode = this.resolveMarkerDisplayMode(payload.raw || detail.raw || detail, scaleInMeters);
+    if (displayMode === DISPLAY_MODE_HIDDEN) {
+      return null;
+    }
     const calloutContent = formatNearbyMarkerLabel(markerTitle);
-    if (calloutContent) {
+    if (calloutContent && (!displayMode || displayMode === DISPLAY_MODE_ICON_WITH_NAME)) {
       marker.callout = buildMarkerNameCallout(calloutContent);
     }
-    return marker;
+    return this.applyDisplayModeToMarker(marker, payload.raw || detail.raw || detail, {
+      scaleInMeters,
+      baseSize: options.width || 44
+    });
   },
 
   buildQqSuggestion(poi = {}, index = 0) {
@@ -8668,6 +9084,7 @@ Page({
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return false;
     }
+    this.clearMapTapTargetPoint({ preserveSearchLink: true });
     const selectedMarker = this.cloneSearchSelectionMarker(marker) || marker;
     const keyword = `${options.keyword || marker.title || marker.name || this.data.keyword || ""}`.trim();
     const target = { latitude, longitude };
@@ -8675,9 +9092,11 @@ Page({
       keyword: keyword || this.data.keyword,
       searchSuggestions: [],
       searchSuggestLoading: false,
-      searchSuggestError: "",
-      searchLinkTarget: target,
-      searchLinkVisible: true
+      searchSuggestError: ""
+    });
+    this.applySearchLinkTarget(target, {
+      owner: SEARCH_LINK_OWNER_SEARCH,
+      visible: true
     });
     this.applySearchMarkers([selectedMarker]);
     if (options.centerOnPoint) {
@@ -8780,7 +9199,6 @@ Page({
 
   buildPinSearchMarker(payload = {}, options = {}) {
     if (!payload) return null;
-    console.log("buildPinSearchMarker", payload);
     const marker = {
       id: payload.id || `pin-${Date.now()}`,
       latitude: payload.latitude,
@@ -8790,8 +9208,13 @@ Page({
       width: 32,
       height: 32
     };
+    const scaleInMeters = this.getCurrentScaleInMeters();
+    const displayMode = this.resolveMarkerDisplayMode(payload.raw || payload.detail || {}, scaleInMeters);
+    if (displayMode === DISPLAY_MODE_HIDDEN) {
+      return null;
+    }
     const calloutContent = formatNearbyMarkerLabel(payload.name || "");
-    if (calloutContent) {
+    if (calloutContent && (!displayMode || displayMode === DISPLAY_MODE_ICON_WITH_NAME)) {
       marker.callout = buildMarkerNameCallout(calloutContent, {
         color: "#14532d",
         borderColor: "#14532d"
@@ -8802,7 +9225,10 @@ Page({
       raw: payload.raw || {},
       detail: cloneMarkerDetail(payload.detail || {})
     };
-    return marker;
+    return this.applyDisplayModeToMarker(marker, payload.raw || payload.detail || {}, {
+      scaleInMeters,
+      baseSize: 32
+    });
   },
 
   getAuthToken() {
@@ -9528,6 +9954,7 @@ Page({
       };
       const afterSync = () => {
         this.updateScaleBar({ scale, latitude: newCenter.latitude });
+        this.refreshNearbyDisplayModes();
         run(scaleChanged);
         this.updateCenterPinIndicator();
       };
@@ -9627,6 +10054,7 @@ Page({
         };
         const afterUpdate = () => {
           this.updateScaleBar({ scale, latitude: newCenter.latitude });
+          this.refreshNearbyDisplayModes();
           run();
           this.updateCenterPinIndicator();
         };
@@ -9749,7 +10177,8 @@ Page({
       {
         latitude,
         longitude,
-        radiusInKilometers: radiusKm
+        radiusInKilometers: radiusKm,
+        scaleInMeters: this.getCurrentScaleInMeters(scale, latitude)
       },
       {
         apiBase: this.getApiBase(),
@@ -9779,6 +10208,7 @@ Page({
 
   requestNearbyMarkers(options = {}) {
     if (this.data.merchantMarkersEnabled === false) {
+      this._nearbyMarkersRaw = [];
       this._nearbyMarkers = [];
       this.syncAllMarkers();
       return;
@@ -9789,7 +10219,11 @@ Page({
     const region = options?.region || this._lastRegion;
     const force = options.force === true;
     if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
-      if (Array.isArray(this._nearbyMarkers) && this._nearbyMarkers.length) {
+      if (
+        (Array.isArray(this._nearbyMarkers) && this._nearbyMarkers.length) ||
+        (Array.isArray(this._nearbyMarkersRaw) && this._nearbyMarkersRaw.length)
+      ) {
+        this._nearbyMarkersRaw = [];
         this._nearbyMarkers = [];
         this.syncAllMarkers();
       }
@@ -9826,7 +10260,8 @@ Page({
       {
         latitude,
         longitude,
-        radiusInKilometers: radiusKm
+        radiusInKilometers: radiusKm,
+        scaleInMeters: this.getCurrentScaleInMeters(scale, center.latitude)
       },
       {
         apiBase: this.getApiBase(),
@@ -9835,65 +10270,7 @@ Page({
     )
       .then((items = []) => {
         if (this._activeMarkersRequest !== requestId) return;
-        const markerList = (Array.isArray(items) ? items : [])
-          .map((item, index) => {
-            const latValue = Number(
-              item?.location?.latitude ??
-              item?.location?.lat ??
-              item?.latitude ??
-              item?.lat
-            );
-            const lngValue = Number(
-              item?.location?.longitude ??
-              item?.location?.lng ??
-              item?.longitude ??
-              item?.lng
-            );
-            if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return null;
-            const gcj = wgs84ToGcj02(lngValue, latValue);
-            const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latValue;
-            const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : lngValue;
-            const name =
-              (typeof item?.name === "string" && item.name) ||
-              (typeof item?.title === "string" && item.title) ||
-              (typeof item?.location?.text === "string" && item.location.text) ||
-              "";
-            const locationText =
-              (typeof item?.location?.text === "string" && item.location.text) ||
-              (typeof item?.address === "string" && item.address) ||
-              (typeof item?.locationText === "string" && item.locationText) ||
-              "";
-            // console.log("name,", name);
-            const marker = {
-              id: item?.id || `nearby-${index}`,
-              latitude: latitudeGcj,
-              longitude: longitudeGcj,
-              title: name,
-              iconPath: "/assets/drone.png",
-              width: 40,
-              height: 40
-            };
-            const calloutContent = formatNearbyMarkerLabel(name);
-            if (calloutContent) {
-              marker.callout = buildMarkerNameCallout(calloutContent);
-            }
-            const detail = this.composeMarkerDetail(item, marker, {
-              source: "nearby",
-              name,
-              locationText,
-              latitude: latitudeGcj,
-              longitude: longitudeGcj,
-              id: item?.id || marker.id
-            });
-            marker.extData = Object.assign({}, marker.extData, {
-              source: "nearby",
-              raw: item,
-              detail: cloneMarkerDetail(detail)
-            });
-            return marker;
-          })
-          .filter(Boolean);
-        this.applyNearbyMarkers(markerList);
+        this.applyNearbyMarkers(Array.isArray(items) ? items : []);
         this._lastNearbyFetch = {
           latitude: center.latitude,
           longitude: center.longitude,

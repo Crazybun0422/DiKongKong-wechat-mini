@@ -26,6 +26,7 @@
       circles="{{circles}}"
       bindregionchange="onRegionChange"
       bindupdated="onMapUpdated"
+      bindtap="onMapTap"
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
     />
@@ -41,6 +42,8 @@
       top-offset-px="{{centerPinOffsetPx}}"
       ui-scale="{{mapUiScale}}"
       satellite="{{mapLayerType === 'satellite'}}"
+      link-active="{{centerPinLinkActive}}"
+      link-tip-text="{{centerPinLinkTipText}}"
       long-press-guide-nodes="{{coordinateLongPressGuideNodes}}"
       follow-active="{{centerPinFollowActive}}"
       follow-tip-text="{{centerPinFollowTipText}}"

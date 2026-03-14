@@ -39,6 +39,14 @@ Component({
       type: Boolean,
       value: false
     },
+    linkActive: {
+      type: Boolean,
+      value: false
+    },
+    linkTipText: {
+      type: String,
+      value: ""
+    },
     followTipText: {
       type: String,
       value: "长按解除绑定状态~"
@@ -180,6 +188,20 @@ Component({
 
     onLongPress() {
       if (this.data.sheetVisible || this.data.sheetClosing) return;
+      if (this.properties.linkActive) {
+        this.hideWelcomeBubble();
+        this.setData({ triggered: true });
+        this.triggerLongPressHaptic();
+        if (this._triggerTimer) {
+          clearTimeout(this._triggerTimer);
+        }
+        this._triggerTimer = setTimeout(() => {
+          this._triggerTimer = null;
+          this.setData({ triggered: false });
+        }, 280);
+        this.triggerEvent("longpress", { clearLink: true });
+        return;
+      }
       if (this.properties.followActive) {
         this.hideWelcomeBubble();
         this.setData({ triggered: true });

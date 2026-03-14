@@ -60,25 +60,32 @@
 .center-pin-tip {
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 24rpx);
+  bottom: calc(100% - 45rpx);
   transform: translateX(-50%);
-  padding: 14rpx 26rpx;
-  border-radius: 999rpx;
-  border: 1rpx solid rgba(152, 122, 255, 0.58);
-  background: linear-gradient(
-    135deg,
-    rgba(248, 215, 255, 0.38) 0%,
-    rgba(208, 234, 255, 0.36) 34%,
-    rgba(214, 255, 236, 0.36) 68%,
-    rgba(255, 244, 206, 0.38) 100%
-  );
-  box-shadow: 0 10rpx 24rpx rgba(111, 95, 165, 0.2);
-  -webkit-backdrop-filter: blur(10rpx);
-  backdrop-filter: blur(10rpx);
+  width: 312rpx;
+  height: 88rpx;
+  padding: 14rpx 32rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   white-space: nowrap;
   z-index: 2;
   animation: center-pin-tip-float 2.8s ease-in-out infinite;
+}
+
+.center-pin-tip--link {
+  white-space: nowrap;
+}
+
+.center-pin-tip-skin {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .center-pin-tip::before {
@@ -92,10 +99,15 @@
 .center-pin-tip-text {
   position: relative;
   z-index: 1;
-  font-size: 22rpx;
-  font-weight: 600;
-  letter-spacing: 1rpx;
+  display: block;
+  width: 100%;
+  transform: translateY(-6rpx);
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
   color: #0f172a;
+  text-align: center;
 }
 
 .center-pin-sheet-mask {

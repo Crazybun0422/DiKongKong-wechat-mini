@@ -770,7 +770,6 @@ Component({
       if (!entry) return Promise.resolve("");
       if (entry.status === "ready") return Promise.resolve(entry.src || "");
       if (entry.status === "pending" && entry.promise) return entry.promise;
-      console.log("[uom2] download tile", tile.id);
       entry.status = "pending";
       this.syncUomLoadingState();
       entry.promise = this.downloadTile(tile.src, entry)

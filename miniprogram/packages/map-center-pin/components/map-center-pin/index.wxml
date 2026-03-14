@@ -5,10 +5,16 @@
     bindtap="onTap"
     bindlongpress="onLongPress"
   >
-    <view wx:if="{{followActive}}" class="center-pin-tip">
+    <view wx:if="{{linkActive}}" class="center-pin-tip center-pin-tip--link">
+      <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />
+      <text class="center-pin-tip-text">{{linkTipText || '长按中心点解除连线'}}</text>
+    </view>
+    <view wx:elif="{{followActive}}" class="center-pin-tip">
+      <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />
       <text class="center-pin-tip-text">{{followTipText || '长按解除绑定状态~'}}</text>
     </view>
     <view wx:elif="{{showWelcomeBubble}}" class="center-pin-tip">
+      <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />
       <text class="center-pin-tip-text">长按中心地标触发魔法🔮~</text>
     </view>
 

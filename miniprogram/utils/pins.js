@@ -181,6 +181,7 @@ function fetchNearbyPins(params = {}, options = {}) {
   const latitude = Number(params.latitude);
   const longitude = Number(params.longitude);
   const radius = Number(params.radiusInKilometers);
+  const scaleInMeters = Number(params.scaleInMeters);
   if (Number.isFinite(latitude)) {
     query.push(`latitude=${encodeURIComponent(latitude.toFixed(6))}`);
   }
@@ -189,6 +190,9 @@ function fetchNearbyPins(params = {}, options = {}) {
   }
   if (Number.isFinite(radius) && radius >= 0) {
     query.push(`radiusInKilometers=${encodeURIComponent(radius.toFixed(3))}`);
+  }
+  if (Number.isFinite(scaleInMeters) && scaleInMeters >= 0) {
+    query.push(`scaleInMeters=${encodeURIComponent(Math.round(scaleInMeters))}`);
   }
   const qs = query.length ? `?${query.join("&")}` : "";
   return requestPinResource({

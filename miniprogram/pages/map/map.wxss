@@ -1721,8 +1721,8 @@ button.panorama-button::after,
 }
 
 .marker-certification-badge--detail {
-  width: 34rpx;
-  height: 34rpx;
+  width: 42rpx;
+  height: 42rpx;
 }
 
 .marker-detail-location {
@@ -2027,8 +2027,8 @@ button.panorama-button::after,
 }
 
 .marker-certification-badge--page {
-  width: 38rpx;
-  height: 38rpx;
+  width: 48rpx;
+  height: 48rpx;
 }
 
 .marker-page-honors {
