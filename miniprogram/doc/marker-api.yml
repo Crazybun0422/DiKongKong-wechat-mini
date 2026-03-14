@@ -562,6 +562,10 @@ components:
         videoLink:
           type: string
           description: 视频外链 URL。
+        isSCos:
+          type: boolean
+          default: false
+          description: 资源是否存在存储桶，默认 false。
         adminInfo:
           $ref: '#/components/schemas/MarkerAdminInfoDto'
     MarkerResponse:

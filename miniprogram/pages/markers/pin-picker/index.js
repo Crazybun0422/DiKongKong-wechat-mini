@@ -3,6 +3,8 @@ const { gcj02ToWgs84 } = require("../../../utils/coords");
 const { searchPlaces } = require("../../../utils/search");
 const { getMapKeySync, prefetchMapKey } = require("../../../utils/map-key");
 const { isWeChatRuntime, isDesktopRuntime } = require("../../../utils/runtime");
+const { fetchNearbyMarkers } = require("../../../utils/markers");
+const { fetchNearbyPins } = require("../../../utils/pins");
 
 const DEFAULT_CENTER = {
   latitude: 39.9042,
@@ -17,6 +19,7 @@ const COORD_ADJUST_STEP = 0.00001;
 const PICKER_WIDE_LAYOUT_MIN_WIDTH = 560;
 const PICKER_WIDE_LAYOUT_MIN_RATIO = 1.1;
 const WINDOW_RESIZE_DEBOUNCE_MS = 80;
+const NEARBY_CONTENT_RADIUS_KM = 8;
 const hasSavedLocationPayload = (payload = {}) => {
   if (!payload) return false;
   const lat = normalizeCoord(payload.latitude);
@@ -406,6 +409,8 @@ Page({
     this._shapePolygons = Array.isArray(this.data.bufferPolygons) ? this.data.bufferPolygons.slice() : [];
     this._shapeCircles = Array.isArray(this.data.circles) ? this.data.circles.slice() : [];
     this._shapeMarkers = Array.isArray(this.data.markers) ? this.data.markers.slice() : [];
+    this._nearbyMarkerPins = [];
+    this._nearbyMerchantMarkers = [];
     this._mapMarkerIdMap = new Map();
     this._mapMarkerIdSeq = 100000;
     this._windowResizeTimer = null;
@@ -659,6 +664,85 @@ Page({
     return list;
   },
 
+  extractNearbyList(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.content)) return payload.content;
+    if (Array.isArray(payload?.records)) return payload.records;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.list)) return payload.list;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.data?.content)) return payload.data.content;
+    if (Array.isArray(payload?.data?.records)) return payload.data.records;
+    if (Array.isArray(payload?.data?.items)) return payload.data.items;
+    if (Array.isArray(payload?.data?.list)) return payload.data.list;
+    return [];
+  },
+
+  buildNearbyMerchantMarkers(list = []) {
+    return this.normalizeMapMarkerList(
+      list
+        .map((item = {}, index) => {
+          const lat = normalizeCoord(item?.location?.latitude ?? item.latitude);
+          const lng = normalizeCoord(item?.location?.longitude ?? item.longitude);
+          if (!hasValidCoordinate(lat, lng)) return null;
+          return {
+            id: item.id || item.markId || item.markIdNew || `nearby-marker-${index}`,
+            latitude: lat,
+            longitude: lng,
+            iconPath: "/assets/default.png",
+            width: 18,
+            height: 18,
+            alpha: 0.78,
+            zIndex: 2
+          };
+        })
+        .filter(Boolean)
+    );
+  },
+
+  buildNearbyPinMarkers(list = []) {
+    return this.normalizeMapMarkerList(
+      list
+        .map((item = {}, index) => {
+          const coords = Array.isArray(item?.shape?.coordinates) ? item.shape.coordinates : [];
+          const first = Array.isArray(coords[0]) ? coords[0] : coords[0] || {};
+          const lat = normalizeCoord(first.latitude ?? first.lat ?? first[1] ?? item.latitude);
+          const lng = normalizeCoord(first.longitude ?? first.lng ?? first[0] ?? item.longitude);
+          if (!hasValidCoordinate(lat, lng)) return null;
+          return {
+            id: item.id || item.pinId || item.pinIdNew || `nearby-pin-${index}`,
+            latitude: lat,
+            longitude: lng,
+            iconPath: "/assets/default.png",
+            width: 16,
+            height: 16,
+            alpha: 0.66,
+            zIndex: 1
+          };
+        })
+        .filter(Boolean)
+    );
+  },
+
+  refreshNearbyContent(latitude, longitude) {
+    if (!hasValidCoordinate(latitude, longitude)) return;
+    const request = {
+      latitude,
+      longitude,
+      radiusInKilometers: NEARBY_CONTENT_RADIUS_KM
+    };
+    Promise.allSettled([
+      fetchNearbyMarkers(request).then((res) => this.extractNearbyList(res)),
+      fetchNearbyPins(request).then((res) => this.extractNearbyList(res))
+    ]).then((results) => {
+      const markerList = results[0]?.status === "fulfilled" ? results[0].value : [];
+      const pinList = results[1]?.status === "fulfilled" ? results[1].value : [];
+      this._nearbyMerchantMarkers = this.buildNearbyMerchantMarkers(markerList);
+      this._nearbyMarkerPins = this.buildNearbyPinMarkers(pinList);
+      this.applyMapGraphics();
+    });
+  },
+
   composeMapPolygons(basePolygons = []) {
     const polygons = [];
     if (Array.isArray(this._djiPolygons)) polygons.push(...this._djiPolygons);
@@ -681,6 +765,12 @@ Page({
       const uom2 = this._uom2Markers.slice();
       this.normalizeMapMarkerList(uom2);
       markers.push(...uom2);
+    }
+    if (Array.isArray(this._nearbyMerchantMarkers)) {
+      markers.push(...this._nearbyMerchantMarkers);
+    }
+    if (Array.isArray(this._nearbyMarkerPins)) {
+      markers.push(...this._nearbyMarkerPins);
     }
     if (Array.isArray(baseMarkers)) markers.push(...baseMarkers);
     return markers;
@@ -1494,6 +1584,7 @@ Page({
       scale,
       rawScale: detail.scale
     });
+    this.refreshNearbyContent(latitude, longitude);
     if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
       this._uomPlugin.scheduleFinalRefresh();
     }

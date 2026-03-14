@@ -18,6 +18,15 @@ function fetchPlanetMerchantAdvancedGuide(options = {}) {
   }).then((body = {}) => body?.data || {});
 }
 
+function fetchPlanetCreationAdvancedGuide(options = {}) {
+  return authorizedRequest({
+    apiBase: resolveApiBase(options.apiBase),
+    token: options.token,
+    path: "/api/config/planet-creation-advanced-guide",
+    method: "GET"
+  }).then((body = {}) => body?.data || {});
+}
+
 function fetchMerchantIntroLongImageConfig(options = {}) {
   return authorizedRequest({
     apiBase: resolveApiBase(options.apiBase),
@@ -30,5 +39,6 @@ function fetchMerchantIntroLongImageConfig(options = {}) {
 module.exports = {
   fetchLatestMerchantOperationData,
   fetchPlanetMerchantAdvancedGuide,
+  fetchPlanetCreationAdvancedGuide,
   fetchMerchantIntroLongImageConfig
 };

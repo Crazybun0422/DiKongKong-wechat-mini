@@ -1,0 +1,193 @@
+openapi: 3.0.1
+info:
+  title: Merchant Operation Data APIs
+  description: Admin and weapp APIs for querying merchant operation data snapshots.
+  version: 1.0.0
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /api/admin/merchant-operation-data/latest:
+    get:
+      summary: Get latest merchant operation snapshot (admin)
+      description: Requires ADMIN/OPERATOR token.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantOperationDataResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/merchant-operation-data:
+    get:
+      summary: Query merchant operation snapshots by date range (admin)
+      description: Requires ADMIN/OPERATOR token.
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-01-01'
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-01-31'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantOperationDataResponseList'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/merchant-operation-data/latest:
+    get:
+      summary: Get latest merchant operation snapshot (weapp user)
+      description: Requires valid user token.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantOperationDataResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/merchant-operation-data:
+    get:
+      summary: Query merchant operation snapshots by date range (weapp user)
+      description: Requires valid user token.
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-01-01'
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-01-31'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantOperationDataResponseList'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseMerchantOperationDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MerchantOperationDataResponse'
+    ApiResponseMerchantOperationDataResponseList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MerchantOperationDataResponse'
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+    MerchantOperationDataResponse:
+      type: object
+      properties:
+        statsDate:
+          type: string
+          format: date
+          description: Snapshot date in Asia/Shanghai timezone.
+        totalUserCount:
+          type: integer
+          format: int64
+          description: System user count + 100000.
+        dailyExposure:
+          type: integer
+          format: int64
+          description: Daily unique active account count.
+        statisticsTime:
+          type: string
+          format: date-time
+          description: Snapshot statistics execution time.

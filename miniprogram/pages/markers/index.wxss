@@ -158,6 +158,8 @@
   display: flex;
   align-items: center;
   gap: 16rpx;
+  min-width: 0;
+  flex: 1;
 }
 
 .pin-selector-icon {
@@ -168,10 +170,25 @@
   flex-shrink: 0;
 }
 
+.pin-selector-placeholder {
+  font-size: 26rpx;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.pin-selector-side {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-left: 16rpx;
+  flex-shrink: 0;
+}
+
 .pin-selector-text {
   font-size: 28rpx;
   color: #0f172a;
   font-weight: 600;
+  min-width: 0;
 }
 
 .pin-selector-arrow-img {
@@ -228,6 +245,94 @@
   display: block;
 }
 
+.my-pin-media-video-player {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.my-pin-media-uploading {
+  width: 100%;
+  height: 100%;
+  padding: 24rpx 18rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  background: linear-gradient(180deg, #111827 0%, #374151 100%);
+}
+
+.my-pin-media-uploading-title {
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.my-pin-media-uploading-progress {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.my-pin-media-progress-track {
+  width: 100%;
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.my-pin-media-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffffff 0%, #d1fae5 100%);
+}
+
+.video-loading-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.42);
+  z-index: 2;
+}
+
+.video-fullscreen-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+.video-loading-text {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 22rpx;
+  line-height: 1;
+}
+
+.my-pin-media-video-tag {
+  position: absolute;
+  left: 10rpx;
+  bottom: 10rpx;
+  min-width: 58rpx;
+  height: 34rpx;
+  padding: 0 12rpx;
+  border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 20rpx;
+  line-height: 34rpx;
+  text-align: center;
+  z-index: 3;
+}
+
 .my-pin-media-remove {
   position: absolute;
   top: 6rpx;
@@ -241,6 +346,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 4;
 }
 
 .my-pin-media-add {
@@ -551,11 +657,23 @@
 }
 
 .merchant-guide-entry-text {
-  font-size: 32rpx;
+  font-size: 28rpx;
   line-height: 1.5;
   color: #111827;
   text-decoration: underline;
   font-weight: 600;
+}
+
+.my-marker-guide-floating {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 150rpx);
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8rpx 20rpx;
 }
 
 .empty-card {
@@ -752,6 +870,14 @@
   border-radius: 20rpx;
   background: #f3f4f6;
   align-self: flex-start;
+  position: relative;
+  overflow: hidden;
+}
+
+.marker-cover-video-player {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .card-stats {

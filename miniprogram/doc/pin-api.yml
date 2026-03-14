@@ -741,6 +741,10 @@ components:
         videoLink:
           type: string
           description: 视频外链 URL。
+        isSCos:
+          type: boolean
+          default: false
+          description: 资源是否存在存储桶，默认 false。
         visibility:
           $ref: '#/components/schemas/PinVisibility'
         groups:
@@ -798,6 +802,10 @@ components:
         videoLink:
           type: string
           description: 视频外链 URL。
+        isSCos:
+          type: boolean
+          default: false
+          description: 资源是否存在存储桶，默认 false。
         visibility:
           $ref: '#/components/schemas/PinVisibility'
         groups:
@@ -824,6 +832,11 @@ components:
           type: integer
           format: int64
           description: 曝光次数。
+        lastRewardedStatus:
+          allOf:
+            - $ref: '#/components/schemas/PinReviewStatus'
+          nullable: true
+          description: 上一次已发放奖励对应的审核档位（仅用于 B->A 补差判断）。
         createdAt:
           type: string
           format: date-time

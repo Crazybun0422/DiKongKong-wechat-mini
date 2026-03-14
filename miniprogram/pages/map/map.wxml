@@ -451,7 +451,7 @@
           </view>
         </view>
         <view class="marker-detail-body">
-          <block wx:if="{{detailCard.images && detailCard.images.length}}">
+          <block wx:if="{{(detailCard.mediaItems && detailCard.mediaItems.length) || (detailCard.images && detailCard.images.length)}}">
             <swiper
               class="marker-detail-swiper"
               autoplay="{{false}}"
@@ -459,14 +459,43 @@
               bindchange="onMarkerDetailSwiperChange"
               current="{{markerDetailCurrentImage}}"
             >
-              <block wx:for="{{detailCard.images}}" wx:key="id">
+              <block wx:for="{{detailCard.mediaItems && detailCard.mediaItems.length ? detailCard.mediaItems : detailCard.images}}" wx:key="id">
                 <swiper-item>
-                  <image class="marker-detail-swiper-image" src="{{item.url}}" mode="aspectFill" />
+                  <image wx:if="{{item.type !== 'video'}}" class="marker-detail-swiper-image" src="{{item.url}}" mode="aspectFill" />
+                  <video
+                    wx:else
+                    id="marker-detail-video-{{index}}"
+                    class="marker-detail-swiper-video"
+                    src="{{item.url}}"
+                    poster="{{item.poster}}"
+                    object-fit="cover"
+                    autoplay="{{true}}"
+                    muted="{{true}}"
+                    loop="{{true}}"
+                    show-center-play-btn="{{false}}"
+                    show-play-btn="{{false}}"
+                    controls="{{false}}"
+                    enable-progress-gesture="{{false}}"
+                    bindwaiting="onMarkerDetailVideoWaiting"
+                    bindplay="onMarkerDetailVideoReady"
+                    bindloadeddata="onMarkerDetailVideoReady"
+                  />
+                  <view
+                    wx:if="{{item.type === 'video'}}"
+                    class="video-fullscreen-hit"
+                    catchtap="onMapInlineVideoTap"
+                    data-url="{{item.url}}"
+                    data-poster="{{item.poster}}"
+                    data-video-id="marker-detail-video-{{index}}"
+                  ></view>
+                  <view wx:if="{{index === markerDetailCurrentImage && markerDetailVideoLoading}}" class="video-loading-mask">
+                    <text class="video-loading-text">加载中...</text>
+                  </view>
                 </swiper-item>
               </block>
             </swiper>
-            <view class="marker-detail-swiper-dots" wx:if="{{detailCard.images.length > 1}}">
-              <block wx:for="{{detailCard.images}}" wx:key="id">
+            <view class="marker-detail-swiper-dots" wx:if="{{(detailCard.mediaItems && detailCard.mediaItems.length > 1) || (detailCard.images && detailCard.images.length > 1)}}">
+              <block wx:for="{{detailCard.mediaItems && detailCard.mediaItems.length ? detailCard.mediaItems : detailCard.images}}" wx:key="id">
                 <view class="marker-detail-swiper-dot {{index === markerDetailCurrentImage ? 'is-active' : ''}}"></view>
               </block>
             </view>
@@ -497,7 +526,7 @@
           bindtouchcancel="onMarkerPageTouchCancel"
         >
           <view class="marker-page-hero">
-            <block wx:if="{{markerPageDetail.images && markerPageDetail.images.length}}">
+            <block wx:if="{{(markerPageDetail.mediaItems && markerPageDetail.mediaItems.length) || (markerPageDetail.images && markerPageDetail.images.length)}}">
               <swiper
                 class="marker-page-swiper"
                 autoplay="{{false}}"
@@ -505,14 +534,43 @@
                 bindchange="onMarkerPageSwiperChange"
                 current="{{markerPageCurrentImage}}"
               >
-                <block wx:for="{{markerPageDetail.images}}" wx:key="id">
+                <block wx:for="{{markerPageDetail.mediaItems && markerPageDetail.mediaItems.length ? markerPageDetail.mediaItems : markerPageDetail.images}}" wx:key="id">
                   <swiper-item>
-                    <image class="marker-page-swiper-image" src="{{item.url}}" mode="aspectFill" />
+                    <image wx:if="{{item.type !== 'video'}}" class="marker-page-swiper-image" src="{{item.url}}" mode="aspectFill" />
+                    <video
+                      wx:else
+                      id="marker-page-video-{{index}}"
+                      class="marker-page-swiper-video"
+                      src="{{item.url}}"
+                      poster="{{item.poster}}"
+                      object-fit="cover"
+                      autoplay="{{true}}"
+                      muted="{{false}}"
+                      loop="{{true}}"
+                      show-center-play-btn="{{false}}"
+                      show-play-btn="{{false}}"
+                      controls="{{false}}"
+                      enable-progress-gesture="{{false}}"
+                      bindwaiting="onMarkerPageVideoWaiting"
+                      bindplay="onMarkerPageVideoReady"
+                      bindloadeddata="onMarkerPageVideoReady"
+                    />
+                    <view
+                      wx:if="{{item.type === 'video'}}"
+                      class="video-fullscreen-hit"
+                      catchtap="onMapInlineVideoTap"
+                      data-url="{{item.url}}"
+                      data-poster="{{item.poster}}"
+                      data-video-id="marker-page-video-{{index}}"
+                    ></view>
+                    <view wx:if="{{index === markerPageCurrentImage && markerPageVideoLoading}}" class="video-loading-mask">
+                      <text class="video-loading-text">加载中...</text>
+                    </view>
                   </swiper-item>
                 </block>
               </swiper>
-              <view class="marker-page-swiper-dots" wx:if="{{markerPageDetail.images.length}}">
-                <block wx:for="{{markerPageDetail.images}}" wx:key="id">
+              <view class="marker-page-swiper-dots" wx:if="{{(markerPageDetail.mediaItems && markerPageDetail.mediaItems.length) || (markerPageDetail.images && markerPageDetail.images.length)}}">
+                <block wx:for="{{markerPageDetail.mediaItems && markerPageDetail.mediaItems.length ? markerPageDetail.mediaItems : markerPageDetail.images}}" wx:key="id">
                   <view class="marker-page-swiper-dot {{index === markerPageCurrentImage ? 'is-active' : ''}}"></view>
                 </block>
               </view>

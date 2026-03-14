@@ -6,11 +6,13 @@
   deleteMarker,
   uploadMarkerFile,
   buildFileDownloadUrl,
+  buildFileStreamUrl,
   fetchMapSettlementConfig
 } = require("../../utils/markers");
 const {
   fetchLatestMerchantOperationData,
-  fetchMerchantIntroLongImageConfig
+  fetchMerchantIntroLongImageConfig,
+  fetchPlanetCreationAdvancedGuide
 } = require("../../utils/merchant-operation");
 const {
   resolveApiBase,
@@ -52,7 +54,13 @@ const {
   joinWorkGroup
 } = require("../../utils/workGroups");
 const { buildImageUrl } = require("../../utils/images");
-const { resolveAssetUrl } = require("../../utils/open-platform");
+const {
+  resolveAssetUrl,
+  transformHtmlContent,
+  extractImageUrls,
+  buildContentSegments,
+  fetchShareToPlatformCopy
+} = require("../../utils/open-platform");
 const { resolveGuideAssetBase } = require("../../utils/guide");
 const {
   fetchSubscriptions,
@@ -61,6 +69,15 @@ const {
   normalizeTemplateIds
 } = require("../../utils/subscriptions");
 const { SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
+const {
+  uploadFileToTencentCos,
+  fetchTencentCosConfig,
+  fetchTencentCosSts,
+  buildCosHost,
+  extractCosObjectKey,
+  isTencentCosStsValid,
+  buildTencentCosSignedUrl
+} = require("../../utils/tencent-cos");
 
 const STATIC_ASSETS = {
   add: "/pages/markers/assets/add.png",
@@ -155,6 +172,8 @@ const CREATE_ENTRY_MODE_NORMAL = "NORMAL";
 const CREATE_ENTRY_MODE_CERTIFY = "CERTIFY";
 const CREATE_ENTRY_MODE_RENEW = "RENEW";
 const PIN_MEDIA_MAX_COUNT = 3;
+const PIN_VIDEO_MAX_COUNT = 1;
+const PIN_VIDEO_MAX_SIZE = 200 * 1024 * 1024;
 const KML_FILE_SIZE_LIMIT = 1024 * 1024;
 const KML_IMPORT_MAX_COUNT = 10;
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
@@ -346,12 +365,115 @@ function createEmptyPinForm() {
     bufferWidth: null,
     radius: null,
     images: [],
+    video: null,
+    isSCos: false,
     name: "",
     description: "",
     workspace: "",
     publishToPlatform: false,
     groupIds: []
   };
+}
+
+function buildKeyVariants(key) {
+  if (typeof key !== "string" || !key) {
+    return [key];
+  }
+  const variants = new Set([key, key.toLowerCase(), key.toUpperCase()]);
+  if (key.includes("-")) {
+    variants.add(key.replace(/-([a-z])/gi, (_, letter) => letter.toUpperCase()));
+    variants.add(key.replace(/-([a-z])/gi, (_, letter) => letter));
+  } else if (/[A-Z]/.test(key)) {
+    variants.add(key.replace(/([A-Z])/g, (_, letter) => `-${letter.toLowerCase()}`));
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+function getRichTextAttribute(event, keys = []) {
+  const sources = [
+    event?.target?.dataset,
+    event?.detail?.target?.dataset,
+    event?.detail?.dataset,
+    event?.detail?.node?.dataset,
+    event?.detail?.node?.attrs,
+    event?.mark,
+    event?.currentTarget?.dataset
+  ];
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of keys) {
+      const variants = buildKeyVariants(key);
+      for (const variant of variants) {
+        if (variant && Object.prototype.hasOwnProperty.call(source, variant)) {
+          return source[variant];
+        }
+      }
+    }
+  }
+  return "";
+}
+
+function buildPinVideoItem(fileName = "", options = {}) {
+  const ref = typeof fileName === "string" ? fileName.trim() : "";
+  if (!ref) return null;
+  const pinId = options.pinId || "pin";
+  const isOldSignedCosUrl = /^https?:\/\//i.test(ref) && /[?&]q-sign-algorithm=/i.test(ref);
+  let url = ref;
+  if (options.isSCos && options.cosHost && options.cosSts) {
+    url = buildTencentCosSignedUrl(ref, {
+      host: options.cosHost,
+      sts: options.cosSts
+    }) || ref;
+  } else if (options.isSCos && isOldSignedCosUrl) {
+    url = "";
+  } else if (!/^https?:\/\//i.test(ref)) {
+    if (options.isSCos && options.cosHost) {
+      url = `https://${options.cosHost}/${ref.replace(/^\/+/, "")}`;
+    } else {
+      url = buildFileStreamUrl(ref, { apiBase: options.apiBase });
+    }
+  }
+  return {
+    fileName: ref,
+    url,
+    poster: options.poster || "",
+    id: `${pinId}-video-0`,
+    type: "video",
+    isSCos: options.isSCos !== false
+  };
+}
+
+function resolvePinVideoRef(raw = {}) {
+  if (!raw || typeof raw !== "object") return "";
+  const candidates = [
+    raw.videoLink,
+    raw.video,
+    raw.videoUrl,
+    raw.videoFileName,
+    raw.videoPath,
+    raw.videoName,
+    raw.media?.videoLink,
+    raw.media?.video,
+    raw.content?.videoLink
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+    if (candidate && typeof candidate === "object") {
+      const nested =
+        candidate.url ||
+        candidate.fileName ||
+        candidate.filename ||
+        candidate.objectName ||
+        candidate.path ||
+        "";
+      if (typeof nested === "string" && nested.trim()) {
+        return nested.trim();
+      }
+    }
+  }
+  return "";
 }
 
 function normalizeMarkerFormForComparison(form = {}) {
@@ -448,6 +570,10 @@ Page({
     myPinFormConfigured: false,
     pinSubmitting: false,
     pinError: "",
+    pinVideoLoading: false,
+    pinVideoUploading: false,
+    pinVideoUploadProgress: 0,
+    pinCardVideoLoadingMap: {},
     editingPinId: "",
     pinLocationDisplay: "",
     myPinSelectedGroups: [],
@@ -509,6 +635,11 @@ Page({
     publishPlatformDialogVisible: false,
     publishPlatformDialogSource: "",
     publishPlatformPendingMarker: null,
+    publishPlatformDialogLoading: false,
+    publishPlatformDialogError: "",
+    publishPlatformDialogNodes: "",
+    publishPlatformDialogSegments: [],
+    publishPlatformDialogImages: [],
     deletingId: "",
     hasLoaded: false,
     merchantOverviewLoaded: false,
@@ -568,7 +699,8 @@ Page({
     deleteDialogError: "",
     joinInvitePrompt: null,
     joinInviting: false,
-    customerServiceSessionFrom: "marker-create-support"
+    customerServiceSessionFrom: "marker-create-support",
+    planetCreationGuideReady: false
   },
 
   onLoad(options = {}) {
@@ -582,6 +714,9 @@ Page({
     this.refreshMarkers({ initial: true });
     this.refreshMerchantEmptyStateContent();
     this.fetchSettlementConfig();
+    this.prefetchPlanetCreationGuide();
+    this.prefetchTencentCosConfig();
+    this.ensureTencentCosSts();
     this.refreshWorkGroups({ initial: true });
     this.consumePendingCenterTab();
     const consumedPendingMyPinCreate = this.consumePendingMyPinCreate();
@@ -1921,6 +2056,15 @@ Page({
         }))
         .filter((item) => !!item.url)
       : [];
+    const videoRef = resolvePinVideoRef(raw);
+    const video = buildPinVideoItem(videoRef, {
+      apiBase: this.apiBase,
+      pinId: pinId || raw.id || "pin",
+      poster: images[0]?.url || "",
+      isSCos: raw.isSCos !== false,
+      cosHost: this._tencentCosConfig?.host || "",
+      cosSts: this._tencentCosSts || null
+    });
     const coords = Array.isArray(raw.shape?.coordinates) ? raw.shape.coordinates : [];
     const firstCoord = coords[0] || {};
     const locationText =
@@ -2004,7 +2148,9 @@ Page({
       name: raw.name || "",
       description: raw.description || "",
       images,
-      coverImage: images.length ? images[0].url : "",
+      video,
+      isSCos: raw.isSCos !== false && !!video,
+      coverImage: images.length ? images[0].url : (video?.poster || ""),
       reviewStatus,
       reviewStatusLabel: statusLabel,
       reviewTone: statusTone,
@@ -2452,6 +2598,16 @@ Page({
       url: img.url || "",
       id: img.id
     })) : [];
+    form.video = pin.video
+      ? {
+        fileName: pin.video.fileName || "",
+        url: pin.video.url || "",
+        poster: pin.video.poster || form.images[0]?.url || "",
+        id: pin.video.id || `${pin.id || "pin"}-video-0`,
+        type: "video"
+      }
+      : null;
+    form.isSCos = pin.isSCos === true || !!form.video;
     form.publishToPlatform = `${pin.scope || ""}`.toUpperCase() === "PUBLIC";
     form.groupIds = Array.isArray(pin.workGroupIds) ? pin.workGroupIds.filter(Boolean) : [];
     return form;
@@ -2597,17 +2753,25 @@ Page({
         throw err;
       });
     return load()
+      .then((page) => this.ensureTencentCosSts().then(() => page))
       .then((page) => {
         const content = this.extractPinList(page);
         const normalized = content.map((item) => this.normalizePin(item));
         this._pinAddressCache = this._pinAddressCache || {};
         this._pendingPinGeo = this._pendingPinGeo || {};
         const applied = this.applyCachedPinAddresses(normalized);
+        const pinCardVideoLoadingMap = {};
+        applied.forEach((item = {}) => {
+          if (item.id && item.video) {
+            pinCardVideoLoadingMap[item.id] = true;
+          }
+        });
         this.setData(
           {
             pins: applied,
             pinsLoaded: true,
-            activePinFilter: filter
+            activePinFilter: filter,
+            pinCardVideoLoadingMap
           },
           () => {
             this.applyPinFilters(applied, filter);
@@ -2780,6 +2944,30 @@ Page({
       .filter(Boolean);
   },
 
+  extractPinVideoForPayload(video = null) {
+    if (!video) return "";
+    if (typeof video === "string") return video.trim();
+    if (video.isSCos && typeof video.location === "string" && video.location.trim()) {
+      return video.location.trim();
+    }
+    if (video.isSCos && typeof video.url === "string" && /^https?:\/\//i.test(video.url.trim())) {
+      const extracted = extractCosObjectKey(video.url.trim(), {
+        host: this._tencentCosConfig?.host || ""
+      });
+      return extracted || video.url.trim();
+    }
+    const value =
+      video.fileName ||
+      video.filename ||
+      video.objectName ||
+      video.name ||
+      video.location ||
+      video.path ||
+      video.url ||
+      "";
+    return `${value}`.trim();
+  },
+
   buildPinShapePayload(form = this.data.myPinForm) {
     if (form.kmlLocked) {
       const baseShape = form.kmlShape || {};
@@ -2839,16 +3027,23 @@ Page({
         ? "PUBLIC"
         : "PRIVATE";
     const images = this.extractPinImagesForPayload(form.images);
-    if (!images.length) {
-      throw new Error("请至少上传一张图片");
+    const videoLink = this.extractPinVideoForPayload(form.video);
+    if (!images.length && !videoLink) {
+      throw new Error("请至少上传一张图片或一个视频");
+    }
+    const description = (form.description || "").trim();
+    if (!description) {
+      throw new Error("请填写简介");
     }
     const payload = {
       name,
-      description: (form.description || "").trim(),
+      description,
       visibility,
       groupIds,
       groups: groupIds.map((id) => ({ id })),
       images,
+      videoLink,
+      isSCos: !!videoLink && form.isSCos !== false,
       shape
     };
     return payload;
@@ -3437,6 +3632,7 @@ Page({
     this.setData({ actionProcessingId: marker.id || "" });
     run()
       .then(() => {
+        this.triggerCreationSubscriptions({ source: "pin-publish" });
         wx.showToast({ title: "已提交发布", icon: "success" });
         this.refreshPins({ silent: true });
       })
@@ -3529,6 +3725,7 @@ Page({
       publishPlatformDialogSource: source,
       publishPlatformPendingMarker: marker || null
     });
+    this.ensurePublishPlatformDialogContent();
   },
 
   onPublishPlatformCancel() {
@@ -3558,6 +3755,79 @@ Page({
     if (source === "pin-action" && marker) {
       this.handlePinPublish(marker, { skipConfirm: true });
     }
+  },
+
+  ensurePublishPlatformDialogContent() {
+    if (this.data.publishPlatformDialogLoading) return;
+    if (this.data.publishPlatformDialogNodes || this.data.publishPlatformDialogSegments.length) {
+      return;
+    }
+    this.setData({
+      publishPlatformDialogLoading: true,
+      publishPlatformDialogError: ""
+    });
+    fetchShareToPlatformCopy({ apiBase: this.apiBase })
+      .then((payload = {}) => {
+        const html = typeof payload.content === "string" ? payload.content : "";
+        this.setData({
+          publishPlatformDialogNodes: transformHtmlContent(html, { apiBase: this.apiBase }),
+          publishPlatformDialogSegments: buildContentSegments(html, { apiBase: this.apiBase }),
+          publishPlatformDialogImages: extractImageUrls(html, { apiBase: this.apiBase }),
+          publishPlatformDialogError: ""
+        });
+      })
+      .catch((err) => {
+        this.setData({
+          publishPlatformDialogError: err?.message || "加载共享说明失败",
+          publishPlatformDialogNodes: "",
+          publishPlatformDialogSegments: [],
+          publishPlatformDialogImages: []
+        });
+      })
+      .finally(() => {
+        this.setData({ publishPlatformDialogLoading: false });
+      });
+  },
+
+  onPublishPlatformRichTextTap(event) {
+    const link = getRichTextAttribute(event, ["opLink", "data-op-link", "href"]);
+    if (link) {
+      const url = String(link);
+      if (typeof wx.openUrl === "function" && /^https?:\/\//i.test(url)) {
+        wx.openUrl({ url });
+        return;
+      }
+      if (typeof wx.setClipboardData === "function") {
+        wx.setClipboardData({
+          data: url,
+          success: () => wx.showToast({ title: "链接已复制", icon: "success" }),
+          fail: () => wx.showToast({ title: "复制失败", icon: "none" })
+        });
+      }
+      return;
+    }
+    const current = String(getRichTextAttribute(event, ["opImage", "data-op-image", "src"]) || "");
+    if (!current) return;
+    const urls = this.data.publishPlatformDialogImages || [];
+    if (typeof wx.previewImage === "function") {
+      wx.previewImage({
+        urls: urls.length ? urls : [current],
+        current,
+        showmenu: true
+      });
+    }
+  },
+
+  onPublishPlatformImageTap(event) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    const urls = this.data.publishPlatformDialogImages || [];
+    const current = Number.isInteger(index) && urls[index] ? urls[index] : urls[0] || "";
+    if (!current || typeof wx.previewImage !== "function") return;
+    wx.previewImage({
+      urls: urls.length ? urls : [current],
+      current,
+      showmenu: true
+    });
   },
 
   onPinConfirmCancel() {
@@ -3633,6 +3903,10 @@ Page({
     const imageRefs = this.extractFileReferences(marker.images);
     const rawImageRefs = this.extractFileReferences(marker?.raw?.images);
     const images = imageRefs.length ? imageRefs : rawImageRefs;
+    const videoLink =
+      this.extractPinVideoForPayload(marker.video) ||
+      this.extractPinVideoForPayload(marker?.raw?.videoLink) ||
+      this.extractPinVideoForPayload(marker?.raw?.video);
     const locationText =
       marker.locationText ||
       marker?.raw?.locationText ||
@@ -3646,6 +3920,8 @@ Page({
       location: coordinates[0],
       height: this.extractPinPreviewHeight(marker, coordinates[0]),
       images,
+      videoLink,
+      isSCos: marker.isSCos === true || marker?.raw?.isSCos === true,
       locationText,
       description,
       zoom: 16
@@ -3736,6 +4012,65 @@ Page({
 
   onMerchantGuideTap() {
     wx.navigateTo({ url: "/pages/markers/merchant-guide/index" });
+  },
+
+  onPinCreationGuideTap() {
+    wx.navigateTo({ url: "/pages/markers/creation-guide/index" });
+  },
+
+  prefetchPlanetCreationGuide() {
+    fetchPlanetCreationAdvancedGuide({ apiBase: this.apiBase })
+      .then(() => {
+        this.setData({ planetCreationGuideReady: true });
+      })
+      .catch((err) => {
+        console.warn("prefetch planet creation guide failed", err);
+      });
+  },
+
+  prefetchTencentCosConfig() {
+    fetchTencentCosConfig({ apiBase: this.apiBase })
+      .then((config = {}) => {
+        const bucket = Array.isArray(config.buckets) ? `${config.buckets[0] || ""}`.trim() : "";
+        const region = `${config.region || ""}`.trim();
+        this._tencentCosConfig = Object.assign({}, config, {
+          bucket,
+          region,
+          host: buildCosHost(bucket, region)
+        });
+      })
+      .catch((err) => {
+        console.warn("prefetch tencent cos config failed", err);
+      });
+  },
+
+  ensureTencentCosSts(force = false) {
+    if (!force && isTencentCosStsValid(this._tencentCosSts)) {
+      return Promise.resolve(this._tencentCosSts);
+    }
+    if (this._tencentCosStsPromise) {
+      return this._tencentCosStsPromise;
+    }
+    const token = this.getAuthToken();
+    if (!token) {
+      return Promise.resolve(null);
+    }
+    this._tencentCosStsPromise = fetchTencentCosSts({
+      apiBase: this.apiBase,
+      token
+    })
+      .then((sts = {}) => {
+        this._tencentCosSts = sts;
+        return sts;
+      })
+      .catch((err) => {
+        console.warn("fetch tencent cos sts failed", err);
+        return null;
+      })
+      .finally(() => {
+        this._tencentCosStsPromise = null;
+      });
+    return this._tencentCosStsPromise;
   },
 
   captureCreateFormSnapshot(form = this.data.form) {
@@ -4117,6 +4452,9 @@ Page({
       myPinFormConfigured: false,
       pinSubmitting: false,
       pinError: "",
+      pinVideoLoading: false,
+      pinVideoUploading: false,
+      pinVideoUploadProgress: 0,
       editingPinId: "",
       pinLocationDisplay: "",
       myPinSelectedGroups: []
@@ -4125,7 +4463,13 @@ Page({
 
   onCloseMyPinCreate() {
     if (this.data.pinSubmitting) return;
-    this.setData({ showMyPinCreate: false, pinError: "" });
+    this.setData({
+      showMyPinCreate: false,
+      pinError: "",
+      pinVideoLoading: false,
+      pinVideoUploading: false,
+      pinVideoUploadProgress: 0
+    });
   },
 
   onPinPickerTap() {
@@ -4250,33 +4594,180 @@ Page({
   },
 
   onAddPinMediaTap() {
-    const current = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images.length : 0;
+    const imageCount = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images.length : 0;
+    const videoCount = this.data.myPinForm.video ? 1 : 0;
+    const current = imageCount + videoCount;
     const remaining = Math.max(0, PIN_MEDIA_MAX_COUNT - current);
     if (remaining <= 0) {
       wx.showToast({ title: `最多上传${PIN_MEDIA_MAX_COUNT}个`, icon: "none" });
       return;
     }
-    wx.chooseImage({
+    if (typeof wx.chooseMedia !== "function") {
+      wx.showToast({ title: "当前版本不支持媒体上传", icon: "none" });
+      return;
+    }
+    wx.chooseMedia({
       count: remaining,
-      sizeType: ["compressed"],
+      mediaType: ["image", "video"],
+      sizeType: ["original"],
+      maxDuration: 60,
       success: (res) => {
-        const paths = res?.tempFilePaths || [];
-        if (!paths.length) return;
-        this.uploadFiles("pinImages", paths);
+        const files = Array.isArray(res?.tempFiles) ? res.tempFiles : [];
+        if (!files.length) return;
+        const images = files
+          .filter((item) => `${item?.fileType || ""}` !== "video")
+          .map((item) => item.tempFilePath || item.path)
+          .filter(Boolean);
+        const videoFiles = files.filter((item) => `${item?.fileType || ""}` === "video");
+        const videos = videoFiles
+          .map((item) => item.tempFilePath || item.path)
+          .filter(Boolean);
+        this.validatePinVideoSizes(videoFiles)
+          .then(() => {
+            if (videos.length > PIN_VIDEO_MAX_COUNT || (videos.length && this.data.myPinForm.video)) {
+              wx.showToast({ title: "视频仅支持上传一个", icon: "none" });
+              return;
+            }
+            const nextImageSlots = Math.max(
+              0,
+              PIN_MEDIA_MAX_COUNT - (this.data.myPinForm.video ? 1 : 0) - imageCount
+            );
+            if (images.length) {
+              this.uploadFiles("pinImages", images.slice(0, nextImageSlots));
+            }
+            if (videos.length) {
+              this.uploadFiles("pinVideo", videos.slice(0, PIN_VIDEO_MAX_COUNT));
+            }
+          })
+          .catch((err) => {
+            wx.showToast({ title: err?.message || "视频不能超过200MB", icon: "none" });
+          });
+      }
+    });
+  },
+
+  validatePinVideoSizes(files = []) {
+    const list = Array.isArray(files) ? files.filter(Boolean) : [];
+    if (!list.length) return Promise.resolve();
+    const fetchSize = (item = {}) =>
+      new Promise((resolve, reject) => {
+        const inlineSize = Number(item.size);
+        if (Number.isFinite(inlineSize) && inlineSize >= 0) {
+          resolve(inlineSize);
+          return;
+        }
+        const filePath = item.tempFilePath || item.path || "";
+        if (!filePath || typeof wx.getFileInfo !== "function") {
+          resolve(0);
+          return;
+        }
+        wx.getFileInfo({
+          filePath,
+          success: (res) => resolve(Number(res?.size) || 0),
+          fail: reject
+        });
+      });
+    return Promise.all(list.map((item) => fetchSize(item))).then((sizes) => {
+      const oversized = sizes.some((size) => Number(size) > PIN_VIDEO_MAX_SIZE);
+      if (oversized) {
+        throw new Error("视频不能超过200MB");
       }
     });
   },
 
   onRemovePinMediaTap(e) {
     const index = e?.currentTarget?.dataset?.index;
+    const mediaType = `${e?.currentTarget?.dataset?.type || "image"}`;
+    if (mediaType === "video") {
+      this.setData({
+        "myPinForm.video": null,
+        "myPinForm.isSCos": false,
+        pinVideoLoading: false,
+        pinVideoUploading: false,
+        pinVideoUploadProgress: 0
+      });
+      return;
+    }
     if (index === undefined || index === null) return;
     const list = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images.slice() : [];
     list.splice(index, 1);
     this.setData({ "myPinForm.images": list });
   },
 
+  onPinVideoWaiting() {
+    if (!this.data.pinVideoLoading) {
+      this.setData({ pinVideoLoading: true });
+    }
+  },
+
+  onPinVideoReady() {
+    if (this.data.pinVideoLoading) {
+      this.setData({ pinVideoLoading: false });
+    }
+  },
+
+  openInlineVideoFullscreen(options = {}) {
+    const url = typeof options.url === "string" ? options.url.trim() : "";
+    if (!url) return;
+    const poster = typeof options.poster === "string" ? options.poster.trim() : "";
+    const videoId = typeof options.videoId === "string" ? options.videoId.trim() : "";
+    if (typeof wx.previewMedia === "function") {
+      wx.previewMedia({
+        sources: [{
+          url,
+          type: "video",
+          poster
+        }],
+        current: 0,
+        showmenu: true
+      });
+      return;
+    }
+    if (videoId && typeof wx.createVideoContext === "function") {
+      const ctx = wx.createVideoContext(videoId, this);
+      if (ctx && typeof ctx.play === "function") {
+        ctx.play();
+      }
+      if (ctx && typeof ctx.requestFullScreen === "function") {
+        ctx.requestFullScreen({ direction: 0 });
+      }
+    }
+  },
+
+  onInlineVideoTap(event = {}) {
+    this.openInlineVideoFullscreen({
+      url: event?.currentTarget?.dataset?.url || "",
+      poster: event?.currentTarget?.dataset?.poster || "",
+      videoId: event?.currentTarget?.dataset?.videoId || ""
+    });
+  },
+
+  onPinCardVideoWaiting(event = {}) {
+    const pinId = `${event?.currentTarget?.dataset?.pinId || ""}`.trim();
+    if (!pinId) return;
+    this.setData({ [`pinCardVideoLoadingMap.${pinId}`]: true });
+  },
+
+  onPinCardVideoReady(event = {}) {
+    const pinId = `${event?.currentTarget?.dataset?.pinId || ""}`.trim();
+    const videoId = `${event?.currentTarget?.dataset?.videoId || ""}`.trim();
+    if (pinId) {
+      this.setData({ [`pinCardVideoLoadingMap.${pinId}`]: false });
+    }
+    if (videoId && typeof wx.createVideoContext === "function") {
+      const ctx = wx.createVideoContext(videoId, this);
+      if (ctx && typeof ctx.play === "function") {
+        ctx.play();
+      }
+    }
+  },
+
   onSubmitPinForm() {
     if (this.data.pinSubmitting) return;
+    if (this.data.pinVideoUploading) {
+      wx.showToast({ title: "视频上传中，请稍后", icon: "none" });
+      return;
+    }
     const form = this.data.myPinForm || {};
     if (!form.geometryType || !form.geometryCategory) {
       wx.showToast({ title: "请先开始标记", icon: "none" });
@@ -4315,14 +4806,21 @@ Page({
         if (payload.visibility === "PUBLIC") {
           this.triggerCreationSubscriptions({ source: "pin-submit-public" });
         }
-        this.setData({ pinSubmitting: false, showMyPinCreate: false, editingPinId: "" });
+        this.setData({
+          pinSubmitting: false,
+          showMyPinCreate: false,
+          editingPinId: "",
+          pinVideoLoading: false,
+          pinVideoUploading: false,
+          pinVideoUploadProgress: 0
+        });
         wx.showToast({ title: editingId ? "已更新标记" : "已保存标记", icon: "success" });
         this.refreshPins({ silent: true });
       })
       .catch((err) => {
         console.error(editingId ? "更新 Pin 失败" : "创建 Pin 失败", err);
         const message = err?.message || "保存失败";
-        this.setData({ pinSubmitting: false, pinError: message });
+        this.setData({ pinSubmitting: false, pinError: message, pinVideoUploading: false, pinVideoUploadProgress: 0 });
         wx.showToast({ title: message, icon: "none" });
       });
   },
@@ -4651,6 +5149,7 @@ Page({
         myPinFormConfigured: true,
         pinSubmitting: false,
         pinError: "",
+        pinVideoLoading: !!pinForm.video,
         editingPinId: marker.id || "",
         myPinSelectedGroups: this.buildPinSelectedGroupsFromPin(marker)
       }, () => {
@@ -5106,21 +5605,89 @@ Page({
 
   uploadFiles(type, tempPaths, labels = []) {
     if (!Array.isArray(tempPaths) || !tempPaths.length) return;
+    const isPinVideoUpload = type === "pinVideo";
+    if (isPinVideoUpload) {
+      this.setData({
+        pinVideoUploading: true,
+        pinVideoUploadProgress: 0,
+        pinVideoLoading: false
+      });
+    }
     wx.showLoading({ title: "上传中...", mask: true });
-    const uploads = tempPaths.map((path) => uploadMarkerFile(path, { apiBase: this.apiBase }));
+    const uploads = tempPaths.map((path) => (
+      isPinVideoUpload
+        ? uploadFileToTencentCos(path, {
+          apiBase: this.apiBase,
+          prefix: "pins/videos/",
+          onProgress: (progress = {}) => {
+            const percent = Number(progress.progress);
+            this.setData({
+              pinVideoUploading: true,
+              pinVideoUploadProgress: Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : 0
+            });
+          }
+        })
+        : uploadMarkerFile(path, { apiBase: this.apiBase })
+    ));
     Promise.all(uploads)
-      .then((fileNames) => {
-        const mapped = fileNames.map((fileName, index) => ({
-          fileName,
-          url: buildFileDownloadUrl(fileName, { apiBase: this.apiBase }),
-          label: labels[index] || ""
-        }));
+      .then((results) => {
+        const mapped = results.map((result, index) => {
+          const fileName =
+            typeof result === "string"
+              ? result
+              : (
+                result?.objectName ||
+                result?.fileName ||
+                result?.location ||
+                ""
+              );
+          const directUrl =
+            typeof result === "object" && result
+              ? (result.location || result.url || "")
+              : "";
+          return {
+            fileName,
+            location: directUrl,
+            url: directUrl || buildFileDownloadUrl(fileName, { apiBase: this.apiBase }),
+            label: labels[index] || ""
+          };
+        });
         if (type === "images") {
           this.setData({ "form.images": this.data.form.images.concat(mapped) });
         } else if (type === "pinImages") {
           const current = Array.isArray(this.data.myPinForm.images) ? this.data.myPinForm.images : [];
           const next = current.concat(mapped).slice(0, PIN_MEDIA_MAX_COUNT);
           this.setData({ "myPinForm.images": next });
+        } else if (type === "pinVideo") {
+          const video = mapped[0] || null;
+          if (video && !this._tencentCosSts) {
+            this.ensureTencentCosSts();
+          }
+          const signedUrl = video
+            ? buildTencentCosSignedUrl(video.location || video.fileName || "", {
+              host: this._tencentCosConfig?.host || "",
+              sts: this._tencentCosSts || null
+            })
+            : "";
+          this.setData({
+            "myPinForm.video": video
+              ? Object.assign({}, video, {
+                url:
+                  signedUrl ||
+                  video.location ||
+                  video.url ||
+                  buildFileStreamUrl(video.fileName, { apiBase: this.apiBase }),
+                location: video.location || "",
+                type: "video",
+                poster: (this.data.myPinForm.images || [])[0]?.url || "",
+                isSCos: true
+              })
+              : null,
+            "myPinForm.isSCos": !!video,
+            pinVideoLoading: !!video,
+            pinVideoUploading: false,
+            pinVideoUploadProgress: video ? 100 : 0
+          });
         } else if (type === "businessLicense") {
           this.setData({ "form.businessLicense": mapped[0] || null });
         } else if (type === "qrCodeImages") {
@@ -5161,6 +5728,12 @@ Page({
       .catch((err) => {
         console.error("上传文件失败", err);
         const msg = err?.message || "上传失败";
+        if (isPinVideoUpload) {
+          this.setData({
+            pinVideoUploading: false,
+            pinVideoUploadProgress: 0
+          });
+        }
         wx.showToast({ title: msg, icon: "none" });
       })
       .finally(() => {

@@ -56,6 +56,10 @@ function buildFileDownloadUrl(fileName, options = {}) {
   return "";
 }
 
+function buildFileStreamUrl(fileName, options = {}) {
+  return buildFileDownloadUrl(fileName, options);
+}
+
 function appendQueryParams(path, query = {}) {
   if (!query || typeof query !== "object") {
     return path;
@@ -405,6 +409,7 @@ module.exports = {
   deleteMarker,
   uploadMarkerFile,
   buildFileDownloadUrl,
+  buildFileStreamUrl,
   fetchMapSettlementConfig,
   fetchOpenPlatformContent,
   incrementMarkerExposure,

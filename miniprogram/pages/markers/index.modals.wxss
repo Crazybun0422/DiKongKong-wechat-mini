@@ -43,12 +43,11 @@
 }
 
 .modal-title-share {
-  position: relative;
-  font-size: 44rpx;
+  font-size: 40rpx;
   font-weight: 700;
   color: #0f172a;
-  margin-left: 27vw;
-  margin-top: 10vh;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .modal-close {
@@ -65,7 +64,10 @@
 }
 
 .modal-close.share{
-  transform: translateY(-60rpx);
+  position: absolute;
+  top: 24rpx;
+  right: 24rpx;
+  transform: none;
 }
 
 .modal-close.modal-close-disabled {
@@ -81,7 +83,7 @@
   overflow: auto;
 }
 .modal-body.share{
-  margin-top: 7vh;
+  margin-top: 0;
 }
 .modal-block {
   padding: 18rpx;
@@ -146,31 +148,44 @@
 }
 
 .publish-platform-card {
-  padding-bottom: 18rpx;
+  min-height: 860rpx;
+  padding: 36rpx 28rpx 180rpx;
+  box-sizing: border-box;
 }
 
 .publish-platform-body {
-  gap: 9rpx;
+  gap: 20rpx;
+  margin-top: 24rpx;
+  max-height: 540rpx;
 }
 
-.publish-platform-desc {
-  font-size: 32rpx;
-  color: #0f172a;
-  line-height: 1.5;
+.publish-platform-banner {
+  width: 148rpx;
+  margin: 0 auto 16rpx;
+  display: block;
 }
 
-.publish-platform-note {
-  font-size: 30rpx;
-  line-height: 1.5;
-}
-.publish-platform-note.top{
-  margin-top: 50rpx;
-}
-.publish-platform-note.star{
-  color: red;
-}
-.publish-platform-note.text{
+.publish-platform-state {
+  font-size: 28rpx;
+  line-height: 1.6;
   color: #4b5563;
+  text-align: center;
+}
+
+.publish-platform-state.is-error {
+  color: #b91c1c;
+}
+
+.publish-platform-richtext {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #111827;
+}
+
+.publish-platform-rich-image {
+  width: 100%;
+  border-radius: 18rpx;
+  display: block;
 }
 .publish-platform-actions {
   position: absolute;

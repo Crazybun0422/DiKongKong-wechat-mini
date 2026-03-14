@@ -6,7 +6,8 @@ const {
   incrementMarkerExposure,
   incrementMarkerPhoneCall,
   searchMarkers,
-  buildFileDownloadUrl
+  buildFileDownloadUrl,
+  buildFileStreamUrl
 } = require("../../utils/markers");
 const { fetchNearbyPins, searchPins, incrementPinExposure, fetchPinDetail } = require("../../utils/pins");
 const {
@@ -73,6 +74,13 @@ const {
   fetchCoordinateLongPressGuide
 } = require("../../utils/map-guides");
 const { transformHtmlContent } = require("../../utils/open-platform");
+const {
+  fetchTencentCosConfig,
+  fetchTencentCosSts,
+  buildCosHost,
+  isTencentCosStsValid,
+  buildTencentCosSignedUrl
+} = require("../../utils/tencent-cos");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -235,6 +243,62 @@ const resolveCoordinateGroup = (shape = {}) => {
   if (point) return { type: "POINT", coordinates: point[1] };
   const first = entries[0];
   return { type: "", coordinates: first[1] };
+};
+
+const resolvePinVideoRef = (raw = {}) => {
+  if (!raw || typeof raw !== "object") return "";
+  const candidates = [
+    raw.videoLink,
+    raw.video,
+    raw.videoUrl,
+    raw.videoFileName,
+    raw.videoPath,
+    raw.videoName,
+    raw.media?.videoLink,
+    raw.media?.video,
+    raw.content?.videoLink
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+    if (candidate && typeof candidate === "object") {
+      const nested =
+        candidate.url ||
+        candidate.fileName ||
+        candidate.filename ||
+        candidate.objectName ||
+        candidate.path ||
+        "";
+      if (typeof nested === "string" && nested.trim()) {
+        return nested.trim();
+      }
+    }
+  }
+  return "";
+};
+
+const resolvePinVideoUrl = (videoRef = "", options = {}) => {
+  const ref = typeof videoRef === "string" ? videoRef.trim() : "";
+  if (!ref) return "";
+  const cosHost = `${options.cosHost || ""}`.trim();
+  const isOldSignedCosUrl = /^https?:\/\//i.test(ref) && /[?&]q-sign-algorithm=/i.test(ref);
+  if (options.isSCos && cosHost && options.cosSts) {
+    return buildTencentCosSignedUrl(ref, {
+      host: cosHost,
+      sts: options.cosSts
+    }) || ref;
+  }
+  if (options.isSCos && isOldSignedCosUrl) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(ref)) {
+    return ref;
+  }
+  if (options.isSCos && cosHost) {
+    return `https://${cosHost}/${ref.replace(/^\/+/, "")}`;
+  }
+  return buildFileStreamUrl(ref, { apiBase: options.apiBase });
 };
 
 const resolveShapeCoordinates = (shape = {}) => {
@@ -1124,6 +1188,7 @@ Page({
     markerDetailExpanding: false,
     markerDetailAllowExpand: true,
     markerDetailCurrentImage: 0,
+    markerDetailVideoLoading: false,
     markerLikeAnimating: false,
     markerLikeHoldLabel: "",
     markerLikeLabelType: "",
@@ -1136,6 +1201,7 @@ Page({
     markerPageClosing: false,
     markerPageDetail: null,
     markerPageCurrentImage: 0,
+    markerPageVideoLoading: false,
     markerPageLikeCount: 0,
     markerPageLiked: false,
     markerPageLikeTargetType: "",
@@ -1317,6 +1383,8 @@ Page({
     this.mapCtx = wx.createMapContext("main-map");
     this._isIOS = false;
     this.loadMapSubKey();
+    this.prefetchTencentCosConfig();
+    this.ensureTencentCosSts();
     this.applyCustomMapStyle();
     this._windowResizeTimer = null;
     this._onWindowResize = null;
@@ -2027,6 +2095,26 @@ Page({
         };
       })
       .filter((img) => !!img.url);
+    const videoRef = resolvePinVideoRef(rawPin);
+    const videoUrl = resolvePinVideoUrl(videoRef, {
+      apiBase,
+      isSCos: rawPin.isSCos !== false,
+      cosHost: this._tencentCosConfig?.host || "",
+      cosSts: this._tencentCosSts || null
+    });
+    const mediaItems = images
+      .map((item) => Object.assign({ type: "image" }, item))
+      .concat(
+        videoUrl
+          ? [{
+            type: "video",
+            url: videoUrl,
+            poster: images[0]?.url || "",
+            id: `${pinId || rawPin.id || "pin"}-video-0`,
+            isSCos: rawPin.isSCos !== false
+          }]
+          : []
+      );
     const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
     const heightDisplay =
       Number.isFinite(normalized.height) && normalized.height > 0 ? `${Math.round(normalized.height)}m` : "";
@@ -2046,6 +2134,9 @@ Page({
       longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : undefined,
       description: normalized.description || rawPin.description || "",
       images: images.length ? images : normalized.images || [],
+      mediaItems,
+      videoLink: videoRef || "",
+      isSCos: rawPin.isSCos !== false && !!videoRef,
       creatorName: normalized.creatorName || rawPin.creatorName || "",
       raw: rawPin,
       source: "pin"
@@ -2060,6 +2151,88 @@ Page({
     }
     console.log("Built pin detail ->>", detail.latitude, detail.longitude);
     return detail;
+  },
+
+  prefetchTencentCosConfig() {
+    fetchTencentCosConfig({ apiBase: this.getApiBase() })
+      .then((config = {}) => {
+        const bucket = Array.isArray(config.buckets) ? `${config.buckets[0] || ""}`.trim() : "";
+        const region = `${config.region || ""}`.trim();
+        this._tencentCosConfig = Object.assign({}, config, {
+          bucket,
+          region,
+          host: buildCosHost(bucket, region)
+        });
+      })
+      .catch((err) => {
+        console.warn("map prefetch tencent cos config failed", err);
+      });
+  },
+
+  ensureTencentCosSts(force = false) {
+    if (!force && isTencentCosStsValid(this._tencentCosSts)) {
+      return Promise.resolve(this._tencentCosSts);
+    }
+    if (this._tencentCosStsPromise) {
+      return this._tencentCosStsPromise;
+    }
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) {
+      return Promise.resolve(null);
+    }
+    this._tencentCosStsPromise = fetchTencentCosSts({ apiBase, token })
+      .then((sts = {}) => {
+        this._tencentCosSts = sts;
+        return sts;
+      })
+      .catch((err) => {
+        console.warn("map fetch tencent cos sts failed", err);
+        return null;
+      })
+      .finally(() => {
+        this._tencentCosStsPromise = null;
+      });
+    return this._tencentCosStsPromise;
+  },
+
+  ensurePlayablePinDetailMedia(detail, options = {}) {
+    if (!detail || !this.isPinDetail(detail)) {
+      return Promise.resolve();
+    }
+    return this.ensureTencentCosSts().then((sts) => {
+      const cosHost = this._tencentCosConfig?.host || "";
+      if (!sts || !cosHost) return;
+      const mediaItems = Array.isArray(detail.mediaItems) ? detail.mediaItems : [];
+      let changed = false;
+      const nextMediaItems = mediaItems.map((item = {}) => {
+        if (`${item.type || ""}`.toLowerCase() !== "video") {
+          return item;
+        }
+        const signedUrl = resolvePinVideoUrl(item.url || detail.videoLink || "", {
+          apiBase: this.getApiBase(),
+          isSCos: item.isSCos !== false && detail.isSCos !== false,
+          cosHost,
+          cosSts: sts
+        });
+        if (!signedUrl || signedUrl === item.url) {
+          return item;
+        }
+        changed = true;
+        return Object.assign({}, item, { url: signedUrl });
+      });
+      if (!changed) return;
+      const nextDetail = Object.assign({}, detail, { mediaItems: nextMediaItems });
+      if (options.forDetailCard && this.data.detailCard && (this.data.detailCard.id === detail.id || this.data.detailCard.markerId === detail.markerId)) {
+        this.setData({ detailCard: nextDetail });
+      }
+      if (options.forPage && this.data.markerPageDetail && (this.data.markerPageDetail.id === detail.id || this.data.markerPageDetail.markerId === detail.markerId)) {
+        this.setData({ markerPageDetail: nextDetail });
+      }
+      if (this._lastMarkerDetail && (this._lastMarkerDetail.id === detail.id || this._lastMarkerDetail.markerId === detail.markerId)) {
+        this._lastMarkerDetail = nextDetail;
+      }
+    });
   },
 
   ensurePinAddress(detail) {
@@ -3529,11 +3702,13 @@ Page({
       markerDetailExpanding: false,
       detailCard: viewDetail,
       markerDetailAllowExpand: true,
-      markerDetailCurrentImage: 0
+      markerDetailCurrentImage: 0,
+      markerDetailVideoLoading: this.isVideoMediaItem(this.getDetailMediaList(viewDetail)[0])
     });
     this.loadMarkerLikeInfo({ detail: viewDetail, target: marker });
     if (isPin) {
       this.ensurePinAddress(viewDetail);
+      this.ensurePlayablePinDetailMedia(viewDetail, { forDetailCard: true });
     }
   },
 
@@ -3685,8 +3860,60 @@ Page({
   onMarkerDetailSwiperChange(e) {
     const idx = Number(e?.detail?.current);
     if (Number.isFinite(idx)) {
-      this.setData({ markerDetailCurrentImage: idx });
+      const media = this.getDetailMediaList(this.data.detailCard || {});
+      this.setData({
+        markerDetailCurrentImage: idx,
+        markerDetailVideoLoading: this.isVideoMediaItem(media[idx])
+      });
     }
+  },
+
+  onMarkerDetailVideoWaiting() {
+    if (!this.data.markerDetailVideoLoading) {
+      this.setData({ markerDetailVideoLoading: true });
+    }
+  },
+
+  onMarkerDetailVideoReady() {
+    if (this.data.markerDetailVideoLoading) {
+      this.setData({ markerDetailVideoLoading: false });
+    }
+  },
+
+  openMapInlineVideoFullscreen(options = {}) {
+    const url = typeof options.url === "string" ? options.url.trim() : "";
+    if (!url) return;
+    const poster = typeof options.poster === "string" ? options.poster.trim() : "";
+    const videoId = typeof options.videoId === "string" ? options.videoId.trim() : "";
+    if (typeof wx.previewMedia === "function") {
+      wx.previewMedia({
+        sources: [{
+          url,
+          type: "video",
+          poster
+        }],
+        current: 0,
+        showmenu: true
+      });
+      return;
+    }
+    if (videoId && typeof wx.createVideoContext === "function") {
+      const ctx = wx.createVideoContext(videoId, this);
+      if (ctx && typeof ctx.play === "function") {
+        ctx.play();
+      }
+      if (ctx && typeof ctx.requestFullScreen === "function") {
+        ctx.requestFullScreen({ direction: 0 });
+      }
+    }
+  },
+
+  onMapInlineVideoTap(event = {}) {
+    this.openMapInlineVideoFullscreen({
+      url: event?.currentTarget?.dataset?.url || "",
+      poster: event?.currentTarget?.dataset?.poster || "",
+      videoId: event?.currentTarget?.dataset?.videoId || ""
+    });
   },
 
   isMarkerCertified(detail = {}) {
@@ -3709,6 +3936,20 @@ Page({
       detail.paid = true;
     }
     return detail;
+  },
+
+  getDetailMediaList(detail = {}) {
+    if (Array.isArray(detail?.mediaItems) && detail.mediaItems.length) {
+      return detail.mediaItems;
+    }
+    if (Array.isArray(detail?.images) && detail.images.length) {
+      return detail.images;
+    }
+    return [];
+  },
+
+  isVideoMediaItem(item = {}) {
+    return `${item?.type || ""}`.toLowerCase() === "video";
   },
 
   onMarkerCertificationBadgeTap() {
@@ -3984,11 +4225,15 @@ Page({
       markerPageClosing: false,
       markerPageDetail: pageDetail,
       markerPageCurrentImage: 0,
+      markerPageVideoLoading: this.isVideoMediaItem(this.getDetailMediaList(pageDetail)[0]),
       markerPageShareEnabled: this.isDetailSharable(pageDetail),
       markerPageIsPin: isPin,
       markerPageDistanceText: distanceText
     });
     this.loadMarkerLikeInfo({ detail: pageDetail, target: detail, forPage: true });
+    if (isPin) {
+      this.ensurePlayablePinDetailMedia(pageDetail, { forPage: true });
+    }
     this._markerPageScrollTop = 0;
     this._markerPageTouch = null;
     this.closeMarkerDetail(true);
@@ -4106,7 +4351,23 @@ Page({
   onMarkerPageSwiperChange(event) {
     const current = Number(event?.detail?.current);
     if (Number.isFinite(current)) {
-      this.setData({ markerPageCurrentImage: current });
+      const media = this.getDetailMediaList(this.data.markerPageDetail || {});
+      this.setData({
+        markerPageCurrentImage: current,
+        markerPageVideoLoading: this.isVideoMediaItem(media[current])
+      });
+    }
+  },
+
+  onMarkerPageVideoWaiting() {
+    if (!this.data.markerPageVideoLoading) {
+      this.setData({ markerPageVideoLoading: true });
+    }
+  },
+
+  onMarkerPageVideoReady() {
+    if (this.data.markerPageVideoLoading) {
+      this.setData({ markerPageVideoLoading: false });
     }
   },
 
