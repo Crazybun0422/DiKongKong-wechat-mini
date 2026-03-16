@@ -2,7 +2,7 @@ const { reverseGeocode } = require("../../../utils/geocoder");
 const { gcj02ToWgs84 } = require("../../../utils/coords");
 const { searchPlaces } = require("../../../utils/search");
 const { getMapKeySync, prefetchMapKey } = require("../../../utils/map-key");
-const { isWeChatRuntime, isDesktopRuntime } = require("../../../utils/runtime");
+const { shouldUseWeChatUom } = require("../../../utils/runtime");
 const { fetchNearbyMarkers } = require("../../../utils/markers");
 const { fetchNearbyPins } = require("../../../utils/pins");
 
@@ -14,7 +14,7 @@ const DEFAULT_CENTER = {
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
-const RUNTIME_IS_WECHAT = isWeChatRuntime() && !isDesktopRuntime();
+const RUNTIME_IS_WECHAT = shouldUseWeChatUom();
 const COORD_ADJUST_STEP = 0.00001;
 const PICKER_WIDE_LAYOUT_MIN_WIDTH = 560;
 const PICKER_WIDE_LAYOUT_MIN_RATIO = 1.1;

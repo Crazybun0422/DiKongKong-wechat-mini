@@ -27,22 +27,27 @@ function getRuntimeInfo() {
     appName: appBase.appName || appBase.hostName || "",
     host: appBase.host || appBase.hostName || "",
     hostName: appBase.hostName || "",
-    platform: deviceInfo.platform || appBase.platform || ""
+    platform: deviceInfo.platform || appBase.platform || "",
+    brand: deviceInfo.brand || ""
   };
 }
 
 function isWeChatRuntime() {
   try {
     const info = getRuntimeInfo();
-    const env = normalizeRuntimeField(info.host || info.hostName);
-    const appName = normalizeRuntimeField(info.appName || info.hostName);
-    if (!env && !appName) return false;
-    return (
-      env.includes("wechat") ||
-      env.includes("weixin") ||
-      appName.includes("weixin") ||
-      appName.includes("wechat")
-    );
+    const appName = normalizeRuntimeField(info.appName);
+    return appName === "weixin" || appName === "wechat";
+  } catch (err) {
+    return false;
+  }
+}
+
+function isDevtoolsRuntime() {
+  try {
+    const info = getRuntimeInfo();
+    const platform = normalizeRuntimeField(info.platform);
+    const brand = normalizeRuntimeField(info.brand);
+    return platform.includes("devtools") || brand.includes("devtools");
   } catch (err) {
     return false;
   }
@@ -63,7 +68,18 @@ function isDesktopRuntime() {
   }
 }
 
+function isQQRuntime() {
+  return !isWeChatRuntime();
+}
+
+function shouldUseWeChatUom() {
+  return isWeChatRuntime() && !isDevtoolsRuntime() && !isDesktopRuntime();
+}
+
 module.exports = {
   isWeChatRuntime,
-  isDesktopRuntime
+  isDevtoolsRuntime,
+  isDesktopRuntime,
+  isQQRuntime,
+  shouldUseWeChatUom
 };

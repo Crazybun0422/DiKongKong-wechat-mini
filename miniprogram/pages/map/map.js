@@ -68,7 +68,12 @@ const { fetchCheckinDetail } = require("../../utils/checkin");
 const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS, SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
 const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
 const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
-const { isWeChatRuntime, isDesktopRuntime } = require("../../utils/runtime");
+const {
+  isWeChatRuntime,
+  isDevtoolsRuntime,
+  isDesktopRuntime,
+  shouldUseWeChatUom
+} = require("../../utils/runtime");
 const {
   fetchCoordinateSystemDescription,
   fetchCoordinateLongPressGuide
@@ -1421,13 +1426,10 @@ Page({
     }
     const appName = `${appBase.appName || appBase.hostName || ""}`.toLowerCase();
     const host = `${appBase.host || appBase.hostName || ""}`.toLowerCase();
-    const isDevtools =
-      appName.includes("devtools") ||
-      appName.includes("开发者") ||
-      host.includes("devtools");
+    const isDevtools = isDevtoolsRuntime();
     const runtimeIsWeChat = isWeChatRuntime();
     const runtimeIsDesktop = isDesktopRuntime();
-    const useWeChatUom = runtimeIsWeChat && !isDevtools && !runtimeIsDesktop;
+    const useWeChatUom = shouldUseWeChatUom();
     console.log("[map] runtime", {
       runtimeIsWeChat,
       runtimeIsDesktop,

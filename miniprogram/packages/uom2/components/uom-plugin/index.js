@@ -1,5 +1,9 @@
 const { buildWmsOverlay, WMS_MIN_ZOOM, WMS_MAX_ZOOM } = require("../../../../utils/wms");
-const { isWeChatRuntime, isDesktopRuntime } = require("../../../../utils/runtime");
+const {
+  isWeChatRuntime,
+  isDesktopRuntime,
+  shouldUseWeChatUom
+} = require("../../../../utils/runtime");
 const {
   buildProvinceLayerRecords,
   buildProvinceLayerParams
@@ -194,7 +198,7 @@ Component({
       if (!this._miniApi) {
         this._miniApi = getMiniApi();
       }
-      this._runtimeIsWeChat = isWeChatRuntime() && !isDesktopRuntime();
+      this._runtimeIsWeChat = shouldUseWeChatUom();
       console.log("[uom2] env", {
         runtimeIsWeChat: this._runtimeIsWeChat,
         hasWx: typeof wx !== "undefined",
@@ -240,7 +244,7 @@ Component({
         this._centerCoordType = `${centerCoordType}`.toLowerCase();
       }
       if (this._runtimeIsWeChat === null) {
-        this._runtimeIsWeChat = isWeChatRuntime() && !isDesktopRuntime();
+        this._runtimeIsWeChat = shouldUseWeChatUom();
       }
       if (this._runtimeIsWeChat) {
         this.clearTiles();
