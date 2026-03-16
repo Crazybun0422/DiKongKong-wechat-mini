@@ -61,6 +61,61 @@ const DEFAULT_TYPE = TYPE_SECTIONS[0].options[0];
 const PIN_SHAPE_COLOR = "#D3A05B";
 const PIN_SHAPE_STROKE = "#D3A05BF2";
 const PIN_SHAPE_FILL = "#D3A05B4D";
+const MERCHANT_MARKER_ICON = "/assets/drone.png";
+const PIN_TYPE_ICON_MAP = {
+  POINT_DEFAULT: "/assets/default.png",
+  POINT_WARNING: "/assets/drone-warning.png",
+  POINT_AERIAL: "/assets/aerial.png",
+  POINT_DOCK: "/assets/dock.png",
+  POINT_ELEVATION: "/assets/elevation.png",
+  LINE_PATH_BUFFER: "/assets/path.png",
+  AREA_CIRCLE: "/assets/circle.png",
+  AREA_RECTANGLE: "/assets/rectangle.png",
+  AREA_POLYGON: "/assets/polygon.png"
+};
+
+function resolvePinPointTypeId(shape = {}) {
+  const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
+  switch (pointCategory) {
+    case "WARNING":
+      return "POINT_WARNING";
+    case "AERIAL_SHOT":
+      return "POINT_AERIAL";
+    case "TAKEOFF_LANDING":
+      return "POINT_DOCK";
+    case "TALL_BUILDING":
+      return "POINT_ELEVATION";
+    default:
+      return "POINT_DEFAULT";
+  }
+}
+
+function resolvePinNearbyIcon(shape = {}) {
+  const shapeType = `${shape.type || ""}`.toUpperCase();
+  if (shapeType === "LINE" || shapeType === "PATH") {
+    return PIN_TYPE_ICON_MAP.LINE_PATH_BUFFER;
+  }
+  if (shapeType === "CIRCLE") {
+    return PIN_TYPE_ICON_MAP.AREA_CIRCLE;
+  }
+  if (shapeType === "RECTANGLE") {
+    return PIN_TYPE_ICON_MAP.AREA_RECTANGLE;
+  }
+  if (shapeType === "POLYGON" || shapeType === "AREA") {
+    return PIN_TYPE_ICON_MAP.AREA_POLYGON;
+  }
+  return PIN_TYPE_ICON_MAP[resolvePinPointTypeId(shape)] || PIN_TYPE_ICON_MAP.POINT_DEFAULT;
+}
+
+function normalizeNearbyShapePoints(list = []) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item = {}) => ({
+      latitude: normalizeCoord(item.latitude ?? item.lat ?? item[1]),
+      longitude: normalizeCoord(item.longitude ?? item.lng ?? item[0])
+    }))
+    .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
+}
 
 function getWindowMetrics(event = {}) {
   let windowInfo = {};
@@ -409,6 +464,9 @@ Page({
     this._shapePolygons = Array.isArray(this.data.bufferPolygons) ? this.data.bufferPolygons.slice() : [];
     this._shapeCircles = Array.isArray(this.data.circles) ? this.data.circles.slice() : [];
     this._shapeMarkers = Array.isArray(this.data.markers) ? this.data.markers.slice() : [];
+    this._nearbyPinPolylines = [];
+    this._nearbyPinPolygons = [];
+    this._nearbyPinCircles = [];
     this._nearbyMarkerPins = [];
     this._nearbyMerchantMarkers = [];
     this._mapMarkerIdMap = new Map();
@@ -689,7 +747,7 @@ Page({
             id: item.id || item.markId || item.markIdNew || `nearby-marker-${index}`,
             latitude: lat,
             longitude: lng,
-            iconPath: "/assets/default.png",
+            iconPath: MERCHANT_MARKER_ICON,
             width: 18,
             height: 18,
             alpha: 0.78,
@@ -704,6 +762,8 @@ Page({
     return this.normalizeMapMarkerList(
       list
         .map((item = {}, index) => {
+          const shapeType = `${item?.shape?.type || ""}`.toUpperCase();
+          if (shapeType && shapeType !== "POINT") return null;
           const coords = Array.isArray(item?.shape?.coordinates) ? item.shape.coordinates : [];
           const first = Array.isArray(coords[0]) ? coords[0] : coords[0] || {};
           const lat = normalizeCoord(first.latitude ?? first.lat ?? first[1] ?? item.latitude);
@@ -713,7 +773,7 @@ Page({
             id: item.id || item.pinId || item.pinIdNew || `nearby-pin-${index}`,
             latitude: lat,
             longitude: lng,
-            iconPath: "/assets/default.png",
+            iconPath: resolvePinNearbyIcon(item?.shape || {}),
             width: 16,
             height: 16,
             alpha: 0.66,
@@ -722,6 +782,48 @@ Page({
         })
         .filter(Boolean)
     );
+  },
+
+  buildNearbyPinGraphics(list = []) {
+    const markers = this.buildNearbyPinMarkers(list);
+    const polylines = [];
+    const polygons = [];
+    const circles = [];
+    (Array.isArray(list) ? list : []).forEach((item = {}) => {
+      const shape = item?.shape || {};
+      const type = `${shape.type || ""}`.toUpperCase();
+      const points = normalizeNearbyShapePoints(shape.coordinates);
+      if ((type === "LINE" || type === "PATH") && points.length >= 2) {
+        polylines.push({
+          points,
+          color: PIN_SHAPE_STROKE,
+          width: 4,
+          dottedLine: false
+        });
+        return;
+      }
+      if ((type === "POLYGON" || type === "AREA" || type === "RECTANGLE") && points.length >= 3) {
+        polygons.push({
+          points,
+          fillColor: PIN_SHAPE_FILL,
+          strokeColor: PIN_SHAPE_STROKE,
+          strokeWidth: 2
+        });
+        return;
+      }
+      if (type === "CIRCLE" && points.length >= 1 && Number.isFinite(Number(shape.radius))) {
+        const center = points[0];
+        circles.push({
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radius: Number(shape.radius),
+          color: PIN_SHAPE_STROKE,
+          fillColor: PIN_SHAPE_FILL,
+          strokeWidth: 2
+        });
+      }
+    });
+    return { markers, polylines, polygons, circles };
   },
 
   refreshNearbyContent(latitude, longitude) {
@@ -738,15 +840,27 @@ Page({
       const markerList = results[0]?.status === "fulfilled" ? results[0].value : [];
       const pinList = results[1]?.status === "fulfilled" ? results[1].value : [];
       this._nearbyMerchantMarkers = this.buildNearbyMerchantMarkers(markerList);
-      this._nearbyMarkerPins = this.buildNearbyPinMarkers(pinList);
+      const nearbyPinGraphics = this.buildNearbyPinGraphics(pinList);
+      this._nearbyMarkerPins = nearbyPinGraphics.markers;
+      this._nearbyPinPolylines = nearbyPinGraphics.polylines;
+      this._nearbyPinPolygons = nearbyPinGraphics.polygons;
+      this._nearbyPinCircles = nearbyPinGraphics.circles;
       this.applyMapGraphics();
     });
+  },
+
+  composeMapPolyline(basePolyline = []) {
+    const polylines = [];
+    if (Array.isArray(this._nearbyPinPolylines)) polylines.push(...this._nearbyPinPolylines);
+    if (Array.isArray(basePolyline)) polylines.push(...basePolyline);
+    return polylines;
   },
 
   composeMapPolygons(basePolygons = []) {
     const polygons = [];
     if (Array.isArray(this._djiPolygons)) polygons.push(...this._djiPolygons);
     if (Array.isArray(this._nfzPolygons)) polygons.push(...this._nfzPolygons);
+    if (Array.isArray(this._nearbyPinPolygons)) polygons.push(...this._nearbyPinPolygons);
     if (Array.isArray(basePolygons)) polygons.push(...basePolygons);
     return polygons;
   },
@@ -755,6 +869,7 @@ Page({
     const circles = [];
     if (Array.isArray(this._djiCircles)) circles.push(...this._djiCircles);
     if (Array.isArray(this._nfzCircles)) circles.push(...this._nfzCircles);
+    if (Array.isArray(this._nearbyPinCircles)) circles.push(...this._nearbyPinCircles);
     if (Array.isArray(baseCircles)) circles.push(...baseCircles);
     return circles;
   },
@@ -790,7 +905,7 @@ Page({
       this._shapeMarkers = Array.isArray(options.markers) ? options.markers : [];
     }
     this.setData({
-      polyline: Array.isArray(this._shapePolyline) ? this._shapePolyline : [],
+      polyline: this.composeMapPolyline(this._shapePolyline),
       bufferPolygons: this.composeMapPolygons(this._shapePolygons),
       circles: this.composeMapCircles(this._shapeCircles),
       markers: this.composeMapMarkers(this._shapeMarkers)

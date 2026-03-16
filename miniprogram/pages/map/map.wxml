@@ -235,7 +235,7 @@
               <input
                 class="search-field"
                 type="text"
-                placeholder="搜索"
+                placeholder="地址或经纬度"
                 placeholder-style="color:#f1f1f1"
                 value="{{keyword}}"
                 bindinput="onKeywordInput"
@@ -252,6 +252,15 @@
                 <image class="search-btn-icon" src="/assets/search.png" mode="aspectFit" />
               </button>
             </view>
+            <button
+              class="search-tips-btn search-tips-btn--outside"
+              hover-class="search-tips-btn-hover"
+              hover-start-time="10"
+              hover-stay-time="80"
+              bindtap="onSearchCoordinateTipsTap"
+            >
+              <image class="search-tips-btn-icon" src="/assets/tips-b.png" mode="aspectFit" />
+            </button>
             <view class="search-suggest-panel" wx:if="{{searchSuggestions.length || searchSuggestLoading || searchSuggestError}}">
               <view class="search-suggest-state" wx:if="{{searchSuggestLoading}}">搜索中...</view>
               <view class="search-suggest-state" wx:elif="{{searchSuggestError}}">{{searchSuggestError}}</view>
@@ -900,6 +909,17 @@
         <view class="city-report-dialog-card">
           <text class="city-report-dialog-text">{{cityReportDialogText}}</text>
           <view class="city-report-dialog-btn" catchtap="onCityReportDialogClose">我知道了</view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{searchCoordinateTipsVisible}}">
+    <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
+      <view class="city-report-dialog-container">
+        <view class="city-report-dialog-card">
+          <text class="city-report-dialog-text">{{searchCoordinateTipsText}}</text>
+          <view class="city-report-dialog-btn" catchtap="onCloseSearchCoordinateTipsDialog">我知道了</view>
         </view>
       </view>
     </view>

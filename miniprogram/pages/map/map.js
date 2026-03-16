@@ -16,6 +16,12 @@ const {
 } = require("../../utils/marker-detail");
 const { reverseGeocode } = require("../../utils/geocoder");
 const {
+  parseCoordinateSearchKeyword,
+  buildCoordinateSuggestion,
+  convertParsedCoordinateToGcj02,
+  SEARCH_COORDINATE_TIPS_TEXT
+} = require("../../utils/coordinate-search");
+const {
   buildNoFlyZoneGraphics
 } = require("../../utils/no-fly-zones");
 const {
@@ -1156,6 +1162,8 @@ Page({
     searchSuggestions: [],
     searchSuggestLoading: false,
     searchSuggestError: "",
+    searchCoordinateTipsVisible: false,
+    searchCoordinateTipsText: SEARCH_COORDINATE_TIPS_TEXT,
     myLocationPoint: null,
     myLocationVisible: false,
     searchLinkCenter: null,
@@ -6003,6 +6011,15 @@ Page({
     this.performSearch();
   },
 
+  onSearchCoordinateTipsTap() {
+    this.setData({ searchCoordinateTipsVisible: true });
+  },
+
+  onCloseSearchCoordinateTipsDialog() {
+    if (!this.data.searchCoordinateTipsVisible) return;
+    this.setData({ searchCoordinateTipsVisible: false });
+  },
+
   onChatButtonTap() {
     this.showPlaceholderToast("您暂未获得低空智能体（Agent）体验特权");
   },
@@ -8249,6 +8266,19 @@ Page({
       });
       return;
     }
+    const coordinateResult = parseCoordinateSearchKeyword(keyword);
+    if (coordinateResult) {
+      const suggestion = buildCoordinateSuggestion(coordinateResult);
+      const marker = this.buildSearchSelectionMarker(suggestion, 0);
+      if (marker) {
+        this.applySearchSelectionFromMarker(marker, {
+          keyword: coordinateResult.title,
+          centerOnPoint: true,
+          centerScale: 15
+        });
+      }
+      return;
+    }
     this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_SEARCH });
     wx.showLoading({ title: "Searching...", mask: true });
     let locationArgs = null;
@@ -8383,6 +8413,16 @@ Page({
         searchSuggestions: [],
         searchSuggestLoading: false,
         searchSuggestError: ""
+      });
+      return;
+    }
+    const coordinateResult = parseCoordinateSearchKeyword(keyword);
+    if (coordinateResult) {
+      const suggestion = buildCoordinateSuggestion(coordinateResult);
+      this.setData({
+        searchSuggestions: suggestion ? [suggestion] : [],
+        searchSuggestLoading: false,
+        searchSuggestError: suggestion ? "" : "没有匹配的地点"
       });
       return;
     }
@@ -8920,19 +8960,11 @@ Page({
         detail: cloneMarkerDetail(detail)
       }
     };
-    const scaleInMeters = this.getCurrentScaleInMeters();
-    const displayMode = this.resolveMarkerDisplayMode(payload.raw || detail.raw || detail, scaleInMeters);
-    if (displayMode === DISPLAY_MODE_HIDDEN) {
-      return null;
-    }
     const calloutContent = formatNearbyMarkerLabel(markerTitle);
-    if (calloutContent && (!displayMode || displayMode === DISPLAY_MODE_ICON_WITH_NAME)) {
+    if (calloutContent) {
       marker.callout = buildMarkerNameCallout(calloutContent);
     }
-    return this.applyDisplayModeToMarker(marker, payload.raw || detail.raw || detail, {
-      scaleInMeters,
-      baseSize: options.width || 44
-    });
+    return marker;
   },
 
   buildQqSuggestion(poi = {}, index = 0) {
@@ -8997,6 +9029,58 @@ Page({
     return marker;
   },
 
+  buildCoordinateSearchMarker(payload = {}, options = {}) {
+    const displayLatitude = Number(payload.latitude);
+    const displayLongitude = Number(payload.longitude);
+    if (!Number.isFinite(displayLatitude) || !Number.isFinite(displayLongitude)) {
+      return null;
+    }
+    const gcj = convertParsedCoordinateToGcj02(payload, this.data.coordinateSystem);
+    const latitude = Number(gcj?.lat);
+    const longitude = Number(gcj?.lng);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    const title = `${payload.title || "经纬度位置"}`.trim();
+    const address = `${payload.address || ""}`.trim();
+    const rawDetail = {
+      id: payload.id || `coordinate-search-${Date.now()}`,
+      name: title,
+      title,
+      address,
+      latitude,
+      longitude,
+      displayLatitude,
+      displayLongitude,
+      coordinateSystem: this.data.coordinateSystem,
+      location: { text: address }
+    };
+    const marker = {
+      id: rawDetail.id,
+      latitude,
+      longitude,
+      title
+    };
+    if (title || address) {
+      marker.callout = {
+        content: address ? `${title}\n${address}` : title,
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+    }
+    const detail = this.composeMarkerDetail(rawDetail, marker, {
+      source: options.source || "coordinate-search",
+      name: title,
+      locationText: address,
+      id: rawDetail.id
+    });
+    marker.extData = {
+      source: options.source || "coordinate-search",
+      raw: rawDetail,
+      detail: cloneMarkerDetail(detail)
+    };
+    return marker;
+  },
+
   buildSearchSelectionMarker(suggestion = {}, index = 0) {
     if (!suggestion || typeof suggestion !== "object") return null;
     if (suggestion.source === "marker" && suggestion.markerPayload) {
@@ -9012,6 +9096,11 @@ Page({
     if (suggestion.source === "qqmap" && suggestion.rawPoi) {
       return this.buildQqSearchMarker(suggestion.rawPoi, index);
     }
+    if (suggestion.source === "coordinate" && suggestion.coordinatePayload) {
+      return this.buildCoordinateSearchMarker(suggestion.coordinatePayload, {
+        source: "coordinate-search-selected"
+      });
+    }
     const latitude = Number(suggestion.latitude);
     const longitude = Number(suggestion.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -9022,9 +9111,6 @@ Page({
       latitude,
       longitude,
       title: suggestion.title || "",
-      iconPath: "/assets/default.png",
-      width: 24,
-      height: 24,
       extData: {
         source: "search-selected",
         raw: suggestion
@@ -9054,7 +9140,9 @@ Page({
       src === "marker-search" ||
       src === "marker-search-selected" ||
       src === "pin-search" ||
-      src === "pin-search-selected"
+      src === "pin-search-selected" ||
+      src === "coordinate-search" ||
+      src === "coordinate-search-selected"
     );
   },
 
@@ -9107,7 +9195,58 @@ Page({
         : 15;
       this.centerOnPoint(target, centerScale);
     }
+    this.resolveSearchSelectionAddress(selectedMarker);
     return true;
+  },
+
+  resolveSearchSelectionAddress(marker = {}) {
+    const source = `${marker?.extData?.source || marker?.source || ""}`.trim().toLowerCase();
+    if (!source.includes("coordinate")) return;
+    const latitude = Number(marker.latitude);
+    const longitude = Number(marker.longitude);
+    const markerId = marker.id;
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !markerId) {
+      return;
+    }
+    this.requestPinAddress(latitude, longitude)
+      .then((address) => {
+        if (!address) return;
+        this.applySearchMarkerAddress(markerId, address);
+      })
+      .catch((err) => console.warn("resolve coordinate search address failed", err));
+  },
+
+  applySearchMarkerAddress(markerId, address) {
+    if (!markerId || !address || !Array.isArray(this._searchMarkers)) return;
+    let changed = false;
+    const nextMarkers = this._searchMarkers.map((marker) => {
+      if (`${marker?.id || ""}` !== `${markerId}`) {
+        return marker;
+      }
+      const next = Object.assign({}, marker);
+      const title = `${next.title || next.name || "经纬度位置"}`.trim();
+      next.callout = {
+        content: `${title}\n${address}`,
+        display: "ALWAYS",
+        borderRadius: 4,
+        padding: 4
+      };
+      if (next.extData && typeof next.extData === "object") {
+        const raw = Object.assign({}, next.extData.raw || {}, {
+          address,
+          location: { text: address }
+        });
+        const detail = Object.assign({}, next.extData.detail || {}, {
+          address,
+          locationText: address
+        });
+        next.extData = Object.assign({}, next.extData, { raw, detail });
+      }
+      changed = true;
+      return next;
+    });
+    if (!changed) return;
+    this.applySearchMarkers(nextMarkers);
   },
 
   resolveMarkerDetail(marker) {
@@ -9207,16 +9346,11 @@ Page({
       longitude: payload.longitude,
       title: payload.name,
       iconPath: "/assets/default.png",
-      width: 32,
-      height: 32
+      width: 44,
+      height: 44
     };
-    const scaleInMeters = this.getCurrentScaleInMeters();
-    const displayMode = this.resolveMarkerDisplayMode(payload.raw || payload.detail || {}, scaleInMeters);
-    if (displayMode === DISPLAY_MODE_HIDDEN) {
-      return null;
-    }
     const calloutContent = formatNearbyMarkerLabel(payload.name || "");
-    if (calloutContent && (!displayMode || displayMode === DISPLAY_MODE_ICON_WITH_NAME)) {
+    if (calloutContent) {
       marker.callout = buildMarkerNameCallout(calloutContent, {
         color: "#14532d",
         borderColor: "#14532d"
@@ -9227,10 +9361,7 @@ Page({
       raw: payload.raw || {},
       detail: cloneMarkerDetail(payload.detail || {})
     };
-    return this.applyDisplayModeToMarker(marker, payload.raw || payload.detail || {}, {
-      scaleInMeters,
-      baseSize: 32
-    });
+    return marker;
   },
 
   getAuthToken() {

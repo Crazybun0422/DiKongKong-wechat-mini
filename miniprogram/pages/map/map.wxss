@@ -664,16 +664,20 @@ button.marker-page-share-header--disabled {
   flex: 1;
   width: 100%;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0rpx;
   pointer-events: auto;
 }
 
 .search-pill {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   border: 2rpx solid rgba(255, 255, 255, 0.95);
   border-radius: 999rpx;
   height: 72rpx;
+  min-width: 0;
   padding-left: 28rpx;
   background: rgba(0, 0, 0, 0.22);
   pointer-events: auto;
@@ -693,6 +697,42 @@ button.marker-page-share-header--disabled {
 
 .search-field::placeholder {
   color: rgba(255, 255, 255, 0.85);
+}
+
+button.search-tips-btn {
+  flex-shrink: 0;
+  width: 48rpx;
+  height: 48rpx;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  pointer-events: auto;
+}
+
+button.search-tips-btn::after {
+  border: 0;
+  content: none;
+}
+
+.search-tips-btn-icon {
+  width: 34rpx;
+  height: 34rpx;
+  opacity: 0.92;
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.search-tips-btn-hover {
+  transform: scale(0.92);
+  opacity: 0.88;
+}
+
+.search-tips-btn--outside {
+  width: 40rpx;
+  height: 40rpx;
+  margin-left: -2rpx;
 }
 
 button.search-btn {
