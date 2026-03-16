@@ -1,5 +1,6 @@
 const {
   resolveApiBase,
+  authorizedRequest,
   extractAvatarFileName,
   buildAvatarDownloadUrl
 } = require("./profile");
@@ -28,26 +29,12 @@ function fetchOpenPlatformCopy(options = {}) {
 }
 
 function fetchShareToPlatformCopy(options = {}) {
-  const base = resolveApiBase(options.apiBase);
-  if (!base) {
-    return Promise.reject(new Error("missing-api-base"));
-  }
-  return new Promise((resolve, reject) => {
-    wx.request({
-      url: `${base}/api/config/share-to-platform-copy`,
-      method: "GET",
-      header: { "content-type": "application/json" },
-      success: (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data?.data || {});
-        } else {
-          const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
-          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
-        }
-      },
-      fail: (err) => reject(err)
-    });
-  });
+  return authorizedRequest({
+    apiBase: resolveApiBase(options.apiBase),
+    token: options.token,
+    path: "/api/config/share-to-platform-copy",
+    method: "GET"
+  }).then((body = {}) => body?.data || {});
 }
 
 

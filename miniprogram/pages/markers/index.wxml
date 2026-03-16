@@ -54,7 +54,7 @@
                 </view>
               </view>
               <text class="merchant-overview-tip">*入驻低空门店（服务），获取精准客户。</text>
-              <button class="merchant-overview-action" bindtap="onCreateTap">立即入驻</button>
+              <button class="merchant-overview-action" bindtap="onCreateTap">免费入驻</button>
             </view>
             <view class="merchant-guide-entry" bindtap="onMerchantGuideTap">
               <text class="merchant-guide-entry-text">星球商户进阶攻略 ></text>
@@ -781,20 +781,6 @@
             </view>
           </view>
 
-          <view class="form-card">
-            <view class="field-label">行业荣誉标签</view>
-            <view class="field-tip">如高新技术企业、/培训资质/行业关键词</view>
-            <view class="tag-editor">
-              <block wx:for="{{form.industryHonorTags}}" wx:key="*this">
-                <view class="tag-chip">
-                  <text>{{item}}</text>
-                  <view class="tag-remove" data-index="{{index}}" bindtap="onRemoveTag">✕</view>
-                </view>
-              </block>
-              <input class="tag-input" placeholder="输入后回车添加" value="{{tagInput}}" confirm-type="done" bindinput="onTagInput" bindconfirm="onTagConfirm" />
-            </view>
-          </view>
-
           <view class="form-card decoration-card {{!merchantCertified ? 'is-locked' : ''}}">
             <view class="decoration-card-header" bindtap="onToggleMerchantDecoration">
               <view class="decoration-card-title-group">
@@ -811,7 +797,29 @@
             </view>
             <view wx:if="{{merchantDecorationExpanded}}" class="decoration-card-body">
               <view wx:if="{{!merchantCertified}}" class="decoration-card-lock-tip">
-                认证入驻后可继续完善产品业务资料、体验二维码和视频号内容
+                认证入驻后可继续完善行业标签、产品业务资料、体验二维码和视频号内容
+              </view>
+
+              <view class="field-block">
+                <view class="field-label">行业荣誉标签</view>
+                <view class="field-tip">如高新技术企业、培训资质、行业关键词</view>
+                <view class="tag-editor {{!merchantCertified ? 'is-disabled' : ''}}">
+                  <block wx:for="{{form.industryHonorTags}}" wx:key="*this">
+                    <view class="tag-chip">
+                      <text>{{item}}</text>
+                      <view wx:if="{{merchantCertified}}" class="tag-remove" data-index="{{index}}" bindtap="onRemoveTag">✕</view>
+                    </view>
+                  </block>
+                  <input
+                    class="tag-input"
+                    placeholder="输入后回车添加"
+                    value="{{tagInput}}"
+                    confirm-type="done"
+                    bindinput="onTagInput"
+                    bindconfirm="onTagConfirm"
+                    disabled="{{!merchantCertified}}"
+                  />
+                </view>
               </view>
 
               <view class="field-block">
@@ -1170,7 +1178,7 @@
         </view>
         <image class="publish-platform-banner" src="/pages/markers/assets/release-to-map.png" mode="widthFix" />
         <text class="modal-title-share">共享到平台</text>
-        <view class="modal-body publish-platform-body share">
+        <scroll-view class="modal-body publish-platform-body share" scroll-y="true" enhanced="true" show-scrollbar="false">
           <text wx:if="{{publishPlatformDialogLoading}}" class="publish-platform-state">加载中...</text>
           <text wx:elif="{{publishPlatformDialogError}}" class="publish-platform-state is-error">{{publishPlatformDialogError}}</text>
           <block wx:elif="{{publishPlatformDialogSegments.length}}">
@@ -1202,7 +1210,7 @@
             space="nbsp"
             bindtap="onPublishPlatformRichTextTap"
           />
-        </view>
+        </scroll-view>
         <view class="publish-platform-actions">
           <button class="publish-platform-btn primary" bindtap="onPublishPlatformConfirm">确定</button>
           <button class="publish-platform-btn secondary" bindtap="onPublishPlatformCancel">取消</button>

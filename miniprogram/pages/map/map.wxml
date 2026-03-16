@@ -482,6 +482,9 @@
                     bindwaiting="onMarkerDetailVideoWaiting"
                     bindplay="onMarkerDetailVideoReady"
                     bindloadeddata="onMarkerDetailVideoReady"
+                    bindcanplay="onMarkerDetailVideoReady"
+                    bindpause="onMarkerDetailVideoReady"
+                    bindended="onMarkerDetailVideoReady"
                   />
                   <view
                     wx:if="{{item.type === 'video'}}"
@@ -557,6 +560,9 @@
                       bindwaiting="onMarkerPageVideoWaiting"
                       bindplay="onMarkerPageVideoReady"
                       bindloadeddata="onMarkerPageVideoReady"
+                      bindcanplay="onMarkerPageVideoReady"
+                      bindpause="onMarkerPageVideoReady"
+                      bindended="onMarkerPageVideoReady"
                     />
                     <view
                       wx:if="{{item.type === 'video'}}"

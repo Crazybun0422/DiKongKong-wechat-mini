@@ -174,8 +174,8 @@ const CREATE_ENTRY_MODE_CERTIFY = "CERTIFY";
 const CREATE_ENTRY_MODE_RENEW = "RENEW";
 const PIN_MEDIA_MAX_COUNT = 3;
 const PIN_VIDEO_MAX_COUNT = 1;
-const PIN_VIDEO_LOW_FLP_MAX_SIZE = 50 * 1024 * 1024;
-const PIN_VIDEO_MAX_SIZE = 200 * 1024 * 1024;
+const PIN_VIDEO_LOW_FLP_MAX_SIZE = 200 * 1024 * 1024;
+const PIN_VIDEO_HIGH_FLP_MAX_SIZE = 300 * 1024 * 1024;
 const KML_FILE_SIZE_LIMIT = 1024 * 1024;
 const KML_IMPORT_MAX_COUNT = 10;
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
@@ -3162,7 +3162,7 @@ Page({
     const isDraft = reviewStatus === "DRAFT";
     const statusLabel = statusMeta.label;
     const statusTone = statusMeta.tone;
-    const disableModifyActions = !!raw.paid && reviewStatus === "PENDING";
+    const disableModifyActions = reviewStatus === "PENDING";
     const download = (value) => buildFileDownloadUrl(value, { apiBase: this.apiBase });
     const markerIdValue = raw.markIdNew ?? raw.markId ?? raw.id ?? "";
     const markerId = markerIdValue !== undefined && markerIdValue !== null ? `${markerIdValue}` : "";
@@ -3797,8 +3797,11 @@ Page({
       publishPlatformDialogLoading: true,
       publishPlatformDialogError: ""
     });
-    fetchShareToPlatformCopy({ apiBase: this.apiBase })
-      .then((payload = {}) => {
+      fetchShareToPlatformCopy({
+        apiBase: this.apiBase,
+        token: this.getAuthToken()
+      })
+        .then((payload = {}) => {
         const html = typeof payload.content === "string" ? payload.content : "";
         this.setData({
           publishPlatformDialogNodes: transformHtmlContent(html, { apiBase: this.apiBase }),
@@ -4185,7 +4188,7 @@ Page({
     this.setData({
       createStep: 1,
       maxStepReached: nextMax,
-      activeMerchantEntryTab: "CERTIFIED",
+    activeMerchantEntryTab: "FREE",
       merchantDecorationExpanded: true
     }, () => {
       this.refreshCreateSubmitButtonText();
@@ -4247,7 +4250,7 @@ Page({
         maxStepReached: 0,
         form: createEmptyForm(),
         tagInput: "",
-        activeMerchantEntryTab: "CERTIFIED",
+        activeMerchantEntryTab: "FREE",
         merchantCertified: false,
         merchantDecorationExpanded: false,
         selectedPaymentMethod: PAYMENT_METHODS[0].id,
@@ -4258,13 +4261,14 @@ Page({
         createEntryMode: CREATE_ENTRY_MODE_NORMAL,
         createPaymentRequired: false,
         submitButtonText: "提交审核",
-        showPaymentSection: true,
+        showPaymentSection: false,
         paymentPromptMessage: "",
         paymentStatusMessage: DEFAULT_CERTIFIED_STATUS_MESSAGE,
         resultStepsLocked: false
       },
       () => {
         this.captureCreateFormSnapshot(this.data.form);
+        this.loadMerchantIntroLongImage();
         this.ensureValidPaymentSelection();
         this.refreshCreateSubmitButtonText();
       }
@@ -4276,11 +4280,12 @@ Page({
     const balance = Number(this.data.flpBalance);
     const hasThreshold = Number.isFinite(threshold);
     const highQualityEnabled = hasThreshold && Number.isFinite(balance) && balance > threshold;
+    const sizeLimit = highQualityEnabled ? PIN_VIDEO_HIGH_FLP_MAX_SIZE : PIN_VIDEO_LOW_FLP_MAX_SIZE;
     return {
       highQualityEnabled,
       useCompression: !highQualityEnabled,
-      sizeLimit: highQualityEnabled ? PIN_VIDEO_MAX_SIZE : PIN_VIDEO_LOW_FLP_MAX_SIZE,
-      oversizeMessage: highQualityEnabled ? "视频不能超过200MB" : "FLP不足哦"
+      sizeLimit,
+      oversizeMessage: highQualityEnabled ? `视频不能超过${Math.round(sizeLimit / (1024 * 1024))}MB` : "FLP不足哦"
     };
   },
 
@@ -4694,12 +4699,15 @@ Page({
   validatePinVideoSizes(files = [], uploadPolicy = {}) {
     const list = Array.isArray(files) ? files.filter(Boolean) : [];
     if (!list.length) return Promise.resolve();
-    const sizeLimit = Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_MAX_SIZE;
-    const oversizeMessage = uploadPolicy?.oversizeMessage || "视频不能超过200MB";
+    const sizeLimit = Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_HIGH_FLP_MAX_SIZE;
+    const oversizeMessage =
+      uploadPolicy?.oversizeMessage || `视频不能超过${Math.round(sizeLimit / (1024 * 1024))}MB`;
     return Promise.all(list.map((item) => this.fetchPinVideoFileSize(item))).then((sizes) => {
-      const oversized = sizes.some((size) => Number(size) > sizeLimit);
-      if (oversized) {
-        throw new Error(oversizeMessage);
+      const oversizedSize = sizes.find((size) => Number(size) > sizeLimit);
+      if (Number.isFinite(oversizedSize)) {
+        const sizeInMb = (Number(oversizedSize) / (1024 * 1024)).toFixed(1);
+        const limitInMb = (Number(sizeLimit) / (1024 * 1024)).toFixed(0);
+        throw new Error(`${oversizeMessage}（当前${sizeInMb}MB，限制${limitInMb}MB）`);
       }
     });
   },
@@ -4725,10 +4733,12 @@ Page({
   },
 
   confirmPinVideoCompressionForOversize() {
+    const uploadPolicy = this.getPinVideoUploadPolicy();
+    const limitMb = Math.round((Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_HIGH_FLP_MAX_SIZE) / (1024 * 1024));
     return new Promise((resolve) => {
       wx.showModal({
         title: "视频过大",
-        content: "视频超过200MB，是否压缩后上传？",
+        content: `视频超过${limitMb}MB，是否压缩后上传？`,
         confirmText: "压缩上传",
         cancelText: "取消",
         success: (res) => resolve(!!res?.confirm),
@@ -4748,7 +4758,7 @@ Page({
             .filter(Boolean)
         )
         .catch((err) => {
-          if (err?.message !== "视频不能超过200MB") {
+          if (!`${err?.message || ""}`.startsWith("视频不能超过")) {
             throw err;
           }
           return this.confirmPinVideoCompressionForOversize().then((confirmed) => {
@@ -5545,10 +5555,10 @@ Page({
       createPaymentRequired: false,
       submitButtonText: "提交审核",
       createStep: 0,
-      activeMerchantEntryTab: "CERTIFIED",
+      activeMerchantEntryTab: "FREE",
       merchantCertified: false,
       merchantDecorationExpanded: false,
-      showPaymentSection: true,
+      showPaymentSection: false,
       paymentPromptMessage: "",
       paymentStatusMessage: DEFAULT_CERTIFIED_STATUS_MESSAGE,
       selectedPaymentMethod: PAYMENT_METHODS[0].id,

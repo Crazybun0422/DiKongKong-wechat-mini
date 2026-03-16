@@ -86,13 +86,19 @@ Page({
     imageUrls: [],
     showSubscriptionBanner: false,
     subscriptionBannerLoading: false,
-    refresherTriggered: false
+    refresherTriggered: false,
+    adFloatingVisible: true,
+    adFloatingClosed: false
   },
 
   onLoad() {
     if (DEFAULT_TITLE && typeof wx.setNavigationBarTitle === "function") {
       wx.setNavigationBarTitle({ title: DEFAULT_TITLE });
     }
+    this.setData({
+      adFloatingVisible: true,
+      adFloatingClosed: false
+    });
     this.loadContent();
     this.evaluateSubscriptionBannerVisibility().catch(() => { });
   },
@@ -287,6 +293,25 @@ Page({
 
   onImageLongPress(event) {
     this.onImageTap(event);
+  },
+
+  adLoad() {
+    console.log("原生模板广告加载成功");
+    if (this.data.adFloatingClosed) return;
+    this.setData({ adFloatingVisible: true });
+  },
+
+  adError(err) {
+    console.error("原生模板广告加载失败", err);
+    this.setData({ adFloatingVisible: false });
+  },
+
+  adClose() {
+    console.log("原生模板广告关闭");
+    this.setData({
+      adFloatingVisible: false,
+      adFloatingClosed: true
+    });
   },
 
   getApiBase() {

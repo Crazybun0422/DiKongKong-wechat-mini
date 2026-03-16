@@ -12,6 +12,11 @@
   overflow: hidden;
 }
 
+.subscription-feed-scroll-inner {
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
 .subscription-feed-loading,
 .subscription-feed-error {
   margin-top: 120rpx;
@@ -273,4 +278,20 @@
   left: 50%;
   bottom: calc(env(safe-area-inset-bottom) + 32rpx);
   transform: translateX(-50%);
+}
+
+.subscription-feed-floating-ad {
+  position: fixed;
+  right: 32rpx;
+  top: 53%;
+  transform: translateY(-50%);
+  width: 164rpx;
+  z-index: 34;
+  pointer-events: none;
+}
+
+.subscription-feed-floating-ad-inner {
+  position: relative;
+  width: 100%;
+  pointer-events: auto;
 }

@@ -2008,7 +2008,7 @@
 }
 
 .field-block + .field-block {
-  margin-top: 32rpx;
+  margin-top: 48rpx;
 }
 
 .field-row {
@@ -2149,6 +2149,19 @@
   display: flex;
   flex-wrap: wrap;
   gap: 16rpx;
+}
+
+.tag-editor.is-disabled {
+  opacity: 0.7;
+}
+
+.tag-editor.is-disabled .tag-chip {
+  background: rgba(0, 0, 0, 0.08);
+  color: #6b7280;
+}
+
+.tag-editor.is-disabled .tag-input {
+  color: #9ca3af;
 }
 
 .image-uploader {
