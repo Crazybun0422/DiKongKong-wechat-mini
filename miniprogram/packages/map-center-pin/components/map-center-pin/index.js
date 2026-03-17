@@ -14,7 +14,7 @@ const LONGPRESS_ACTION_ITEMS = [
   { id: "askAgent", label: "问问智能体", icon: "/packages/map-center-pin/assets/ask-ai.png" },
   { id: "bindMyLocation", label: "地标绑定", icon: "/packages/map-center-pin/assets/bind-my-location.png" },
   { id: "afeiAdventure", label: "阿飞历险记", icon: "/packages/map-center-pin/assets/afei-adventure.png" },
-  { id: "stealthMode", label: "潜行模式", icon: "/packages/map-center-pin/assets/afei-sneaking.png" }
+  { id: "stealthMode", label: "专注模式", icon: "/packages/map-center-pin/assets/afei-sneaking.png" }
 ];
 
 Component({
@@ -58,7 +58,7 @@ Component({
     },
     sneakingTipText: {
       type: String,
-      value: "潜行中，长按解除"
+      value: "专注中，长按解除"
     },
     welcomeBubbleDismissToken: {
       type: Number,
@@ -155,7 +155,7 @@ Component({
         try {
           const info = wx.getSystemInfoSync() || {};
           platform = `${info.platform || ""}`.toLowerCase();
-        } catch (err) {}
+        } catch (err) { }
       }
       const vibrateLongFirst = () => {
         if (typeof wx.vibrateLong === "function") {
@@ -165,12 +165,12 @@ Component({
                 if (typeof wx.vibrateShort === "function") {
                   try {
                     wx.vibrateShort();
-                  } catch (innerErr) {}
+                  } catch (innerErr) { }
                 }
               }
             });
             return true;
-          } catch (err) {}
+          } catch (err) { }
         }
         return false;
       };
@@ -185,12 +185,12 @@ Component({
               if (!vibrateLongFirst()) {
                 try {
                   wx.vibrateShort();
-                } catch (innerErr) {}
+                } catch (innerErr) { }
               }
             }
           });
           return;
-        } catch (err) {}
+        } catch (err) { }
       }
       vibrateLongFirst();
     },
@@ -278,9 +278,9 @@ Component({
       this.closeSheet();
     },
 
-    onSheetTap() {},
+    onSheetTap() { },
 
-    noop() {},
+    noop() { },
 
     onAfeiAdventureTap() {
       if (this.data.afeiPreparing) {

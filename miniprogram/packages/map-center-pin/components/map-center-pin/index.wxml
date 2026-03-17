@@ -7,7 +7,7 @@
   >
     <view wx:if="{{sneakingActive}}" class="center-pin-tip center-pin-tip--stealth">
       <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />
-      <text class="center-pin-tip-text center-pin-tip-text--stealth">{{sneakingTipText || '潜行中，长按解除'}}</text>
+      <text class="center-pin-tip-text center-pin-tip-text--stealth">{{sneakingTipText || '专注中，长按解除'}}</text>
     </view>
     <view wx:elif="{{linkActive}}" class="center-pin-tip center-pin-tip--link">
       <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />

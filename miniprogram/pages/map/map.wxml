@@ -43,7 +43,7 @@
       ui-scale="{{mapUiScale}}"
       satellite="{{mapLayerType === 'satellite'}}"
       sneaking-active="{{stealthModeActive}}"
-      sneaking-tip-text="潜行中，长按解除"
+      sneaking-tip-text="专注中，长按解除"
       link-active="{{centerPinLinkActive}}"
       link-tip-text="{{centerPinLinkTipText}}"
       long-press-guide-nodes="{{coordinateLongPressGuideNodes}}"
