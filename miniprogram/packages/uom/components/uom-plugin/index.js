@@ -1,13 +1,15 @@
 const { buildWmsOverlay, WMS_MIN_ZOOM, WMS_MAX_ZOOM } = require("../../../../utils/wms");
 const {
   buildProvinceLayerRecords,
-  buildProvinceLayerParams
+  buildProvinceLayerParams,
+  findProvinceLayerRecordForPoint
 } = require("../../../../utils/uomProvinceSelector");
 const provinceGeojson = require("../../map-meta-data/China.js");
 
 const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
 const MIN_GROUND_OVERLAY_SDK = "2.21.2";
 const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
+const UOM_NON_RESTRICTED_STATUS_TEXT = "非管制区域";
 const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
@@ -30,8 +32,10 @@ const WMS_TILE_LOAD_TIMEOUT_MS = 8000;
 const WMS_TILE_RESOURCE_CACHE_LIMIT = 72;
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
+const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
 const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
 const UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT = 256;
+const UOM_SPECIAL_REGION_CODE_SET = new Set(["71", "81", "82"]);
 
 const getProvinceLayerCacheKey = (bbox) => {
   const sw = bbox?.southwest || {};
@@ -58,6 +62,12 @@ const resolveProvinceLayerParams = (bbox) => {
   }
   UOM_PROVINCE_LAYER_PARAM_CACHE.set(key, params);
   return params;
+};
+
+const resolveExcludedRegionRecord = (point) => {
+  const record = findProvinceLayerRecordForPoint(UOM_REGION_RECORDS, point);
+  if (!record) return null;
+  return UOM_SPECIAL_REGION_CODE_SET.has(record.provinceCode) ? record : null;
 };
 
 const normalizeRuntimeField = (value) => `${value || ""}`.toLowerCase();
@@ -412,7 +422,11 @@ Component({
 
     updateStatusPanel() {
       if (this._destroyed) return;
-      const uom = this.describeUomStatus();
+      const center = this.resolveUomCenter();
+      const excludedRegion = resolveExcludedRegionRecord(center);
+      const uom = excludedRegion
+        ? { status: UOM_NON_RESTRICTED_STATUS_TEXT, tone: "safe" }
+        : this.describeUomStatus();
       const shouldShowWarning = this.shouldShowUomTileWarning();
       const dismissed = !!this.data.uomTileWarningDismissed;
       const uomWarningVisible = shouldShowWarning && !dismissed;
@@ -675,6 +689,13 @@ Component({
       const scale = clampMapScale(scaleOverride || this.data.scale);
       this._uomOverlayFailed = false;
       if (!center || !Number.isFinite(center.latitude) || !Number.isFinite(center.longitude)) {
+        return;
+      }
+      if (resolveExcludedRegionRecord(center)) {
+        this.clearMapOverlays();
+        this._currentWmsTiles = [];
+        this._currentWmsTileKey = "";
+        this.updateStatusPanel();
         return;
       }
       if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {

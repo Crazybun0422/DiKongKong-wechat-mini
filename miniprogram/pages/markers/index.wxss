@@ -770,7 +770,7 @@
   position: absolute;
   top: 6rpx;
   right: 0rpx;
-  z-index: 5;
+  z-index: 12;
   width: 30rpx;
   height: 30rpx;
   display: flex;
@@ -779,6 +779,8 @@
 }
 
 .reject-reason-icon {
+  position: relative;
+  z-index: 13;
   width: 22rpx;
   height: 22rpx;
   display: block;
@@ -888,13 +890,14 @@
 }
 
 .marker-cover {
+  position: relative;
+  z-index: 1;
   width: 188rpx;
   height: 140rpx;
   margin-top: 8rpx;
   border-radius: 20rpx;
   background: #f3f4f6;
   align-self: flex-start;
-  position: relative;
   overflow: hidden;
 }
 
@@ -1170,6 +1173,7 @@
   position: absolute;
   top: 0;
   right: 0;
+  z-index: 10;
   width: 75rpx;
   height: 75rpx;
   clip-path: polygon(100% 0, 0 0, 100% 100%);
@@ -2503,6 +2507,10 @@
   overflow: hidden;
 }
 
+.merchant-entry-tabs.is-locked {
+  opacity: 1;
+}
+
 .merchant-entry-tab {
   position: relative;
   z-index: 1;
@@ -2512,6 +2520,15 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.merchant-entry-tab.is-disabled {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.merchant-entry-tabs.is-locked .merchant-entry-tab.is-disabled {
+  opacity: 0.45;
 }
 
 .merchant-entry-tab-inner {

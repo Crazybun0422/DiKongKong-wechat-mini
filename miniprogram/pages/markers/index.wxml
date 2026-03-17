@@ -899,10 +899,10 @@
                 />
               </view>
               <view class="merchant-entry-card-content">
-                <view class="merchant-entry-tabs">
+                <view class="merchant-entry-tabs {{merchantCertified ? 'is-locked' : ''}}">
                   <block wx:for="{{merchantEntryTabs}}" wx:key="id">
                     <view
-                    class="merchant-entry-tab {{activeMerchantEntryTab === item.id ? 'is-active' : ''}} {{item.id === 'FREE' ? 'is-left' : 'is-right'}}"
+                    class="merchant-entry-tab {{activeMerchantEntryTab === item.id ? 'is-active' : ''}} {{item.id === 'FREE' ? 'is-left' : 'is-right'}} {{merchantCertified && item.id !== 'CERTIFIED' ? 'is-disabled' : ''}}"
                     data-tab="{{item.id}}"
                     bindtap="onMerchantEntryTabTap"
                   >

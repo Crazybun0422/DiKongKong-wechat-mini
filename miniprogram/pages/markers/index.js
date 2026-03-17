@@ -4185,10 +4185,11 @@ Page({
   onPaymentDecorationLinkTap() {
     if (!this.data.showCreate) return;
     const nextMax = Math.max(Number(this.data.maxStepReached) || 0, 1);
+    const lockedToCertified = !!this.data.merchantCertified;
     this.setData({
       createStep: 1,
       maxStepReached: nextMax,
-    activeMerchantEntryTab: "FREE",
+      activeMerchantEntryTab: lockedToCertified ? "CERTIFIED" : "FREE",
       merchantDecorationExpanded: true
     }, () => {
       this.refreshCreateSubmitButtonText();
@@ -4198,6 +4199,18 @@ Page({
   onMerchantEntryTabTap(e = {}) {
     const tab = `${e?.currentTarget?.dataset?.tab || ""}`.trim();
     if (!tab || tab === this.data.activeMerchantEntryTab) return;
+    if (this.data.merchantCertified) {
+      if (this.data.activeMerchantEntryTab !== "CERTIFIED") {
+        this.setData({
+          activeMerchantEntryTab: "CERTIFIED",
+          showPaymentSection: false,
+          paymentPromptMessage: ""
+        }, () => {
+          this.refreshCreateSubmitButtonText();
+        });
+      }
+      return;
+    }
     const showPaymentSection = this.shouldShowCertifiedPaymentSection(tab);
     const updates = {
       activeMerchantEntryTab: tab,
@@ -6074,6 +6087,7 @@ Page({
         }
         this.applySubmittedMarkerToList(normalized, editingId);
         this.setData({
+          activeMerchantEntryTab: "CERTIFIED",
           merchantCertified: true,
           createPaymentRequired: false,
           showPaymentSection: false,

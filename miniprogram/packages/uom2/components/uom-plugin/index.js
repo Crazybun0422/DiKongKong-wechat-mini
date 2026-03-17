@@ -6,7 +6,8 @@ const {
 } = require("../../../../utils/runtime");
 const {
   buildProvinceLayerRecords,
-  buildProvinceLayerParams
+  buildProvinceLayerParams,
+  findProvinceLayerRecordForPoint
 } = require("../../../../utils/uomProvinceSelector");
 const {
   gcj02ToWgs84,
@@ -37,6 +38,7 @@ const FORCE_HTTP_MARKER = true;
 const SAFE_STATUS_TEXT = "适飞区域（限高120m）";
 const RESTRICTED_STATUS_TEXT = "管制区域";
 
+const NON_RESTRICTED_STATUS_TEXT = "非管制区域";
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 const isLocalPath = (value) => !!value && !isHttpUrl(value);
 const getMiniApi = () => {
@@ -112,8 +114,10 @@ const buildTileIdSetKey = (tileIds) => {
 };
 
 const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
+const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
 const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
 const UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT = 128;
+const SPECIAL_REGION_CODE_SET = new Set(["71", "81", "82"]);
 
 const getProvinceLayerCacheKey = (bbox) => {
   const sw = bbox?.southwest || {};
@@ -140,6 +144,12 @@ const resolveProvinceLayerParams = (bbox) => {
   }
   UOM_PROVINCE_LAYER_PARAM_CACHE.set(key, params);
   return params;
+};
+
+const resolveExcludedRegionRecord = (point) => {
+  const record = findProvinceLayerRecordForPoint(UOM_REGION_RECORDS, point);
+  if (!record) return null;
+  return SPECIAL_REGION_CODE_SET.has(record.provinceCode) ? record : null;
 };
 
 Component({
@@ -597,6 +607,14 @@ Component({
       const regionCenter = this._isMoving ? null : resolveRegionCenter(this._region);
       const center = this.resolveCenterForTiles(regionCenter || this._center);
       if (!center || !Number.isFinite(center.longitude) || !Number.isFinite(center.latitude)) {
+        this.clearTiles();
+        this.emitTileMarkers([]);
+        this.updateStatusPanel();
+        return;
+      }
+      if (resolveExcludedRegionRecord(center)) {
+        this._currentTiles = [];
+        this._currentTileKey = "";
         this.clearTiles();
         this.emitTileMarkers([]);
         this.updateStatusPanel();
@@ -1399,7 +1417,11 @@ Component({
 
     updateStatusPanel() {
       if (this._destroyed) return;
-      const uom = this.describeUomStatus();
+      const center = this.resolveCenterForTiles(resolveRegionCenter(this._region) || this._center);
+      const excludedRegion = resolveExcludedRegionRecord(center);
+      const uom = excludedRegion
+        ? { status: NON_RESTRICTED_STATUS_TEXT, tone: "safe" }
+        : this.describeUomStatus();
       const updates = {
         uomStatus: uom.status,
         uomTone: uom.tone,
