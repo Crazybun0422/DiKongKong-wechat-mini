@@ -42,6 +42,8 @@
       top-offset-px="{{centerPinOffsetPx}}"
       ui-scale="{{mapUiScale}}"
       satellite="{{mapLayerType === 'satellite'}}"
+      sneaking-active="{{stealthModeActive}}"
+      sneaking-tip-text="潜行中，长按解除"
       link-active="{{centerPinLinkActive}}"
       link-tip-text="{{centerPinLinkTipText}}"
       long-press-guide-nodes="{{coordinateLongPressGuideNodes}}"
@@ -85,7 +87,7 @@
     <view
       id="subscription-banner"
       class="subscription-banner map-ui-scale-left"
-      wx:if="{{activeTab === 'home' && showSubscriptionBanner}}"
+      wx:if="{{activeTab === 'home' && showSubscriptionBanner && !stealthModeActive}}"
       style="top: {{subscriptionBannerTopPx}}px; {{subscriptionBannerScaleStyle}}"
     >
       <view class="subscription-banner-text">
@@ -102,7 +104,7 @@
     </view>
     <view
       class="map-checkin-entry-wrap map-ui-scale-right"
-      wx:if="{{activeTab === 'home'}}"
+      wx:if="{{activeTab === 'home' && !stealthModeActive}}"
       style="{{checkinEntryStyle}} {{mapUiScaleStyle}}"
     >
       <button
@@ -175,9 +177,9 @@
       </view>
     </block>
 
-    <view class="preflight-overlay map-ui-scale-left" wx:if="{{showDashboardPanel}}" style="top: calc(env(safe-area-inset-top) + {{preflightTopRpx}}rpx); {{mapUiScaleStyle}}">
+    <view class="preflight-overlay map-ui-scale-left {{stealthModeActive ? 'preflight-overlay--stealth' : ''}}" wx:if="{{showDashboardPanel}}" style="top: calc(env(safe-area-inset-top) + {{preflightTopRpx}}rpx); {{mapUiScaleStyle}}">
       <view class="preflight-card">
-        <view class="preflight-title">飞前安全准备</view>
+        <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
         <view class="drone-picker-block">
           <!-- <view class="drone-description">
             <text class="drone-description-title">此次执飞的无人机型号</text>
@@ -229,7 +231,7 @@
           {{centerPinTitle}}
         </text>
 
-        <view class="control-row">
+        <view wx:if="{{!stealthModeActive}}" class="control-row">
           <view class="search-stack">
             <view class="search-pill">
               <input
@@ -283,9 +285,10 @@
         </view>
       </view>
     <city-report-h5-entry
+      wx:if="{{!stealthModeActive}}"
       id="city-report-h5-entry"
       center="{{cityReportCenter}}"
-      active="{{showDashboardPanel}}"
+      active="{{showDashboardPanel && !stealthModeActive}}"
       bind:statechange="onCityReportStateChange"
       bind:dialogchange="onCityReportDialogChange"
     />
@@ -303,7 +306,7 @@
       bind:privacy="onPolicyPrivacyTap"
     />
 
-    <view class="floating-controls map-ui-scale-right" wx:if="{{activeTab === 'home'}}" style="{{mapUiScaleStyle}}">
+    <view class="floating-controls map-ui-scale-right" wx:if="{{activeTab === 'home' && !stealthModeActive}}" style="{{mapUiScaleStyle}}">
       <!-- <button
         class="panorama-button"
         hover-class="dashboard-toggle-hover"
@@ -349,7 +352,7 @@
       </button>
     </view>
 
-    <view class="bottom-controls map-ui-scale-bottom" style="{{mapUiScaleStyle}}">
+    <view class="bottom-controls map-ui-scale-bottom" wx:if="{{!stealthModeActive}}" style="{{mapUiScaleStyle}}">
       <view class="bottom-menu">
         <button class="menu-btn {{activeTab === 'home' ? 'is-active' : ''}}" bindtap="onMenuHomeTap">
           <image class="menu-icon" src="{{activeTab === 'home' ? '/assets/home-active.png' : '/assets/home.png'}}" mode="aspectFit" />

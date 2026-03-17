@@ -131,6 +131,12 @@
   align-items: flex-start;
   pointer-events: none;
 }
+
+.preflight-overlay--stealth {
+  width: 410rpx;
+  min-width: 410rpx;
+  max-width: 410rpx;
+}
 .preflight-card {
   position: relative;
   padding: 32rpx 36rpx 28rpx;
@@ -157,7 +163,6 @@
   );
   z-index: -1;
 }
-
 
 .preflight-title {
   font-size: 34rpx;
@@ -982,6 +987,7 @@ button.search-btn::after {
   border: 2rpx solid rgba(0, 0, 0, 0.45);
   color: #111827;
 }
+
 
 .coordinate-system-sheet-mask {
   position: fixed;

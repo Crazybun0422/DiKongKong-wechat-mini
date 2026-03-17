@@ -79,6 +79,10 @@
   white-space: nowrap;
 }
 
+.center-pin-tip--stealth {
+  width: 332rpx;
+}
+
 .center-pin-tip-skin {
   position: absolute;
   inset: 0;
@@ -108,6 +112,11 @@
   line-height: 1;
   color: #0f172a;
   text-align: center;
+}
+
+.center-pin-tip-text--stealth {
+  color: #0e3b2f;
+  text-shadow: 0 0 10rpx rgba(74, 222, 128, 0.35);
 }
 
 .center-pin-sheet-mask {

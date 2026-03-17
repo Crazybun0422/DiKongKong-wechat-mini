@@ -1177,6 +1177,7 @@ Page({
     dronePickerVisible: false,
     pendingDroneIndex: null,
     showDashboardPanel: true,
+    stealthModeActive: false,
     activeTab: "home",
     showProfileRedDot: false,
     showNewbieGiftEntry: false,
@@ -1567,6 +1568,7 @@ Page({
     this._centerPinOpenSuppressUntil = 0;
     this._centerPinWelcomeBubbleDismissedInGesture = false;
     this._shareCenterLaunch = null;
+    this._stealthModeSnapshot = null;
     this._centerShareLaunchLock = null;
     this._centerShareLaunchLockTimer = null;
     this._pendingCenterActionShare = null;
@@ -7475,6 +7477,42 @@ Page({
     this.suppressCenterPinOpenOnce();
   },
 
+  buildStealthModeSnapshot() {
+    return {
+      layerPanelVisible: !!this.data.layerPanelVisible,
+      coordinateSystemSheetVisible: !!this.data.coordinateSystemSheetVisible
+    };
+  },
+
+  enterStealthMode() {
+    if (this.data.stealthModeActive) return;
+    this._stealthModeSnapshot = this.buildStealthModeSnapshot();
+    if (this._layerPanelCloseTimer) {
+      clearTimeout(this._layerPanelCloseTimer);
+      this._layerPanelCloseTimer = null;
+    }
+    this.setData({
+      stealthModeActive: true,
+      layerPanelVisible: false,
+      layerPanelClosing: false,
+      coordinateSystemSheetVisible: false,
+      cityReportDialogVisible: false,
+      searchCoordinateTipsVisible: false
+    });
+  },
+
+  exitStealthMode() {
+    if (!this.data.stealthModeActive) return;
+    const snapshot = this._stealthModeSnapshot || {};
+    this._stealthModeSnapshot = null;
+    this.setData({
+      stealthModeActive: false,
+      layerPanelVisible: !!snapshot.layerPanelVisible,
+      layerPanelClosing: false,
+      coordinateSystemSheetVisible: !!snapshot.coordinateSystemSheetVisible
+    });
+  },
+
   onCenterPinTap() {
     if (this.shouldSuppressCenterPinOpen()) return;
     this.openMarkerOrPinAtCenter();
@@ -7607,6 +7645,10 @@ Page({
   },
 
   onCenterPinLongPress(event = {}) {
+    if (event?.detail?.exitStealth || this.data.stealthModeActive) {
+      this.exitStealthMode();
+      return;
+    }
     if (event?.detail?.clearLink || this.data.centerPinLinkActive) {
       this.clearActiveCenterTargetLink();
       return;
@@ -7624,6 +7666,10 @@ Page({
   onCenterPinAction(event) {
     const action = `${event?.detail?.action || ""}`.trim();
     if (!action) return;
+    if (action === "stealthMode") {
+      this.enterStealthMode();
+      return;
+    }
     if (action === "quickMark") {
       this.openMyPinCreateAtCenter();
       return;

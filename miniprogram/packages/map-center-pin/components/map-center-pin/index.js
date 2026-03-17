@@ -13,7 +13,8 @@ const LONGPRESS_ACTION_ITEMS = [
   { id: "navigate", label: "导航到此处", icon: "/packages/map-center-pin/assets/navigate.png" },
   { id: "askAgent", label: "问问智能体", icon: "/packages/map-center-pin/assets/ask-ai.png" },
   { id: "bindMyLocation", label: "地标绑定", icon: "/packages/map-center-pin/assets/bind-my-location.png" },
-  { id: "afeiAdventure", label: "阿飞历险记", icon: "/packages/map-center-pin/assets/afei-adventure.png" }
+  { id: "afeiAdventure", label: "阿飞历险记", icon: "/packages/map-center-pin/assets/afei-adventure.png" },
+  { id: "stealthMode", label: "潜行模式", icon: "/packages/map-center-pin/assets/afei-sneaking.png" }
 ];
 
 Component({
@@ -39,6 +40,10 @@ Component({
       type: Boolean,
       value: false
     },
+    sneakingActive: {
+      type: Boolean,
+      value: false
+    },
     linkActive: {
       type: Boolean,
       value: false
@@ -50,6 +55,10 @@ Component({
     followTipText: {
       type: String,
       value: "长按解除绑定状态~"
+    },
+    sneakingTipText: {
+      type: String,
+      value: "潜行中，长按解除"
     },
     welcomeBubbleDismissToken: {
       type: Number,
@@ -188,6 +197,20 @@ Component({
 
     onLongPress() {
       if (this.data.sheetVisible || this.data.sheetClosing) return;
+      if (this.properties.sneakingActive) {
+        this.hideWelcomeBubble();
+        this.setData({ triggered: true });
+        this.triggerLongPressHaptic();
+        if (this._triggerTimer) {
+          clearTimeout(this._triggerTimer);
+        }
+        this._triggerTimer = setTimeout(() => {
+          this._triggerTimer = null;
+          this.setData({ triggered: false });
+        }, 280);
+        this.triggerEvent("longpress", { exitStealth: true });
+        return;
+      }
       if (this.properties.linkActive) {
         this.hideWelcomeBubble();
         this.setData({ triggered: true });
