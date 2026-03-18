@@ -123,7 +123,7 @@ const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
 const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
-const MARKER_SVIP_ICON_PATH = "/assets/svip.png";
+const MARKER_SVIP_ICON_PATH = "/assets/svip2.png";
 const MARKER_CERTIFICATION_SHEET_CLOSE_DURATION = 220;
 const MARKER_CERTIFICATION_INFO_ITEMS = [
   {
@@ -145,6 +145,17 @@ const MARKER_CERTIFICATION_INFO_ITEMS = [
     description: "主页提供更丰富的案例、产品文档等展示"
   }
 ];
+
+function buildBadgeTitleParts(title, fallback = "") {
+  const displayText = typeof title === "string" && title ? title : fallback;
+  const chars = Array.from(displayText || "");
+  const tail = chars.length ? chars.pop() : "";
+  return {
+    titleDisplayText: displayText,
+    titlePrefixText: chars.join(""),
+    titleTailText: tail
+  };
+}
 
 const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
 const MAX_SEARCH_SUGGESTIONS = 10;
@@ -4080,7 +4091,11 @@ Page({
       return detail;
     }
     const isCertified = this.isMarkerCertified(detail);
+    const titleParts = buildBadgeTitleParts(detail.name, "未命名商户");
     detail.isCertified = isCertified;
+    detail.titleDisplayText = titleParts.titleDisplayText;
+    detail.titlePrefixText = titleParts.titlePrefixText;
+    detail.titleTailText = titleParts.titleTailText;
     if (isCertified && detail.paid === undefined) {
       detail.paid = true;
     }

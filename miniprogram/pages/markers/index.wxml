@@ -85,13 +85,18 @@
                   <view class="card-top">
                     <view class="card-info">
                       <view class="marker-title-row">
-                        <text class="marker-name">{{item.name || '未命名标记'}}</text>
-                        <image
-                          wx:if="{{item.isCertified}}"
-                          class="marker-certified-icon"
-                          src="{{assetPaths.svip}}"
-                          mode="aspectFit"
-                        />
+                        <block wx:if="{{item.isCertified}}">
+                          <text class="marker-name">{{item.titlePrefixText}}</text>
+                          <view class="marker-title-badge-group">
+                            <text class="marker-name">{{item.titleTailText}}</text>
+                            <image
+                              class="marker-certified-icon"
+                              src="{{assetPaths.svip}}"
+                              mode="aspectFit"
+                            />
+                          </view>
+                        </block>
+                        <text wx:else class="marker-name">{{item.titleDisplayText}}</text>
                       </view>
                       <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
                       <view
@@ -908,9 +913,9 @@
                     data-tab="{{item.id}}"
                     bindtap="onMerchantEntryTabTap"
                   >
-                    <view class="merchant-entry-tab-inner">
-                      <image wx:if="{{item.id === 'CERTIFIED'}}" class="merchant-entry-tab-icon" src="{{assetPaths.svip}}" mode="aspectFit" />
-                      <text class="merchant-entry-tab-label">{{item.label}}</text>
+                    <view class="merchant-entry-tab-inner {{item.id === 'CERTIFIED' ? 'merchant-entry-tab-inner--certified' : ''}}">
+                      <image wx:if="{{item.id === 'CERTIFIED'}}" class="merchant-entry-tab-icon merchant-entry-tab-icon--certified" src="{{assetPaths.svip}}" mode="aspectFit" />
+                      <text wx:if="{{item.label}}" class="merchant-entry-tab-label">{{item.label}}</text>
                     </view>
                   </view>
                 </block>

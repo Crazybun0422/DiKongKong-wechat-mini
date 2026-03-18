@@ -262,7 +262,7 @@
               hover-stay-time="80"
               bindtap="onSearchCoordinateTipsTap"
             >
-              <image class="search-tips-btn-icon" src="/assets/tips-b.png" mode="aspectFit" />
+              <image class="search-tips-btn-icon" src="/assets/tip-search.png" mode="aspectFit" />
             </button>
             <view class="search-suggest-panel" wx:if="{{searchSuggestions.length || searchSuggestLoading || searchSuggestError}}">
               <view class="search-suggest-state" wx:if="{{searchSuggestLoading}}">搜索中...</view>
@@ -450,13 +450,18 @@
         <view class="marker-detail-header">
           <view class="marker-detail-info">
             <view class="marker-detail-title-row">
-              <text class="marker-detail-name">{{detailCard.name || '未命名商户'}}</text>
-              <image
-                wx:if="{{detailCard.isCertified}}"
-                class="marker-certification-badge marker-certification-badge--detail"
-                src="{{markerSvipIconPath}}"
-                mode="aspectFit"
-              />
+              <block wx:if="{{detailCard.isCertified}}">
+                <text class="marker-detail-name">{{detailCard.titlePrefixText}}</text>
+                <view class="marker-title-badge-group marker-title-badge-group--detail">
+                  <text class="marker-detail-name">{{detailCard.titleTailText}}</text>
+                  <image
+                    class="marker-certification-badge marker-certification-badge--detail"
+                    src="{{markerSvipIconPath}}"
+                    mode="aspectFit"
+                  />
+                </view>
+              </block>
+              <text wx:else class="marker-detail-name">{{detailCard.titleDisplayText}}</text>
             </view>
             <text
               class="marker-detail-location"
@@ -605,15 +610,19 @@
           <view class="marker-page-body">
             <view class="marker-page-header">
               <view class="marker-page-header-top">
-                <view class="marker-page-title-row">
-                  <text class="marker-page-title">{{markerPageDetail.name || '未命名商户'}}</text>
-                  <image
-                    wx:if="{{markerPageDetail.isCertified}}"
-                    class="marker-certification-badge marker-certification-badge--page"
-                    src="{{markerSvipIconPath}}"
-                    mode="aspectFit"
-                    bindtap="onMarkerCertificationBadgeTap"
-                  />
+                <view class="marker-page-title-row" bindtap="onMarkerCertificationBadgeTap">
+                  <block wx:if="{{markerPageDetail.isCertified}}">
+                    <text class="marker-page-title">{{markerPageDetail.titlePrefixText}}</text>
+                    <view class="marker-title-badge-group marker-title-badge-group--page">
+                      <text class="marker-page-title">{{markerPageDetail.titleTailText}}</text>
+                      <image
+                        class="marker-certification-badge marker-certification-badge--page"
+                        src="{{markerSvipIconPath}}"
+                        mode="aspectFit"
+                      />
+                    </view>
+                  </block>
+                  <text wx:else class="marker-page-title">{{markerPageDetail.titleDisplayText}}</text>
                 </view>
                 <view class="marker-page-header-actions">
                   <view
@@ -793,7 +802,6 @@
         <view class="marker-certification-sheet-head">
           <text class="marker-certification-sheet-brand">低空星球</text>
           <image class="marker-certification-sheet-head-icon" src="{{markerSvipIconPath}}" mode="aspectFit" />
-          <text class="marker-certification-sheet-head-text">认证商家</text>
         </view>
         <block wx:for="{{markerCertificationInfoItems}}" wx:key="id">
           <view class="marker-certification-item">

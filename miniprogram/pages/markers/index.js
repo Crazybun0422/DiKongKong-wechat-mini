@@ -87,7 +87,7 @@ const STATIC_ASSETS = {
   defaultCover: "/pages/markers/assets/no-image.png",
   emptyPin: "/pages/markers/assets/empty-pin.png",
   workGroup: "/pages/markers/assets/work-group.png",
-  svip: "/pages/markers/assets/svip.png",
+  svip: "/assets/svip2.png",
   tabSkinCheckLeftTop: "/pages/markers/assets/tab-skin-check/left-top.png",
   tabSkinCheckLeftMiddle: "/pages/markers/assets/tab-skin-check/left-middle.png",
   tabSkinCheckLeftBottom: "/pages/markers/assets/tab-skin-check/left-bottom.png",
@@ -110,6 +110,17 @@ const STATIC_ASSETS = {
   kmlLoaded: "/pages/markers/assets/kml-loaded.png",
   tips: "/assets/tips-b.png"
 };
+
+function buildBadgeTitleParts(title, fallback = "") {
+  const displayText = typeof title === "string" && title ? title : fallback;
+  const chars = Array.from(displayText || "");
+  const tail = chars.length ? chars.pop() : "";
+  return {
+    titleDisplayText: displayText,
+    titlePrefixText: chars.join(""),
+    titleTailText: tail
+  };
+}
 
 const CENTER_TABS = [
   { id: "MERCHANT", label: "商户入驻" },
@@ -149,7 +160,7 @@ const CREATE_STEPS = [
 
 const MERCHANT_ENTRY_TABS = [
   { id: "FREE", label: "免费标记" },
-  { id: "CERTIFIED", label: "认证入驻" }
+  { id: "CERTIFIED", label: "" }
 ];
 
 const DRAFT_PAYMENT_METHOD = "NONE";
@@ -3212,9 +3223,13 @@ Page({
         : 0;
     const expireAtDisplay = this.formatExpireAtDisplay(expireAtSeconds);
     const isCertified = !!raw.paid;
+    const titleParts = buildBadgeTitleParts(raw.name || "", "未命名标记");
     return {
       id: markerId,
       name: raw.name || "",
+      titleDisplayText: titleParts.titleDisplayText,
+      titlePrefixText: titleParts.titlePrefixText,
+      titleTailText: titleParts.titleTailText,
       description: raw.description || "",
       location: raw.location || {},
       locationText: raw.location?.text || "",
