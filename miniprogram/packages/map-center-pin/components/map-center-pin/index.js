@@ -64,6 +64,10 @@ Component({
       type: Number,
       value: 0,
       observer: "onWelcomeBubbleDismissTokenChange"
+    },
+    suppressWelcomeBubble: {
+      type: Boolean,
+      value: false
     }
   },
 

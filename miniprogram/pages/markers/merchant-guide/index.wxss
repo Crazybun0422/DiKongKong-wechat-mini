@@ -1,12 +1,9 @@
 .merchant-guide-page {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   background: #f7f8fa;
 }
 
 .merchant-guide-scroll {
-  flex: 1;
   padding: 32rpx 32rpx 40rpx;
   box-sizing: border-box;
 }

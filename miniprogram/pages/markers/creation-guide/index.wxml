@@ -1,5 +1,5 @@
 <view class="merchant-guide-page">
-  <scroll-view scroll-y="true" class="merchant-guide-scroll">
+  <view class="merchant-guide-scroll">
     <block wx:if="{{loading}}">
       <view class="merchant-guide-loading">加载中...</view>
     </block>
@@ -40,5 +40,5 @@
         bindtap="onRichTextTap"
       />
     </block>
-  </scroll-view>
+  </view>
 </view>

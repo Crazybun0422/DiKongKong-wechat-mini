@@ -1954,8 +1954,10 @@ Page({
     const extData = Object.assign({}, next.extData || {});
     extData.mapDisplayMode = mode;
     next.extData = extData;
-    if (mode !== DISPLAY_MODE_ICON_WITH_NAME && next.callout) {
-      delete next.callout;
+    if (next.callout) {
+      next.callout = Object.assign({}, next.callout, {
+        display: mode === DISPLAY_MODE_ICON_WITH_NAME ? "ALWAYS" : "BYCLICK"
+      });
     }
     if (mode === DISPLAY_MODE_SMALL_ICON_ONLY) {
       const size = getDisplayModeMarkerSize(mode, options.baseSize || next.width || next.height);
@@ -2479,7 +2481,7 @@ Page({
       width: 32,
       height: 32
     };
-    if (displayMode === DISPLAY_MODE_ICON_WITH_NAME && content) {
+    if (content) {
       marker.callout = buildMarkerNameCallout(content, {
         fontSize: 10,
         fontWeight: "normal"
@@ -6843,7 +6845,7 @@ Page({
       return null;
     }
     const calloutContent = formatNearbyMarkerLabel(name);
-    if (calloutContent && (!displayMode || displayMode === DISPLAY_MODE_ICON_WITH_NAME)) {
+    if (calloutContent) {
       marker.callout = buildMarkerNameCallout(calloutContent);
     }
     const detail = this.composeMarkerDetail(item, marker, {

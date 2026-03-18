@@ -57,6 +57,16 @@ function getWindowMetrics() {
   return { windowWidth, windowHeight, screenWidth, screenHeight };
 }
 
+function resolveNicknameUpdateErrorMessage(err) {
+  if (err?.message === "missing-token") {
+    return "请先登录后再试";
+  }
+  if (Number(err?.statusCode) === 400) {
+    return "名称重复";
+  }
+  return err?.displayMessage || err?.message || "更新失败，请稍后重试";
+}
+
 Page({
   data: {
     loading: true,
@@ -335,12 +345,6 @@ Page({
     const value = e?.detail?.value || "";
     const limited = truncateNicknameByUnits(value);
     this.setData({ nicknameInput: limited });
-    const inputTypeRaw = e?.detail?.inputType || "";
-    const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
-    console.log("xxxxxxx", e)
-    if (inputType === "nickname") {
-      this.saveNicknameInline(limited);
-    }
   },
   onEditing(e) {
 
@@ -355,21 +359,24 @@ Page({
     const limited = truncateNicknameByUnits(value);
 
     if (!e.detail.pass) {
-      wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
+      wx.showToast({ icon: "none", title: "昵称不合规，请重新填写" });
       this.setData({
         nicknameEditing: true,
-        nicknameInput: nickname
+        nicknameInput: limited
       });
-      return
+      return;
     }
     this.saveNicknameInline(limited);
-
   },
 
   onNicknameInputConfirm(e) {
+    const inputTypeRaw = e?.detail?.inputType || "";
+    const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
+    if (inputType === "nickname") {
+      return;
+    }
     const value = e?.detail?.value ?? this.data.nicknameInput;
-    const limited = truncateNicknameByUnits(value);
-    this.saveNicknameInline(limited);
+    this.saveNicknameInline(value);
   },
 
   onNicknameInputBlur() {
@@ -410,10 +417,7 @@ Page({
       })
       .catch((err) => {
         console.warn("更新昵称失败", err);
-        const message =
-          err?.message === "missing-token"
-            ? "请先登录后再试"
-            : err?.displayMessage || err?.message || "更新失败，请稍后重试";
+        const message = resolveNicknameUpdateErrorMessage(err);
         wx.showToast({ title: message, icon: "none" });
         this.setData({
           nicknameEditing: false,
@@ -453,7 +457,9 @@ Page({
       })
       .catch((err) => {
         hideLoading();
-        throw err || new Error("nickname-sync-failed");
+        const nextErr = err || new Error("nickname-sync-failed");
+        nextErr.displayMessage = resolveNicknameUpdateErrorMessage(nextErr);
+        throw nextErr;
       });
   },
 

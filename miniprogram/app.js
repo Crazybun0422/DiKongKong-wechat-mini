@@ -17,10 +17,10 @@ const { prefetchFontFileConfig } = require("./utils/font-config");
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
   develop: {
-    apiBase: "https://kylee-suborbital-herta.ngrok-free.dev",
-    guideAssetBase: "https://kylee-suborbital-herta.ngrok-free.dev"
-    // apiBase: "https://skylane.cn",
-    // guideAssetBase: "https://www.skylane.cn"
+    // apiBase: "https://kylee-suborbital-herta.ngrok-free.dev",
+    // guideAssetBase: "https://kylee-suborbital-herta.ngrok-free.dev"
+    apiBase: "https://skylane.cn",
+    guideAssetBase: "https://www.skylane.cn"
   }, // IDE / preview
   trial: {
     apiBase: "https://skylane.cn",

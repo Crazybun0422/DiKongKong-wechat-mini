@@ -94,16 +94,18 @@
                         />
                       </view>
                       <text class="marker-location">{{item.locationText || '未填写位置'}}</text>
-                      <text wx:if="{{item.isCertified && item.expireAtDisplay}}" class="marker-expire">
-                        {{item.expireAtDisplay}}认证到期
-                      </text>
-                      <text
-                        class="marker-auth-action"
+                      <view
+                        class="marker-auth-row"
                         data-id="{{item.id}}"
                         catchtap="onMarkerAuthTap"
                       >
-                        {{item.authActionText}}
-                      </text>
+                        <text wx:if="{{item.isCertified && item.expireAtDisplay}}" class="marker-expire">
+                          {{item.expireAtDisplay}}认证到期
+                        </text>
+                        <text class="marker-auth-action">
+                          {{item.authActionText}}
+                        </text>
+                      </view>
                       <view class="card-stats">
                         <view class="stat-item">
                           <image class="stat-icon" src="{{assetPaths.exposure}}" mode="aspectFit" />
@@ -784,7 +786,7 @@
           <view class="form-card decoration-card {{!merchantCertified ? 'is-locked' : ''}}">
             <view class="decoration-card-header" bindtap="onToggleMerchantDecoration">
               <view class="decoration-card-title-group">
-                <text class="field-label">店铺主页装修（认证后可完善）</text>
+                <text class="field-label">店铺主页装修</text>
                 <text class="decoration-card-status {{merchantCertified ? 'is-certified' : 'is-locked'}}">
                   <text class="decoration-card-status-text">{{merchantCertified ? '已认证' : '未认证'}}</text>
                 </text>

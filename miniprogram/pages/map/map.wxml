@@ -50,6 +50,7 @@
       follow-active="{{centerPinFollowActive}}"
       follow-tip-text="{{centerPinFollowTipText}}"
       welcome-bubble-dismiss-token="{{centerPinWelcomeBubbleDismissToken}}"
+      suppress-welcome-bubble="{{(keyword && keyword.length > 0) || searchSuggestLoading || (searchSuggestions && searchSuggestions.length > 0) || (searchSuggestError && searchSuggestError.length > 0) || searchLinkVisible}}"
       bind:tap="onCenterPinTap"
       bind:longpress="onCenterPinLongPress"
       bind:close="onCenterPinSheetClose"
