@@ -1897,11 +1897,35 @@ button.panorama-button::after,
 }
 
 .marker-detail-creator {
+  position: relative;
   margin-top: 10rpx;
   padding-bottom: 14rpx;
   text-align: center;
   font-size: 22rpx;
   color: rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  z-index: 121;
+}
+
+.marker-detail-creator-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  color: #2d68ec;
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
+  pointer-events: auto;
+}
+
+.marker-detail-creator-link--detail {
+  display: inline-block;
+  min-height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 @keyframes marker-detail-slide-up {
@@ -2301,7 +2325,11 @@ button.panorama-button::after,
   text-align: center;
   font-size: 22rpx;
   color: #dfe4ea;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.marker-detail-creator-link--page {
+  color: #9ec5ff;
 }
 
 .marker-certification-mask {

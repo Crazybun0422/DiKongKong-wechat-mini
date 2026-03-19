@@ -358,6 +358,20 @@ function createEmptyForm() {
   };
 }
 
+function padDateTimeUnit(value) {
+  return `${value}`.padStart(2, "0");
+}
+
+function buildDefaultPinName(date = new Date()) {
+  const year = date.getFullYear();
+  const month = padDateTimeUnit(date.getMonth() + 1);
+  const day = padDateTimeUnit(date.getDate());
+  const hour = padDateTimeUnit(date.getHours());
+  const minute = padDateTimeUnit(date.getMinutes());
+  const second = padDateTimeUnit(date.getSeconds());
+  return `默认标记（${year}-${month}-${day} ${hour}:${minute}:${second}）`;
+}
+
 function createEmptyPinForm() {
   return {
     geometryType: "POINT_DEFAULT",
@@ -380,7 +394,7 @@ function createEmptyPinForm() {
     images: [],
     video: null,
     isSCos: false,
-    name: "",
+    name: buildDefaultPinName(),
     description: "",
     workspace: "",
     publishToPlatform: false,
@@ -3051,10 +3065,7 @@ Page({
   },
 
   buildPinCreatePayload(form = this.data.myPinForm) {
-    const name = (form.name || "").trim();
-    if (!name) {
-      throw new Error("请填写名称");
-    }
+    const name = (form.name || "").trim() || buildDefaultPinName();
     if (!form.geometryType || !form.geometryCategory) {
       throw new Error("请先选择标记类型");
     }
@@ -3070,13 +3081,7 @@ Page({
         : "PRIVATE";
     const images = this.extractPinImagesForPayload(form.images);
     const videoLink = this.extractPinVideoForPayload(form.video);
-    if (!images.length && !videoLink) {
-      throw new Error("请至少上传一张图片或一个视频");
-    }
     const description = (form.description || "").trim();
-    if (!description) {
-      throw new Error("请填写简介");
-    }
     const payload = {
       name,
       description,
@@ -3089,6 +3094,57 @@ Page({
       shape
     };
     return payload;
+  },
+
+  collectPinPublishMissingFields(source = {}) {
+    const description = `${source.description || ""}`.trim();
+    const images = Array.isArray(source.images)
+      ? source.images.filter(Boolean)
+      : [];
+    const hasVideo = !!source.video;
+    const missing = [];
+    if (!images.length && !hasVideo) {
+      missing.push("图片或视频");
+    }
+    if (!description) {
+      missing.push("简介");
+    }
+    return missing;
+  },
+
+  collectPinPublishMissingFieldsFromForm(form = this.data.myPinForm) {
+    return this.collectPinPublishMissingFields({
+      description: form?.description,
+      images: this.extractPinImagesForPayload(form?.images),
+      video: this.extractPinVideoForPayload(form?.video)
+    });
+  },
+
+  collectPinPublishMissingFieldsFromPin(pin = {}) {
+    const normalizedPin = pin || {};
+    const rawPin = normalizedPin.raw || {};
+    const imageRefs = this.extractFileReferences(normalizedPin.images);
+    const rawImageRefs = this.extractFileReferences(rawPin.images);
+    const videoRef =
+      this.extractPinVideoForPayload(normalizedPin.video) ||
+      this.extractPinVideoForPayload(rawPin.videoLink) ||
+      this.extractPinVideoForPayload(rawPin.video);
+    return this.collectPinPublishMissingFields({
+      description: normalizedPin.description || rawPin.description || "",
+      images: imageRefs.length ? imageRefs : rawImageRefs,
+      video: videoRef
+    });
+  },
+
+  showPinPublishMissingFieldsDialog(missingFields = []) {
+    const missing = Array.isArray(missingFields) ? missingFields.filter(Boolean) : [];
+    if (!missing.length) return;
+    wx.showModal({
+      title: "暂不能提交审核",
+      content: `发布到平台前，还需要补充以下内容：\n${missing.map((item) => `- ${item}`).join("\n")}\n\n补充完成后再提交审核即可。`,
+      showCancel: false,
+      confirmText: "我知道了"
+    });
   },
 
   refreshMarkers(options = {}) {
@@ -3656,6 +3712,11 @@ Page({
   handlePinPublish(marker = {}, options = {}) {
     const skipConfirm = options?.skipConfirm === true;
     if (!marker?.id) return;
+    const missingFields = this.collectPinPublishMissingFieldsFromPin(marker);
+    if (missingFields.length) {
+      this.showPinPublishMissingFieldsDialog(missingFields);
+      return;
+    }
     if (
       !skipConfirm &&
       (!this.data.pinConfirmVisible || this.data.pinConfirmAction !== "publish")
@@ -4963,6 +5024,13 @@ Page({
     } catch (err) {
       wx.showToast({ title: err?.message || "请完善标记信息", icon: "none" });
       return;
+    }
+    if (payload.visibility === "PUBLIC") {
+      const missingFields = this.collectPinPublishMissingFieldsFromForm(form);
+      if (missingFields.length) {
+        this.showPinPublishMissingFieldsDialog(missingFields);
+        return;
+      }
     }
     const editingId = this.data.editingPinId;
     this.setData({ pinSubmitting: true, pinError: "" });

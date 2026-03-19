@@ -30,7 +30,12 @@ function searchPlaces(keyword, location) {
           method: "GET",
           success(res) {
             if (res.statusCode >= 200 && res.statusCode < 300) {
-              const list = res.data?.data || [];
+              const payload = res.data || {};
+              if (payload.status !== 0) {
+                reject(new Error(payload.message || `Tencent map status ${payload.status}`));
+                return;
+              }
+              const list = payload.data || [];
               resolve(list);
             } else {
               reject(

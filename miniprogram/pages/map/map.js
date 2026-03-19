@@ -3940,6 +3940,13 @@ Page({
     this.closeMarkerDetail();
   },
 
+  onCreatorNameTap() {
+    wx.showToast({
+      title: "后续支持发布者信息哦~敬请期待！",
+      icon: "none"
+    });
+  },
+
   onMarkerDetailMaskTouchMove() {
     // Stop marker detail gestures from reaching the map beneath
   },

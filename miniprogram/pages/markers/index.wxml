@@ -1050,8 +1050,7 @@
             </view>
           </view>
           <view class="field-row">
-            <view class="field-label required">
-              <text class="required-star">*</text>
+            <view class="field-label">
               <text>图片/视频</text>
               <text wx:if="{{pinVideoUploadFlpLimitDisplay}}" class="pin-video-flp-hint">（FLP>{{pinVideoUploadFlpLimitDisplay}}可上传高清视频）</text>
             </view>
@@ -1118,8 +1117,7 @@
             <input class="field-input form-input" placeholder="请输入名称" value="{{myPinForm.name}}" bindinput="onPinNameInput" />
           </view>
           <view class="field-row">
-            <view class="field-label required">
-              <text class="required-star">*</text>
+            <view class="field-label">
               <text>简介</text>
             </view>
             <textarea class="field-textarea form-textarea" placeholder="请输入简介" value="{{myPinForm.description}}" bindinput="onPinDescInput" maxlength="300" auto-height />

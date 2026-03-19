@@ -20,6 +20,8 @@ const COORD_ADJUST_STEP = 0.00001;
 const PICKER_WIDE_LAYOUT_MIN_WIDTH = 560;
 const PICKER_WIDE_LAYOUT_MIN_RATIO = 1.1;
 const WINDOW_RESIZE_DEBOUNCE_MS = 80;
+const STARTUP_LAYER_INIT_DELAY_MS = 80;
+const STARTUP_LOCATE_DELAY_MS = 180;
 const NEARBY_CONTENT_RADIUS_KM = 8;
 const hasSavedLocationPayload = (payload = {}) => {
   if (!payload) return false;
@@ -505,6 +507,8 @@ Page({
     this._windowResizeTimer = null;
     this._onWindowResize = null;
     this._lastResizeEvent = null;
+    this._startupLayerTimer = null;
+    this._startupLocateTimer = null;
     this.applyResponsiveLayout({ force: true });
     this.registerWindowResizeListener();
     this.loadMapSubKey();
@@ -523,7 +527,6 @@ Page({
     }
 
     // 页面加载尽早跳转到当前位置，后续回填的标记不会被影响
-    this.requestCurrentLocation({ silent: true, initial: true });
     this.refreshDisplayCoordinateList();
   },
 
@@ -1173,14 +1176,12 @@ Page({
   onReady() {
     this.mapCtx = wx.createMapContext("pin-picker-map", this);
     this._ready = true;
-    this.ensureUomPluginReady();
-    this.ensureDjiLayerReady();
-    this.ensureTemporaryNoFlyLayerReady();
     if (this._pendingMoveTo) {
       const { latitude, longitude } = this._pendingMoveTo;
       this.queueMapMove(latitude, longitude);
     }
     this.requestInitialLocation();
+    this.scheduleDeferredStartupTasks();
   },
 
   onShow() {
@@ -1193,6 +1194,14 @@ Page({
 
   onUnload() {
     this.unregisterWindowResizeListener();
+    if (this._startupLayerTimer) {
+      clearTimeout(this._startupLayerTimer);
+      this._startupLayerTimer = null;
+    }
+    if (this._startupLocateTimer) {
+      clearTimeout(this._startupLocateTimer);
+      this._startupLocateTimer = null;
+    }
     if (this._reverseTimer) {
       clearTimeout(this._reverseTimer);
       this._reverseTimer = null;
@@ -1238,6 +1247,38 @@ Page({
       this._eventChannel.off("initLocation");
     }
     this._eventChannel = null;
+  },
+
+  scheduleDeferredStartupTasks() {
+    if (this._startupLayerTimer) {
+      clearTimeout(this._startupLayerTimer);
+      this._startupLayerTimer = null;
+    }
+    if (this._startupLocateTimer) {
+      clearTimeout(this._startupLocateTimer);
+      this._startupLocateTimer = null;
+    }
+    this._startupLayerTimer = setTimeout(() => {
+      this._startupLayerTimer = null;
+      if (!this._ready) return;
+      this.ensureUomPluginReady();
+      this.ensureDjiLayerReady();
+      this.ensureTemporaryNoFlyLayerReady();
+      this.syncExternalLayerViewport({
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        region: this._lastRegion,
+        scale: this.data.scale,
+        force: true
+      });
+    }, STARTUP_LAYER_INIT_DELAY_MS);
+    if (this._initialPayloadApplied || hasSavedLocationPayload(this._initialPayload)) {
+      return;
+    }
+    this._startupLocateTimer = setTimeout(() => {
+      this._startupLocateTimer = null;
+      if (!this._ready) return;
+      this.requestCurrentLocation({ silent: true, initial: true });
+    }, STARTUP_LOCATE_DELAY_MS);
   },
 
   ensureUomPluginReady(retry = 0) {
@@ -1325,6 +1366,7 @@ Page({
   },
 
   syncExternalLayerViewport(options = {}) {
+    if (!this._ready) return;
     const center = options.center || { latitude: this.data.latitude, longitude: this.data.longitude };
     const scale = normalizeMapScale(options.scale || this.data.scale);
     const region = options.region || this._lastRegion || null;
@@ -1621,12 +1663,6 @@ Page({
     const center = { latitude, longitude };
     if (!this._ready) {
       this._pendingMoveTo = { latitude, longitude };
-      this.syncExternalLayerViewport({
-        center,
-        region: this._lastRegion,
-        scale: this.data.scale,
-        force: true
-      });
       return;
     }
     const shouldSync = this.shouldSyncActiveCoordinate();
@@ -1798,24 +1834,38 @@ Page({
     this.reverseGeocode(latitude, longitude);
   },
 
+  tryClosePolygonByMarkerId(markerId) {
+    const typeId = this.data.selectedType?.id;
+    const closeMarkerId = this.ensureMapMarkerId("poly-0");
+    const matched =
+      markerId === "poly-0" ||
+      markerId === closeMarkerId ||
+      Number(markerId) === closeMarkerId;
+    if (typeId !== "AREA_POLYGON" || !matched) return false;
+    const points = this.getConfirmedLinePoints();
+    if (points.length < 3) return false;
+    this.setData(
+      {
+        polygonClosed: true,
+        lineDrawingStarted: true,
+        lineActionHint: "已闭合，点击完成绘制或确认锚点重画"
+      },
+      () => {
+        this.updateAreaShapes({ includePreview: false });
+        this.refreshDisplayCoordinateList();
+      }
+    );
+    return true;
+  },
+
   onMarkerTap(e) {
     const markerId = e?.markerId || e?.detail?.markerId;
-    const typeId = this.data.selectedType?.id;
-    if (typeId !== "AREA_POLYGON") return;
-    const points = this.getConfirmedLinePoints();
-    if (markerId === "poly-0" && points.length >= 3) {
-      this.setData(
-        {
-          polygonClosed: true,
-          lineDrawingStarted: true,
-          lineActionHint: "已闭合，点击完成绘制或确认锚点重画"
-        },
-        () => {
-          this.updateAreaShapes({ includePreview: false });
-          this.refreshDisplayCoordinateList();
-        }
-      );
-    }
+    this.tryClosePolygonByMarkerId(markerId);
+  },
+
+  onMarkerCalloutTap(e) {
+    const markerId = e?.markerId || e?.detail?.markerId;
+    this.tryClosePolygonByMarkerId(markerId);
   },
 
   onLocateTap() {

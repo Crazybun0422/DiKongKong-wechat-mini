@@ -419,10 +419,10 @@
       ></view>
       <view
         class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
-        catchtouchstart="onMarkerDetailTouchStart"
-        catchtouchmove="onMarkerDetailTouchMove"
-        catchtouchend="onMarkerDetailTouchEnd"
-        catchtouchcancel="onMarkerDetailTouchCancel"
+        bindtouchstart="onMarkerDetailTouchStart"
+        bindtouchmove="onMarkerDetailTouchMove"
+        bindtouchend="onMarkerDetailTouchEnd"
+        bindtouchcancel="onMarkerDetailTouchCancel"
       >
         <view
           class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}"
@@ -531,8 +531,21 @@
         <view class="marker-detail-gesture-hint" wx:if="{{markerDetailAllowExpand}}">
           <text class="marker-detail-gesture-text">上滑查看详情</text>
         </view>
-        <view class="marker-detail-creator" wx:if="{{detailCard.creatorName}}">
-          @{{detailCard.creatorName}}
+        <view
+          class="marker-detail-creator"
+          wx:if="{{detailCard.creatorName}}"
+          catchtouchstart="noop"
+          catchtouchmove="noop"
+          catchtouchend="onCreatorNameTap"
+          catchtouchcancel="noop"
+        >
+          <view
+            class="marker-detail-creator-link marker-detail-creator-link--detail"
+            catchtouchstart="noop"
+            catchtouchmove="noop"
+            catchtouchend="onCreatorNameTap"
+            catchtouchcancel="noop"
+          >@{{detailCard.creatorName}}</view>
         </view>
       </view>
     </block>
@@ -779,7 +792,7 @@
             </view>
 
             <view class="marker-detail-creator marker-detail-creator--page" wx:if="{{markerPageDetail.creatorName}}">
-              @{{markerPageDetail.creatorName}}
+              <text class="marker-detail-creator-link marker-detail-creator-link--page" catchtap="onCreatorNameTap">@{{markerPageDetail.creatorName}}</text>
             </view>
           </view>
         </scroll-view>

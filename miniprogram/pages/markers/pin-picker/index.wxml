@@ -20,6 +20,7 @@
       markers="{{markers}}"
       bindregionchange="onRegionChange"
       bindmarkertap="onMarkerTap"
+      bindcallouttap="onMarkerCalloutTap"
     ></map>
     <dji-no-fly-layer
       id="dji-no-fly-layer"
