@@ -180,7 +180,15 @@
         </view>
       </view>
 
-      <scroll-view scroll-y class="markers-scroll" refresher-enabled="{{true}}" refresher-triggered="{{pinsRefreshing}}" bindrefresherrefresh="onPullDownRefresh">
+      <scroll-view
+        scroll-y
+        class="markers-scroll"
+        refresher-enabled="{{true}}"
+        refresher-triggered="{{pinsRefreshing}}"
+        bindrefresherrefresh="onPullDownRefresh"
+        bindscrolltolower="onPinListScrollLower"
+        lower-threshold="80"
+      >
 
         <block wx:if="{{pinsLoading && !pinsLoaded}}">
           <view class="state-card">加载中...</view>
@@ -283,6 +291,10 @@
                 </view>
               </view>
             </block>
+          </view>
+          <view class="pin-list-more-state" wx:if="{{visiblePins.length}}">
+            <text class="pin-list-more-text" wx:if="{{pinLoadingMore}}">加载更多中...</text>
+            <text class="pin-list-more-text" wx:elif="{{!pinHasMore}}">没有更多了</text>
           </view>
         </block>
       </scroll-view>

@@ -567,6 +567,16 @@
   color: #ef4444;
 }
 
+.pin-list-more-state {
+  padding: 24rpx 0 36rpx;
+  text-align: center;
+}
+
+.pin-list-more-text {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+
 .retry-btn {
   margin-top: 24rpx;
   background: linear-gradient(135deg, #000000 0%, #333333 100%);

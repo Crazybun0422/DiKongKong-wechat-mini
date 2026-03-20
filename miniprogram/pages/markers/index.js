@@ -183,6 +183,7 @@ const CREATION_SUBSCRIPTION_TEMPLATE_IDS = normalizeTemplateIds([
 const CREATE_ENTRY_MODE_NORMAL = "NORMAL";
 const CREATE_ENTRY_MODE_CERTIFY = "CERTIFY";
 const CREATE_ENTRY_MODE_RENEW = "RENEW";
+const MY_PIN_PAGE_SIZE = 50;
 const PIN_MEDIA_MAX_COUNT = 3;
 const PIN_VIDEO_MAX_COUNT = 1;
 const PIN_VIDEO_LOW_FLP_MAX_SIZE = 200 * 1024 * 1024;
@@ -402,6 +403,22 @@ function createEmptyPinForm() {
   };
 }
 
+function mergePinListById(previous = [], incoming = []) {
+  const merged = [];
+  const seen = new Set();
+  const append = (item) => {
+    const id = `${item?.id || ""}`.trim();
+    if (id) {
+      if (seen.has(id)) return;
+      seen.add(id);
+    }
+    merged.push(item);
+  };
+  (Array.isArray(previous) ? previous : []).forEach(append);
+  (Array.isArray(incoming) ? incoming : []).forEach(append);
+  return merged;
+}
+
 function buildKeyVariants(key) {
   if (typeof key !== "string" || !key) {
     return [key];
@@ -592,6 +609,10 @@ Page({
     pinsLoaded: false,
     pinsError: "",
     pinsRefreshing: false,
+    pinPage: -1,
+    pinHasMore: true,
+    pinLoadingMore: false,
+    pinTotalElements: 0,
     showMyPinCreate: false,
     myPinForm: createEmptyPinForm(),
     myPinFormConfigured: false,
@@ -1460,11 +1481,18 @@ Page({
   onPinFilterTap(e) {
     const filter = e?.currentTarget?.dataset?.filter;
     if (!filter || filter === this.data.activePinFilter) return;
-    if (!this.data.pinsLoaded && !this.data.pinsLoading) {
-      this.refreshPins({ silent: false, filter });
-      return;
-    }
-    this.setData({ activePinFilter: filter }, () => this.applyPinFilters());
+    this.refreshPins({ silent: false, filter });
+  },
+
+  onPinListScrollLower() {
+    if (this.data.activeCenterTab !== "MY_MARKERS") return;
+    if (!this.data.pinsLoaded || this.data.pinsLoading || this.data.pinLoadingMore) return;
+    if (!this.data.pinHasMore) return;
+    this.refreshPins({
+      silent: true,
+      filter: this.data.activePinFilter,
+      append: true
+    });
   },
 
   onPullDownRefresh() {
@@ -1528,6 +1556,48 @@ Page({
       if (Array.isArray(data.list)) return data.list;
     }
     return [];
+  },
+
+  resolvePinVisibilityFilter(filter = this.data.activePinFilter) {
+    if (filter === "PRIVATE") return "PRIVATE";
+    if (filter === "WORKGROUP") return "GROUP";
+    if (filter === "PUBLISHED") return "PUBLIC";
+    return "";
+  },
+
+  extractPinPageMeta(payload, options = {}) {
+    const fallbackPage = Number(options.page);
+    const fallbackSize = Number(options.size);
+    const fallbackCount = Number(options.count);
+    const root = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+    const source =
+      root.data && typeof root.data === "object" && !Array.isArray(root.data)
+        ? root.data
+        : root;
+    const page = Number(source.page);
+    const size = Number(source.size);
+    const totalElements = Number(source.totalElements);
+    const totalPages = Number(source.totalPages);
+    const resolvedPage = Number.isFinite(page) ? page : (Number.isFinite(fallbackPage) ? fallbackPage : 0);
+    const resolvedSize =
+      Number.isFinite(size) && size > 0
+        ? size
+        : (Number.isFinite(fallbackSize) && fallbackSize > 0 ? fallbackSize : MY_PIN_PAGE_SIZE);
+    let hasMore = false;
+    if (Number.isFinite(totalPages) && totalPages >= 0) {
+      hasMore = resolvedPage + 1 < totalPages;
+    } else if (Number.isFinite(totalElements) && totalElements >= 0) {
+      hasMore = (resolvedPage + 1) * resolvedSize < totalElements;
+    } else if (Number.isFinite(fallbackCount) && fallbackCount >= 0) {
+      hasMore = fallbackCount >= resolvedSize;
+    }
+    return {
+      page: resolvedPage,
+      size: resolvedSize,
+      totalElements: Number.isFinite(totalElements) ? totalElements : 0,
+      totalPages: Number.isFinite(totalPages) ? totalPages : 0,
+      hasMore
+    };
   },
 
   refreshWorkGroups(options = {}) {
@@ -2788,15 +2858,44 @@ Page({
   },
 
   refreshPins(options = {}) {
-    const { silent = false, filter = this.data.activePinFilter } = options;
-    if (!silent) {
-      this.setData({ pinsLoading: true, pinsError: "", pinsRefreshing: true });
-    } else {
-      this.setData({ pinsError: "", pinsRefreshing: true });
+    const { silent = false, filter = this.data.activePinFilter, append = false } = options;
+    if (append) {
+      if (this.data.pinLoadingMore || this.data.pinsLoading || !this.data.pinHasMore) {
+        return Promise.resolve();
+      }
     }
+    const page = append ? Math.max(0, Number(this.data.pinPage || 0) + 1) : 0;
+    const visibility = this.resolvePinVisibilityFilter(filter);
+    if (append) {
+      this.setData({ pinLoadingMore: true, pinsError: "", activePinFilter: filter });
+    } else if (!silent) {
+      this._pinQueryVersion = (this._pinQueryVersion || 0) + 1;
+      this.setData({
+        pinsLoading: true,
+        pinsError: "",
+        pinsRefreshing: true,
+        pinLoadingMore: false,
+        pinPage: -1,
+        pinHasMore: true,
+        pinTotalElements: 0,
+        activePinFilter: filter
+      });
+    } else {
+      this._pinQueryVersion = (this._pinQueryVersion || 0) + 1;
+      this.setData({
+        pinsError: "",
+        pinsRefreshing: true,
+        pinLoadingMore: false,
+        pinPage: -1,
+        pinHasMore: true,
+        pinTotalElements: 0,
+        activePinFilter: filter
+      });
+    }
+    const queryVersion = this._pinQueryVersion || 0;
     const fetchPage = () =>
       listMyPins(
-        { page: 0, size: 1000 },
+        { page, size: MY_PIN_PAGE_SIZE, visibility },
         { apiBase: this.apiBase }
       );
     let retriedWithAuth = false;
@@ -2810,12 +2909,22 @@ Page({
       });
     return load()
       .then((page) => this.ensureTencentCosSts().then(() => page))
-      .then((page) => {
-        const content = this.extractPinList(page);
+      .then((pageData) => {
+        if (queryVersion !== (this._pinQueryVersion || 0)) {
+          return;
+        }
+        const content = this.extractPinList(pageData);
+        const meta = this.extractPinPageMeta(pageData, {
+          page,
+          size: MY_PIN_PAGE_SIZE,
+          count: content.length
+        });
         const normalized = content.map((item) => this.normalizePin(item));
         this._pinAddressCache = this._pinAddressCache || {};
         this._pendingPinGeo = this._pendingPinGeo || {};
-        const applied = this.applyCachedPinAddresses(normalized);
+        const baseList = append ? this.data.pins : [];
+        const merged = append ? mergePinListById(baseList, normalized) : normalized;
+        const applied = this.applyCachedPinAddresses(merged);
         const pinCardVideoLoadingMap = {};
         applied.forEach((item = {}) => {
           if (item.id && item.video) {
@@ -2827,7 +2936,10 @@ Page({
             pins: applied,
             pinsLoaded: true,
             activePinFilter: filter,
-            pinCardVideoLoadingMap
+            pinCardVideoLoadingMap,
+            pinPage: meta.page,
+            pinHasMore: meta.hasMore,
+            pinTotalElements: meta.totalElements
           },
           () => {
             this.applyPinFilters(applied, filter);
@@ -2836,12 +2948,18 @@ Page({
         );
       })
       .catch((err) => {
+        if (queryVersion !== (this._pinQueryVersion || 0)) {
+          return;
+        }
         console.error("Failed to load my pins", err);
         const message = err?.message || "加载我的标记失败，请稍后重试";
         this.setData({ pinsError: message });
       })
       .finally(() => {
-        this.setData({ pinsLoading: false, pinsRefreshing: false });
+        if (queryVersion !== (this._pinQueryVersion || 0)) {
+          return;
+        }
+        this.setData({ pinsLoading: false, pinsRefreshing: false, pinLoadingMore: false });
       });
   },
 
