@@ -17,7 +17,7 @@
       <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />
       <text class="center-pin-tip-text">{{followTipText || '长按解除绑定状态~'}}</text>
     </view>
-    <view wx:elif="{{showWelcomeBubble && !suppressWelcomeBubble}}" class="center-pin-tip">
+    <view wx:elif="{{showWelcomeBubble && !suppressWelcomeBubble}}" class="center-pin-tip center-pin-tip--welcome">
       <image class="center-pin-tip-skin" src="/assets/magic-dialog.png" mode="scaleToFill" />
       <text class="center-pin-tip-text">长按触发魔法🔮~</text>
     </view>

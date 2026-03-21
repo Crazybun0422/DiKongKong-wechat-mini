@@ -750,6 +750,17 @@ const formatCoordinateParts = (lat, lng) => {
   return { lngText, latText };
 };
 
+const formatCoordinateDisplayParts = (lat, lng) => {
+  const parts = formatCoordinateParts(lat, lng);
+  if (!parts) return null;
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+  return {
+    lngText: `${parts.lngText}°${lngNum >= 0 ? "E" : "W"}`,
+    latText: `${parts.latText}°${latNum >= 0 ? "N" : "S"}`
+  };
+};
+
 const formatDmsUnit = (value) => {
   const abs = Math.abs(Number(value) || 0);
   const degree = Math.floor(abs);
@@ -1164,6 +1175,8 @@ Page({
     centerPinWelcomeBubbleDismissToken: 0,
     centerCoordinateLatText: "",
     centerCoordinateLngText: "",
+    centerCoordinateLatValue: null,
+    centerCoordinateLngValue: null,
     coordinateSystem: "wgs84",
     coordinateSystemLabel: resolveCoordinateSystemDisplayLabel("wgs84"),
     coordinateSystemOptions: COORDINATE_SYSTEM_OPTIONS,
@@ -1222,6 +1235,7 @@ Page({
     subscriptionBannerHeightRpx: 70,
     preflightBaseTopRpx: 120,
     preflightTopRpx: 120,
+    preflightTopPx: 60,
     policyUpdateVisible: false,
     policyUpdateType: "",
     policyUpdateTitle: "",
@@ -1635,7 +1649,7 @@ Page({
     }
     this.autoLoginOnLaunch();
     this.checkPolicyUpdateOnLaunch();
-    this.initSubscriptionBanner();
+    // this.initSubscriptionBanner();
     this.loadCheckinStatus();
 
   },
@@ -2958,16 +2972,28 @@ Page({
   },
 
   updatePreflightOverlayTop(showBanner = this.data.showSubscriptionBanner) {
-    const baseTop = Number(this.data.preflightBaseTopRpx) || 120;
+    const baseTopRpx = Number(this.data.preflightBaseTopRpx) || 120;
     const { screenWidth } = getWindowMetrics();
     const rpx = screenWidth ? screenWidth / 750 : 0;
-    const bannerTopPx = Number(this.data.subscriptionBannerTopPx) || 0;
-    const bannerHeightPx =
-      Number(this.data.subscriptionBannerHeightPx) > 0
-        ? Number(this.data.subscriptionBannerHeightPx)
-        : (Number(this.data.subscriptionBannerHeightRpx) || 70) * (rpx || 1);
-    const top = showBanner && rpx > 0 ? (bannerTopPx + bannerHeightPx) / rpx + 15 : baseTop;
-    this.setData({ preflightTopRpx: top });
+    const baseTopPx = rpx > 0 ? baseTopRpx * rpx : 60;
+    let topPx = baseTopPx;
+
+    if (typeof wx !== "undefined" && typeof wx.getMenuButtonBoundingClientRect === "function") {
+      try {
+        const menuRect = wx.getMenuButtonBoundingClientRect();
+        const menuBottom = Number(menuRect?.bottom);
+        if (Number.isFinite(menuBottom) && menuBottom > 0) {
+          topPx = menuBottom;
+        }
+      } catch (err) {
+        topPx = baseTopPx;
+      }
+    }
+
+    this.setData({
+      preflightTopRpx: rpx > 0 ? topPx / rpx : baseTopRpx,
+      preflightTopPx: topPx
+    });
   },
 
   getSubscriptionMainSwitch() {
@@ -4900,7 +4926,8 @@ Page({
     if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
       this.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
     }
-    this.evaluateSubscriptionBannerVisibility();
+    // this.evaluateSubscriptionBannerVisibility();
+    this.setData({ showSubscriptionBanner: false });
     if (this.data.joinInvitePrompt && !this.data.joinInviting) {
       this.promptJoinWorkGroup(this.data.joinInvitePrompt);
     }
@@ -7301,6 +7328,8 @@ Page({
         centerPinTitle: "",
         centerCoordinateLatText: "",
         centerCoordinateLngText: "",
+        centerCoordinateLatValue: null,
+        centerCoordinateLngValue: null,
         searchLinkCenter: null,
         centerPinLinkActive: false,
         centerPinLinkTipText: "",
@@ -7320,7 +7349,7 @@ Page({
       displayLng = converted.lng;
     }
     const pin = this.findPinContainingPoint(center);
-    const coord = formatCoordinateParts(displayLat, displayLng);
+    const coord = formatCoordinateDisplayParts(displayLat, displayLng);
     const normalizedCenter = {
       latitude: Number(center.latitude),
       longitude: Number(center.longitude)
@@ -7334,6 +7363,8 @@ Page({
       centerPinTitle: pin ? pin.name || "" : "",
       centerCoordinateLngText: coord ? coord.lngText : "",
       centerCoordinateLatText: coord ? coord.latText : "",
+      centerCoordinateLngValue: Number.isFinite(displayLng) ? displayLng : null,
+      centerCoordinateLatValue: Number.isFinite(displayLat) ? displayLat : null,
       searchLinkCenter: normalizedCenter,
       cityReportCenter: normalizedCenter,
       ...linkState
@@ -7343,8 +7374,8 @@ Page({
   onCenterCoordinateTap() {
     const center = this._centerOverride || this.data.center;
     const hasCenter = hasValidCoordinate(center?.latitude, center?.longitude);
-    let displayLat = hasCenter ? Number(center.latitude) : Number(this.data.centerCoordinateLatText);
-    let displayLng = hasCenter ? Number(center.longitude) : Number(this.data.centerCoordinateLngText);
+    let displayLat = hasCenter ? Number(center.latitude) : Number(this.data.centerCoordinateLatValue);
+    let displayLng = hasCenter ? Number(center.longitude) : Number(this.data.centerCoordinateLngValue);
 
     if (hasCenter) {
       const converted = convertCoordinateFromGcj02(
@@ -9489,7 +9520,7 @@ Page({
       })
       .finally(() => {
         clearSubscribeWait();
-        this.evaluateSubscriptionBannerVisibility().catch(() => { });
+        // this.evaluateSubscriptionBannerVisibility().catch(() => { });
       });
   },
 
@@ -9548,7 +9579,7 @@ Page({
             }
             resolve(normalized);
             // Double-check with backend/state to avoid偶发悬挂
-            this.evaluateSubscriptionBannerVisibility().catch(() => { });
+            // this.evaluateSubscriptionBannerVisibility().catch(() => { });
           };
           Promise.allSettled([syncPromise, this.resolveRequiredSubscriptionTemplateIds()])
             .then((results) => {

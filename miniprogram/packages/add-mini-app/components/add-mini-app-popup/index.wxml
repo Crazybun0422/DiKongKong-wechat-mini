@@ -13,7 +13,7 @@
       <view class="add-mini-skin-wrap">
         <image class="add-mini-skin" src="/packages/add-mini-app/assets/add-mini-app.svg" mode="widthFix" />
         <view class="add-mini-panel">
-          <view class="add-mini-title">将低空星球添加到我的小程序</view>
+          <view class="add-mini-title">合规飞行，从添加开始</view>
           <view class="add-mini-step">
             <view class="add-mini-step-index">1</view>
             <view class="add-mini-step-text">

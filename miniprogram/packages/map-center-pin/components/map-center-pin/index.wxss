@@ -79,6 +79,14 @@
   white-space: nowrap;
 }
 
+.center-pin-tip--welcome {
+  width: auto;
+  min-width: 208rpx;
+  max-width: 300rpx;
+  padding-left: 24rpx;
+  padding-right: 24rpx;
+}
+
 .center-pin-tip--stealth {
   width: 332rpx;
 }
