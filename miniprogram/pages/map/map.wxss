@@ -164,6 +164,24 @@
   z-index: -1;
 }
 
+.preflight-cover-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: -100rpx;
+  z-index: -2;
+}
+
+.preflight-cover-shape {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: transparent;
+}
+
 .preflight-title {
   font-size: 34rpx;
   font-weight: 600;

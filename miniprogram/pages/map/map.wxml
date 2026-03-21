@@ -180,6 +180,9 @@
 
     <view class="preflight-overlay map-ui-scale-left {{stealthModeActive ? 'preflight-overlay--stealth' : ''}}" wx:if="{{showDashboardPanel}}" style="top: {{preflightTopPx}}px; {{mapUiScaleStyle}}">
       <view class="preflight-card">
+        <cover-view class="preflight-cover-layer" catchtouchstart="noop" catchtouchmove="noop" catchtap="noop">
+          <cover-view class="preflight-cover-shape"></cover-view>
+        </cover-view>
         <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
         <view class="drone-picker-block">
           <!-- <view class="drone-description">
