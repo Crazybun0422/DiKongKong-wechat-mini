@@ -3878,7 +3878,7 @@ Page({
     this._markerDetailExpandLock = false;
     console.log("Displaying marker detail", viewDetail);
     this.hideMarkerCertificationSheet(true);
-    this.setData({
+    this.setDataWithMapBlocker({
       markerDetailVisible: true,
       markerDetailClosing: false,
       markerDetailExpanding: false,
@@ -3941,7 +3941,7 @@ Page({
     this._markerDetailExpandLock = false;
     if (immediate) {
       this.hideMarkerCertificationSheet(true);
-      this.setData({
+      this.setDataWithMapBlocker({
         markerDetailVisible: false,
         markerDetailClosing: false,
         markerDetailExpanding: false,
@@ -3953,7 +3953,7 @@ Page({
     this.setData({ markerDetailClosing: true });
     this._markerDetailCloseTimer = setTimeout(() => {
       this._markerDetailCloseTimer = null;
-      this.setData({
+      this.setDataWithMapBlocker({
         markerDetailVisible: false,
         markerDetailClosing: false,
         markerDetailExpanding: false,
@@ -4158,7 +4158,7 @@ Page({
       clearTimeout(this._markerCertificationSheetCloseTimer);
       this._markerCertificationSheetCloseTimer = null;
     }
-    this.setData({
+    this.setDataWithMapBlocker({
       markerCertificationSheetVisible: true,
       markerCertificationSheetClosing: false
     });
@@ -4173,7 +4173,7 @@ Page({
       this._markerCertificationSheetCloseTimer = null;
     }
     if (immediate) {
-      this.setData({
+      this.setDataWithMapBlocker({
         markerCertificationSheetVisible: false,
         markerCertificationSheetClosing: false
       });
@@ -4182,7 +4182,7 @@ Page({
     this.setData({ markerCertificationSheetClosing: true });
     this._markerCertificationSheetCloseTimer = setTimeout(() => {
       this._markerCertificationSheetCloseTimer = null;
-      this.setData({
+      this.setDataWithMapBlocker({
         markerCertificationSheetVisible: false,
         markerCertificationSheetClosing: false
       });
@@ -4238,7 +4238,7 @@ Page({
         ? `${options.markerId}`.trim()
         : "";
     const markerName = typeof options.name === "string" ? options.name : "";
-    this.setData({
+    this.setDataWithMapBlocker({
       callSheetVisible: true,
       callSheetPhone: phoneValue,
       callSheetMarkerId: markerId,
@@ -4250,7 +4250,7 @@ Page({
     if (!this.data.callSheetVisible) {
       return;
     }
-    this.setData({
+    this.setDataWithMapBlocker({
       callSheetVisible: false,
       callSheetPhone: "",
       callSheetMarkerId: "",
@@ -4417,7 +4417,7 @@ Page({
     this._lastMarkerDetail = pageDetail;
     const isPin = this.isPinDetail(pageDetail);
     const distanceText = this.buildMarkerDistanceText(pageDetail);
-    this.setData({
+    this.setDataWithMapBlocker({
       markerPageVisible: true,
       markerPageClosing: false,
       markerPageDetail: pageDetail,
@@ -4523,7 +4523,7 @@ Page({
     }
     const finalize = () => {
       this._markerPageCloseTimer = null;
-      this.setData({
+      this.setDataWithMapBlocker({
         markerPageVisible: false,
         markerPageClosing: false,
         markerPageDetail: null,
@@ -5434,7 +5434,7 @@ Page({
     const detail = event?.detail || {};
     const visible = !!detail.visible;
     const text = typeof detail.text === "string" ? detail.text : "";
-    this.setData({
+    this.setDataWithMapBlocker({
       cityReportDialogVisible: visible,
       cityReportDialogText: text
     });
@@ -5446,7 +5446,7 @@ Page({
       popup.closeDialog();
     }
     if (this.data.cityReportDialogVisible) {
-      this.setData({ cityReportDialogVisible: false });
+      this.setDataWithMapBlocker({ cityReportDialogVisible: false });
     }
   },
 
@@ -5466,12 +5466,30 @@ Page({
     });
   },
 
+  setDataWithMapBlocker(updates = {}, callback) {
+    this.setData(updates, () => {
+      this.updateMapBlockerVisible();
+      if (typeof callback === "function") {
+        callback();
+      }
+    });
+  },
+
   updateMapBlockerVisible() {
     const blocked = !!(
       this.data.newbieTaskBlockerVisible ||
       this.data.addMiniAppBlockerVisible ||
       this.data.cityReportBlockerVisible ||
-      this.data.policyUpdateVisible
+      this.data.policyUpdateVisible ||
+      this.data.cityReportDialogVisible ||
+      this.data.searchCoordinateTipsVisible ||
+      this.data.coordinateSystemSheetVisible ||
+      this.data.dronePickerVisible ||
+      this.data.markerDetailVisible ||
+      this.data.markerPageVisible ||
+      this.data.markerCertificationSheetVisible ||
+      this.data.callSheetVisible ||
+      this.data.layerPanelVisible
     );
     if (this.data.mapBlockerVisible !== blocked) {
       this.setData({ mapBlockerVisible: blocked });
@@ -6065,12 +6083,12 @@ Page({
   },
 
   onSearchCoordinateTipsTap() {
-    this.setData({ searchCoordinateTipsVisible: true });
+    this.setDataWithMapBlocker({ searchCoordinateTipsVisible: true });
   },
 
   onCloseSearchCoordinateTipsDialog() {
     if (!this.data.searchCoordinateTipsVisible) return;
-    this.setData({ searchCoordinateTipsVisible: false });
+    this.setDataWithMapBlocker({ searchCoordinateTipsVisible: false });
   },
 
   onChatButtonTap() {
@@ -6186,8 +6204,12 @@ Page({
       clearTimeout(this._layerPanelCloseTimer);
       this._layerPanelCloseTimer = null;
     }
-    this.setData({ layerPanelVisible: true, layerPanelClosing: false });
-    this.loadMapLayerSettings(false);
+    this.setDataWithMapBlocker({
+      layerPanelVisible: true,
+      layerPanelClosing: false
+    }, () => {
+      this.loadMapLayerSettings(false);
+    });
   },
 
   onPanoramaDemoTap() {
@@ -6310,7 +6332,10 @@ Page({
     }
     this.setData({ layerPanelClosing: true });
     this._layerPanelCloseTimer = setTimeout(() => {
-      this.setData({ layerPanelVisible: false, layerPanelClosing: false });
+      this.setDataWithMapBlocker({
+        layerPanelVisible: false,
+        layerPanelClosing: false
+      });
       this._layerPanelCloseTimer = null;
     }, 220);
   },
@@ -7451,19 +7476,20 @@ Page({
 
   onCoordinateSystemToggle() {
     if (this.data.coordinateSystemSheetVisible) return;
-    this.setData({ coordinateSystemSheetVisible: true });
-    if (this.getAuthToken()) {
-      this.loadMapGuideConfigs().catch((err) => {
-        console.warn("loadMapGuideConfigs onCoordinateSystemToggle failed", err);
-      });
-    }
+    this.setDataWithMapBlocker({ coordinateSystemSheetVisible: true }, () => {
+      if (this.getAuthToken()) {
+        this.loadMapGuideConfigs().catch((err) => {
+          console.warn("loadMapGuideConfigs onCoordinateSystemToggle failed", err);
+        });
+      }
+    });
   },
 
   onCoordinateSystemSheetTap() { },
 
   onCoordinateSystemSheetMaskTap() {
     if (!this.data.coordinateSystemSheetVisible) return;
-    this.setData({ coordinateSystemSheetVisible: false });
+    this.setDataWithMapBlocker({ coordinateSystemSheetVisible: false });
   },
 
   onCoordinateSystemOptionTap(event) {
@@ -7476,7 +7502,7 @@ Page({
       updates.coordinateSystem = next;
       updates.coordinateSystemLabel = resolveCoordinateSystemDisplayLabel(next);
     }
-    this.setData(updates, () => {
+    this.setDataWithMapBlocker(updates, () => {
       if (changed) {
         this.updateCenterPinIndicator();
       }
@@ -7546,7 +7572,7 @@ Page({
       clearTimeout(this._layerPanelCloseTimer);
       this._layerPanelCloseTimer = null;
     }
-    this.setData({
+    this.setDataWithMapBlocker({
       stealthModeActive: true,
       layerPanelVisible: false,
       layerPanelClosing: false,
@@ -7560,7 +7586,7 @@ Page({
     if (!this.data.stealthModeActive) return;
     const snapshot = this._stealthModeSnapshot || {};
     this._stealthModeSnapshot = null;
-    this.setData({
+    this.setDataWithMapBlocker({
       stealthModeActive: false,
       layerPanelVisible: !!snapshot.layerPanelVisible,
       layerPanelClosing: false,
@@ -8650,14 +8676,14 @@ Page({
       wx.showToast({ title: "机型未提供", icon: "none" });
       return;
     }
-    this.setData({
+    this.setDataWithMapBlocker({
       dronePickerVisible: true,
       pendingDroneIndex: this.data.selectedDroneIndex
     });
   },
 
   closeDronePicker() {
-    this.setData({
+    this.setDataWithMapBlocker({
       dronePickerVisible: false,
       pendingDroneIndex: null
     });

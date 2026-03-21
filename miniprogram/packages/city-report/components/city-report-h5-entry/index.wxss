@@ -2,7 +2,6 @@
   margin-top: 18rpx;
   display: flex;
   align-items: center;
-  gap: 14rpx;
   pointer-events: auto;
 }
 
@@ -34,6 +33,7 @@
 .city-report-h5-tip {
   width: 60rpx;
   height: 60rpx;
+  margin-left: 14rpx;
   border-radius: 50%;
   background: transparent;
   display: flex;
