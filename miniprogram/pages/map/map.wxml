@@ -38,7 +38,7 @@
       bind:graphicschange="onSearchLinkGraphicsChange"
     />
     <map-center-pin
-      wx:if="{{mapCenterReady && !markerDetailVisible && !markerPageVisible}}"
+      wx:if="{{mapCenterReady}}"
       top-offset-px="{{centerPinOffsetPx}}"
       ui-scale="{{mapUiScale}}"
       satellite="{{mapLayerType === 'satellite'}}"

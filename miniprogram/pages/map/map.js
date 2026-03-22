@@ -2547,23 +2547,43 @@ Page({
   computePinPreviewCenter(shape = {}, payload = {}) {
     const location = payload.location;
     const resolved = resolveShapeCoordinates(shape || {});
+    const resolvedType = `${resolved.resolvedType || shape?.type || "POINT"}`.toUpperCase();
     const coords = Array.isArray(resolved.coordinates) ? resolved.coordinates : [];
     const normalized = this.normalizePreviewCoordinateList(coords);
+    if (resolvedType !== "POINT" && normalized.length) {
+      let minLat = Infinity;
+      let maxLat = -Infinity;
+      let minLng = Infinity;
+      let maxLng = -Infinity;
+      normalized.forEach((item) => {
+        const latitude = Number(item?.latitude);
+        const longitude = Number(item?.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return;
+        }
+        if (latitude < minLat) minLat = latitude;
+        if (latitude > maxLat) maxLat = latitude;
+        if (longitude < minLng) minLng = longitude;
+        if (longitude > maxLng) maxLng = longitude;
+      });
+      if (
+        Number.isFinite(minLat) &&
+        Number.isFinite(maxLat) &&
+        Number.isFinite(minLng) &&
+        Number.isFinite(maxLng)
+      ) {
+        return {
+          latitude: (minLat + maxLat) / 2,
+          longitude: (minLng + maxLng) / 2
+        };
+      }
+    }
     const target = (location && hasValidCoordinate(location.latitude, location.longitude))
       ? location
       : normalized[0];
     if (target && hasValidCoordinate(target.latitude, target.longitude)) {
       const latitude = Number(target.latitude);
       const longitude = Number(target.longitude);
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        return { latitude, longitude };
-      }
-    }
-    if (normalized.length) {
-      const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
-      const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
-      const latitude = avgLat;
-      const longitude = avgLng;
       if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
         return { latitude, longitude };
       }
@@ -8693,6 +8713,20 @@ Page({
     const idx = Number(e.currentTarget.dataset.index);
     const suggestion = this.data.searchSuggestions?.[idx];
     if (!suggestion) return;
+    if (
+      suggestion.source === "pin" &&
+      suggestion.pinPayload &&
+      this.isAreaPinSearchPayload(suggestion.pinPayload)
+    ) {
+      const handled = this.applySearchSelectionFromPinPayload(suggestion.pinPayload, {
+        keyword: suggestion.title || this.data.keyword,
+        centerOnPoint: true,
+        centerScale: 15
+      });
+      if (handled) {
+        return;
+      }
+    }
     const marker = this.buildSearchSelectionMarker(suggestion, idx);
     if (
       !marker ||
@@ -9480,13 +9514,29 @@ Page({
     const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
     const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
     const resolved = resolveShapeCoordinates(shape);
+    const resolvedShapeType = `${resolved.resolvedType || shapeType || "POINT"}`.toUpperCase();
     const coords = this.normalizePreviewCoordinateList(resolved.coordinates);
     const primary =
       coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
       detail ||
       {};
-    const latitude = Number(primary.latitude);
-    const longitude = Number(primary.longitude);
+    const center =
+      resolvedShapeType !== "POINT"
+        ? this.computePinPreviewCenter(
+          {
+            type: resolvedShapeType,
+            coordinates: coords,
+            radius: Number(shape.radius ?? shape.radiusKm ?? shape.radiusInKilometers),
+            width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
+            pointCategory: shape.pointCategory || shape.pointcategory,
+            style: shape.style
+          },
+          {}
+        )
+        : null;
+    const target = center || primary;
+    const latitude = Number(target.latitude);
+    const longitude = Number(target.longitude);
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       return null;
     }
@@ -9499,6 +9549,11 @@ Page({
       id: markerId,
       latitude,
       longitude,
+      target: {
+        latitude,
+        longitude
+      },
+      shapeType: resolvedShapeType,
       name: detail.name || "",
       locationText: detail.locationText || "",
       detail: detail,
@@ -9530,6 +9585,47 @@ Page({
       detail: cloneMarkerDetail(payload.detail || {})
     };
     return marker;
+  },
+
+  isAreaPinSearchPayload(payload = {}) {
+    const shapeType = `${payload?.shapeType || payload?.raw?.shape?.type || ""}`.toUpperCase();
+    return !!shapeType && shapeType !== "POINT";
+  },
+
+  resolvePinSearchTarget(payload = {}) {
+    const target = payload?.target || payload;
+    const latitude = Number(target?.latitude);
+    const longitude = Number(target?.longitude);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return { latitude, longitude };
+    }
+    return null;
+  },
+
+  applySearchSelectionFromPinPayload(payload = {}, options = {}) {
+    if (!payload || !this.isAreaPinSearchPayload(payload)) {
+      return false;
+    }
+    const target = this.resolvePinSearchTarget(payload);
+    if (!target) {
+      return false;
+    }
+    this.clearMapTapTargetPoint({ preserveSearchLink: true });
+    this.clearSearchSelectionVisuals();
+    const keyword = `${options.keyword || payload.name || this.data.keyword || ""}`.trim();
+    this.setData({
+      keyword: keyword || this.data.keyword,
+      searchSuggestions: [],
+      searchSuggestLoading: false,
+      searchSuggestError: ""
+    });
+    if (options.centerOnPoint) {
+      const centerScale = Number.isFinite(Number(options.centerScale))
+        ? Number(options.centerScale)
+        : 15;
+      this.centerOnPoint(target, centerScale);
+    }
+    return true;
   },
 
   getAuthToken() {
