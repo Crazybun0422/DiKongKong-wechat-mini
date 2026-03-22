@@ -1,10 +1,18 @@
 {
   "pages": [
+    "pages/entry/index",
     "pages/map/map",
     "pages/topic/topic",
     "pages/webview/index"
   ],
   "subpackages": [
+    {
+      "root": "packages/guide",
+      "pages": [
+        "index/index",
+        "policy/index"
+      ]
+    },
     {
       "root": "pages/profile",
       "pages": [
@@ -26,7 +34,10 @@
         "index",
         "location-picker/index",
         "pin-picker/index",
-        "workgroup-members/index"
+        "workgroup-members/index",
+        "creation-guide/index",
+        "merchant-guide/index",
+        "merchant-poster/index"
       ]
     },
     {
@@ -40,6 +51,45 @@
       "pages": [
         "placeholder/index"
       ]
+    },
+    {
+      "root": "packages/uom2",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
+      "root": "packages/add-mini-app",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
+      "root": "packages/city-report",
+      "pages": [
+        "placeholder/index",
+        "h5/index"
+      ]
+    },
+    {
+      "root": "packages/compass",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
+      "root": "packages/map-center-pin",
+      "pages": [
+        "placeholder/index",
+        "planet-qa/index",
+        "afei-adventure/index"
+      ]
+    },
+    {
+      "root": "packages/dji",
+      "pages": [
+        "placeholder/index"
+      ]
     }
   ],
   "window": {
@@ -47,6 +97,7 @@
     "backgroundColor": "#F2F2F2",
     "backgroundTextStyle": "light"
   },
+  "resizable": true,
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
   "permission": {

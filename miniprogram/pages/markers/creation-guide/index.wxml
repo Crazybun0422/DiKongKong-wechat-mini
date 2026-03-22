@@ -1,0 +1,44 @@
+<view class="merchant-guide-page">
+  <view class="merchant-guide-scroll">
+    <block wx:if="{{loading}}">
+      <view class="merchant-guide-loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="merchant-guide-error">
+        <text>{{error}}</text>
+        <button class="merchant-guide-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <block wx:if="{{contentSegments.length}}">
+        <block wx:for="{{contentSegments}}" wx:key="index">
+          <rich-text
+            wx:if="{{item.type === 'rich'}}"
+            class="merchant-guide-content"
+            nodes="{{item.nodes}}"
+            space="nbsp"
+            selectable="true"
+            bindtap="onRichTextTap"
+          />
+          <image
+            wx:elif="{{item.type === 'image'}}"
+            class="merchant-guide-image"
+            src="{{item.src}}"
+            mode="widthFix"
+            show-menu-by-longpress="true"
+            data-index="{{item.index}}"
+            bindtap="onImageTap"
+          />
+        </block>
+      </block>
+      <rich-text
+        wx:else
+        class="merchant-guide-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </view>
+</view>

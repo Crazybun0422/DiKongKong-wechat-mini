@@ -22,8 +22,7 @@ const {
   appendInviteCodeToQuery,
   getShareInviteCode
 } = require("../../../utils/share");
-const { buildFileDownloadUrl } = require("../../../utils/markers");
-const { getLatestFontFileName } = require("../../../utils/font-config");
+const { getLatestFontFileSource } = require("../../../utils/font-config");
 
 const CHECKIN_PAGE_PATH = "/pages/profile/checkin/index";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
@@ -219,8 +218,13 @@ Page({
   },
 
   onLoad() {
-    if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-      const system = (wx.getSystemInfoSync()?.system || "").toLowerCase();
+    if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
+      let system = "";
+      try {
+        system = (wx.getDeviceInfo()?.system || "").toLowerCase();
+      } catch (err) {
+        system = "";
+      }
       this.setData({
         isAndroid: system.includes("android"),
         isIOS: system.includes("ios")
@@ -260,13 +264,12 @@ Page({
   loadCheckinFont() {
     if (typeof wx === "undefined" || typeof wx.loadFontFace !== "function") return;
     const apiBase = resolveApiBase();
-    getLatestFontFileName({ apiBase })
-      .then((fileName) => {
-        const fontUrl = buildFileDownloadUrl(fileName, { apiBase });
-        if (!fontUrl) return;
+    getLatestFontFileSource({ apiBase })
+      .then((source) => {
+        if (!source) return;
         wx.loadFontFace({
           family: "ZhSubset",
-          source: `url("${fontUrl}")`,
+          source: `url("${source}")`,
           global: false,
           success: () => { },
           fail: (err) => {

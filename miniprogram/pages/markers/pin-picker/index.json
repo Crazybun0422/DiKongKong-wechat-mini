@@ -1,4 +1,16 @@
 {
-  "navigationBarTitleText": "开始标记",
-  "enablePullDownRefresh": false
+  "navigationBarTitleText": "\u5f00\u59cb\u6807\u8bb0",
+  "enablePullDownRefresh": false,
+  "usingComponents": {
+    "uom-plugin": "/packages/uom/components/uom-plugin/index",
+    "uom2-plugin": "/packages/uom2/components/uom-plugin/index",
+    "dji-no-fly-layer": "/packages/dji/components/dji-no-fly-layer/index",
+    "temporary-no-fly-layer": "/packages/dji/components/temporary-no-fly-layer/index"
+  },
+  "componentPlaceholder": {
+    "uom-plugin": "view",
+    "uom2-plugin": "view",
+    "dji-no-fly-layer": "view",
+    "temporary-no-fly-layer": "view"
+  }
 }

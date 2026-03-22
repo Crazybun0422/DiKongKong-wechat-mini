@@ -1,5 +1,6 @@
 const {
   resolveApiBase,
+  authorizedRequest,
   extractAvatarFileName,
   buildAvatarDownloadUrl
 } = require("./profile");
@@ -25,6 +26,15 @@ function fetchOpenPlatformCopy(options = {}) {
       fail: (err) => reject(err)
     });
   });
+}
+
+function fetchShareToPlatformCopy(options = {}) {
+  return authorizedRequest({
+    apiBase: resolveApiBase(options.apiBase),
+    token: options.token,
+    path: "/api/config/share-to-platform-copy",
+    method: "GET"
+  }).then((body = {}) => body?.data || {});
 }
 
 
@@ -315,6 +325,7 @@ function buildContentSegments(html = "", options = {}) {
 
 module.exports = {
   fetchOpenPlatformCopy,
+  fetchShareToPlatformCopy,
   transformHtmlContent,
   resolveAssetUrl,
   extractImageUrls,

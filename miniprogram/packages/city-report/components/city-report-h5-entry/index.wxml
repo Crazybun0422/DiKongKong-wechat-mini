@@ -1,0 +1,18 @@
+<view class="city-report-h5-entry" wx:if="{{visible}}">
+  <view
+    class="city-report-h5-jump"
+    style="width: {{jumpWidth}}rpx;"
+    hover-class="city-report-h5-jump--hover"
+    catchtap="onJumpTap"
+  >
+    {{jumpLabel}}
+  </view>
+  <view
+    class="city-report-h5-tip"
+    hover-class="city-report-h5-tip--hover"
+    catchtap="onTipTap"
+    wx:if="{{showGuide}}"
+  >
+    <image class="city-report-h5-tip-icon" src="/assets/tips-b.png" mode="aspectFit" />
+  </view>
+</view>

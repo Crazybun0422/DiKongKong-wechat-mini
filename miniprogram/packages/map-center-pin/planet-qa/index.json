@@ -1,0 +1,9 @@
+{
+  "navigationStyle": "default",
+  "navigationBarTitleText": "星球问答",
+  "navigationBarBackgroundColor": "#000000",
+  "navigationBarTextStyle": "white",
+  "backgroundColor": "#77B5FF",
+  "backgroundColorTop": "#000000",
+  "backgroundColorBottom": "#DCECFF"
+}

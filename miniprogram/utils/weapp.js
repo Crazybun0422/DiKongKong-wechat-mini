@@ -217,7 +217,106 @@ function requestWeappPosterStatus(options = {}) {
   });
 }
 
+function requestWeappMerchantPoster(payload = {}, options = {}) {
+  const apiBase = ensureApiBase(options);
+  const token = options.token || getAuthToken();
+  if (!apiBase) {
+    return Promise.reject(new Error("missing-api-base"));
+  }
+  if (!token) {
+    return Promise.reject(new Error("missing-token"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${apiBase}/api/weapp/poster-merchant`,
+      method: "POST",
+      data: payload,
+      responseType: "arraybuffer",
+      header: Object.assign(
+        {
+          "content-type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        options.header || {}
+      ),
+      success: (res) => {
+        const status = Number(res?.statusCode);
+        if (status >= 200 && status < 300) {
+          const contentType = getHeaderValue(res?.header, "content-type");
+          const data = res?.data;
+          if (isArrayBuffer(data) && (isImageContentType(contentType) || looksLikePng(data))) {
+            persistArrayBuffer(data, { filePrefix: "merchant-poster" })
+              .then((filePath) => resolve({ tempFilePath: filePath }))
+              .catch(reject);
+            return;
+          }
+          if (isArrayBuffer(data)) {
+            const parsed = parseArrayBufferJson(data);
+            if (parsed && Object.prototype.hasOwnProperty.call(parsed, "data")) {
+              resolve(parsed.data || {});
+              return;
+            }
+            resolve(parsed || {});
+            return;
+          }
+          if (data && typeof data === "object") {
+            resolve(data.data || data);
+            return;
+          }
+          resolve(data || {});
+          return;
+        }
+        const reason = extractErrorMessage(res);
+        reject(new Error(reason || `status-${status || "unknown"}`));
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
+function requestWeappMerchantPosterStatus(payload = {}, options = {}) {
+  const apiBase = ensureApiBase(options);
+  const token = options.token || getAuthToken();
+  if (!apiBase) {
+    return Promise.reject(new Error("missing-api-base"));
+  }
+  if (!token) {
+    return Promise.reject(new Error("missing-token"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: `${apiBase}/api/weapp/poster-merchant/status`,
+      method: "POST",
+      data: payload,
+      header: Object.assign(
+        {
+          "content-type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        options.header || {}
+      ),
+      success: (res) => {
+        const status = Number(res?.statusCode);
+        if (status >= 200 && status < 300) {
+          const data = res?.data;
+          if (data && typeof data === "object") {
+            resolve(data.data || {});
+            return;
+          }
+          resolve({});
+          return;
+        }
+        const reason = extractErrorMessage(res);
+        reject(new Error(reason || `status-${status || "unknown"}`));
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
 module.exports = {
   requestWeappQrcode,
-  requestWeappPosterStatus
+  requestWeappPosterStatus,
+  requestWeappMerchantPoster,
+  requestWeappMerchantPosterStatus
 };

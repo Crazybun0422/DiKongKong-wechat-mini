@@ -11,30 +11,51 @@ const {
   extractAcceptedTemplateIdsFromWxSetting,
   areTemplateIdSetsEqual
 } = require("./utils/subscriptions");
+const { prefetchMapKey } = require("./utils/map-key");
 const { prefetchFontFileConfig } = require("./utils/font-config");
 
 // miniprogram/app.js
 const API_BASE_BY_ENV = {
-  develop: "https://kylee-suborbital-herta.ngrok-free.dev", // IDE / preview
-  //develop: "",
-  trial: "https://skylane.cn",                   // uploaded “体验版”
-  // trial: "https://kylee-suborbital-herta.ngrok-free.dev",                   // uploaded “体验版”
-  release: "https://skylane.cn"                        // 审核 & 上线
+  develop: {
+    apiBase: "https://kylee-suborbital-herta.ngrok-free.dev",
+    guideAssetBase: "https://kylee-suborbital-herta.ngrok-free.dev"
+    // apiBase: "https://skylane.cn",
+    // guideAssetBase: "https://www.skylane.cn"
+  }, // IDE / preview
+  trial: {
+    apiBase: "https://skylane.cn",
+    guideAssetBase: "https://www.skylane.cn"
+  }, // uploaded trial
+  release: {
+    apiBase: "https://skylane.cn",
+    guideAssetBase: "https://www.skylane.cn"
+  } // review & release
 };
 
-function resolveApiBase() {
+function resolveRuntimeEnv() {
   try {
     const { miniProgram } = wx.getAccountInfoSync();
-    const env = miniProgram?.envVersion || "develop";       // develop | trial | release
-
-    return API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+    return miniProgram?.envVersion || "develop"; // develop | trial | release
   } catch (err) {
-    console.warn("Fallback to dev API base because env lookup failed", err);
-    return API_BASE_BY_ENV.develop;
+    console.warn("Fallback to develop env because env lookup failed", err);
+    return "develop";
   }
 }
 
+function resolveApiBase() {
+  const env = resolveRuntimeEnv();
+  const envConfig = API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+  return envConfig.apiBase || API_BASE_BY_ENV.develop.apiBase;
+}
+
+function resolveGuideAssetBase() {
+  const env = resolveRuntimeEnv();
+  const envConfig = API_BASE_BY_ENV[env] || API_BASE_BY_ENV.develop;
+  return envConfig.guideAssetBase || envConfig.apiBase || API_BASE_BY_ENV.develop.apiBase;
+}
+
 const API_BASE_URL = resolveApiBase();
+const GUIDE_ASSET_BASE_URL = resolveGuideAssetBase();
 
 function decodeParamValue(value) {
   if (value === undefined || value === null) return "";
@@ -81,7 +102,7 @@ function parseSceneParams(scene) {
 function extractInviteCodeFromOptions(options = {}) {
   const readInviteFromObject = (source) => {
     if (!source || typeof source !== "object") return "";
-    const candidate = source.inviteCode ?? source.invitationCode;
+    const candidate = source.ic ?? source.inviteCode ?? source.invitationCode;
     if (candidate === undefined || candidate === null) return "";
     return decodeParamValue(candidate);
   };
@@ -108,6 +129,19 @@ function extractInviteCodeFromOptions(options = {}) {
   return "";
 }
 
+function createWeappLoginError(reason, detail = {}) {
+  const message = typeof reason === "string" ? reason : JSON.stringify(reason || {});
+  const error = new Error(message || "weapp-login-failed");
+  error.statusCode = detail.statusCode || 0;
+  error.errMsg = detail.errMsg || "";
+  error.path = WEAPP_LOGIN_PATH;
+  error.method = "POST";
+  error.url = detail.url || "";
+  error.response = detail.response;
+  error.rawError = detail.rawError;
+  return error;
+}
+
 App({
   globalData: {
     version: "0.0.1",
@@ -115,6 +149,8 @@ App({
     token: null,
     userProfile: null,
     apiBase: API_BASE_URL,
+    guideAssetBase: GUIDE_ASSET_BASE_URL,
+    mapKey: "",
     pendingMarkerFocus: null,
     pendingPinPreview: null,
     pendingInviteCode: "",
@@ -126,6 +162,10 @@ App({
 
   onLaunch(options = {}) {
     console.log("Mini program launched");
+    this.globalData.launchOptions = options || {};
+    if (this.globalData.pendingLaunchOptions === undefined) {
+      this.globalData.pendingLaunchOptions = null;
+    }
     const launchInvite = extractInviteCodeFromOptions(options);
     if (launchInvite) {
       this.setPendingInviteCode(launchInvite);
@@ -167,6 +207,9 @@ App({
 
     prefetchFontFileConfig({ apiBase: this.globalData.apiBase }).catch((err) => {
       console.warn("prefetch font config failed", err);
+    });
+    prefetchMapKey({ apiBase: this.globalData.apiBase, forceRefresh: true }).catch((err) => {
+      console.warn("prefetch map key failed", err);
     });
 
     this.initUpdateManager();
@@ -266,7 +309,7 @@ App({
           this.globalData.subscriptionAcceptedTemplateIds = clientIds;
           this.globalData.subscriptionMainSwitch = enabled;
           this.globalData.subscriptionSettingsReady = true;
-          console.log("Extracted accepted template IDs from WeChat settings:", { clientIds, mainSwitch: enabled });
+          //console.log("Extracted accepted template IDs from WeChat settings:", { clientIds, mainSwitch: enabled });
           const syncPromise =
             apiBase && token && enabled
               ? fetchSubscriptions({ apiBase, token })
@@ -433,9 +476,10 @@ App({
 
   requestWeappLogin(payload = {}) {
     console.log("Requesting Weapp login with payload:", payload);
+    const url = `${API_BASE_URL}${WEAPP_LOGIN_PATH}`;
     return new Promise((resolve, reject) => {
       wx.request({
-        url: `${API_BASE_URL}${WEAPP_LOGIN_PATH}`,
+        url,
         method: "POST",
         data: payload,
         header: {
@@ -457,12 +501,25 @@ App({
           } else {
             const reason = data?.message || data?.errMsg || resp?.errMsg || "Unknown error";
             console.error(`Weapp login failed: ${statusCode || "n/a"}`, reason);
-            reject(new Error(reason));
+            reject(
+              createWeappLoginError(reason, {
+                statusCode,
+                errMsg: resp?.errMsg,
+                url,
+                response: data
+              })
+            );
           }
         },
         fail: (err) => {
           console.error("Weapp login request failed", err);
-          reject(err);
+          reject(
+            createWeappLoginError(err?.errMsg || "weapp-login-request-failed", {
+              errMsg: err?.errMsg,
+              url,
+              rawError: err
+            })
+          );
         }
       });
     });

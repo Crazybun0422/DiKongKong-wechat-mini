@@ -1,0 +1,30 @@
+<view class="debug-root">
+  <view class="debug-toggle" wx:if="{{!visible}}" bindtap="onToggle">DBG</view>
+  <view class="debug-panel" wx:if="{{visible}}">
+    <view class="debug-panel-header">
+      <text class="debug-panel-title">Runtime Debug</text>
+      <view class="debug-panel-close" bindtap="onClose">×</view>
+    </view>
+    <view class="debug-panel-body">
+      <view class="debug-line"><text class="debug-key">appName</text><text class="debug-value">{{info.appName}}</text></view>
+      <view class="debug-line"><text class="debug-key">host</text><text class="debug-value">{{info.host}}</text></view>
+      <view class="debug-line"><text class="debug-key">hostName</text><text class="debug-value">{{info.hostName}}</text></view>
+      <view class="debug-line"><text class="debug-key">platform</text><text class="debug-value">{{info.platform}}</text></view>
+      <view class="debug-line"><text class="debug-key">system</text><text class="debug-value">{{info.system}}</text></view>
+      <view class="debug-line"><text class="debug-key">model</text><text class="debug-value">{{info.model}}</text></view>
+      <view class="debug-line"><text class="debug-key">brand</text><text class="debug-value">{{info.brand}}</text></view>
+      <view class="debug-line"><text class="debug-key">runtimeIsWeChat</text><text class="debug-value">{{info.runtimeIsWeChat}}</text></view>
+      <view class="debug-line"><text class="debug-key">runtimeIsDesktop</text><text class="debug-value">{{info.runtimeIsDesktop}}</text></view>
+      <view class="debug-line"><text class="debug-key">isDevtools</text><text class="debug-value">{{info.isDevtools}}</text></view>
+      <view class="debug-line"><text class="debug-key">useWeChatUom</text><text class="debug-value">{{info.useWeChatUom}}</text></view>
+      <view class="debug-line"><text class="debug-key">hasWx</text><text class="debug-value">{{info.hasWx}}</text></view>
+      <view class="debug-line"><text class="debug-key">hasQq</text><text class="debug-value">{{info.hasQq}}</text></view>
+      <view class="debug-line"><text class="debug-key">scale</text><text class="debug-value">{{info.scale}}</text></view>
+      <view class="debug-line"><text class="debug-key">rawScale</text><text class="debug-value">{{info.rawScale}}</text></view>
+      <view class="debug-line"><text class="debug-key">center</text><text class="debug-value">{{info.center}}</text></view>
+      <view class="debug-line"><text class="debug-key">region</text><text class="debug-value">{{info.region}}</text></view>
+      <view class="debug-line"><text class="debug-key">regionPhase</text><text class="debug-value">{{info.regionPhase}}</text></view>
+      <view class="debug-line"><text class="debug-key">uom2Markers</text><text class="debug-value">{{info.uom2MarkerCount}}</text></view>
+    </view>
+  </view>
+</view>

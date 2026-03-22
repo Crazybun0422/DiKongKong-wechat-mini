@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="360" viewBox="0 0 520 360">
+  <path
+    d="
+      M 0 0
+      H 230
+      C 252 0, 264 8, 270 24
+      C 276 40, 284 58, 304 58
+      H 492
+      C 507 58, 520 71, 520 86
+      V 360
+      H 0
+      V 0
+      Z
+    "
+    fill="#FFFFFF"
+  />
+</svg>

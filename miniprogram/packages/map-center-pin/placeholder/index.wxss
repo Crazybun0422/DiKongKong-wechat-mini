@@ -1,0 +1,3 @@
+.map-center-pin-placeholder {
+  display: none;
+}

@@ -57,7 +57,7 @@ paths:
           name: status
           schema:
             type: string
-            enum: [PENDING, APPROVED, REJECTED]
+            enum: [DRAFT, PENDING, APPROVED, REJECTED]
           description: 根据审核状态筛选标记，可选参数。
         - in: query
           name: sortOrder
@@ -65,6 +65,12 @@ paths:
             type: string
             enum: [ASC, DESC]
           description: 根据创建时间排序的方向，可选参数，默认 DESC（最新在前）。
+        - in: query
+          name: draft
+          schema:
+            type: boolean
+            default: false
+          description: 是否仅返回草稿数据。true 时仅返回 reviewStatus=DRAFT 的记录。
       responses:
         '200':
           description: OK
@@ -72,6 +78,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseMarkerPageResponse'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/draft:
+    post:
+      summary: 新增草稿标记
+      description: 用户上传商户标记草稿，保存后 reviewStatus="DRAFT"。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkerRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
         '401':
           description: 未授权
           content:
@@ -106,6 +141,14 @@ paths:
             format: double
             minimum: 0
           description: 查询半径（公里）。
+        - in: query
+          name: scaleInMeters
+          required: false
+          schema:
+            type: integer
+            default: 2000
+            minimum: 0
+          description: 地图比例尺（米），用于后端按点赞等级返回可显示的商户标记；不满足展示条件的标记不会返回。
       responses:
         '200':
           description: OK
@@ -119,10 +162,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/markers/{markId}/renew:
+    post:
+      summary: 商户标记续费
+      description: 用户根据支付模式（WECHAT/FLP）与商户新 ID（markId）发起续费。微信续费走原支付回调；FLP 续费会立即扣款并按续期规则增加到期时间。
+      parameters:
+        - in: path
+          name: markId
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 商户标记的新自增 ID（markIdNew）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkerRenewRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMarkerRenewResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: 无权访问
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 标记不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/markers/search:
     get:
-      summary: 搜索已审核通过的标记
-      description: 根据关键字模糊搜索已审核通过（APPROVED）状态的标记，接口无需登录即可访问。
+      summary: 搜索标记（支持已审核与草稿）
+      description: 默认搜索已审核通过（APPROVED）标记；当 status=DRAFT 时仅搜索当前登录用户自己的草稿数据。
       security: []
       parameters:
         - in: query
@@ -139,6 +231,17 @@ paths:
             maximum: 50
             default: 20
           description: 返回结果条数上限，默认 20，最大 50。
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [APPROVED, DRAFT]
+          description: 搜索状态，默认 APPROVED。选择 DRAFT 时需要登录。
+        - in: query
+          name: paid
+          schema:
+            type: boolean
+          description: 仅在 status=APPROVED 时生效；true 表示付费商户，false 表示普通用户。
       responses:
         '200':
           description: OK
@@ -192,6 +295,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -220,6 +324,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       requestBody:
         required: true
         content:
@@ -266,6 +371,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -302,6 +408,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       requestBody:
         required: true
         content:
@@ -351,6 +458,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -382,6 +490,7 @@ paths:
           required: true
           schema:
             type: string
+          description: 标记 ID（支持旧的 Mongo _id 或新的自增 markId）。
       responses:
         '200':
           description: OK
@@ -458,6 +567,13 @@ components:
         videoId:
           type: string
           description: 视频 ID。
+        videoLink:
+          type: string
+          description: 视频外链 URL。
+        isSCos:
+          type: boolean
+          default: false
+          description: 资源是否存在存储桶，默认 false。
         adminInfo:
           $ref: '#/components/schemas/MarkerAdminInfoDto'
     MarkerResponse:
@@ -467,18 +583,32 @@ components:
           properties:
             id:
               type: string
+              description: 旧的 Mongo _id，保持原样返回。
+            markIdNew:
+              type: integer
+              format: int64
+              description: 新的自增标记 ID（供新版本使用）。
             featureCode:
               type: string
             reviewStatus:
               type: string
-              description: 审核状态，可取 PENDING/APPROVED/REJECTED。
+              description: 审核状态，可取 DRAFT/PENDING/APPROVED/REJECTED。
               enum:
+                - DRAFT
                 - PENDING
                 - APPROVED
                 - REJECTED
+            reviewRejectDetail:
+              type: string
+              nullable: true
+              description: 驳回详情，仅当 reviewStatus=REJECTED 时可能返回。
             paid:
               type: boolean
-              description: 付款标志，仅在 FLP 抵扣或微信支付成功后变为 true。
+              description: 付款标志，仅在 FLP 抵扣或微信支付成功后变为 true；系统会在每日 2 点（东八区）检查到期并自动回收为 false。
+            expireAtSeconds:
+              type: integer
+              format: int64
+              description: 商户付费到期时间（秒级时间戳，东八区）。支付成功后：若为空/0/已过期则按当前东八区时间+1年；未过期则在原到期时间基础上+1年。
             exposureCount:
               type: integer
               format: int64
@@ -487,6 +617,16 @@ components:
               type: integer
               format: int64
               description: 标记被拨打电话的次数。
+            mapDisplayMode:
+              type: string
+              nullable: true
+              enum: [ICON_WITH_NAME, ICON_ONLY, SMALL_ICON_ONLY]
+              description: 默认按 scaleInMeters=2000 计算的展示模式；为 null 表示不展示。
+            mapDisplayModes:
+              type: object
+              description: 各比例尺下展示模式映射，值为 ICON_WITH_NAME/ICON_ONLY/SMALL_ICON_ONLY/HIDDEN。
+              additionalProperties:
+                type: string
             creatorName:
               type: string
               description: 创建者用户名。
@@ -496,6 +636,55 @@ components:
             updatedAt:
               type: string
               format: date-time
+    MarkerRenewRequest:
+      type: object
+      required:
+        - paymentMode
+      properties:
+        paymentMode:
+          type: string
+          enum: [WECHAT, FLP]
+          description: 续费支付模式。
+    MarkerRenewResponse:
+      type: object
+      properties:
+        paymentMode:
+          type: string
+          enum: [WECHAT, FLP]
+        wechatPrepay:
+          $ref: '#/components/schemas/WechatPrepayPayload'
+          nullable: true
+        flpPay:
+          $ref: '#/components/schemas/FlpPayPayload'
+          nullable: true
+    WechatPrepayPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        appId:
+          type: string
+        timeStamp:
+          type: string
+        nonceStr:
+          type: string
+        packageValue:
+          type: string
+        signType:
+          type: string
+        paySign:
+          type: string
+    FlpPayPayload:
+      type: object
+      properties:
+        orderId:
+          type: string
+        orderNumber:
+          type: string
+        amount:
+          type: number
+        remainingBalance:
+          type: number
     MarkerReviewRequest:
       type: object
       required:
@@ -508,6 +697,10 @@ components:
             - PENDING
             - APPROVED
             - REJECTED
+        rejectDetail:
+          type: string
+          nullable: true
+          description: 驳回详情，当 status=REJECTED 时建议填写。
     MarkerLocationDto:
       type: object
       required:
@@ -551,6 +744,17 @@ components:
           format: int64
         totalPages:
           type: integer
+    ApiResponseMarkerRenewResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MarkerRenewResponse'
     ApiResponseMarkerResponse:
       type: object
       properties:

@@ -145,9 +145,25 @@ function uploadAvatarFile(filePath, options = {}) {
   });
 }
 
+function createAuthorizedRequestError(reason, detail = {}) {
+  const message = typeof reason === "string" ? reason : JSON.stringify(reason || {});
+  const error = new Error(message || "request-failed");
+  error.statusCode = detail.statusCode || 0;
+  error.errMsg = detail.errMsg || "";
+  error.method = detail.method || "";
+  error.path = detail.path || "";
+  error.url = detail.url || "";
+  error.response = detail.response;
+  error.rawError = detail.rawError;
+  return error;
+}
+
 function authorizedRequest(options) {
   return new Promise((resolve, reject) => {
     const base = resolveApiBase(options.apiBase);
+    const path = options.path || "";
+    const method = options.method || "GET";
+    const url = `${base}${path}`;
 
     if (!base) {
       reject(new Error("missing-api-base"));
@@ -161,8 +177,8 @@ function authorizedRequest(options) {
       return;
     }
     wx.request({
-      url: `${base}${options.path}`,
-      method: options.method || "GET",
+      url,
+      method,
       data: options.data || null,
       header: Object.assign(
         {
@@ -176,10 +192,28 @@ function authorizedRequest(options) {
           resolve(res.data);
         } else {
           const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
-          reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+          reject(
+            createAuthorizedRequestError(reason, {
+              statusCode: res.statusCode,
+              errMsg: res.errMsg,
+              method,
+              path,
+              url,
+              response: res.data
+            })
+          );
         }
       },
-      fail: (err) => reject(err)
+      fail: (err) =>
+        reject(
+          createAuthorizedRequestError(err?.errMsg || "request-failed", {
+            errMsg: err?.errMsg,
+            method,
+            path,
+            url,
+            rawError: err
+          })
+        )
     });
   });
 }

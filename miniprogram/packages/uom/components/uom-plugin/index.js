@@ -1,8 +1,16 @@
 const { buildWmsOverlay, WMS_MIN_ZOOM, WMS_MAX_ZOOM } = require("../../../../utils/wms");
+const {
+  buildProvinceLayerRecords,
+  buildProvinceLayerParams,
+  findProvinceLayerRecordForPoint
+} = require("../../../../utils/uomProvinceSelector");
+const { outOfChina } = require("../../../../utils/coords");
+const provinceGeojson = require("../../map-meta-data/China.js");
 
 const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
 const MIN_GROUND_OVERLAY_SDK = "2.21.2";
 const UOM_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
+const UOM_NON_RESTRICTED_STATUS_TEXT = "非管制区域";
 const MAP_MIN_SCALE = 0;
 const MAP_MAX_SCALE = 18;
 const DEFAULT_MAP_SCALE = 11;
@@ -20,14 +28,101 @@ const UOM_MASK_RETRY_DELAY_MS = 1200;
 const WMS_FINAL_REFRESH_DELAY_MS = 150;
 const WMS_OVERLAY_REMOVE_RETRY_MS = 120;
 const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
+const WMS_OVERLAY_SWAP_DELAY_MS = 280;
+const WMS_TILE_LOAD_TIMEOUT_MS = 8000;
+const WMS_TILE_RESOURCE_CACHE_LIMIT = 72;
+const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
+const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
+const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
+const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
+const UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT = 256;
+const UOM_SPECIAL_REGION_CODE_SET = new Set(["71", "81", "82"]);
+
+const getProvinceLayerCacheKey = (bbox) => {
+  const sw = bbox?.southwest || {};
+  const ne = bbox?.northeast || {};
+  return [
+    Number(sw.longitude).toFixed(6),
+    Number(sw.latitude).toFixed(6),
+    Number(ne.longitude).toFixed(6),
+    Number(ne.latitude).toFixed(6)
+  ].join(",");
+};
+
+const resolveProvinceLayerParams = (bbox) => {
+  const key = getProvinceLayerCacheKey(bbox);
+  if (UOM_PROVINCE_LAYER_PARAM_CACHE.has(key)) {
+    return UOM_PROVINCE_LAYER_PARAM_CACHE.get(key);
+  }
+  const params = buildProvinceLayerParams(UOM_PROVINCE_LAYER_RECORDS, bbox);
+  if (UOM_PROVINCE_LAYER_PARAM_CACHE.size >= UOM_PROVINCE_LAYER_PARAM_CACHE_LIMIT) {
+    const oldestKey = UOM_PROVINCE_LAYER_PARAM_CACHE.keys().next().value;
+    if (oldestKey) {
+      UOM_PROVINCE_LAYER_PARAM_CACHE.delete(oldestKey);
+    }
+  }
+  UOM_PROVINCE_LAYER_PARAM_CACHE.set(key, params);
+  return params;
+};
+
+const resolveExcludedRegionRecord = (point) => {
+  const record = findProvinceLayerRecordForPoint(UOM_REGION_RECORDS, point);
+  if (!record) return null;
+  return UOM_SPECIAL_REGION_CODE_SET.has(record.provinceCode) ? record : null;
+};
+
+const normalizeRuntimeField = (value) => `${value || ""}`.toLowerCase();
+const getRuntimeInfo = () => {
+  let appBase = {};
+  let device = {};
+  let windowInfo = {};
+  if (typeof wx !== "undefined") {
+    try {
+      if (typeof wx.getAppBaseInfo === "function") {
+        appBase = wx.getAppBaseInfo() || {};
+      }
+    } catch (err) {
+      appBase = {};
+    }
+    try {
+      if (typeof wx.getDeviceInfo === "function") {
+        device = wx.getDeviceInfo() || {};
+      }
+    } catch (err) {
+      device = {};
+    }
+    try {
+      if (typeof wx.getWindowInfo === "function") {
+        windowInfo = wx.getWindowInfo() || {};
+      }
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  return {
+    SDKVersion: appBase.SDKVersion || "",
+    appName: appBase.appName || appBase.hostName || "",
+    app: "",
+    AppPlatform: appBase.platform || device.platform || "",
+    environment: "",
+    platform: device.platform || "",
+    pixelRatio: Number(windowInfo.pixelRatio || device.pixelRatio) || 1,
+    host: appBase.host || "",
+    hostName: appBase.hostName || ""
+  };
+};
 
 const isWeChatRuntime = () => {
   try {
-    if (typeof wx !== "undefined" && wx && typeof wx.getSystemInfoSync === "function") {
-      const info = wx.getSystemInfoSync() || {};
-      const val = `${info.appName || info.AppPlatform || info.app || info.host || info.hostName || ""}`.toLowerCase();
-      if (val.includes("wechat") || val.includes("weixin")) return true;
-    }
+    const info = getRuntimeInfo();
+    const env = normalizeRuntimeField(info.environment || info.AppPlatform || info.host || info.hostName);
+    const appName = normalizeRuntimeField(info.appName || info.app || info.hostName);
+    return (
+      env === "wechat" ||
+      env === "weixin" ||
+      appName === "weixin" ||
+      appName === "wechat"
+    );
   } catch (err) {
     // ignore
   }
@@ -60,16 +155,24 @@ const sameStatusPayload = (a, b) => {
   return (
     a.uomStatus === b.uomStatus &&
     a.uomTone === b.uomTone &&
+    a.uomLoading === b.uomLoading &&
     a.uomTileWarningVisible === b.uomTileWarningVisible &&
     a.uomTileWarningDismissed === b.uomTileWarningDismissed
   );
 };
+
+const buildWmsTileListKey = (tiles = []) =>
+  (Array.isArray(tiles) ? tiles : [])
+    .map((tile) => `${tile?.id || ""}@${tile?.src || ""}`)
+    .sort()
+    .join("|");
 
 Component({
   options: { virtualHost: true },
   data: {
     uomStatus: "评估中",
     uomTone: "neutral",
+    uomLoading: false,
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     uomDivisionEnabled: true,
@@ -110,7 +213,11 @@ Component({
       this._wmsOverlayRemoving = false;
       this._wmsOverlayClearCallbacks = [];
       this._wmsOverlayRemovalTimer = null;
+      this._wmsOverlaySwapTimer = null;
+      this._wmsPendingBatch = null;
+      this._wmsBatchSeq = 0;
       this._wmsFinalRefreshTimer = null;
+      this._wmsTileResourceCache = new Map();
       this._uomEnvReported = false;
       this._uomModalShown = false;
       this._uomFallbackTimer = null;
@@ -123,6 +230,8 @@ Component({
       this._devicePixelRatio = 1;
       this._sdkVersion = "";
       this._destroyed = false;
+      this._currentWmsTileKey = "";
+      this._currentWmsTileKeyApplied = "";
 
       const updates = {};
       if (center) {
@@ -154,13 +263,29 @@ Component({
       if (this.mapCtx && initialCenter && Number.isFinite(scale)) {
         this.refreshWmsOverlay(initialCenter, scale, region || this._lastRegion);
       }
+      if (this.mapCtx) {
+        this.scheduleFinalRefresh();
+        if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
+        this._uomFallbackTimer = setTimeout(() => {
+          this._uomFallbackTimer = null;
+          if (this._destroyed || !this.mapCtx) return;
+          this.scheduleFinalRefresh();
+        }, 600);
+      }
     },
     destroy() {
       if (this._destroyed) return;
       this._destroyed = true;
       if (this._uomFallbackTimer) clearTimeout(this._uomFallbackTimer);
       if (this._wmsOverlayRemovalTimer) clearTimeout(this._wmsOverlayRemovalTimer);
+      if (this._wmsOverlaySwapTimer) clearTimeout(this._wmsOverlaySwapTimer);
       if (this._wmsFinalRefreshTimer) clearTimeout(this._wmsFinalRefreshTimer);
+      if (this._wmsTileResourceCache) {
+        for (const entry of this._wmsTileResourceCache.values()) {
+          this.clearWmsTileResourceEntry(entry, { abort: true });
+        }
+        this._wmsTileResourceCache.clear();
+      }
       if (this._uomTileMasks) {
         for (const entry of this._uomTileMasks.values()) {
           this.clearUomMaskEntryTimeout(entry);
@@ -285,6 +410,7 @@ Component({
         {
           uomStatus: this.data.uomStatus,
           uomTone: this.data.uomTone,
+          uomLoading: this.data.uomLoading,
           uomTileWarningVisible: this.data.uomTileWarningVisible,
           uomTileWarningDismissed: this.data.uomTileWarningDismissed
         },
@@ -297,7 +423,14 @@ Component({
 
     updateStatusPanel() {
       if (this._destroyed) return;
-      const uom = this.describeUomStatus();
+      const center = this.resolveUomCenter();
+      const excludedRegion =
+        (center && outOfChina(center.longitude, center.latitude))
+          ? { provinceCode: "outside-china" }
+          : resolveExcludedRegionRecord(center);
+      const uom = excludedRegion
+        ? { status: UOM_NON_RESTRICTED_STATUS_TEXT, tone: "safe" }
+        : this.describeUomStatus();
       const shouldShowWarning = this.shouldShowUomTileWarning();
       const dismissed = !!this.data.uomTileWarningDismissed;
       const uomWarningVisible = shouldShowWarning && !dismissed;
@@ -308,6 +441,24 @@ Component({
         uomTileWarningDismissed: dismissed
       };
       this.setData(updates, () => this.emitStatus(updates));
+    },
+
+    isBatchDownloading(batch = this._wmsPendingBatch) {
+      if (!batch || !batch.requestedSrcs || !batch.requestedSrcs.size) return false;
+      for (const src of batch.requestedSrcs) {
+        const entry = this._wmsTileResourceCache?.get(src);
+        if (entry && entry.status === "pending") {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    syncUomLoadingState() {
+      if (this._destroyed) return;
+      const loading = this.isBatchDownloading();
+      if (this.data.uomLoading === loading) return;
+      this.setData({ uomLoading: loading }, () => this.emitStatus({ uomLoading: loading }));
     },
 
     shouldShowUomTileWarning() {
@@ -351,13 +502,13 @@ Component({
 
     detectUomOverlaySupport() {
       try {
-        const info = typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function"
-          ? wx.getSystemInfoSync()
-          : {};
+        const info = getRuntimeInfo();
         this._sdkVersion = info.SDKVersion || "";
-        const appName = (info.appName || info.AppName || info.app || "").toLowerCase();
-        const appPlatform = (info.AppPlatform || info.environment || "").toLowerCase();
-        const platform = (info.platform || "").toLowerCase();
+        const appName = normalizeRuntimeField(info.appName || info.hostName || info.app || "");
+        const appPlatform = normalizeRuntimeField(
+          info.AppPlatform || info.environment || info.host || info.hostName || ""
+        );
+        const platform = normalizeRuntimeField(info.platform || "");
         this._isIOS = platform === "ios";
         this._devicePixelRatio = Number(info.pixelRatio) || 1;
         this.reportUomEnv({
@@ -466,12 +617,12 @@ Component({
       }
       const maskEntry = this._uomTileMasks?.get(tile.id);
       if (!maskEntry) {
-        console.log("no mask entry for tile", tile.id);
+        //console.log("no mask entry for tile", tile.id);
         this.ensureUomMask(tile);
         return { status: "评估中", tone: "neutral" };
       }
       if (maskEntry.status === "pending") {
-        console.log("mask pending for tile", tile.id);
+        //console.log("mask pending for tile", tile.id);
         return { status: "评估中", tone: "neutral" };
       }
       if (maskEntry.status === "error") {
@@ -482,15 +633,12 @@ Component({
         return { status: "空域数据加载失败", tone: "warn" };
       }
       if (maskEntry.status === "unsupported") {
-        const withinBounds = this.pointInBounds(center, tile.bounds);
-        return withinBounds
-          ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
-          : { status: "管制空域", tone: "alert" };
+        return { status: "当前环境不支持空域判定", tone: "warn" };
       }
       if (maskEntry.status !== "ready" || !maskEntry.data) {
         return { status: "管制空域", tone: "alert" };
       }
-      console.log("checking point coverage for tile,center,tile.bounds", tile.id, center, tile.bounds);
+      //console.log("checking point coverage for tile,center,tile.bounds", tile.id, center, tile.bounds);
       const covered = this.pointCoveredByUomMask(center, tile.bounds, maskEntry);
       return covered
         ? { status: UOM_SAFE_STATUS_TEXT, tone: "safe" }
@@ -547,9 +695,17 @@ Component({
       if (!center || !Number.isFinite(center.latitude) || !Number.isFinite(center.longitude)) {
         return;
       }
+      if (resolveExcludedRegionRecord(center)) {
+        this.clearMapOverlays();
+        this._currentWmsTiles = [];
+        this._currentWmsTileKey = "";
+        this.updateStatusPanel();
+        return;
+      }
       if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
         this.clearMapOverlays();
         this._currentWmsTiles = [];
+        this._currentWmsTileKey = "";
         this.updateStatusPanel();
         return;
       }
@@ -567,17 +723,23 @@ Component({
           maxTiles: UOM_TILE_MAX_TILES,
           viewportWidth: viewport?.width,
           viewportHeight: viewport?.height,
-          viewportPaddingPx: UOM_VIEWPORT_PADDING_PX
+          viewportPaddingPx: UOM_VIEWPORT_PADDING_PX,
+          resolveLayerParams: resolveProvinceLayerParams
         }
       );
+      const overlayKey = buildWmsTileListKey(overlays);
       const applyOverlays = () => {
         if (this.data.uomDivisionEnabled === false) return;
         this._currentWmsTiles = overlays;
+        this._currentWmsTileKey = overlayKey;
         const maskTiles = this.pickUomMaskTiles(overlays, center, UOM_MASK_KEEP_RADIUS);
         this.pruneUomTileMasks(maskTiles);
+        this.pruneWmsTileResourceCache(new Set(overlays.map((tile) => `${tile?.src || ""}`.trim()).filter(Boolean)));
         this.updateStatusPanel();
         maskTiles.forEach((tile) => this.ensureUomMask(tile));
-        this.applyWmsOverlays(overlays);
+        if (overlayKey !== this._currentWmsTileKeyApplied) {
+          this.applyWmsOverlays(overlays, { overlayKey });
+        }
         this._wmsOverlayZoom = scale;
       };
       if (this._wmsOverlayZoom !== null && this._wmsOverlayZoom !== scale) {
@@ -586,11 +748,8 @@ Component({
       applyOverlays();
     },
     getMapViewportSize() {
-      if (this._mapViewport && this._mapViewport.width && this._mapViewport.height) {
-        return this._mapViewport;
-      }
-      let width = 375;
-      let height = 667;
+      let width = Number(this._mapViewport?.width) || 375;
+      let height = Number(this._mapViewport?.height) || 667;
       try {
         if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
           const info = wx.getWindowInfo();
@@ -598,11 +757,12 @@ Component({
             width = info.windowWidth || info.screenWidth || width;
             height = info.windowHeight || info.screenHeight || height;
           }
-        } else if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-          const info = wx.getSystemInfoSync();
-          if (info) {
-            width = info.windowWidth || info.screenWidth || width;
-            height = info.windowHeight || info.screenHeight || height;
+        }
+        if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
+          const device = wx.getDeviceInfo();
+          if (device) {
+            width = width || device.screenWidth || width;
+            height = height || device.screenHeight || height;
           }
         }
       } catch (err) {
@@ -765,71 +925,312 @@ Component({
       this._wmsOverlayMap.delete(tileId);
     },
 
+    cancelPendingWmsBatch() {
+      const batch = this._wmsPendingBatch;
+      if (!batch) return;
+      this._wmsPendingBatch = null;
+      if (batch.requestedSrcs && batch.requestedSrcs.size) {
+        batch.requestedSrcs.forEach((src) => this.releaseWmsTileResource(src, batch.id));
+      }
+      if (!batch.createdHandles || !batch.createdHandles.size) return;
+      for (const handle of batch.createdHandles.values()) {
+        if (!handle) continue;
+        this.clearWmsOverlayHandleTimer(handle);
+        this.queueWmsOverlayRemoval(handle.overlayId);
+      }
+      this.processWmsOverlayRemovalQueue();
+      this.syncUomLoadingState();
+    },
+
+    touchWmsTileResourceEntry(src) {
+      if (!this._wmsTileResourceCache || !src) return;
+      const entry = this._wmsTileResourceCache.get(src);
+      if (!entry) return;
+      this._wmsTileResourceCache.delete(src);
+      this._wmsTileResourceCache.set(src, entry);
+    },
+
+    clearWmsTileResourceEntry(entry, options = {}) {
+      if (!entry) return;
+      if (entry.downloadTimer) {
+        clearTimeout(entry.downloadTimer);
+        entry.downloadTimer = null;
+      }
+      if (options.abort && entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+        try {
+          entry.downloadTask.abort();
+        } catch (err) {
+          // ignore
+        }
+      }
+      entry.downloadTask = null;
+      entry.promise = null;
+      entry.finalize = null;
+    },
+
+    pruneWmsTileResourceCache(keepSrcSet) {
+      if (!this._wmsTileResourceCache || !this._wmsTileResourceCache.size) return;
+      if (this._wmsTileResourceCache.size <= WMS_TILE_RESOURCE_CACHE_LIMIT) return;
+      const keep = keepSrcSet instanceof Set ? keepSrcSet : new Set();
+      for (const [src, entry] of Array.from(this._wmsTileResourceCache.entries())) {
+        if (this._wmsTileResourceCache.size <= WMS_TILE_RESOURCE_CACHE_LIMIT) break;
+        if (keep.has(src)) continue;
+        if (entry?.status === "pending") continue;
+        this.clearWmsTileResourceEntry(entry, { abort: false });
+        this._wmsTileResourceCache.delete(src);
+      }
+      for (const [src, entry] of Array.from(this._wmsTileResourceCache.entries())) {
+        if (this._wmsTileResourceCache.size <= WMS_TILE_RESOURCE_CACHE_LIMIT) break;
+        if (entry?.status === "pending") continue;
+        this.clearWmsTileResourceEntry(entry, { abort: false });
+        this._wmsTileResourceCache.delete(src);
+      }
+    },
+
+    releaseWmsTileResource(src, consumerId) {
+      const normalized = `${src || ""}`.trim();
+      if (!normalized || !this._wmsTileResourceCache) return;
+      const entry = this._wmsTileResourceCache.get(normalized);
+      if (!entry) return;
+      if (consumerId && entry.consumers) {
+        entry.consumers.delete(consumerId);
+      }
+      if (entry.consumers && entry.consumers.size > 0) return;
+      if (entry.status === "pending") {
+        if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+          try {
+            entry.downloadTask.abort();
+          } catch (err) {
+            // ignore
+          }
+        }
+        if (typeof entry.finalize === "function") {
+          entry.finalize("", "idle");
+          return;
+        }
+        this.clearWmsTileResourceEntry(entry, { abort: false });
+        entry.status = "idle";
+        entry.localSrc = "";
+      }
+      this.syncUomLoadingState();
+    },
+
+    ensureWmsTileResource(src, consumerId) {
+      const normalized = `${src || ""}`.trim();
+      if (!normalized) return Promise.resolve("");
+      if (!isHttpUrl(normalized) || typeof wx === "undefined" || typeof wx.downloadFile !== "function") {
+        return Promise.resolve(normalized);
+      }
+      if (!this._wmsTileResourceCache) {
+        this._wmsTileResourceCache = new Map();
+      }
+      let entry = this._wmsTileResourceCache.get(normalized);
+      if (!entry) {
+        entry = {
+          src: normalized,
+          status: "idle",
+          localSrc: "",
+          promise: null,
+          downloadTask: null,
+          downloadTimer: null,
+          finalize: null,
+          requestId: 0,
+          consumers: new Set()
+        };
+        this._wmsTileResourceCache.set(normalized, entry);
+      }
+      if (!entry.consumers) entry.consumers = new Set();
+      if (consumerId) entry.consumers.add(consumerId);
+      this.touchWmsTileResourceEntry(normalized);
+      if (entry.status === "ready" && entry.localSrc) {
+        return Promise.resolve(entry.localSrc);
+      }
+      if (entry.status === "pending" && entry.promise) {
+        return entry.promise;
+      }
+      entry.status = "pending";
+      entry.requestId = Number.isFinite(entry.requestId) ? entry.requestId + 1 : 1;
+      const requestId = entry.requestId;
+      entry.promise = new Promise((resolve) => {
+        const finalize = (value, status) => {
+          if (entry.requestId !== requestId) return;
+          if (entry.downloadTimer) {
+            clearTimeout(entry.downloadTimer);
+            entry.downloadTimer = null;
+          }
+          entry.downloadTask = null;
+          entry.promise = null;
+          entry.finalize = null;
+          entry.status = status;
+          if (status !== "ready") {
+            entry.localSrc = "";
+          }
+          if (entry.consumers) {
+            entry.consumers.clear();
+          }
+          this.touchWmsTileResourceEntry(normalized);
+          this.syncUomLoadingState();
+          resolve(value || "");
+        };
+        entry.finalize = finalize;
+        entry.downloadTask = wx.downloadFile({
+          url: normalized,
+          success: (res) => {
+            if (entry.requestId !== requestId) return;
+            const statusCode = Number(res?.statusCode);
+            const filePath = `${res?.tempFilePath || ""}`.trim();
+            if (statusCode === 200 && filePath) {
+              entry.localSrc = filePath;
+              finalize(filePath, "ready");
+              return;
+            }
+            finalize("", "error");
+          },
+          fail: () => {
+            if (entry.requestId !== requestId) return;
+            finalize("", "error");
+          }
+        });
+        if (WMS_TILE_LOAD_TIMEOUT_MS > 0) {
+          entry.downloadTimer = setTimeout(() => {
+            if (entry.requestId !== requestId) return;
+            if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+              try {
+                entry.downloadTask.abort();
+              } catch (err) {
+                // ignore
+              }
+            }
+            finalize("", "error");
+          }, WMS_TILE_LOAD_TIMEOUT_MS);
+        }
+      });
+      return entry.promise;
+    },
+
     applyWmsOverlays(tiles, options = {}) {
       if (!this.mapCtx) return;
       this.processWmsOverlayRemovalQueue();
+      this.cancelPendingWmsBatch();
       const ctx = this.mapCtx;
       const epoch = Number.isFinite(options.epoch) ? options.epoch : this._wmsOverlayEpoch;
+      const overlayKey = typeof options.overlayKey === "string"
+        ? options.overlayKey
+        : buildWmsTileListKey(tiles);
       this._wmsOverlayMap = this._wmsOverlayMap || new Map();
       this._wmsOverlaySeed = this._wmsOverlaySeed || 0;
-      const nextIds = new Set();
-      (tiles || []).forEach((tile) => {
-        if (tile && tile.id) nextIds.add(tile.id);
-      });
-      if (this._wmsOverlayMap.size) {
-        for (const [tileId, handle] of Array.from(this._wmsOverlayMap.entries())) {
-          if (!nextIds.has(tileId)) {
-            this.markWmsOverlayStale(tileId, handle);
-            continue;
-          }
-          if (handle && handle.stale) {
-            this.clearWmsOverlayHandleTimer(handle);
+      const currentHandles = this._wmsOverlayMap;
+      const nextHandles = new Map();
+      const obsoleteHandles = new Map(currentHandles);
+      const additions = [];
+      const batchId = `${Date.now()}-${this._wmsBatchSeq++}`;
+      let pendingCount = 0;
+      let committed = false;
+      const commitBatch = () => {
+        if (committed) return;
+        committed = true;
+        if (!this._wmsPendingBatch || this._wmsPendingBatch.id !== batchId) return;
+        this._wmsPendingBatch = null;
+        for (const [tileId, handle] of obsoleteHandles.entries()) {
+          if (!handle) continue;
+          this.clearWmsOverlayHandleTimer(handle);
+          this.queueWmsOverlayRemoval(handle.overlayId);
+          if (this._wmsOverlayMap.get(tileId) === handle) {
+            this._wmsOverlayMap.delete(tileId);
           }
         }
-      }
+        this._wmsOverlayMap = nextHandles;
+        this._currentWmsTileKeyApplied = overlayKey;
+        this.processWmsOverlayRemovalQueue();
+      };
+      const settleTile = () => {
+        pendingCount = Math.max(0, pendingCount - 1);
+        if (pendingCount === 0) {
+          commitBatch();
+        }
+      };
+      const pendingBatch = {
+        id: batchId,
+        createdHandles: new Map(),
+        requestedSrcs: new Set()
+      };
+      this._wmsPendingBatch = pendingBatch;
       (tiles || []).forEach((tile) => {
         if (!tile || !tile.id || !tile.bounds) return;
         const signature = this.tileSignature(tile);
-        const existing = this._wmsOverlayMap.get(tile.id);
+        const existing = currentHandles.get(tile.id);
         if (existing && existing.signature === signature) {
           if (existing.stale) this.clearWmsOverlayHandleTimer(existing);
-          existing.epoch = epoch;
+          nextHandles.set(tile.id, existing);
+          obsoleteHandles.delete(tile.id);
           return;
         }
-
-        if (existing) {
-          this.dropWmsOverlay(tile.id, existing);
-        }
-        this._wmsOverlaySeed += 1;
-        const overlayId = this._wmsOverlaySeed;
-
-        const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
-        ctx.addGroundOverlay({
-          id: overlayId,
-          src: tile.src,
-          bounds: tile.bounds,
-          alpha,
-          success: () => {
-            if (this._wmsOverlayRemovals && this._wmsOverlayRemovals.has(overlayId)) {
-              this.queueWmsOverlayRemoval(overlayId);
-              return;
-            }
-            if (epoch !== this._wmsOverlayEpoch) {
-              this.queueWmsOverlayRemoval(overlayId);
-            }
-          },
-          fail: (err) => {
-            console.error("addGroundOverlay failed", tile.id, err);
-            this._uomOverlayFailed = true;
-            this.updateUomTileWarning();
-
-            this.queueWmsOverlayRemoval(overlayId);
-            this._wmsOverlayMap.delete(tile.id);
-          }
-        });
-        this._wmsOverlayMap.set(tile.id, { overlayId, signature, epoch, stale: false, staleTimer: null });
+        additions.push({ tile, signature });
       });
-      this.processWmsOverlayRemovalQueue();
+      const startAdditions = () => {
+        if (!this._wmsPendingBatch || this._wmsPendingBatch.id !== batchId || epoch !== this._wmsOverlayEpoch) {
+          return;
+        }
+        additions.forEach(({ tile, signature, src }) => {
+          this._wmsOverlaySeed += 1;
+          const overlayId = this._wmsOverlaySeed;
+          pendingCount += 1;
+          const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
+          ctx.addGroundOverlay({
+            id: overlayId,
+            src: src || tile.src,
+            bounds: tile.bounds,
+            alpha,
+            success: () => {
+              const handle = { overlayId, signature, epoch, stale: false, staleTimer: null };
+              if (!this._wmsPendingBatch || this._wmsPendingBatch.id !== batchId || epoch !== this._wmsOverlayEpoch) {
+                this.queueWmsOverlayRemoval(overlayId);
+                settleTile();
+                return;
+              }
+              pendingBatch.createdHandles.set(tile.id, handle);
+              nextHandles.set(tile.id, handle);
+              settleTile();
+            },
+            fail: (err) => {
+              console.error("addGroundOverlay failed", tile.id, err);
+              this._uomOverlayFailed = true;
+              this.updateUomTileWarning();
+              settleTile();
+            }
+          });
+        });
+        if (pendingCount === 0) {
+          commitBatch();
+        }
+      };
+      if (!additions.length) {
+        this.syncUomLoadingState();
+        commitBatch();
+        return;
+      }
+      const downloadPromise = Promise.all(
+        additions.map((item) => {
+          if (item.tile?.src) {
+            pendingBatch.requestedSrcs.add(item.tile.src);
+          }
+          return this.ensureWmsTileResource(item.tile?.src, batchId)
+            .then((localSrc) => {
+              item.src = localSrc || item.tile?.src || "";
+              return item.src;
+            })
+            .catch(() => {
+              item.src = item.tile?.src || "";
+              return item.src;
+            });
+        })
+      );
+      this.syncUomLoadingState();
+      downloadPromise.then(() => {
+        startAdditions();
+      }).catch(() => {
+        startAdditions();
+      });
     },
     tileSignature(tile) {
       if (!tile) return "";
@@ -849,6 +1250,11 @@ Component({
 
     clearMapOverlays(options = {}) {
       this.bumpWmsOverlayEpoch();
+      if (this._wmsOverlaySwapTimer) {
+        clearTimeout(this._wmsOverlaySwapTimer);
+        this._wmsOverlaySwapTimer = null;
+      }
+      this.cancelPendingWmsBatch();
       this._wmsOverlayMap = this._wmsOverlayMap || new Map();
       if (options && typeof options.onCleared === "function") {
         if (!this._wmsOverlayClearCallbacks) this._wmsOverlayClearCallbacks = [];
@@ -870,6 +1276,9 @@ Component({
         this._uomTileMasks.clear();
       }
       this._currentWmsTiles = [];
+      this._currentWmsTileKey = "";
+      this._currentWmsTileKeyApplied = "";
+      this.syncUomLoadingState();
       this.updateStatusPanel();
     },
 
@@ -938,6 +1347,18 @@ Component({
         clearTimeout(entry.retryTimer);
         entry.retryTimer = null;
       }
+      if (entry.downloadTimer) {
+        clearTimeout(entry.downloadTimer);
+        entry.downloadTimer = null;
+      }
+      if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+        try {
+          entry.downloadTask.abort();
+        } catch (err) {
+          // ignore
+        }
+      }
+      entry.downloadTask = null;
     },
 
     scheduleUomMaskRetry(tile, entry) {
@@ -974,6 +1395,72 @@ Component({
       active.status = "error";
       this.scheduleUomMaskRetry(tile, active);
       this.updateStatusPanel();
+    },
+
+    loadUomMaskImage(tile, entry, img) {
+      if (!tile || !tile.src || !entry || !img) {
+        this.markUomMaskError(tile, entry);
+        return;
+      }
+      const applySrc = (src) => {
+        try {
+          img.src = src;
+        } catch (err) {
+          this.markUomMaskError(tile, entry);
+        }
+      };
+      if (entry.localSrc) {
+        applySrc(entry.localSrc);
+        return;
+      }
+      if (!isHttpUrl(tile.src) || typeof wx === "undefined" || typeof wx.downloadFile !== "function") {
+        applySrc(tile.src);
+        return;
+      }
+      const activeEntry = () => this._uomTileMasks?.get(tile.id) === entry;
+      if (entry.downloadTimer) {
+        clearTimeout(entry.downloadTimer);
+        entry.downloadTimer = null;
+      }
+      if (entry.downloadTask && typeof entry.downloadTask.abort === "function") {
+        try {
+          entry.downloadTask.abort();
+        } catch (err) {
+          // ignore
+        }
+      }
+      entry.downloadTask = wx.downloadFile({
+        url: tile.src,
+        success: (res) => {
+          if (!activeEntry()) return;
+          if (entry.downloadTimer) {
+            clearTimeout(entry.downloadTimer);
+            entry.downloadTimer = null;
+          }
+          const statusCode = Number(res?.statusCode);
+          const filePath = res?.tempFilePath;
+          if (statusCode === 200 && filePath) {
+            entry.localSrc = filePath;
+            applySrc(filePath);
+            return;
+          }
+          this.markUomMaskError(tile, entry);
+        },
+        fail: () => {
+          if (!activeEntry()) return;
+          if (entry.downloadTimer) {
+            clearTimeout(entry.downloadTimer);
+            entry.downloadTimer = null;
+          }
+          this.markUomMaskError(tile, entry);
+        }
+      });
+      if (UOM_MASK_LOAD_TIMEOUT_MS > 0) {
+        entry.downloadTimer = setTimeout(() => {
+          if (!activeEntry()) return;
+          this.markUomMaskError(tile, entry);
+        }, UOM_MASK_LOAD_TIMEOUT_MS);
+      }
     },
 
     enforceUomMaskCacheLimit(keepIds) {
@@ -1016,6 +1503,7 @@ Component({
       }
       if (!this._uomMaskSupported) {
         this._uomTileMasks.set(tile.id, { status: "unsupported" });
+        this.updateStatusPanel();
         return;
       }
       try {
@@ -1023,7 +1511,15 @@ Component({
         const canvas = wx.createOffscreenCanvas({ type: "2d", width: sampleSize, height: sampleSize });
         const ctx = canvas.getContext("2d");
         const img = canvas.createImage();
-        const entry = { status: "pending", timeoutId: null, retryCount, retryTimer: null };
+        const entry = {
+          status: "pending",
+          timeoutId: null,
+          retryCount,
+          retryTimer: null,
+          downloadTask: null,
+          downloadTimer: null,
+          localSrc: ""
+        };
         this._uomTileMasks.set(tile.id, entry);
         this.enforceUomMaskCacheLimit(this._uomMaskKeepIds);
         if (UOM_MASK_LOAD_TIMEOUT_MS > 0) {
@@ -1060,7 +1556,7 @@ Component({
           if (!active || active !== entry) return;
           this.markUomMaskError(tile, entry);
         };
-        img.src = tile.src;
+        this.loadUomMaskImage(tile, entry, img);
       } catch (err) {
         console.error("创建 UOM 蒙版失败", err);
         this.markUomMaskError(tile);

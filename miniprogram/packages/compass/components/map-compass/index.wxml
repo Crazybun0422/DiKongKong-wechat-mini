@@ -1,0 +1,12 @@
+<view class="map-compass {{satellite ? 'map-compass--satellite' : ''}}" bindtap="onTap">
+  <view class="map-compass-body" style="transform: rotateX({{skew}}deg);">
+    <image class="map-compass-dial" src="/packages/compass/assets/dial.png" mode="aspectFit" />
+    <image class="map-compass-north" src="/packages/compass/assets/af-north.png" mode="aspectFit" />
+    <image
+      class="map-compass-pointer"
+      src="/packages/compass/assets/pointer.png"
+      mode="aspectFit"
+      style="transform: rotate({{rotate}}deg);"
+    />
+  </view>
+</view>

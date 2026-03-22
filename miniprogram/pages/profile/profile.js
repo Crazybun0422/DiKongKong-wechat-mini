@@ -41,6 +41,32 @@ function truncateNicknameByUnits(value, maxUnits = NICKNAME_MAX_UNITS) {
   return output;
 }
 
+function getWindowMetrics() {
+  let windowInfo = {};
+  if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+    try {
+      windowInfo = wx.getWindowInfo() || {};
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  const windowWidth = Number(windowInfo.windowWidth) || 375;
+  const windowHeight = Number(windowInfo.windowHeight) || 667;
+  const screenWidth = Number(windowInfo.screenWidth) || windowWidth;
+  const screenHeight = Number(windowInfo.screenHeight) || windowHeight;
+  return { windowWidth, windowHeight, screenWidth, screenHeight };
+}
+
+function resolveNicknameUpdateErrorMessage(err) {
+  if (err?.message === "missing-token") {
+    return "请先登录后再试";
+  }
+  if (Number(err?.statusCode) === 400) {
+    return "名称重复";
+  }
+  return err?.displayMessage || err?.message || "更新失败，请稍后重试";
+}
+
 Page({
   data: {
     loading: true,
@@ -151,9 +177,7 @@ Page({
     }
     this.refreshSubscriptionRedDot();
     this.loadCheckinStatus();
-    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "profile") {
-      this.showCheckinGuideProfile();
-    } else if (this.data.showCheckinGuideProfile) {
+    if (this.data.showCheckinGuideProfile) {
       this.setData({ showCheckinGuideProfile: false });
     }
     if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "profile") {
@@ -171,8 +195,7 @@ Page({
     if (typeof wx.getMenuButtonBoundingClientRect !== "function") return;
     const menuRect = wx.getMenuButtonBoundingClientRect();
     if (!menuRect || !menuRect.left) return;
-    const systemInfo = typeof wx.getSystemInfoSync === "function" ? wx.getSystemInfoSync() : null;
-    const screenWidth = systemInfo?.screenWidth;
+    const { screenWidth } = getWindowMetrics();
     if (!screenWidth) return;
     const rpx = screenWidth / 750;
     const badgeWidth = 150 * rpx;
@@ -322,12 +345,6 @@ Page({
     const value = e?.detail?.value || "";
     const limited = truncateNicknameByUnits(value);
     this.setData({ nicknameInput: limited });
-    const inputTypeRaw = e?.detail?.inputType || "";
-    const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
-    console.log("xxxxxxx", e)
-    if (inputType === "nickname") {
-      this.saveNicknameInline(limited);
-    }
   },
   onEditing(e) {
 
@@ -342,21 +359,24 @@ Page({
     const limited = truncateNicknameByUnits(value);
 
     if (!e.detail.pass) {
-      wx.showToast({ icon: 'none', title: '昵称不合规，请重新填写' })
+      wx.showToast({ icon: "none", title: "昵称不合规，请重新填写" });
       this.setData({
         nicknameEditing: true,
-        nicknameInput: nickname
+        nicknameInput: limited
       });
-      return
+      return;
     }
     this.saveNicknameInline(limited);
-
   },
 
   onNicknameInputConfirm(e) {
+    const inputTypeRaw = e?.detail?.inputType || "";
+    const inputType = typeof inputTypeRaw === "string" ? inputTypeRaw.toLowerCase() : "";
+    if (inputType === "nickname") {
+      return;
+    }
     const value = e?.detail?.value ?? this.data.nicknameInput;
-    const limited = truncateNicknameByUnits(value);
-    this.saveNicknameInline(limited);
+    this.saveNicknameInline(value);
   },
 
   onNicknameInputBlur() {
@@ -397,10 +417,7 @@ Page({
       })
       .catch((err) => {
         console.warn("更新昵称失败", err);
-        const message =
-          err?.message === "missing-token"
-            ? "请先登录后再试"
-            : err?.displayMessage || err?.message || "更新失败，请稍后重试";
+        const message = resolveNicknameUpdateErrorMessage(err);
         wx.showToast({ title: message, icon: "none" });
         this.setData({
           nicknameEditing: false,
@@ -440,7 +457,9 @@ Page({
       })
       .catch((err) => {
         hideLoading();
-        throw err || new Error("nickname-sync-failed");
+        const nextErr = err || new Error("nickname-sync-failed");
+        nextErr.displayMessage = resolveNicknameUpdateErrorMessage(nextErr);
+        throw nextErr;
       });
   },
 
@@ -585,6 +604,7 @@ Page({
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     const canGoBack = typeof wx.navigateBack === "function" && pages.length > 1;
     if (canGoBack) {
+      const prevPage = pages[pages.length - 2] || null;
       const prevRoute = pages[pages.length - 2]?.route || "";
       if (prevRoute === "pages/profile/checkin/index") {
         if (typeof wx.reLaunch === "function") {
@@ -596,6 +616,17 @@ Page({
           return;
         }
       } else {
+        if (
+          prevRoute === "pages/map/map" &&
+          prevPage &&
+          typeof prevPage.setData === "function"
+        ) {
+          const next = { activeTab: "home" };
+          if (Object.prototype.hasOwnProperty.call(prevPage.data || {}, "airBoardEnabled")) {
+            next.showDashboardPanel = !!prevPage.data.airBoardEnabled;
+          }
+          prevPage.setData(next);
+        }
         wx.navigateBack({ delta: 1 });
         return;
       }
@@ -704,16 +735,16 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
-        const rpx = system.windowWidth / 750;
+        const { windowWidth, windowHeight } = getWindowMetrics();
+        const rpx = windowWidth / 750;
         const padding = 10;
         const size = Math.max(rect.width, rect.height) + padding * 2;
         const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
         const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(system.windowWidth, left + size);
-        const bottomTop = Math.min(system.windowHeight, top + size);
+        const rightLeft = Math.min(windowWidth, left + size);
+        const bottomTop = Math.min(windowHeight, top + size);
         const introduceLeft = Math.max(0, left - 14 - 150 * rpx);
-        const introduceTop = Math.min(system.windowHeight, top + size + 12);
+        const introduceTop = Math.min(windowHeight, top + size + 12);
         resolve({
           mask: { top, left, size, rightLeft, bottomTop },
           introduce: { left: introduceLeft, top: introduceTop }
@@ -764,14 +795,14 @@ Page({
           resolve(null);
           return;
         }
-        const system = wx.getSystemInfoSync();
+        const { windowWidth, windowHeight } = getWindowMetrics();
         const padding = 10;
         const width = rect.width + padding * 2;
         const height = rect.height + padding * 2;
         const left = Math.max(0, rect.left - padding);
         const top = Math.max(0, rect.top - padding);
-        const rightLeft = Math.min(system.windowWidth, left + width);
-        const bottomTop = Math.min(system.windowHeight, top + height);
+        const rightLeft = Math.min(windowWidth, left + width);
+        const bottomTop = Math.min(windowHeight, top + height);
         resolve({
           top,
           left,

@@ -1,0 +1,48 @@
+<view class="policy-update-mask" wx:if="{{visible}}" catchtap="onMaskTap" catchtouchmove="onMaskTouchMove">
+  <view class="policy-update-card {{closing ? 'is-closing' : ''}}">
+    <view class="policy-update-banner">
+      <view class="policy-update-title">{{title}}</view>
+      <image class="policy-update-shield" src="/packages/guide/assets/shield.png" mode="aspectFit" />
+    </view>
+    <view class="policy-update-content">
+
+      <block wx:if="{{updateType === 'privacy'}}">
+        <view class="policy-update-paragraph">欢迎使用低空星球！</view>
+        <view class="policy-update-paragraph">
+          <text>我们已更新</text>
+          <text class="policy-update-link" bindtap="onPrivacyTap">《隐私政策》</text>
+          <text>，以更清晰地说明我们在提供禁飞区/适飞区查询、地图标点、商户服务、签到活动与报备指引等功能时，如何收集、使用并保护你的个人信息。</text>
+        </view>
+        <view class="policy-update-paragraph">
+          未经你的明确同意，我们不会向第三方共享你的个人信息。你也可以随时在系统设置中管理权限或撤回授权。
+        </view>
+        <view class="policy-update-paragraph">请阅读并充分理解后再继续使用。</view>
+      </block>
+
+      <block wx:elif="{{updateType === 'agreement'}}">
+        <view class="policy-update-paragraph">欢迎使用低空星球！</view>
+        <view class="policy-update-paragraph">
+          <text>我们已更新</text>
+          <text class="policy-update-link" bindtap="onAgreementTap">《用户协议》</text>
+          <text>，以更清晰地说明服务内容、使用规则、账号与社区规范、免责声明及争议处理等条款。</text>
+        </view>
+        <view class="policy-update-paragraph">请你在继续使用前认真阅读并充分理解更新内容。</view>
+      </block>
+
+      <block wx:elif="{{updateType === 'both'}}">
+        <view class="policy-update-paragraph">欢迎使用低空星球！</view>
+        <view class="policy-update-paragraph">
+          <text>我们已更新</text>
+          <text class="policy-update-link" bindtap="onAgreementTap">《用户协议》</text>
+          <text>和</text>
+          <text class="policy-update-link" bindtap="onPrivacyTap">《隐私政策》</text>
+          <text>，以更清晰地说明服务规则、账号与社区规范，以及我们如何收集、使用并保护你的个人信息。</text>
+        </view>
+        <view class="policy-update-paragraph">请你在继续使用前认真阅读并充分理解更新内容。</view>
+      </block>
+    </view>
+
+    <button class="policy-update-button" loading="{{loading}}" disabled="{{loading}}" bindtap="onAgreeTap">同意并继续</button>
+    <view class="policy-update-disagree" bindtap="onDisagreeTap">不同意，退出</view>
+  </view>
+</view>

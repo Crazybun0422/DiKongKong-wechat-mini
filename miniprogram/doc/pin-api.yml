@@ -37,6 +37,86 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/import/kml-kmz:
+    post:
+      summary: 导入 KML/KMZ 为 Pin 标记
+      description: |
+        需登录。上传一个或多个 `.kml` / `.kmz` 文件后，将每个 Placemark 转换为一个 Pin。
+
+        - Point -> 单点标记
+        - LineString -> 沿边缓冲，默认宽度 1 米
+        - Polygon -> 面标记（若为 buffer 面，按导入数据中的实际宽度）
+        - 命名规则 -> 优先使用 Placemark.name；若为空则使用 `{文件名}-placemark-{序号}`；同一次导入重名会自动追加 ` (2)`、` (3)` 后缀
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  description: 一个或多个 KML/KMZ 文件。
+                  items:
+                    type: string
+                    format: binary
+                visibility:
+                  $ref: '#/components/schemas/PinVisibility'
+              required: [files]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinImportResponse'
+        '400':
+          description: 参数错误或文件格式错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/pins/{id}/export/kml-kmz:
+    get:
+      summary: 导出 Pin 为 KML/KMZ
+      description: |
+        需登录。按 Pin 的 shape 类型导出。
+
+        - 一般类型导出为 KML
+        - 若 shape.type=KMZ 则导出 KMZ
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
+      responses:
+        '200':
+          description: 文件流（KML/KMZ）
+          content:
+            application/vnd.google-earth.kml+xml:
+              schema:
+                type: string
+                format: binary
+            application/vnd.google-earth.kmz:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: 未授权
+        '404':
+          description: 未找到
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/pins/{id}:
     get:
       summary: 获取已审核通过的公开 Pin 标记详情
@@ -50,6 +130,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -72,6 +153,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       requestBody:
         required: true
         content:
@@ -118,6 +200,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -156,6 +239,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       requestBody:
         required: true
         content:
@@ -203,6 +287,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -244,6 +329,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -285,6 +371,7 @@ paths:
           required: true
           schema:
             type: string
+          description: Pin ID（支持旧的 Mongo _id 或新的自增 pinId）。
       responses:
         '200':
           description: OK
@@ -364,6 +451,14 @@ paths:
             format: double
           minimum: 0
           description: 查询半径，单位公里。
+        - in: query
+          name: scaleInMeters
+          required: false
+          schema:
+            type: integer
+            default: 2000
+            minimum: 0
+          description: 地图比例尺（米），用于后端按点赞等级返回可显示的标记；不满足展示条件的标记不会返回。
       responses:
         '200':
           description: OK
@@ -594,6 +689,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PinResponse'
+    ApiResponsePinImportResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: "#/components/schemas/PinImportResponse"
     ApiResponsePinMetricsResponse:
       type: object
       properties:
@@ -640,6 +746,13 @@ components:
           type: string
         description:
           type: string
+        videoLink:
+          type: string
+          description: 视频外链 URL。
+        isSCos:
+          type: boolean
+          default: false
+          description: 资源是否存在存储桶，默认 false。
         visibility:
           $ref: '#/components/schemas/PinVisibility'
         groups:
@@ -665,6 +778,10 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/PinReviewStatus'
+        rejectDetail:
+          type: string
+          nullable: true
+          description: 驳回详情，当 status=REJECTED 时建议填写。
       required: [status]
     PinStatusUpdateRequest:
       type: object
@@ -677,6 +794,11 @@ components:
       properties:
         id:
           type: string
+          description: 旧的 Mongo _id，保持原样返回。
+        pinIdNew:
+          type: integer
+          format: int64
+          description: 新的自增 Pin ID（供新版本使用）。
         images:
           type: array
           items:
@@ -685,6 +807,13 @@ components:
           type: string
         description:
           type: string
+        videoLink:
+          type: string
+          description: 视频外链 URL。
+        isSCos:
+          type: boolean
+          default: false
+          description: 资源是否存在存储桶，默认 false。
         visibility:
           $ref: '#/components/schemas/PinVisibility'
         groups:
@@ -694,6 +823,10 @@ components:
             $ref: '#/components/schemas/WorkGroupResponse'
         reviewStatus:
           $ref: '#/components/schemas/PinReviewStatus'
+        reviewRejectDetail:
+          type: string
+          nullable: true
+          description: 驳回详情，仅当 reviewStatus=REJECTED 时可能返回。
         shape:
           $ref: '#/components/schemas/PinShapeResponse'
         featureCode:
@@ -707,6 +840,21 @@ components:
           type: integer
           format: int64
           description: 曝光次数。
+        lastRewardedStatus:
+          allOf:
+            - $ref: '#/components/schemas/PinReviewStatus'
+          nullable: true
+          description: 上一次已发放奖励对应的审核档位（仅用于 B->A 补差判断）。
+        mapDisplayMode:
+          type: string
+          nullable: true
+          enum: [ICON_WITH_NAME, ICON_ONLY, SMALL_ICON_ONLY]
+          description: 默认按 scaleInMeters=2000 计算的展示模式；为 null 表示不展示。
+        mapDisplayModes:
+          type: object
+          description: 各比例尺下展示模式映射，值为 ICON_WITH_NAME/ICON_ONLY/SMALL_ICON_ONLY/HIDDEN。
+          additionalProperties:
+            type: string
         createdAt:
           type: string
           format: date-time
@@ -754,6 +902,16 @@ components:
     WorkGroupStatus:
       type: string
       enum: [ACTIVE, BANNED]
+    PinImportResponse:
+      type: object
+      properties:
+        importedCount:
+          type: integer
+          description: 本次成功导入的 pin 数量。
+        pins:
+          type: array
+          items:
+            $ref: "#/components/schemas/PinResponse"
     PinMetricsResponse:
       type: object
       properties:
@@ -774,7 +932,18 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PinCoordinateDto'
-          description: 经纬度（含可选高程）列表，线、多边形等需闭合。
+          description: 兼容旧版本的扁平坐标数组。
+        coordinateGroups:
+          type: object
+          description: 按几何类型分组的坐标集合（如 point/line/polygon）。
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/PinCoordinateDto'
+        style:
+          type: object
+          description: 前端渲染样式元数据（颜色、线宽、透明度等扩展字段）。
+          additionalProperties: true
         radius:
           type: number
           format: double
@@ -812,7 +981,7 @@ components:
       enum: [ALIVE, BANNED]
     PinShapeType:
       type: string
-      enum: [LINE, CIRCLE, RECTANGLE, POLYGON, POINT]
+      enum: [LINE, CIRCLE, RECTANGLE, POLYGON, POINT, KML, KMZ]
     PinLineCategory:
       type: string
       enum: [STANDARD, TEMPORARY_NO_FLY_ZONE_BUFFER]

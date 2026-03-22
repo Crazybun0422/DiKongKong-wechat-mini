@@ -1,0 +1,74 @@
+<view class="guide-page" style="padding-top: {{contentTopRpx}}rpx;">
+  <view class="guide-title">{{title}}</view>
+  <view class="guide-media-wrap">
+    <image class="guide-media-bg" src="/assets/intro-bg.png" mode="aspectFill" />
+    <view class="guide-media-fade"></view>
+    <view class="guide-media">
+      <view wx:if="{{loading}}"></view>
+      <view class="guide-error" wx:elif="{{error}}">
+        <text>{{error}}</text>
+        <view class="guide-retry" bindtap="onRetryTap">重试</view>
+      </view>
+      <swiper
+        wx:elif="{{slides.length}}"
+        class="guide-swiper"
+        circular="true"
+        autoplay="{{autoplay}}"
+        duration="400"
+        current="{{current}}"
+        bindchange="onSwiperChange"
+      >
+        <swiper-item wx:for="{{slides}}" wx:key="index">
+          <view class="guide-slide">
+            <view class="guide-image-stack {{item._loaded ? 'is-ready' : ''}}">
+              <view class="guide-image-card"></view>
+              <view class="guide-image-frame">
+                <image
+                  class="guide-image {{item._loaded ? 'is-ready' : ''}}"
+                  src="{{item.url}}"
+                  mode="aspectFill"
+                  data-index="{{index}}"
+                  bindload="onGuideImageLoad"
+                  binderror="onGuideImageError"
+                />
+              </view>
+            </view>
+          </view>
+        </swiper-item>
+      </swiper>
+      <view class="guide-placeholder" wx:else>暂无引导图</view>
+    </view>
+  </view>
+
+  <view class="guide-indicator" wx:if="{{slides.length > 1}}">
+    <view
+      class="guide-dot {{index === current ? 'is-active' : ''}}"
+      wx:for="{{slides}}"
+      wx:key="index"
+    ></view>
+  </view>
+
+  <button
+    class="guide-start-btn {{!agreed ? 'is-muted' : ''}} {{submitLoading ? 'is-disabled' : ''}}"
+    loading="{{submitLoading}}"
+    disabled="{{submitLoading}}"
+    bindtap="onStartTap"
+  >
+    立即体验
+  </button>
+
+  <view class="guide-agree-row" bindtap="onToggleAgree">
+    <view class="guide-checkbox {{agreed ? 'is-checked' : ''}}">
+      <text wx:if="{{agreed}}" class="guide-checkmark">✓</text>
+    </view>
+    <text class="guide-agree-text">同意</text>
+    <text class="guide-link" catchtap="onUserAgreementTap">用户协议</text>
+    <text class="guide-agree-text">和</text>
+    <text class="guide-link" catchtap="onPrivacyPolicyTap">隐私政策</text>
+  </view>
+
+  <view class="guide-brand">
+    <image class="guide-brand-logo" src="/pages/entry/assets/gray-logo.png" mode="aspectFit" />
+    <text class="guide-brand-text">低空星球</text>
+  </view>
+</view>

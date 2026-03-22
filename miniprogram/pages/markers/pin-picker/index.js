@@ -1,13 +1,28 @@
 const { reverseGeocode } = require("../../../utils/geocoder");
 const { gcj02ToWgs84 } = require("../../../utils/coords");
 const { searchPlaces } = require("../../../utils/search");
+const { getMapKeySync, prefetchMapKey } = require("../../../utils/map-key");
+const { shouldUseWeChatUom } = require("../../../utils/runtime");
+const { fetchNearbyMarkers } = require("../../../utils/markers");
+const { fetchNearbyPins } = require("../../../utils/pins");
+const { computeGreatCircleDistance } = require("../../../utils/distance");
 
 const DEFAULT_CENTER = {
   latitude: 39.9042,
   longitude: 116.4074,
   scale: 16
 };
+const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
+const MAP_MIN_SCALE = 0;
+const MAP_MAX_SCALE = 18;
+const RUNTIME_IS_WECHAT = shouldUseWeChatUom();
 const COORD_ADJUST_STEP = 0.00001;
+const PICKER_WIDE_LAYOUT_MIN_WIDTH = 560;
+const PICKER_WIDE_LAYOUT_MIN_RATIO = 1.1;
+const WINDOW_RESIZE_DEBOUNCE_MS = 80;
+const STARTUP_LAYER_INIT_DELAY_MS = 80;
+const STARTUP_LOCATE_DELAY_MS = 180;
+const NEARBY_CONTENT_RADIUS_KM = 8;
 const hasSavedLocationPayload = (payload = {}) => {
   if (!payload) return false;
   const lat = normalizeCoord(payload.latitude);
@@ -49,6 +64,102 @@ const DEFAULT_TYPE = TYPE_SECTIONS[0].options[0];
 const PIN_SHAPE_COLOR = "#D3A05B";
 const PIN_SHAPE_STROKE = "#D3A05BF2";
 const PIN_SHAPE_FILL = "#D3A05B4D";
+const MERCHANT_MARKER_ICON = "/assets/drone.png";
+const PIN_DISTANCE_ANCHOR_ICON = "/assets/marker-transparent.png";
+const PIN_TYPE_ICON_MAP = {
+  POINT_DEFAULT: "/assets/default.png",
+  POINT_WARNING: "/assets/drone-warning.png",
+  POINT_AERIAL: "/assets/aerial.png",
+  POINT_DOCK: "/assets/dock.png",
+  POINT_ELEVATION: "/assets/elevation.png",
+  LINE_PATH_BUFFER: "/assets/path.png",
+  AREA_CIRCLE: "/assets/circle.png",
+  AREA_RECTANGLE: "/assets/rectangle.png",
+  AREA_POLYGON: "/assets/polygon.png"
+};
+
+function resolvePinPointTypeId(shape = {}) {
+  const pointCategory = `${shape.pointCategory || shape.pointcategory || ""}`.toUpperCase();
+  switch (pointCategory) {
+    case "WARNING":
+      return "POINT_WARNING";
+    case "AERIAL_SHOT":
+      return "POINT_AERIAL";
+    case "TAKEOFF_LANDING":
+      return "POINT_DOCK";
+    case "TALL_BUILDING":
+      return "POINT_ELEVATION";
+    default:
+      return "POINT_DEFAULT";
+  }
+}
+
+function resolvePinNearbyIcon(shape = {}) {
+  const shapeType = `${shape.type || ""}`.toUpperCase();
+  if (shapeType === "LINE" || shapeType === "PATH") {
+    return PIN_TYPE_ICON_MAP.LINE_PATH_BUFFER;
+  }
+  if (shapeType === "CIRCLE") {
+    return PIN_TYPE_ICON_MAP.AREA_CIRCLE;
+  }
+  if (shapeType === "RECTANGLE") {
+    return PIN_TYPE_ICON_MAP.AREA_RECTANGLE;
+  }
+  if (shapeType === "POLYGON" || shapeType === "AREA") {
+    return PIN_TYPE_ICON_MAP.AREA_POLYGON;
+  }
+  return PIN_TYPE_ICON_MAP[resolvePinPointTypeId(shape)] || PIN_TYPE_ICON_MAP.POINT_DEFAULT;
+}
+
+function normalizeNearbyShapePoints(list = []) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item = {}) => ({
+      latitude: normalizeCoord(item.latitude ?? item.lat ?? item[1]),
+      longitude: normalizeCoord(item.longitude ?? item.lng ?? item[0])
+    }))
+    .filter((item) => hasValidCoordinate(item.latitude, item.longitude));
+}
+
+function getWindowMetrics(event = {}) {
+  let windowInfo = {};
+  if (typeof wx !== "undefined" && typeof wx.getWindowInfo === "function") {
+    try {
+      windowInfo = wx.getWindowInfo() || {};
+    } catch (err) {
+      windowInfo = {};
+    }
+  }
+  let size = event && event.size;
+  if (Array.isArray(size)) {
+    size = size[0] || null;
+  }
+  if (!size || typeof size !== "object") {
+    size = event;
+  }
+  const resizeWidth = Number(size.windowWidth || size.width);
+  const resizeHeight = Number(size.windowHeight || size.height);
+  const windowWidth =
+    Number.isFinite(resizeWidth) && resizeWidth > 0
+      ? resizeWidth
+      : (Number(windowInfo.windowWidth) || 375);
+  const windowHeight =
+    Number.isFinite(resizeHeight) && resizeHeight > 0
+      ? resizeHeight
+      : (Number(windowInfo.windowHeight) || 667);
+  return { windowWidth, windowHeight };
+}
+
+function resolveWideLayout(metrics = {}) {
+  const width = Number(metrics.windowWidth);
+  const height = Number(metrics.windowHeight);
+  if (!Number.isFinite(width) || width <= 0) return false;
+  if (width >= PICKER_WIDE_LAYOUT_MIN_WIDTH) return true;
+  if (Number.isFinite(height) && height > 0) {
+    return width / height >= PICKER_WIDE_LAYOUT_MIN_RATIO;
+  }
+  return false;
+}
 
 function normalizeCoord(value) {
   const num = Number(value);
@@ -93,6 +204,35 @@ function formatCoordinateText(lat, lng) {
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
 
+function isSameCoordinatePoint(a = {}, b = {}) {
+  return (
+    normalizeCoord(a.latitude) === normalizeCoord(b.latitude) &&
+    normalizeCoord(a.longitude) === normalizeCoord(b.longitude)
+  );
+}
+
+function formatEdgeDistanceMeters(meters) {
+  if (!Number.isFinite(meters) || meters <= 0) return "";
+  return `${Math.max(1, Math.round(meters))}米`;
+}
+
+function buildDistanceCallout(content) {
+  if (!content) return null;
+  return {
+    content,
+    color: "#111827",
+    fontSize: 10,
+    fontWeight: "normal",
+    display: "ALWAYS",
+    borderRadius: 5,
+    padding: 6,
+    bgColor: "#ffffff",
+    borderColor: "#111827",
+    borderWidth: 0.4,
+    textAlign: "center"
+  };
+}
+
 function normalizeSuggestions(list = [], limit = 10) {
   const suggestions = [];
   list.forEach((poi, index) => {
@@ -132,6 +272,30 @@ function isZeroCoordinate(lat, lng) {
 
 function hasValidCoordinate(lat, lng) {
   return Number.isFinite(lat) && Number.isFinite(lng) && !isZeroCoordinate(lat, lng);
+}
+
+function normalizeMapScale(value) {
+  const numeric = Number(value);
+  const base = Number.isFinite(numeric) ? numeric : DEFAULT_CENTER.scale;
+  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, Math.round(base)));
+}
+
+function normalizeRegionDetail(detail = {}) {
+  if (!detail || typeof detail !== "object") return null;
+  const region = detail.region || {
+    northeast: detail.northeast,
+    southwest: detail.southwest
+  };
+  if (!region || !region.northeast || !region.southwest) return null;
+  const neLat = Number(region.northeast.latitude);
+  const neLng = Number(region.northeast.longitude);
+  const swLat = Number(region.southwest.latitude);
+  const swLng = Number(region.southwest.longitude);
+  if (![neLat, neLng, swLat, swLng].every(Number.isFinite)) return null;
+  return {
+    northeast: { latitude: neLat, longitude: neLng },
+    southwest: { latitude: swLat, longitude: swLng }
+  };
 }
 
 function averageValue(list = [], field) {
@@ -204,6 +368,9 @@ Page({
     latitude: DEFAULT_CENTER.latitude,
     longitude: DEFAULT_CENTER.longitude,
     scale: DEFAULT_CENTER.scale,
+    mapSubKey: getMapKeySync(),
+    isWideLayout: false,
+    isWeChatRuntime: RUNTIME_IS_WECHAT,
     enableSatellite: false,
     showUserLocation: true,
     addressMain: "",
@@ -248,6 +415,49 @@ Page({
     pointActionHint: ""
   },
 
+  applyResponsiveLayout(options = {}) {
+    const metrics = getWindowMetrics(options.event);
+    const wideLayout = resolveWideLayout(metrics);
+    if (this.data.isWideLayout !== wideLayout) {
+      this.setData({ isWideLayout: wideLayout });
+    }
+  },
+
+  registerWindowResizeListener() {
+    if (typeof wx === "undefined" || typeof wx.onWindowResize !== "function") {
+      return;
+    }
+    if (this._onWindowResize) {
+      return;
+    }
+    this._onWindowResize = (event = {}) => {
+      this._lastResizeEvent = event;
+      if (this._windowResizeTimer) {
+        clearTimeout(this._windowResizeTimer);
+      }
+      this._windowResizeTimer = setTimeout(() => {
+        this._windowResizeTimer = null;
+        this.applyResponsiveLayout({ event: this._lastResizeEvent });
+      }, WINDOW_RESIZE_DEBOUNCE_MS);
+    };
+    wx.onWindowResize(this._onWindowResize);
+  },
+
+  unregisterWindowResizeListener() {
+    if (this._windowResizeTimer) {
+      clearTimeout(this._windowResizeTimer);
+      this._windowResizeTimer = null;
+    }
+    if (!this._onWindowResize) {
+      return;
+    }
+    if (typeof wx !== "undefined" && typeof wx.offWindowResize === "function") {
+      wx.offWindowResize(this._onWindowResize);
+    }
+    this._onWindowResize = null;
+    this._lastResizeEvent = null;
+  },
+
   onLoad() {
     this.mapCtx = null;
     this._ready = false;
@@ -268,6 +478,40 @@ Page({
     this._pendingMoveTo = null;
     this._searchBlurTimer = null;
     this._anchorToastTimer = null;
+    this._lastRegion = null;
+    this._uomPlugin = null;
+    this._uomPluginInitialized = false;
+    this._uomPluginInitTimer = null;
+    this._djiLayer = null;
+    this._djiLayerInitialized = false;
+    this._djiLayerInitTimer = null;
+    this._temporaryNoFlyLayer = null;
+    this._temporaryNoFlyLayerInitialized = false;
+    this._temporaryNoFlyLayerInitTimer = null;
+    this._uom2Markers = [];
+    this._djiPolygons = [];
+    this._djiCircles = [];
+    this._nfzPolygons = [];
+    this._nfzCircles = [];
+    this._shapePolyline = Array.isArray(this.data.polyline) ? this.data.polyline.slice() : [];
+    this._shapePolygons = Array.isArray(this.data.bufferPolygons) ? this.data.bufferPolygons.slice() : [];
+    this._shapeCircles = Array.isArray(this.data.circles) ? this.data.circles.slice() : [];
+    this._shapeMarkers = Array.isArray(this.data.markers) ? this.data.markers.slice() : [];
+    this._nearbyPinPolylines = [];
+    this._nearbyPinPolygons = [];
+    this._nearbyPinCircles = [];
+    this._nearbyMarkerPins = [];
+    this._nearbyMerchantMarkers = [];
+    this._mapMarkerIdMap = new Map();
+    this._mapMarkerIdSeq = 100000;
+    this._windowResizeTimer = null;
+    this._onWindowResize = null;
+    this._lastResizeEvent = null;
+    this._startupLayerTimer = null;
+    this._startupLocateTimer = null;
+    this.applyResponsiveLayout({ force: true });
+    this.registerWindowResizeListener();
+    this.loadMapSubKey();
 
     if (typeof this.getOpenerEventChannel === "function") {
       const channel = this.getOpenerEventChannel();
@@ -283,7 +527,6 @@ Page({
     }
 
     // 页面加载尽早跳转到当前位置，后续回填的标记不会被影响
-    this.requestCurrentLocation({ silent: true, initial: true });
     this.refreshDisplayCoordinateList();
   },
 
@@ -437,6 +680,50 @@ Page({
     ];
   },
 
+  buildAreaDistanceMarkers(points = [], options = {}) {
+    if (!Array.isArray(points) || points.length < 2) return [];
+    const closed = options.closed === true;
+    const prefix = typeof options.prefix === "string" && options.prefix ? options.prefix : "area-edge";
+    const markers = [];
+    const segments = [];
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const start = points[i];
+      const end = points[i + 1];
+      if (!hasValidCoordinate(start?.latitude, start?.longitude)) continue;
+      if (!hasValidCoordinate(end?.latitude, end?.longitude)) continue;
+      if (isSameCoordinatePoint(start, end)) continue;
+      segments.push([start, end]);
+    }
+    if (closed && points.length >= 3) {
+      const start = points[points.length - 1];
+      const end = points[0];
+      if (
+        hasValidCoordinate(start?.latitude, start?.longitude) &&
+        hasValidCoordinate(end?.latitude, end?.longitude) &&
+        !isSameCoordinatePoint(start, end)
+      ) {
+        segments.push([start, end]);
+      }
+    }
+    segments.forEach(([start, end], index) => {
+      const content = formatEdgeDistanceMeters(computeGreatCircleDistance(start, end));
+      if (!content) return;
+      markers.push({
+        id: `${prefix}-${index}`,
+        latitude: normalizeCoord((Number(start.latitude) + Number(end.latitude)) / 2),
+        longitude: normalizeCoord((Number(start.longitude) + Number(end.longitude)) / 2),
+        iconPath: PIN_DISTANCE_ANCHOR_ICON,
+        width: 8,
+        height: 8,
+        alpha: 1,
+        anchor: { x: 0.5, y: 0.5 },
+        zIndex: 10,
+        callout: buildDistanceCallout(content)
+      });
+    });
+    return markers;
+  },
+
   showLineHint(message) {
     if (this._lineHintTimer) {
       clearTimeout(this._lineHintTimer);
@@ -462,9 +749,255 @@ Page({
     }, 500);
   },
 
+  loadMapSubKey() {
+    prefetchMapKey()
+      .then((mapKey) => {
+        const nextKey = typeof mapKey === "string" ? mapKey.trim() : "";
+        if (!nextKey || nextKey === this.data.mapSubKey) return;
+        this.setData({ mapSubKey: nextKey });
+      })
+      .catch((err) => {
+        console.warn("pin picker loadMapSubKey failed", err);
+      });
+  },
+
+  ensureMapMarkerId(value) {
+    if (Number.isFinite(value)) return Number(value);
+    const text = value === undefined || value === null ? "" : `${value}`.trim();
+    if (!text) {
+      this._mapMarkerIdSeq += 1;
+      return this._mapMarkerIdSeq;
+    }
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) return numeric;
+    if (!this._mapMarkerIdMap) {
+      this._mapMarkerIdMap = new Map();
+      this._mapMarkerIdSeq = 100000;
+    }
+    if (this._mapMarkerIdMap.has(text)) {
+      return this._mapMarkerIdMap.get(text);
+    }
+    this._mapMarkerIdSeq += 1;
+    const mapped = this._mapMarkerIdSeq;
+    this._mapMarkerIdMap.set(text, mapped);
+    return mapped;
+  },
+
+  normalizeMapMarkerId(marker) {
+    if (!marker || typeof marker !== "object") return marker;
+    const rawId =
+      marker.id !== undefined && marker.id !== null
+        ? marker.id
+        : marker.markerId ?? marker.markerID;
+    const mappedId = this.ensureMapMarkerId(rawId);
+    marker.id = mappedId;
+    return marker;
+  },
+
+  normalizeMapMarkerList(list) {
+    if (!Array.isArray(list)) return list;
+    list.forEach((marker) => this.normalizeMapMarkerId(marker));
+    return list;
+  },
+
+  extractNearbyList(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.content)) return payload.content;
+    if (Array.isArray(payload?.records)) return payload.records;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.list)) return payload.list;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.data?.content)) return payload.data.content;
+    if (Array.isArray(payload?.data?.records)) return payload.data.records;
+    if (Array.isArray(payload?.data?.items)) return payload.data.items;
+    if (Array.isArray(payload?.data?.list)) return payload.data.list;
+    return [];
+  },
+
+  buildNearbyMerchantMarkers(list = []) {
+    return this.normalizeMapMarkerList(
+      list
+        .map((item = {}, index) => {
+          const lat = normalizeCoord(item?.location?.latitude ?? item.latitude);
+          const lng = normalizeCoord(item?.location?.longitude ?? item.longitude);
+          if (!hasValidCoordinate(lat, lng)) return null;
+          return {
+            id: item.id || item.markId || item.markIdNew || `nearby-marker-${index}`,
+            latitude: lat,
+            longitude: lng,
+            iconPath: MERCHANT_MARKER_ICON,
+            width: 18,
+            height: 18,
+            alpha: 0.78,
+            zIndex: 2
+          };
+        })
+        .filter(Boolean)
+    );
+  },
+
+  buildNearbyPinMarkers(list = []) {
+    return this.normalizeMapMarkerList(
+      list
+        .map((item = {}, index) => {
+          const shapeType = `${item?.shape?.type || ""}`.toUpperCase();
+          if (shapeType && shapeType !== "POINT") return null;
+          const coords = Array.isArray(item?.shape?.coordinates) ? item.shape.coordinates : [];
+          const first = Array.isArray(coords[0]) ? coords[0] : coords[0] || {};
+          const lat = normalizeCoord(first.latitude ?? first.lat ?? first[1] ?? item.latitude);
+          const lng = normalizeCoord(first.longitude ?? first.lng ?? first[0] ?? item.longitude);
+          if (!hasValidCoordinate(lat, lng)) return null;
+          return {
+            id: item.id || item.pinId || item.pinIdNew || `nearby-pin-${index}`,
+            latitude: lat,
+            longitude: lng,
+            iconPath: resolvePinNearbyIcon(item?.shape || {}),
+            width: 16,
+            height: 16,
+            alpha: 0.66,
+            zIndex: 1
+          };
+        })
+        .filter(Boolean)
+    );
+  },
+
+  buildNearbyPinGraphics(list = []) {
+    const markers = this.buildNearbyPinMarkers(list);
+    const polylines = [];
+    const polygons = [];
+    const circles = [];
+    (Array.isArray(list) ? list : []).forEach((item = {}) => {
+      const shape = item?.shape || {};
+      const type = `${shape.type || ""}`.toUpperCase();
+      const points = normalizeNearbyShapePoints(shape.coordinates);
+      if ((type === "LINE" || type === "PATH") && points.length >= 2) {
+        polylines.push({
+          points,
+          color: PIN_SHAPE_STROKE,
+          width: 4,
+          dottedLine: false
+        });
+        return;
+      }
+      if ((type === "POLYGON" || type === "AREA" || type === "RECTANGLE") && points.length >= 3) {
+        polygons.push({
+          points,
+          fillColor: PIN_SHAPE_FILL,
+          strokeColor: PIN_SHAPE_STROKE,
+          strokeWidth: 2
+        });
+        return;
+      }
+      if (type === "CIRCLE" && points.length >= 1 && Number.isFinite(Number(shape.radius))) {
+        const center = points[0];
+        circles.push({
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radius: Number(shape.radius),
+          color: PIN_SHAPE_STROKE,
+          fillColor: PIN_SHAPE_FILL,
+          strokeWidth: 2
+        });
+      }
+    });
+    return { markers, polylines, polygons, circles };
+  },
+
+  refreshNearbyContent(latitude, longitude) {
+    if (!hasValidCoordinate(latitude, longitude)) return;
+    const request = {
+      latitude,
+      longitude,
+      radiusInKilometers: NEARBY_CONTENT_RADIUS_KM
+    };
+    Promise.allSettled([
+      fetchNearbyMarkers(request).then((res) => this.extractNearbyList(res)),
+      fetchNearbyPins(request).then((res) => this.extractNearbyList(res))
+    ]).then((results) => {
+      const markerList = results[0]?.status === "fulfilled" ? results[0].value : [];
+      const pinList = results[1]?.status === "fulfilled" ? results[1].value : [];
+      this._nearbyMerchantMarkers = this.buildNearbyMerchantMarkers(markerList);
+      const nearbyPinGraphics = this.buildNearbyPinGraphics(pinList);
+      this._nearbyMarkerPins = nearbyPinGraphics.markers;
+      this._nearbyPinPolylines = nearbyPinGraphics.polylines;
+      this._nearbyPinPolygons = nearbyPinGraphics.polygons;
+      this._nearbyPinCircles = nearbyPinGraphics.circles;
+      this.applyMapGraphics();
+    });
+  },
+
+  composeMapPolyline(basePolyline = []) {
+    const polylines = [];
+    if (Array.isArray(this._nearbyPinPolylines)) polylines.push(...this._nearbyPinPolylines);
+    if (Array.isArray(basePolyline)) polylines.push(...basePolyline);
+    return polylines;
+  },
+
+  composeMapPolygons(basePolygons = []) {
+    const polygons = [];
+    if (Array.isArray(this._djiPolygons)) polygons.push(...this._djiPolygons);
+    if (Array.isArray(this._nfzPolygons)) polygons.push(...this._nfzPolygons);
+    if (Array.isArray(this._nearbyPinPolygons)) polygons.push(...this._nearbyPinPolygons);
+    if (Array.isArray(basePolygons)) polygons.push(...basePolygons);
+    return polygons;
+  },
+
+  composeMapCircles(baseCircles = []) {
+    const circles = [];
+    if (Array.isArray(this._djiCircles)) circles.push(...this._djiCircles);
+    if (Array.isArray(this._nfzCircles)) circles.push(...this._nfzCircles);
+    if (Array.isArray(this._nearbyPinCircles)) circles.push(...this._nearbyPinCircles);
+    if (Array.isArray(baseCircles)) circles.push(...baseCircles);
+    return circles;
+  },
+
+  composeMapMarkers(baseMarkers = []) {
+    const markers = [];
+    if (Array.isArray(this._uom2Markers)) {
+      const uom2 = this._uom2Markers.slice();
+      this.normalizeMapMarkerList(uom2);
+      markers.push(...uom2);
+    }
+    if (Array.isArray(this._nearbyMerchantMarkers)) {
+      markers.push(...this._nearbyMerchantMarkers);
+    }
+    if (Array.isArray(this._nearbyMarkerPins)) {
+      markers.push(...this._nearbyMarkerPins);
+    }
+    if (Array.isArray(baseMarkers)) markers.push(...baseMarkers);
+    return this.normalizeMapMarkerList(markers);
+  },
+
+  applyMapGraphics(options = {}) {
+    if (Object.prototype.hasOwnProperty.call(options, "polyline")) {
+      this._shapePolyline = Array.isArray(options.polyline) ? options.polyline : [];
+    }
+    if (Object.prototype.hasOwnProperty.call(options, "polygons")) {
+      this._shapePolygons = Array.isArray(options.polygons) ? options.polygons : [];
+    }
+    if (Object.prototype.hasOwnProperty.call(options, "circles")) {
+      this._shapeCircles = Array.isArray(options.circles) ? options.circles : [];
+    }
+    if (Object.prototype.hasOwnProperty.call(options, "markers")) {
+      this._shapeMarkers = Array.isArray(options.markers) ? options.markers : [];
+    }
+    this.setData({
+      polyline: this.composeMapPolyline(this._shapePolyline),
+      bufferPolygons: this.composeMapPolygons(this._shapePolygons),
+      circles: this.composeMapCircles(this._shapeCircles),
+      markers: this.composeMapMarkers(this._shapeMarkers)
+    });
+  },
+
   updateLineShapes(options = {}) {
     if (!this.isLineCategory()) {
-      this.setData({ polyline: [], bufferPolygons: [] });
+      this.applyMapGraphics({
+        polyline: [],
+        polygons: [],
+        circles: [],
+        markers: []
+      });
       return;
     }
     const includePreview = options.includePreview !== false;
@@ -506,7 +1039,12 @@ Page({
         }
       ]
       : [];
-    this.setData({ polyline: lines, bufferPolygons: polygons, circles: [], markers: [] });
+    this.applyMapGraphics({
+      polyline: lines,
+      polygons,
+      circles: [],
+      markers: []
+    });
   },
 
   updateAreaShapes(options = {}) {
@@ -530,6 +1068,7 @@ Page({
     let polygons = [];
     let circles = [];
     let markers = [];
+    let edgeMarkers = [];
 
     const fillColor = PIN_SHAPE_FILL;
     const strokeColor = PIN_SHAPE_STROKE;
@@ -548,6 +1087,10 @@ Page({
           }
         ];
       }
+      edgeMarkers = this.buildAreaDistanceMarkers(pointsForPoly, {
+        prefix: "poly-edge",
+        closed: polygonClosed === true
+      });
     } else if (typeId === "AREA_RECTANGLE") {
       if (working.length === 0 && preview) {
         working.push(preview);
@@ -566,6 +1109,10 @@ Page({
               strokeWidth
             }
           ];
+          edgeMarkers = this.buildAreaDistanceMarkers(rectPoints, {
+            prefix: "rect-edge",
+            closed: false
+          });
         }
       }
     } else if (typeId === "AREA_CIRCLE") {
@@ -614,8 +1161,16 @@ Page({
         return marker;
       });
     }
+    if (edgeMarkers.length) {
+      markers = markers.concat(edgeMarkers);
+    }
 
-    this.setData({ bufferPolygons: polygons, circles, markers });
+    this.applyMapGraphics({
+      polyline: [],
+      polygons,
+      circles,
+      markers
+    });
   },
 
   onReady() {
@@ -626,9 +1181,27 @@ Page({
       this.queueMapMove(latitude, longitude);
     }
     this.requestInitialLocation();
+    this.scheduleDeferredStartupTasks();
+  },
+
+  onShow() {
+    this.applyResponsiveLayout({ force: true });
+  },
+
+  onResize(event = {}) {
+    this.applyResponsiveLayout({ event, force: true });
   },
 
   onUnload() {
+    this.unregisterWindowResizeListener();
+    if (this._startupLayerTimer) {
+      clearTimeout(this._startupLayerTimer);
+      this._startupLayerTimer = null;
+    }
+    if (this._startupLocateTimer) {
+      clearTimeout(this._startupLocateTimer);
+      this._startupLocateTimer = null;
+    }
     if (this._reverseTimer) {
       clearTimeout(this._reverseTimer);
       this._reverseTimer = null;
@@ -649,10 +1222,205 @@ Page({
       clearTimeout(this._anchorToastTimer);
       this._anchorToastTimer = null;
     }
+    if (this._uomPluginInitTimer) {
+      clearTimeout(this._uomPluginInitTimer);
+      this._uomPluginInitTimer = null;
+    }
+    if (this._djiLayerInitTimer) {
+      clearTimeout(this._djiLayerInitTimer);
+      this._djiLayerInitTimer = null;
+    }
+    if (this._temporaryNoFlyLayerInitTimer) {
+      clearTimeout(this._temporaryNoFlyLayerInitTimer);
+      this._temporaryNoFlyLayerInitTimer = null;
+    }
+    if (this._uomPlugin && typeof this._uomPlugin.destroy === "function") {
+      this._uomPlugin.destroy();
+    }
+    if (this._djiLayer && typeof this._djiLayer.destroy === "function") {
+      this._djiLayer.destroy();
+    }
+    if (this._temporaryNoFlyLayer && typeof this._temporaryNoFlyLayer.destroy === "function") {
+      this._temporaryNoFlyLayer.destroy();
+    }
     if (this._eventChannel && typeof this._eventChannel.off === "function") {
       this._eventChannel.off("initLocation");
     }
     this._eventChannel = null;
+  },
+
+  scheduleDeferredStartupTasks() {
+    if (this._startupLayerTimer) {
+      clearTimeout(this._startupLayerTimer);
+      this._startupLayerTimer = null;
+    }
+    if (this._startupLocateTimer) {
+      clearTimeout(this._startupLocateTimer);
+      this._startupLocateTimer = null;
+    }
+    this._startupLayerTimer = setTimeout(() => {
+      this._startupLayerTimer = null;
+      if (!this._ready) return;
+      this.ensureUomPluginReady();
+      this.ensureDjiLayerReady();
+      this.ensureTemporaryNoFlyLayerReady();
+      this.syncExternalLayerViewport({
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        region: this._lastRegion,
+        scale: this.data.scale,
+        force: true
+      });
+    }, STARTUP_LAYER_INIT_DELAY_MS);
+    if (this._initialPayloadApplied || hasSavedLocationPayload(this._initialPayload)) {
+      return;
+    }
+    this._startupLocateTimer = setTimeout(() => {
+      this._startupLocateTimer = null;
+      if (!this._ready) return;
+      this.requestCurrentLocation({ silent: true, initial: true });
+    }, STARTUP_LOCATE_DELAY_MS);
+  },
+
+  ensureUomPluginReady(retry = 0) {
+    if (this._uomPlugin && this._uomPluginInitialized) return;
+    const selector = this.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
+    const plugin = this.selectComponent(selector);
+    if (plugin && typeof plugin.init === "function") {
+      plugin.init({
+        mapCtx: this.mapCtx,
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        centerPin: { latitude: this.data.latitude, longitude: this.data.longitude },
+        scale: normalizeMapScale(this.data.scale),
+        region: this._lastRegion,
+        enabled: true
+      });
+      this._uomPlugin = plugin;
+      this._uomPluginInitialized = true;
+      return;
+    }
+    if (retry >= 10) return;
+    if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._uomPluginInitTimer = setTimeout(() => {
+      this._uomPluginInitTimer = null;
+      this.ensureUomPluginReady(retry + 1);
+    }, delay);
+  },
+
+  ensureDjiLayerReady(retry = 0) {
+    if (this._djiLayer && this._djiLayerInitialized) return;
+    const layer = this.selectComponent("#dji-no-fly-layer");
+    if (
+      layer &&
+      typeof layer.init === "function" &&
+      typeof layer.updateViewport === "function"
+    ) {
+      this._djiLayer = layer;
+      this._djiLayerInitialized = true;
+      layer.init({
+        enabled: true,
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        region: this._lastRegion || null,
+        scale: normalizeMapScale(this.data.scale),
+        drone: "",
+        levels: DEFAULT_LEVELS_PARAM,
+        force: true
+      });
+      return;
+    }
+    if (retry >= 10) return;
+    if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._djiLayerInitTimer = setTimeout(() => {
+      this._djiLayerInitTimer = null;
+      this.ensureDjiLayerReady(retry + 1);
+    }, delay);
+  },
+
+  ensureTemporaryNoFlyLayerReady(retry = 0) {
+    if (this._temporaryNoFlyLayer && this._temporaryNoFlyLayerInitialized) return;
+    const layer = this.selectComponent("#temporary-no-fly-layer");
+    if (
+      layer &&
+      typeof layer.init === "function" &&
+      typeof layer.updateViewport === "function"
+    ) {
+      this._temporaryNoFlyLayer = layer;
+      this._temporaryNoFlyLayerInitialized = true;
+      layer.init({
+        enabled: true,
+        center: { latitude: this.data.latitude, longitude: this.data.longitude },
+        region: this._lastRegion || null,
+        scale: normalizeMapScale(this.data.scale),
+        force: true
+      });
+      return;
+    }
+    if (retry >= 10) return;
+    if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
+    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+    this._temporaryNoFlyLayerInitTimer = setTimeout(() => {
+      this._temporaryNoFlyLayerInitTimer = null;
+      this.ensureTemporaryNoFlyLayerReady(retry + 1);
+    }, delay);
+  },
+
+  syncExternalLayerViewport(options = {}) {
+    if (!this._ready) return;
+    const center = options.center || { latitude: this.data.latitude, longitude: this.data.longitude };
+    const scale = normalizeMapScale(options.scale || this.data.scale);
+    const region = options.region || this._lastRegion || null;
+    this.ensureUomPluginReady();
+    this.ensureDjiLayerReady();
+    this.ensureTemporaryNoFlyLayerReady();
+    if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+      this._uomPlugin.handleRegionChange({
+        center,
+        centerPin: center,
+        scale,
+        rawScale: options.rawScale,
+        region,
+        force: options.force === true
+      });
+    }
+    if (this._djiLayer && typeof this._djiLayer.updateViewport === "function") {
+      this._djiLayer.updateViewport({
+        center,
+        region,
+        scale,
+        force: options.force === true
+      });
+    }
+    if (this._temporaryNoFlyLayer && typeof this._temporaryNoFlyLayer.updateViewport === "function") {
+      this._temporaryNoFlyLayer.updateViewport({
+        center,
+        region,
+        scale,
+        force: options.force === true
+      });
+    }
+  },
+
+  onUomStatusChange() { },
+
+  onUomTilesChanged(event = {}) {
+    const detail = event?.detail || {};
+    this._uom2Markers = Array.isArray(detail.markers) ? detail.markers : [];
+    this.applyMapGraphics();
+  },
+
+  onDjiGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._djiPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    this._djiCircles = Array.isArray(detail.circles) ? detail.circles : [];
+    this.applyMapGraphics();
+  },
+
+  onTemporaryNoFlyGraphicsChange(event = {}) {
+    const detail = event?.detail || {};
+    this._nfzPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    this._nfzCircles = Array.isArray(detail.circles) ? detail.circles : [];
+    this.applyMapGraphics();
   },
 
   requestInitialLocation() {
@@ -846,6 +1614,12 @@ Page({
       }
       if (this._ready) {
         this.mapCtx && this.mapCtx.moveToLocation && this.mapCtx.moveToLocation({ latitude: effectiveLat, longitude: effectiveLng });
+        this.syncExternalLayerViewport({
+          center: { latitude: effectiveLat, longitude: effectiveLng },
+          region: this._lastRegion,
+          scale: this.data.scale,
+          force: true
+        });
         this.reverseGeocode(effectiveLat, effectiveLng);
       } else {
         this._pendingMoveTo = { latitude: effectiveLat, longitude: effectiveLng };
@@ -886,6 +1660,7 @@ Page({
 
   queueMapMove(latitude, longitude) {
     if (!hasValidCoordinate(latitude, longitude)) return;
+    const center = { latitude, longitude };
     if (!this._ready) {
       this._pendingMoveTo = { latitude, longitude };
       return;
@@ -919,6 +1694,12 @@ Page({
     if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
       this.mapCtx.moveToLocation({ latitude, longitude });
     }
+    this.syncExternalLayerViewport({
+      center,
+      region: this._lastRegion,
+      scale: this.data.scale,
+      force: true
+    });
     this.reverseGeocode(latitude, longitude);
   },
 
@@ -972,55 +1753,119 @@ Page({
   },
 
   onRegionChange(e) {
-    if (e && e.type === "end" && e.detail && e.detail.centerLocation) {
-      const latitude = normalizeCoord(e.detail.centerLocation.latitude);
-      const longitude = normalizeCoord(e.detail.centerLocation.longitude);
-      if (!hasValidCoordinate(latitude, longitude)) return;
-      const shouldSync = this.shouldSyncActiveCoordinate();
-      this.setData(
-        {
-          selectedLatitude: latitude,
-          selectedLongitude: longitude,
-          coordinateText: formatCoordinateText(latitude, longitude),
-          hasLocation: true,
-          canConfirm: true,
-          addressError: "",
-          addressLoading: true
-        },
-        () => {
-          if (this.isLineCategory()) {
-            this.updateLineShapes({ includePreview: true });
-          } else if (this.isAreaCategory()) {
-            this.updateAreaShapes({ includePreview: true });
-          }
-          this.refreshDisplayCoordinateList();
-        }
-      );
-      if (shouldSync) {
-        this.updateActiveCoordinate(latitude, longitude);
+    const detail = e?.detail || {};
+    const cause = e?.causedBy || detail?.causedBy || detail?.cause || "";
+    if (cause && cause !== "drag" && cause !== "scale") return;
+    if (e?.type !== "end") {
+      if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
+        this._uomPlugin.startFollow();
       }
-      this.reverseGeocode(latitude, longitude);
+      const regionMoving = normalizeRegionDetail(detail);
+      if (regionMoving) {
+        this._lastRegion = regionMoving;
+      }
+      const cl = detail.centerLocation || null;
+      if (cl && this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
+        const scaleMoving = normalizeMapScale(detail.scale || this.data.scale);
+        this._uomPlugin.handleRegionChange({
+          center: { latitude: cl.latitude, longitude: cl.longitude },
+          centerPin: { latitude: cl.latitude, longitude: cl.longitude },
+          scale: scaleMoving,
+          rawScale: detail.scale,
+          region: regionMoving || this._lastRegion,
+          force: true
+        });
+      }
+      return;
     }
+    if (!detail.centerLocation) return;
+    if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
+      this._uomPlugin.stopFollow();
+    }
+    const latitude = normalizeCoord(detail.centerLocation.latitude);
+    const longitude = normalizeCoord(detail.centerLocation.longitude);
+    if (!hasValidCoordinate(latitude, longitude)) return;
+    const rawScale = Number(detail.scale);
+    const currentScale = Number(this.data.scale);
+    const resolvedScale = Number.isFinite(rawScale) ? rawScale : currentScale;
+    const scale = normalizeMapScale(resolvedScale);
+    const region = normalizeRegionDetail(detail);
+    this._lastRegion = region;
+    const center = { latitude, longitude };
+    const shouldSync = this.shouldSyncActiveCoordinate();
+    const nextData = {
+      latitude,
+      longitude,
+      selectedLatitude: latitude,
+      selectedLongitude: longitude,
+      coordinateText: formatCoordinateText(latitude, longitude),
+      hasLocation: true,
+      canConfirm: true,
+      addressError: "",
+      addressLoading: true
+    };
+    if (cause === "scale") {
+      nextData.scale = scale;
+    }
+    this.setData(
+      nextData,
+      () => {
+        if (this.isLineCategory()) {
+          this.updateLineShapes({ includePreview: true });
+        } else if (this.isAreaCategory()) {
+          this.updateAreaShapes({ includePreview: true });
+        }
+        this.refreshDisplayCoordinateList();
+      }
+    );
+    this.syncExternalLayerViewport({
+      center,
+      region,
+      scale,
+      rawScale: detail.scale
+    });
+    this.refreshNearbyContent(latitude, longitude);
+    if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
+      this._uomPlugin.scheduleFinalRefresh();
+    }
+    if (shouldSync) {
+      this.updateActiveCoordinate(latitude, longitude);
+    }
+    this.reverseGeocode(latitude, longitude);
+  },
+
+  tryClosePolygonByMarkerId(markerId) {
+    const typeId = this.data.selectedType?.id;
+    const closeMarkerId = this.ensureMapMarkerId("poly-0");
+    const matched =
+      markerId === "poly-0" ||
+      markerId === closeMarkerId ||
+      Number(markerId) === closeMarkerId;
+    if (typeId !== "AREA_POLYGON" || !matched) return false;
+    const points = this.getConfirmedLinePoints();
+    if (points.length < 3) return false;
+    this.setData(
+      {
+        polygonClosed: true,
+        lineDrawingStarted: true,
+        lineActionHint: "已闭合，点击完成绘制或确认锚点重画"
+      },
+      () => {
+        this.updateAreaShapes({ includePreview: false });
+        this.refreshDisplayCoordinateList();
+      }
+    );
+    return true;
   },
 
   onMarkerTap(e) {
     const markerId = e?.markerId || e?.detail?.markerId;
-    const typeId = this.data.selectedType?.id;
-    if (typeId !== "AREA_POLYGON") return;
-    const points = this.getConfirmedLinePoints();
-    if (markerId === "poly-0" && points.length >= 3) {
-      this.setData(
-        {
-          polygonClosed: true,
-          lineDrawingStarted: true,
-          lineActionHint: "已闭合，点击完成绘制或确认锚点重画"
-        },
-        () => {
-          this.updateAreaShapes({ includePreview: false });
-          this.refreshDisplayCoordinateList();
-        }
-      );
-    }
+    this.tryClosePolygonByMarkerId(markerId);
+  },
+
+  onMarkerCalloutTap(e) {
+    const markerId = e?.markerId || e?.detail?.markerId;
+    this.tryClosePolygonByMarkerId(markerId);
   },
 
   onLocateTap() {
@@ -1177,9 +2022,6 @@ Page({
     } else {
       patch.lineRewriteIndex = null;
       patch.lineActionHint = "";
-      patch.polyline = [];
-      patch.bufferPolygons = [];
-      patch.circles = [];
       patch.lineActionHint = "点击开始绘制进行图形绘制";
       if (next.category === "AREA") {
         patch.coordinateList = [];
@@ -1192,6 +2034,13 @@ Page({
         this.updateLineShapes({ includePreview: true });
       } else if (next.category === "AREA") {
         this.updateAreaShapes({ includePreview: true });
+      } else {
+        this.applyMapGraphics({
+          polyline: [],
+          polygons: [],
+          circles: [],
+          markers: []
+        });
       }
       this.refreshDisplayCoordinateList();
     });

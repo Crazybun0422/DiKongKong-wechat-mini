@@ -96,6 +96,40 @@ function gcj02ToWgs84(lng, lat) {
   return { lng: lng * 2 - mgLon, lat: lat * 2 - mgLat };
 }
 
+function gcj02ToBd09(lng, lat) {
+  const x = Number(lng);
+  const y = Number(lat);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { lng, lat };
+  const z = Math.sqrt(x * x + y * y) + 0.00002 * Math.sin(y * Math.PI * 3000.0 / 180.0);
+  const theta = Math.atan2(y, x) + 0.000003 * Math.cos(x * Math.PI * 3000.0 / 180.0);
+  return {
+    lng: z * Math.cos(theta) + 0.0065,
+    lat: z * Math.sin(theta) + 0.006
+  };
+}
+
+function bd09ToGcj02(lng, lat) {
+  const x = Number(lng) - 0.0065;
+  const y = Number(lat) - 0.006;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { lng, lat };
+  const z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * Math.PI * 3000.0 / 180.0);
+  const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * Math.PI * 3000.0 / 180.0);
+  return {
+    lng: z * Math.cos(theta),
+    lat: z * Math.sin(theta)
+  };
+}
+
+function gcj02ToCgcs2000(lng, lat) {
+  // In common app scenarios CGCS2000 is displayed using WGS84-equivalent values.
+  return gcj02ToWgs84(lng, lat);
+}
+
+function cgcs2000ToGcj02(lng, lat) {
+  // Convert through WGS84-equivalent chain for map display coordinates.
+  return wgs84ToGcj02(lng, lat);
+}
+
 
 
 function haversineMeters(lat1, lon1, lat2, lon2) {
@@ -151,8 +185,13 @@ function tileXYToBBOX3857(x, y, z) {
 }
 
 module.exports = {
+  outOfChina,
   gcj02ToWgs84,
   wgs84ToGcj02,
+  gcj02ToBd09,
+  bd09ToGcj02,
+  gcj02ToCgcs2000,
+  cgcs2000ToGcj02,
   mercatorToLonLat,
   lonLatToMercator,
   tileXYToBBOX3857,

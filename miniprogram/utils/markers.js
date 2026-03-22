@@ -56,6 +56,10 @@ function buildFileDownloadUrl(fileName, options = {}) {
   return "";
 }
 
+function buildFileStreamUrl(fileName, options = {}) {
+  return buildFileDownloadUrl(fileName, options);
+}
+
 function appendQueryParams(path, query = {}) {
   if (!query || typeof query !== "object") {
     return path;
@@ -165,7 +169,6 @@ function postMarkerMetric(markerId, metricPath, options = {}) {
 
 function listMarkers(params = {}, options = {}) {
   const query = [];
-  console.log("params,options",params,options)
   if (params.page !== undefined && params.page !== null) {
     const page = Number(params.page);
     if (Number.isFinite(page) && page >= 0) {
@@ -177,6 +180,15 @@ function listMarkers(params = {}, options = {}) {
     if (Number.isFinite(size) && size > 0) {
       query.push(`size=${size}`);
     }
+  }
+  if (typeof params.status === "string" && params.status.trim()) {
+    query.push(`status=${encodeURIComponent(params.status.trim())}`);
+  }
+  if (typeof params.sortOrder === "string" && params.sortOrder.trim()) {
+    query.push(`sortOrder=${encodeURIComponent(params.sortOrder.trim())}`);
+  }
+  if (params.draft !== undefined && params.draft !== null) {
+    query.push(`draft=${params.draft ? "true" : "false"}`);
   }
   const qs = query.length ? `?${query.join("&")}` : "";
   return authorizedRequest({
@@ -192,6 +204,7 @@ function fetchNearbyMarkers(params = {}, options = {}) {
   const latitude = Number(params.latitude);
   const longitude = Number(params.longitude);
   const radius = Number(params.radiusInKilometers);
+  const scaleInMeters = Number(params.scaleInMeters);
   if (Number.isFinite(latitude)) {
     query.push(`latitude=${encodeURIComponent(latitude.toFixed(6))}`);
   }
@@ -200,6 +213,9 @@ function fetchNearbyMarkers(params = {}, options = {}) {
   }
   if (Number.isFinite(radius) && radius >= 0) {
     query.push(`radiusInKilometers=${encodeURIComponent(radius.toFixed(3))}`);
+  }
+  if (Number.isFinite(scaleInMeters) && scaleInMeters >= 0) {
+    query.push(`scaleInMeters=${encodeURIComponent(Math.round(scaleInMeters))}`);
   }
   const qs = query.length ? `?${query.join("&")}` : "";
   return requestMarkerResource({
@@ -232,6 +248,16 @@ function createMarker(payload = {}, options = {}) {
     apiBase: options.apiBase,
     token: options.token,
     path,
+    method: "POST",
+    data: payload
+  }).then((body = {}) => body.data || {});
+}
+
+function createMarkerDraft(payload = {}, options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/markers/draft",
     method: "POST",
     data: payload
   }).then((body = {}) => body.data || {});
@@ -382,10 +408,12 @@ module.exports = {
   fetchNearbyMarkers,
   fetchMarkerDetail,
   createMarker,
+  createMarkerDraft,
   updateMarker,
   deleteMarker,
   uploadMarkerFile,
   buildFileDownloadUrl,
+  buildFileStreamUrl,
   fetchMapSettlementConfig,
   fetchOpenPlatformContent,
   incrementMarkerExposure,

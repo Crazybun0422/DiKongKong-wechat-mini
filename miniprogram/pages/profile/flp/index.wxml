@@ -17,6 +17,20 @@
       </view>
 
       <view class="flp-benefits-card">
+        <view class="flp-rights-section">
+          <text class="flp-rights-title">可享权益</text>
+          <view class="flp-rights-list">
+            <block wx:for="{{rights}}" wx:key="id">
+              <view class="flp-right-item" data-right-id="{{item.id}}" bindtap="onRightItemTap">
+                <image class="flp-right-icon" src="{{item.icon}}" mode="aspectFit" />
+                <text class="flp-right-title">{{item.title}}</text>
+                <text class="flp-right-desc">{{item.description}}</text>
+              </view>
+            </block>
+            <view class="flp-right-item flp-right-item--placeholder"></view>
+          </view>
+        </view>
+
         <block wx:for="{{benefits}}" wx:key="id">
           <view class="flp-benefit-item">
             <view class="flp-benefit-info">
@@ -24,10 +38,7 @@
               <text class="flp-benefit-desc">{{item.description}}</text>
             </view>
             <view class="flp-benefit-action">
-              <block wx:if="{{item.type === 'share'}}">
-                <button class="flp-action-btn" open-type="share">{{item.actionText}}</button>
-              </block>
-              <block wx:elif="{{item.type === 'link'}}">
+              <block wx:if="{{item.type === 'link'}}">
                 <button
                   wx:if="{{item.action === 'invite'}}"
                   class="flp-action-btn flp-action-btn--invite"
@@ -45,9 +56,6 @@
                 >
                   {{item.actionText}}
                 </button>
-              </block>
-              <block wx:elif="{{item.type === 'tag'}}">
-                <text wx:if="{{item.badge}}" class="flp-benefit-tag">{{item.badge}}</text>
               </block>
             </view>
           </view>
@@ -84,4 +92,3 @@
     ></view>
   </block>
 </view>
-

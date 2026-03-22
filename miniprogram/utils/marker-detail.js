@@ -21,9 +21,30 @@ function truncateDisplayName(name, limit = 20) {
   return `${chars.slice(0, limit).join("")}...`;
 }
 
+function resolveCertifiedState(raw = {}) {
+  const candidates = [
+    raw.paid,
+    raw.isCertified,
+    raw.certified,
+    raw.merchantCertified,
+    raw.authenticated,
+    raw.verified
+  ];
+  return candidates.some((value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      return ["1", "true", "yes", "y", "on"].includes(normalized);
+    }
+    return false;
+  });
+}
+
 function normalizeMarkerDetail(raw = {}, options = {}) {
   const apiBase = options.apiBase;
   const download = (value) => buildFileDownloadUrl(value, { apiBase });
+  const isCertified = resolveCertifiedState(raw);
 
   const name =
     ensureText(raw.name) ||
@@ -320,6 +341,8 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
   return {
     id: raw.id || "",
     name,
+    isCertified,
+    paid: isCertified,
     locationText,
     imageUrl: firstImage,
     images,
@@ -337,5 +360,6 @@ function normalizeMarkerDetail(raw = {}, options = {}) {
 module.exports = {
   normalizeMarkerDetail,
   truncateDisplayName,
-  ensureText
+  ensureText,
+  resolveCertifiedState
 };

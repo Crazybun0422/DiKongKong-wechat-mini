@@ -1,11 +1,31 @@
 {
   "usingComponents": {
     "newbie-task-popup": "/packages/newbie-task/components/newbie-task-popup/index",
-    "uom-plugin": "/packages/uom/components/uom-plugin/index"
+    "add-mini-app-popup": "/packages/add-mini-app/components/add-mini-app-popup/index",
+    "uom-plugin": "/packages/uom/components/uom-plugin/index",
+    "uom2-plugin": "/packages/uom2/components/uom-plugin/index",
+    "map-debug-panel": "/packages/uom2/components/map-debug-panel/index",
+    "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index",
+    "policy-update-modal": "/packages/guide/components/policy-update-modal/index",
+    "map-compass": "/packages/compass/components/map-compass/index",
+    "map-center-pin": "/packages/map-center-pin/components/map-center-pin/index",
+    "map-search-link": "/packages/map-center-pin/components/map-search-link/index",
+    "dji-no-fly-layer": "/packages/dji/components/dji-no-fly-layer/index",
+    "temporary-no-fly-layer": "/packages/dji/components/temporary-no-fly-layer/index"
   },
   "componentPlaceholder": {
     "newbie-task-popup": "view",
-    "uom-plugin": "view"
+    "add-mini-app-popup": "view",
+    "uom-plugin": "view",
+    "uom2-plugin": "view",
+    "map-debug-panel": "view",
+    "city-report-h5-entry": "view",
+    "policy-update-modal": "view",
+    "map-compass": "view",
+    "map-center-pin": "view",
+    "map-search-link": "view",
+    "dji-no-fly-layer": "view",
+    "temporary-no-fly-layer": "view"
   },
   "navigationStyle": "custom"
 }

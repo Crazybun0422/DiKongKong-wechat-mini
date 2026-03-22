@@ -1,0 +1,67 @@
+<view class="planet-qa-page">
+  <scroll-view
+    class="planet-qa-scroll"
+    scroll-y="true"
+    enhanced="true"
+    show-scrollbar="false"
+    scroll-into-view="{{scrollToId}}"
+  >
+    <view wx:if="{{!messages.length}}" class="planet-qa-empty">
+      <text>正在等待你的提问</text>
+    </view>
+
+    <block wx:for="{{messages}}" wx:key="id">
+      <view class="planet-qa-item" id="{{item.domId}}">
+        <view class="planet-qa-question-row">
+          <view class="planet-qa-question-meta">
+            <text class="planet-qa-user-name">{{userName}}</text>
+            <image class="planet-qa-user-avatar" src="{{userAvatar}}" mode="aspectFill" />
+          </view>
+          <view class="planet-qa-question-bubble">
+            <view class="planet-qa-question-text">{{item.question}}</view>
+          </view>
+        </view>
+
+        <view class="planet-qa-answer-row">
+          <view class="planet-qa-answer-meta">
+            <image
+              class="planet-qa-agent-logo"
+              src="{{planetLogoSrc}}"
+              mode="aspectFit"
+              binderror="onPlanetLogoError"
+            />
+            <text class="planet-qa-agent-name">{{planetName}}</text>
+            <text wx:if="{{item.loading}}" class="planet-qa-agent-timer">{{item.elapsedSeconds || 0}}秒</text>
+          </view>
+          <view class="planet-qa-answer {{item.loading ? 'is-loading' : ''}}">
+            <view class="planet-qa-answer-text">{{item.answer}}</view>
+          </view>
+        </view>
+      </view>
+    </block>
+  </scroll-view>
+
+  <view class="planet-qa-input-wrap">
+    <view class="planet-qa-input-row">
+      <input
+        class="planet-qa-input"
+        value="{{inputValue}}"
+        maxlength="200"
+        placeholder="暂不支持继续提问"
+        confirm-type="send"
+        disabled="{{followupDisabled}}"
+        bindinput="onInput"
+        bindconfirm="onSendTap"
+      />
+      <button
+        class="planet-qa-send {{sending || followupDisabled ? 'is-disabled' : ''}}"
+        loading="{{sending}}"
+        disabled="{{sending || followupDisabled}}"
+        bindtap="onSendTap"
+      >
+        发送
+      </button>
+    </view>
+    <view class="planet-qa-followup-tip">{{followupDisabledTip}}</view>
+  </view>
+</view>

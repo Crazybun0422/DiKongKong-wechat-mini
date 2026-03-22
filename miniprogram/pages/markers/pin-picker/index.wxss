@@ -24,7 +24,7 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10;
+  z-index: 20;
   pointer-events: none;
 }
 
@@ -117,7 +117,7 @@
   right: 0;
   padding: 0 28rpx;
   box-sizing: border-box;
-  z-index: 6;
+  z-index: 60;
 }
 
 
@@ -383,7 +383,7 @@
 .floating-confirm {
   position: absolute;
   left: 50%;
-  bottom: 24rpx;
+  bottom: 124rpx;
   transform: translateX(-50%);
   width: 58%;
   max-width: 460rpx;
@@ -398,7 +398,7 @@
 .coord-panel {
   position: absolute;
   right: 24rpx;
-  bottom: 180rpx;
+  bottom: 280rpx;
   width: 420rpx;
   max-height: 760rpx;
   background: rgba(255, 255, 255, 0.75);
@@ -630,7 +630,7 @@
 .line-actions {
   position: absolute;
   left: 50%;
-  bottom: 28rpx;
+  bottom: 128rpx;
   transform: translateX(-50%);
   width: 82%;
   max-width: 560rpx;
@@ -724,5 +724,32 @@
   0% { opacity: 0; transform: translate(-50%, 20rpx) scale(0.96); }
   30% { opacity: 1; transform: translate(-50%, 0) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -26rpx) scale(0.96); }
+}
+
+.pin-picker-page--wide .picker-search-panel {
+  top: calc(env(safe-area-inset-top) + 24rpx);
+  left: 40rpx;
+  right: 40rpx;
+  max-width: 980rpx;
+  padding: 0;
+}
+
+.pin-picker-page--wide .coord-panel {
+  right: 40rpx;
+  bottom: 220rpx;
+  width: 500rpx;
+  max-height: 82vh;
+}
+
+.pin-picker-page--wide .floating-confirm {
+  width: 44%;
+  max-width: 600rpx;
+  bottom: 112rpx;
+}
+
+.pin-picker-page--wide .line-actions {
+  width: 52%;
+  max-width: 700rpx;
+  bottom: 112rpx;
 }
 

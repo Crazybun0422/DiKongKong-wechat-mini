@@ -275,3 +275,24 @@
   background: #444444;
   color: #ffffff;
 }
+
+.picker-page--wide .picker-map {
+  height: 100%;
+}
+
+.picker-page--wide .picker-search-panel {
+  left: 40rpx;
+  right: 40rpx;
+  max-width: 980rpx;
+}
+
+.picker-page--wide .address-panel {
+  min-width: 420rpx;
+  max-width: 980rpx;
+  transform: translate(-50%, -300rpx);
+}
+
+.picker-page--wide .actions {
+  padding-left: 40rpx;
+  padding-right: 40rpx;
+}

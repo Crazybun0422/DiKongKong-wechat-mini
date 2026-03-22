@@ -1,0 +1,10 @@
+<view class="uom2-root">
+  <block wx:for="{{tiles}}" wx:key="id">
+    <image
+      class="uom2-tile"
+      src="{{item.src}}"
+      mode="scaleToFill"
+      style="left: {{item.left}}px; top: {{item.top}}px; width: {{item.width}}px; height: {{item.height}}px; opacity: {{item.alpha}};"
+    />
+  </block>
+</view>

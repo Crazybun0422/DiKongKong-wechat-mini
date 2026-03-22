@@ -6,12 +6,13 @@ const {
 } = require("../../../../utils/newbie-tasks");
 const { fetchCheckinDetail } = require("../../../../utils/checkin");
 const { fetchFlpLogs } = require("../../../../utils/flp");
-const { buildFileDownloadUrl } = require("../../../../utils/markers");
-const { getLatestFontFileName } = require("../../../../utils/font-config");
+const { getLatestFontFileSource } = require("../../../../utils/font-config");
+const { buildImageUrl } = require("../../../../utils/images");
 
 const POPUP_DURATION_MS = 30 * 1000;
 const PROGRESS_INTERVAL_MS = 100;
 const VIDEO_FINDER_USER_NAME = "sphW8PwCfzcysHB";
+const POPUP_RESTORE_KEY = "newbieTaskPopupVisible";
 
 const getApiBase = () => {
   try {
@@ -35,6 +36,7 @@ Component({
   data: {
     visible: false,
     tasks: [],
+    qrCodeUrl: "",
     remainingSeconds: 30,
     showScrollHint: false,
     rewardAvailable: false,
@@ -45,12 +47,15 @@ Component({
   lifetimes: {
     attached() {
       this.ensureFontLoaded();
-      this.loadTasks();
+      this.restorePopupState();
+      this.loadTasks({ autoTogglePopup: !this._shouldRestorePopup });
     }
   },
   pageLifetimes: {
     show() {
-      this.loadTasks();
+      this.restorePopupState();
+      const shouldAutoToggle = !(this.data.visible || this._shouldRestorePopup);
+      this.loadTasks({ autoTogglePopup: shouldAutoToggle });
     },
     hide() {
       this.stopPopupTimer();
@@ -58,15 +63,39 @@ Component({
   },
   methods: {
     noop() { },
+    restorePopupState() {
+      if (typeof wx?.getStorageSync !== "function") return;
+      try {
+        const value = wx.getStorageSync(POPUP_RESTORE_KEY);
+        this._shouldRestorePopup = value === "1";
+      } catch (err) {
+        this._shouldRestorePopup = false;
+      }
+    },
+    setPopupPersistFlag(enabled) {
+      if (typeof wx?.setStorageSync !== "function") return;
+      try {
+        if (enabled) {
+          wx.setStorageSync(POPUP_RESTORE_KEY, "1");
+        } else {
+          wx.setStorageSync(POPUP_RESTORE_KEY, "0");
+        }
+      } catch (err) {
+        // ignore storage errors
+      }
+    },
     normalizeTaskPayload(payload = {}) {
       const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
       const showPopup = !!payload.showThirtySecondPopup;
+      const rawQrCode = typeof payload.qrCodeUrl === "string" ? payload.qrCodeUrl.trim() : "";
+      const qrCodeUrl = rawQrCode ? buildImageUrl(rawQrCode, { apiBase: getApiBase() }) : "";
       const rewardAvailable = !!payload.rewardAvailable;
       const hasIncomplete = tasks.some((task) => !task.completed);
       const showGiftEntry = !showPopup && (hasIncomplete || rewardAvailable);
       return {
         tasks,
         showPopup,
+        qrCodeUrl,
         rewardAvailable,
         hasIncomplete,
         showGiftEntry
@@ -76,6 +105,7 @@ Component({
       const normalized = this.normalizeTaskPayload(payload);
       this.setData({
         tasks: normalized.tasks,
+        qrCodeUrl: normalized.qrCodeUrl,
         rewardAvailable: normalized.rewardAvailable,
         showGiftEntry: normalized.showGiftEntry
       });
@@ -86,6 +116,14 @@ Component({
         showPopup: normalized.showPopup,
         tasksCount: normalized.tasks.length
       });
+      if (this._shouldRestorePopup) {
+        this._shouldRestorePopup = false;
+        if (normalized.tasks.length) {
+          this.openPopup({ mode: "manual", tasks: normalized.tasks });
+        } else {
+          this.setPopupPersistFlag(false);
+        }
+      }
       if (options.autoTogglePopup) {
         if (normalized.tasks.length && normalized.showPopup) {
           this.openPopup({ mode: "auto", tasks: normalized.tasks });
@@ -120,17 +158,15 @@ Component({
       if (this._fontLoaded) return;
       const apiBase = getApiBase();
       this._fontLoaded = true;
-      getLatestFontFileName({ apiBase })
-        .then((fileName) => {
-          console.log("load font file name:", fileName);
-          const fontUrl = buildFileDownloadUrl(fileName, { apiBase });
-          if (!fontUrl) {
+      getLatestFontFileSource({ apiBase })
+        .then((source) => {
+          if (!source) {
             this._fontLoaded = false;
             return;
           }
           wx.loadFontFace({
             family: "ZhSubset",
-            source: `url("${fontUrl}")`,
+            source: `url("${source}")`,
             global: false,
             success: () => { },
             fail: (err) => {
@@ -153,6 +189,7 @@ Component({
       this.setData({ visible: true, showCountdownTitle }, () => {
         this.triggerStateChange();
       });
+      this.setPopupPersistFlag(true);
       if (mode === "auto") {
         this.startPopupTimer();
       } else {
@@ -186,6 +223,7 @@ Component({
         this.triggerStateChange();
         if (onHidden) onHidden();
       });
+      this.setPopupPersistFlag(false);
       this.stopPopupTimer();
       this._progressCtx = null;
       this._progressCanvas = null;
@@ -349,7 +387,20 @@ Component({
           const canvas = info && info.node;
           if (!canvas) return;
           const ctx = canvas.getContext("2d");
-          const dpr = wx.getSystemInfoSync().pixelRatio || 1;
+          let dpr = 1;
+          if (typeof wx.getWindowInfo === "function") {
+            try {
+              dpr = wx.getWindowInfo()?.pixelRatio || dpr;
+            } catch (err) {
+              dpr = dpr;
+            }
+          } else if (typeof wx.getDeviceInfo === "function") {
+            try {
+              dpr = wx.getDeviceInfo()?.pixelRatio || dpr;
+            } catch (err) {
+              dpr = dpr;
+            }
+          }
           const width = info.width || 0;
           const height = info.height || 0;
           if (!width || !height) return;

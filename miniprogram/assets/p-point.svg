@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100">
+  <defs>
+    <!-- 光晕限制在“外部半透明圆环”内部：用mask只保留 25<r<41.5 这段环带 -->
+    <radialGradient id="innerGlowGrad" cx="50%" cy="55%" r="60%">
+      <stop offset="0%"   stop-color="#64B5F6" stop-opacity="0"/>
+      <stop offset="55%"  stop-color="#64B5F6" stop-opacity="0.10"/>
+      <stop offset="78%"  stop-color="#64B5F6" stop-opacity="0.55"/>
+      <stop offset="92%"  stop-color="#64B5F6" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#64B5F6" stop-opacity="0.00"/>
+    </radialGradient>
+
+    <filter id="innerGlowBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="2.6"/>
+    </filter>
+
+    <!-- 环带mask：白=保留，黑=裁掉 -->
+    <mask id="glowBandMask">
+      <rect width="100" height="100" fill="black"/>
+      <!-- 先放一个大白圆保留到外半径 -->
+      <circle cx="50" cy="55" r="41.5" fill="white"/>
+      <!-- 再挖掉内半径以内 -->
+      <circle cx="50" cy="55" r="25" fill="black"/>
+    </mask>
+
+    <!-- 白色细环：挖掉中间，让白环偏细 -->
+    <mask id="whiteRingMask">
+      <rect width="100" height="100" fill="white"/>
+      <circle cx="50" cy="55" r="20.2" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- 最外层：蓝色半透明圆环（边界） -->
+  <circle cx="50" cy="55" r="41.5"
+          fill="none"
+          stroke="#64B5F6"
+          stroke-opacity="0.45"
+          stroke-width="3.0"/>
+
+  <!-- 光晕：被限制在最外层蓝色圆环内部（环带mask内），不会扩散到外面 -->
+  <circle cx="50" cy="55" r="41.5"
+          fill="url(#innerGlowGrad)"
+          filter="url(#innerGlowBlur)"
+          mask="url(#glowBandMask)"/>
+
+  <!-- 顶部方向三角：红色 -->
+  <path d="M 50 10
+           L 25.0658 53.1873
+           L 74.9342 53.1873 Z"
+        fill="#E53935" stroke="none"/>
+
+  <!-- 内部白色三角：与外三角三边严格平行（相似缩放 0.5） -->
+  <path d="M 50 24.3957
+           L 37.5329 45.9894
+           L 62.4671 45.9894 Z"
+        fill="#FFFFFF" stroke="none"/>
+
+  <!-- 外层蓝色圆环 -->
+  <circle cx="50" cy="55" r="22" fill="none" stroke="#1E88E5" stroke-width="6"/>
+
+  <!-- 圆环内部：整块涂蓝 -->
+  <circle cx="50" cy="55" r="19" fill="#1E88E5"/>
+
+  <!-- 圆环内部白色细环：最后画，避免被覆盖 -->
+  <circle cx="50" cy="55" r="22" fill="none" stroke="#FFFFFF" stroke-width="3.0" mask="url(#whiteRingMask)"/>
+
+  <!-- 中心蓝色实心圆 -->
+  <circle cx="50" cy="55" r="10.5" fill="#1E88E5"/>
+</svg>

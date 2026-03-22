@@ -1,0 +1,361 @@
+openapi: 3.0.1
+info:
+  title: Ladder Game APIs
+  description: |
+    "阿飞历险记"天梯玩法接口。
+
+    - 管理端可分页查看排行榜（含游戏次数、最新游戏时间）。
+    - 用户端可分页查看排行榜（不返回管理端专属字段）。
+    - 用户可查看我的排名。
+    - 用户可发起开局与结算，结算会触发排行榜更新与排名重算。
+  version: 1.0.0
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /api/ladder-game/admin/leaderboard:
+    get:
+      summary: 管理端分页查看排行榜
+      description: |
+        需要管理员 JWT。返回字段包含：用户头像、用户名称、featureCode、游戏次数、最高分、排名、最新游戏时间。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+          description: 每页条数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageLadderLeaderboardItemResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/ladder-game/user/leaderboard:
+    get:
+      summary: 用户端分页查看排行榜
+      description: |
+        需要用户 JWT（普通账号或小程序用户 token）。
+        返回字段包含：用户头像、用户名称、featureCode、最高分、排名。
+
+        注意：本接口中 `gameCount` 与 `latestGameTime` 为空（null）。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: 页码（从 0 开始）。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+          description: 每页条数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageLadderLeaderboardItemResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/ladder-game/user/my-rank:
+    get:
+      summary: 查看我的排名（用户）
+      description: |
+        需要用户 JWT（普通账号或小程序用户 token）。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLadderMyRankResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/ladder-game/user/start:
+    post:
+      summary: 游戏开始（用户）
+      description: |
+        需要用户 JWT（普通账号或小程序用户 token）。
+
+        请求参数：
+        - featureCode
+        - uniqueCode（前端根据开始时间生成并缓存的唯一码）
+        - startTime
+
+        约束：请求体中的 featureCode 必须与当前登录用户 featureCode 一致。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LadderGameStartRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLadderGameSessionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/ladder-game/user/end:
+    post:
+      summary: 游戏结束（用户）
+      description: |
+        需要用户 JWT（普通账号或小程序用户 token）。
+
+        请求参数：
+        - featureCode
+        - uniqueCode（必须与开始时一致，否则报错）
+        - endTime
+        - score
+
+        业务规则：
+        - score 若大于历史最高分，则更新最高分。
+        - 结算后会触发天梯排名重算。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LadderGameEndRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseLadderGameSessionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          nullable: true
+          description: 错误场景下通常为 null。
+
+    ApiResponsePageLadderLeaderboardItemResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PageLadderLeaderboardItemResponse'
+
+    ApiResponseLadderMyRankResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/LadderMyRankResponse'
+
+    ApiResponseLadderGameSessionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/LadderGameSessionResponse'
+
+    PageLadderLeaderboardItemResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/LadderLeaderboardItemResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    LadderLeaderboardItemResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        featureCode:
+          type: string
+        gameCount:
+          type: integer
+          format: int64
+          nullable: true
+          description: 仅管理端排行榜返回，用户端为 null。
+        highestScore:
+          type: integer
+          format: int64
+        rank:
+          type: integer
+          format: int64
+        latestGameTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: 仅管理端排行榜返回，用户端为 null。
+
+    LadderMyRankResponse:
+      type: object
+      properties:
+        featureCode:
+          type: string
+        highestScore:
+          type: integer
+          format: int64
+        rank:
+          type: integer
+          format: int64
+
+    LadderGameStartRequest:
+      type: object
+      required:
+        - featureCode
+        - uniqueCode
+        - startTime
+      properties:
+        featureCode:
+          type: string
+        uniqueCode:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+
+    LadderGameEndRequest:
+      type: object
+      required:
+        - featureCode
+        - uniqueCode
+        - endTime
+        - score
+      properties:
+        featureCode:
+          type: string
+        uniqueCode:
+          type: string
+        endTime:
+          type: string
+          format: date-time
+        score:
+          type: integer
+          format: int64
+          minimum: 0
+
+    LadderGameSessionResponse:
+      type: object
+      properties:
+        featureCode:
+          type: string
+        uniqueCode:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+          nullable: true
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        score:
+          type: integer
+          format: int64
+          nullable: true
+        ended:
+          type: boolean

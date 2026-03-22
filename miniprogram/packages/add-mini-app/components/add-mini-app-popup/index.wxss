@@ -1,0 +1,155 @@
+.add-mini-mask-layer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.add-mini-hole {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.01);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+}
+
+.add-mini-popup {
+  position: fixed;
+  right: 24rpx;
+  z-index: 130;
+}
+
+.add-mini-body {
+  position: relative;
+  width: 560rpx;
+  animation: add-mini-fade 420ms ease-in-out both;
+}
+
+.add-mini-hero {
+  position: absolute;
+  top: 0;
+  right: 270rpx;
+  width: 180rpx;
+  transform: translateY(-50rpx);
+  z-index: 2;
+}
+
+.add-mini-skin-wrap {
+  position: relative;
+  width: 560rpx;
+}
+
+.add-mini-skin {
+  width: 560rpx;
+  display: block;
+  filter: drop-shadow(0 18rpx 40rpx rgba(0, 0, 0, 0.22));
+}
+
+.add-mini-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  padding: 62rpx 30rpx 36rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.add-mini-title {
+  font-size: 38rpx;
+  line-height: 1.4;
+  color: #222222;
+  font-weight: 600;
+}
+
+.add-mini-step {
+  display: flex;
+  align-items: center;
+  margin-top: 22rpx;
+}
+
+.add-mini-step-index {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: #111111;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12rpx;
+  flex-shrink: 0;
+}
+
+.add-mini-step-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 30rpx;
+  line-height: 1.4;
+  color: #2b2b2b;
+}
+
+.add-mini-more-icon {
+  width: 90rpx;
+  height: 46rpx;
+  margin: 0 6rpx;
+}
+
+.add-mini-step-image {
+  position: relative;
+  margin-top: 16rpx;
+  border-radius: 22rpx;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.add-mini-step-img {
+  width: 100%;
+  display: block;
+}
+
+.add-mini-point {
+  position: absolute;
+  width: 112rpx;
+  left: 454rpx;
+  top: 300rpx;
+  animation: add-mini-point-sweep 4s ease-in-out infinite;
+  z-index: 3;
+  pointer-events: none;
+}
+
+@keyframes add-mini-fade {
+  from {
+    opacity: 0;
+    transform: translateY(16rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes add-mini-point-sweep {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0.95;
+  }
+  25% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0.95;
+  }
+  75% {
+    transform: translate(-160rpx, 280rpx) rotate(-8deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-160rpx, 280rpx) rotate(-8deg);
+    opacity: 1;
+  }
+}

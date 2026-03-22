@@ -40,7 +40,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
     put:
       summary: 更新图层显示参数
-      description: 用户更新自身的图层显示参数，管理员可指定 featureCode 更新对应用户配置。仅更新请求中出现的字段。
+      description: 用户更新自身的图层显示参数，管理员可指定 featureCode 更新对应用户配置。仅更新请求中出现的字段。`extraConfig` 为用户个性化设置的可扩展 KV 集合，按需存储用户侧变量。
       parameters:
         - in: query
           name: featureCode
@@ -131,9 +131,22 @@ components:
         platformCoConstructionEnabled:
           type: boolean
           description: 是否显示平台共建标记，默认 true。
+        useDefaultCenterPoint:
+          type: boolean
+          description: 是否使用默认中心点，默认 true。
         aircraftModel:
           type: string
           description: 执飞机型，未设置时返回空字符串。
+        miniProgramAddedAt:
+          type: integer
+          format: int64
+          description: 用户添加小程序到我的小程序的时间（秒）。
+        extraConfig:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          description: 用户个性化设置 KV 集合（与平台富文本配置无关）。value 传 null 表示删除该 key。
     MapLayerSettingResponse:
       type: object
       properties:
@@ -156,6 +169,19 @@ components:
           type: boolean
         platformCoConstructionEnabled:
           type: boolean
+        useDefaultCenterPoint:
+          type: boolean
+          description: 是否使用默认中心点
         aircraftModel:
           type: string
           description: 执飞机型，未设置时返回空字符串。
+        miniProgramAddedAt:
+          type: integer
+          format: int64
+          description: 用户添加小程序到我的小程序的时间（秒）。
+        extraConfig:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          description: 用户个性化设置 KV 集合（与平台富文本配置无关）。value 传 null 表示删除该 key。

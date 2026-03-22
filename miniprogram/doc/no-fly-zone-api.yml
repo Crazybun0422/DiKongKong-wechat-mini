@@ -335,6 +335,11 @@ components:
           type: integer
           format: int64
           description: 失效时间（秒），可选。
+        effectivePeriods:
+          type: array
+          description: 生效时段数组，与 effectiveFrom/effectiveTo 并列；每项的起止时间需满足 effectiveFrom <= effectiveTo。
+          items:
+            $ref: '#/components/schemas/NoFlyZoneEffectivePeriod'
         wechatLink:
           type: string
           description: 关联的微信公众号链接，仅支持 mp.weixin.qq.com 域名，非必填。
@@ -363,6 +368,11 @@ components:
         effectiveTo:
           type: integer
           format: int64
+        effectivePeriods:
+          type: array
+          description: 生效时段数组，与 effectiveFrom/effectiveTo 并列返回。
+          items:
+            $ref: '#/components/schemas/NoFlyZoneEffectivePeriod'
         wechatLink:
           type: string
         createdAt:
@@ -371,6 +381,17 @@ components:
         updatedAt:
           type: string
           format: date-time
+    NoFlyZoneEffectivePeriod:
+      type: object
+      properties:
+        effectiveFrom:
+          type: integer
+          format: int64
+          description: 生效时间（秒），可选。
+        effectiveTo:
+          type: integer
+          format: int64
+          description: 失效时间（秒），可选。
     NoFlyZoneCoordinate:
       type: object
       properties:

@@ -111,6 +111,255 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/planet-merchant-advanced-guide:
+    get:
+      summary: 获取星球商户进阶攻略
+      description: 普通用户可读取，返回星球商户进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetMerchantAdvancedGuideResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新星球商户进阶攻略
+      description: 仅管理员可调用，用于创建或更新星球商户进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanetMerchantAdvancedGuideRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetMerchantAdvancedGuideResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/planet-creation-advanced-guide:
+    get:
+      summary: 获取星球创作进阶攻略
+      description: 普通用户可读取，返回星球创作进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetCreationAdvancedGuideResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新星球创作进阶攻略
+      description: 仅管理员可调用，用于创建或更新星球创作进阶攻略富文本文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanetCreationAdvancedGuideRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlanetCreationAdvancedGuideResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/share-to-platform-copy:
+    get:
+      summary: 获取共享到平台文案
+      description: 普通用户可读取，返回共享到平台富文本文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseShareToPlatformCopyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新共享到平台文案
+      description: 仅管理员可调用，用于创建或更新共享到平台富文本文案。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareToPlatformCopyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseShareToPlatformCopyResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/merchant-intro-long-image:
+    get:
+      summary: 获取商户介绍长图配置
+      description: 普通用户可读取，返回商户介绍长图 URL 配置。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantIntroLongImageResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新商户介绍长图配置
+      description: 仅管理员可调用，用于创建或更新商户介绍长图 URL。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantIntroLongImageRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMerchantIntroLongImageResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/guide-urls:
+    get:
+      summary: 获取引导界面 URL 数组
+      description: 普通用户可读取，返回用于引导界面的 URL 列表（每个条目包含 URL 与标题）；数据存储在 system_setting 表中，键为 CONFIG_GUIDE_URLS。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGuideUrlsResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新引导界面 URL 数组
+      description: 仅管理员可调用，用于创建或更新引导界面 URL 列表（每个条目包含 URL 与标题）。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuideUrlsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseGuideUrlsResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/font-file:
     get:
       summary: 获取最新字体文件配置
@@ -169,6 +418,212 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/easter-egg-resource:
+    get:
+      summary: 获取彩蛋游戏资源包信息
+      description: 管理员和普通用户均可调用，返回当前彩蛋游戏资源包文件名与版本号。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEasterEggResourceConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 上传彩蛋游戏资源包
+      description: 仅管理员可调用，上传 zip 资源包并保存版本号。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - version
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 彩蛋游戏资源包 zip 文件。
+                version:
+                  type: string
+                  description: 资源包版本号。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEasterEggResourceConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/easter-egg-resource/latest/download:
+    get:
+      summary: 下载最新彩蛋游戏资源包（支持分段下载）
+      description: |
+        管理员和普通用户均可调用，下载当前最新版本的资源包文件（附件流）。
+
+        - 不带 `Range` 请求头时，返回完整文件（`200 OK`）。
+        - 带单段 `Range`（如 `bytes=0-1048575`）时，返回分段文件（`206 Partial Content`）。
+        - 当前仅支持**单段范围请求**；多段或非法范围返回 `416 Requested Range Not Satisfiable`。
+        - 若运行环境无法透传 `Range` 请求头，也可使用查询参数 `start/end`（闭区间）请求分段。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Range
+          required: false
+          schema:
+            type: string
+          description: |
+            可选的字节范围请求头。示例：
+            - `bytes=0-1048575`
+            - `bytes=1048576-`
+            - `bytes=-1024`
+        - in: query
+          name: start
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 分段下载起始字节（闭区间，需与 `end` 搭配或单独使用）。
+        - in: query
+          name: end
+          required: false
+          schema:
+            type: integer
+            format: int64
+          description: 分段下载结束字节（闭区间，需与 `start` 搭配或单独使用）。
+      responses:
+        '200':
+          description: 返回完整文件流。
+          headers:
+            Accept-Ranges:
+              description: 服务端支持字节范围请求。
+              schema:
+                type: string
+                example: bytes
+            Content-Disposition:
+              description: 附件下载文件名。
+              schema:
+                type: string
+            Content-Length:
+              description: 完整文件大小（字节）。
+              schema:
+                type: integer
+                format: int64
+            X-Total-Size:
+              description: 文件总大小（字节），用于客户端兜底获取总长度。
+              schema:
+                type: string
+                example: "8388608"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: 返回指定范围的文件分段。
+          headers:
+            Accept-Ranges:
+              description: 服务端支持字节范围请求。
+              schema:
+                type: string
+                example: bytes
+            Content-Range:
+              description: 当前返回分段的范围与总大小。
+              schema:
+                type: string
+                example: bytes 0-1048575/8388608
+            Content-Disposition:
+              description: 附件下载文件名。
+              schema:
+                type: string
+            Content-Length:
+              description: 当前分段大小（字节）。
+              schema:
+                type: integer
+                format: int64
+            X-Total-Size:
+              description: 文件总大小（字节），用于客户端兜底获取总长度。
+              schema:
+                type: string
+                example: "8388608"
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '416':
+          description: 请求的 Range 不可满足（非法范围或多段范围）。
+          headers:
+            Content-Range:
+              description: 不可满足范围提示。
+              schema:
+                type: string
+                example: bytes */*
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
   /api/config/invite-guide:
     get:
       summary: 获取邀请攻略文案
@@ -212,6 +667,135 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-no-ads-threshold:
+    get:
+      summary: 获取免播广告 FLP 阈值配置
+      description: 仅 ADMIN 角色管理员可调用，读取免播广告所需的最小 FLP 阈值。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpNoAdsThresholdResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新免播广告 FLP 阈值配置
+      description: 仅 ADMIN 角色管理员可调用，设置免播广告所需的最小 FLP 阈值（大于等于 0）。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlpNoAdsThresholdRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseFlpNoAdsThresholdResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-no-ads-threshold/sync-now:
+    post:
+      summary: 立即执行免广告人群同步任务
+      description: 仅 ADMIN 角色管理员可调用，立即执行一次 WeData 免广告人群同步，并返回本次执行记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeDataCrowdSyncRecordResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/flp-no-ads-threshold/last-crowd:
+    get:
+      summary: 获取上一次免广告人群记录
+      description: 仅 ADMIN 角色管理员可调用，返回最近一次免广告人群同步记录（系统仅保存这一条最新记录，含成员详情）。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeDataCrowdSyncRecordResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
           content:
             application/json:
               schema:
@@ -265,6 +849,140 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseFlpRewardHelpResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/coordinate-system-description:
+    get:
+      summary: 获取坐标系说明富文本
+      description: 管理员与普通用户均可调用，读取坐标系说明富文本内容；数据库中仅维护一条记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCoordinateSystemDescriptionResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新坐标系说明富文本
+      description: 仅 ADMIN 角色管理员可调用，用于创建或更新唯一的坐标系说明记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoordinateSystemDescriptionRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCoordinateSystemDescriptionResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/coordinate-long-press-guide:
+    get:
+      summary: 获取中心点长按说明富文本
+      description: 管理员与普通用户均可调用，读取中心点长按说明富文本内容；数据库中仅维护一条记录。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCoordinateLongPressGuideResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新中心点长按说明富文本
+      description: 仅 ADMIN 角色管理员可调用，用于创建或更新唯一的中心点长按说明记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoordinateLongPressGuideRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCoordinateLongPressGuideResponse'
         '400':
           description: Bad Request
           content:
@@ -478,6 +1196,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/pin-video-upload-flp-limit:
+    get:
+      summary: 获取 Pin 视频上传 FLP 门槛配置
+      description: 管理端和用户端均可读取，返回上传视频所需的最低 FLP 值。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinVideoUploadFlpLimitResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新 Pin 视频上传 FLP 门槛配置
+      description: 仅管理员可调用，用于创建或更新上传 Pin 视频所需的 FLP 最低值。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PinVideoUploadFlpLimitRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePinVideoUploadFlpLimitResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/wechat-pay:
     get:
       summary: 获取微信支付配置
@@ -547,6 +1326,48 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/poster-service-version:
+    get:
+      summary: 获取海报服务版本
+      description: 读取 system_setting 中保存的海报服务版本号。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePosterServiceVersionResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/poster-service-version/refresh:
+    post:
+      summary: 刷新海报服务版本
+      description: 仅管理员可调用，向 poster-service 的 /version 接口发起请求并覆盖保存到 system_setting。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePosterServiceVersionResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Internal Server Error
           content:
             application/json:
               schema:
@@ -636,6 +1457,122 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/MapSettlementConfigResponse'
+    PlanetMerchantAdvancedGuideRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 星球商户进阶攻略富文本文案。
+    PlanetMerchantAdvancedGuideResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlanetMerchantAdvancedGuideRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponsePlanetMerchantAdvancedGuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PlanetMerchantAdvancedGuideResponse'
+
+    PlanetCreationAdvancedGuideRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 星球创作进阶攻略富文本文案。
+    PlanetCreationAdvancedGuideResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlanetCreationAdvancedGuideRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponsePlanetCreationAdvancedGuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PlanetCreationAdvancedGuideResponse'
+
+
+    MerchantIntroLongImageRequest:
+      type: object
+      required:
+        - imageUrl
+      properties:
+        imageUrl:
+          type: string
+          description: 商户介绍长图 URL。
+    MerchantIntroLongImageResponse:
+      allOf:
+        - $ref: '#/components/schemas/MerchantIntroLongImageRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponseMerchantIntroLongImageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MerchantIntroLongImageResponse'
+    ShareToPlatformCopyRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 共享到平台富文本文案。
+    ShareToPlatformCopyResponse:
+      allOf:
+        - $ref: '#/components/schemas/ShareToPlatformCopyRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              nullable: true
+    ApiResponseShareToPlatformCopyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/ShareToPlatformCopyResponse'
+
     OpenPlatformCopyRequest:
       type: object
       required:
@@ -684,6 +1621,56 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/FontFileConfigResponse'
+    EasterEggResourceConfigResponse:
+      type: object
+      properties:
+        fileName:
+          type: string
+          description: 彩蛋游戏资源包在存储中的对象名称。
+        version:
+          type: string
+          description: 彩蛋游戏资源包版本号。
+    ApiResponseEasterEggResourceConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/EasterEggResourceConfigResponse'
+    EasterEggResourceDownloadProgressMessage:
+      type: object
+      properties:
+        requestId:
+          type: string
+          description: 单次下载请求标识。
+        status:
+          type: string
+          description: 下载状态（STARTED/COMPLETED/FAILED）。
+        progressPercent:
+          type: integer
+          format: int32
+          description: 下载进度百分比。
+        version:
+          type: string
+          nullable: true
+          description: 当前下载资源包版本号。
+        fileName:
+          type: string
+          nullable: true
+          description: 当前下载资源包文件名。
+        message:
+          type: string
+          nullable: true
+          description: 补充说明。
+        timestamp:
+          type: integer
+          format: int64
+          description: 服务端消息时间戳（毫秒）。
+
     InviteGuideRequest:
       type: object
       required:
@@ -712,6 +1699,130 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/InviteGuideResponse'
+    FlpNoAdsThresholdRequest:
+      type: object
+      required:
+        - threshold
+      properties:
+        threshold:
+          type: number
+          format: double
+          description: 免播广告所需的 FLP 最小阈值，包含边界。
+    FlpNoAdsThresholdResponse:
+      type: object
+      properties:
+        threshold:
+          type: number
+          format: double
+          description: 免播广告所需的 FLP 最小阈值，包含边界。
+    ApiResponseFlpNoAdsThresholdResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/FlpNoAdsThresholdResponse'
+    WeDataCrowdSyncMemberResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 用户 ID。
+        username:
+          type: string
+          nullable: true
+          description: 用户名。
+        featureCode:
+          type: string
+          nullable: true
+          description: 用户 featureCode。
+        openid:
+          type: string
+          description: 微信 openid。
+        email:
+          type: string
+          nullable: true
+          description: 用户邮箱。
+        phone:
+          type: string
+          nullable: true
+          description: 用户手机号。
+        avatarUrl:
+          type: string
+          nullable: true
+          description: 用户头像 URL。
+        status:
+          type: string
+          nullable: true
+          description: 用户状态。
+        userCreatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 用户注册时间。
+        flpBalance:
+          type: number
+          format: double
+          nullable: true
+          description: 用户当前 FLP 余额。
+    WeDataCrowdSyncRecordResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Mongo 记录 ID。
+        executedAt:
+          type: string
+          format: date-time
+          description: 执行时间。
+        threshold:
+          type: number
+          format: double
+          description: 本次执行使用的 FLP 阈值。
+        crowdName:
+          type: string
+          description: 本次创建的人群名称。
+        mediaId:
+          type: string
+          nullable: true
+          description: 上传文件返回的 media_id。
+        crowdId:
+          type: string
+          nullable: true
+          description: 创建人群返回的 crowd_id。
+        status:
+          type: string
+          description: 执行状态（SUCCESS/FAILED/SKIPPED_EMPTY）。
+        errorMessage:
+          type: string
+          nullable: true
+          description: 失败错误信息。
+        totalOpenidCount:
+          type: integer
+          format: int32
+          description: 本次符合条件的 openid 数量。
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeDataCrowdSyncMemberResponse'
+          description: 本次免广告人群成员明细。
+    ApiResponseWeDataCrowdSyncRecordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeDataCrowdSyncRecordResponse'
     FlpRewardHelpRequest:
       type: object
       required:
@@ -740,6 +1851,62 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/FlpRewardHelpResponse'
+    CoordinateSystemDescriptionRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 坐标系说明富文本文案。
+    CoordinateSystemDescriptionResponse:
+      allOf:
+        - $ref: '#/components/schemas/CoordinateSystemDescriptionRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseCoordinateSystemDescriptionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/CoordinateSystemDescriptionResponse'
+    CoordinateLongPressGuideRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 中心点长按说明富文本文案。
+    CoordinateLongPressGuideResponse:
+      allOf:
+        - $ref: '#/components/schemas/CoordinateLongPressGuideRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseCoordinateLongPressGuideResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/CoordinateLongPressGuideResponse'
     TemplateSettingRequest:
       type: object
       required:
@@ -844,6 +2011,35 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/PinReviewRewardConfigResponse'
+    PinVideoUploadFlpLimitRequest:
+      type: object
+      required:
+        - threshold
+      properties:
+        threshold:
+          type: number
+          format: double
+          description: 上传 Pin 视频所需的最低 FLP 值。
+    PinVideoUploadFlpLimitResponse:
+      allOf:
+        - $ref: '#/components/schemas/PinVideoUploadFlpLimitRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponsePinVideoUploadFlpLimitResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PinVideoUploadFlpLimitResponse'
     WechatPayConfigRequest:
       type: object
       required:
@@ -888,6 +2084,68 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WechatPayConfigResponse'
+    GuideUrlsRequest:
+      type: object
+      required:
+        - urls
+      properties:
+        urls:
+          type: array
+          description: 引导界面 URL 列表（每个条目包含 URL 与标题）。
+          items:
+            $ref: '#/components/schemas/GuideUrlItem'
+    GuideUrlsResponse:
+      type: object
+      properties:
+        urls:
+          type: array
+          description: 已保存的引导界面 URL 列表（会过滤空字符串并去掉首尾空格）。
+          items:
+            $ref: '#/components/schemas/GuideUrlItem'
+        updatedAt:
+          type: string
+          format: date-time
+          description: 配置最后更新时间。
+    GuideUrlItem:
+      type: object
+      required:
+        - url
+        - title
+      properties:
+        url:
+          type: string
+          description: 引导界面 URL。
+        title:
+          type: string
+          description: 引导界面标题。
+    ApiResponseGuideUrlsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/GuideUrlsResponse'
+    PosterServiceVersionResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          description: 海报服务版本号。
+    ApiResponsePosterServiceVersionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/PosterServiceVersionResponse'
     ApiResponseObject:
       type: object
       properties:

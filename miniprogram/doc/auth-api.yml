@@ -255,7 +255,7 @@ paths:
                 $ref: '#/components/schemas/ApiResponseAdminProfileResponse'
   /api/auth/weapp/config:
     get:
-      summary: 获取小程序相关密钥
+      summary: 获取小程序相关密钥（含地图 map-key）
       responses:
         '200':
           description: OK
@@ -270,7 +270,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
     post:
-      summary: 设置小程序相关密钥
+      summary: 设置小程序相关密钥（含地图 map-key）
       requestBody:
         required: true
         content:
@@ -321,7 +321,7 @@ paths:
   /api/user/profile:
     get:
       summary: 获取用户资料
-      description: 返回用户基础信息、收到的点赞总数，以及从 FLP 余额表读取的 flpBalance 虚拟代币余额。
+      description: 返回用户基础信息、收到的点赞总数、从 FLP 余额表读取的 flpBalance 虚拟代币余额，以及用户分别最新访问的协议/隐私版本记录。
       responses:
         '200':
           description: OK
@@ -362,6 +362,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappLoginResponse'
+  /api/weapp/config/map-key:
+    get:
+      summary: 用户读取小程序地图 map-key
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappMapKeyResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/weapp/qrcode:
     post:
       summary: 获取小程序二维码
@@ -444,6 +461,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseWeappPosterStatusResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-merchant:
+    post:
+      summary: 生成商户海报
+      description: 返回当前用户的商户海报 PNG 文件流。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappMerchantPosterRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '500':
+          description: Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/weapp/poster-merchant/status:
+    post:
+      summary: 查询商户海报状态
+      description: 判断当前用户是否需要重新生成商户海报，并返回上次生成时的数据。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappMerchantPosterRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWeappMerchantPosterStatusResponse'
         '400':
           description: Bad Request
           content:
@@ -571,6 +659,64 @@ components:
           type: integer
           format: int64
           description: 用户收到的点赞总数（包含标记与图钉）。
+        policyAccessRecords:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/UserPolicyAccessRecordResponse'
+          description: 用户各协议类型最新访问记录，key 为 privacy 或 terms。
+    UserPolicyAccessRecordResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          description: 访问记录对应的用户 ID。
+        featureCode:
+          type: string
+          description: 访问记录对应的低空号。
+        agreementType:
+          type: string
+          description: 协议类型（privacy / terms）。
+        version:
+          type: string
+          description: 协议版本号。
+        acceptedAt:
+          type: string
+          format: date-time
+          description: 服务端记录的接受时间。
+        clientReportedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 客户端上报的接受时间。
+        scene:
+          type: string
+          nullable: true
+          description: 触发场景。
+        platform:
+          type: string
+          nullable: true
+          description: 平台标识。
+        appVersion:
+          type: string
+          nullable: true
+          description: 小程序版本号。
+        deviceInfo:
+          type: string
+          nullable: true
+          description: 设备信息。
+        ip:
+          type: string
+          nullable: true
+          description: 服务端记录的 IP 地址。
+        userAgent:
+          type: string
+          nullable: true
+          description: 服务端记录的 User-Agent。
+        docHash:
+          type: string
+          nullable: true
+          description: 协议正文 hash。
     UserSummaryResponse:
       type: object
       properties:
@@ -597,6 +743,11 @@ components:
           type: number
           format: double
           description: 用户当前的 FLP 点数余额。
+        policyAccessRecords:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/UserPolicyAccessRecordResponse'
+          description: 用户各协议类型最新访问记录，key 为 privacy 或 terms。
     UserSummaryPageResponse:
       type: object
       properties:
@@ -799,6 +950,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WeappPosterStatusResponse'
+    ApiResponseWeappMerchantPosterStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappMerchantPosterStatusResponse'
     WeappLoginRequest:
       type: object
       properties:
@@ -835,6 +997,9 @@ components:
           type: string
         jwtSecret:
           type: string
+        mapKey:
+          type: string
+          description: 小程序地图服务 map-key。
     WeappConfigResponse:
       type: object
       properties:
@@ -844,6 +1009,15 @@ components:
           type: string
         jwtSecret:
           type: string
+        mapKey:
+          type: string
+          description: 小程序地图服务 map-key。
+    WeappMapKeyResponse:
+      type: object
+      properties:
+        mapKey:
+          type: string
+          description: 小程序地图服务 map-key。
     WeappQrcodeRequest:
       type: object
       properties:
@@ -859,6 +1033,27 @@ components:
         imageBase64:
           type: string
           description: Base64 编码的小程序二维码。
+    WeappMerchantPosterRequest:
+      type: object
+      properties:
+        merchantPath:
+          type: string
+          description: 商户详情页路径（包含参数）。
+        backgroundUrl:
+          type: string
+          description: 海报背景图地址。
+        username:
+          type: string
+          description: 昵称。
+        avatarUrl:
+          type: string
+          description: 头像地址。
+        title:
+          type: string
+          description: 海报标题。
+        desc:
+          type: string
+          description: 海报描述。
     WeappPosterStatusResponse:
       type: object
       properties:
@@ -871,6 +1066,27 @@ components:
         lastAvatarUrl:
           type: string
           description: 上一次生成邀请海报时使用的头像地址。
+    WeappMerchantPosterStatusResponse:
+      type: object
+      properties:
+        needRegenerate:
+          type: boolean
+          description: 是否需要重新生成商户海报。
+        lastUsername:
+          type: string
+          description: 上一次生成商户海报时使用的昵称。
+        lastAvatarUrl:
+          type: string
+          description: 上一次生成商户海报时使用的头像地址。
+        lastTitle:
+          type: string
+          description: 上一次生成商户海报时使用的标题。
+        lastDesc:
+          type: string
+          description: 上一次生成商户海报时使用的描述。
+        lastMerchantPath:
+          type: string
+          description: 上一次生成商户海报时使用的路径。
     ApiResponseWeappConfigResponse:
       type: object
       properties:
@@ -882,6 +1098,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/WeappConfigResponse'
+    ApiResponseWeappMapKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WeappMapKeyResponse'
     ApiResponseObject:
       type: object
       properties:
