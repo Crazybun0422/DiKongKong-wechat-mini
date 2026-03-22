@@ -487,6 +487,7 @@
                     wx:else
                     id="marker-detail-video-{{index}}"
                     class="marker-detail-swiper-video"
+                    data-index="{{index}}"
                     src="{{item.url}}"
                     poster="{{item.poster}}"
                     object-fit="cover"
@@ -500,7 +501,9 @@
                     bindwaiting="onMarkerDetailVideoWaiting"
                     bindplay="onMarkerDetailVideoReady"
                     bindloadeddata="onMarkerDetailVideoReady"
+                    bindloadedmetadata="onMarkerDetailVideoReady"
                     bindcanplay="onMarkerDetailVideoReady"
+                    bindtimeupdate="onMarkerDetailVideoReady"
                     bindpause="onMarkerDetailVideoReady"
                     bindended="onMarkerDetailVideoReady"
                   />
@@ -578,6 +581,7 @@
                       wx:else
                       id="marker-page-video-{{index}}"
                       class="marker-page-swiper-video"
+                      data-index="{{index}}"
                       src="{{item.url}}"
                       poster="{{item.poster}}"
                       object-fit="cover"
@@ -591,7 +595,9 @@
                       bindwaiting="onMarkerPageVideoWaiting"
                       bindplay="onMarkerPageVideoReady"
                       bindloadeddata="onMarkerPageVideoReady"
+                      bindloadedmetadata="onMarkerPageVideoReady"
                       bindcanplay="onMarkerPageVideoReady"
+                      bindtimeupdate="onMarkerPageVideoReady"
                       bindpause="onMarkerPageVideoReady"
                       bindended="onMarkerPageVideoReady"
                     />

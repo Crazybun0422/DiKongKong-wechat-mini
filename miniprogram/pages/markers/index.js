@@ -370,7 +370,7 @@ function buildDefaultPinName(date = new Date()) {
   const hour = padDateTimeUnit(date.getHours());
   const minute = padDateTimeUnit(date.getMinutes());
   const second = padDateTimeUnit(date.getSeconds());
-  return `默认标记（${year}-${month}-${day} ${hour}:${minute}:${second}）`;
+  return `默认标记${year}${month}${day}${hour}${minute}${second}`;
 }
 
 function createEmptyPinForm() {

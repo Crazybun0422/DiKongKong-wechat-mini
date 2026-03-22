@@ -4087,13 +4087,24 @@ Page({
     }
   },
 
-  onMarkerDetailVideoWaiting() {
+  isCurrentMarkerDetailVideoEvent(event = {}) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    return Number.isFinite(index) && index === this.data.markerDetailCurrentImage;
+  },
+
+  onMarkerDetailVideoWaiting(event = {}) {
+    if (!this.isCurrentMarkerDetailVideoEvent(event)) {
+      return;
+    }
     if (!this.data.markerDetailVideoLoading) {
       this.setData({ markerDetailVideoLoading: true });
     }
   },
 
-  onMarkerDetailVideoReady() {
+  onMarkerDetailVideoReady(event = {}) {
+    if (!this.isCurrentMarkerDetailVideoEvent(event)) {
+      return;
+    }
     if (this.data.markerDetailVideoLoading) {
       this.setData({ markerDetailVideoLoading: false });
     }
@@ -4127,11 +4138,30 @@ Page({
     }
   },
 
+  playMapInlineVideo(videoId = "") {
+    const resolvedVideoId = typeof videoId === "string" ? videoId.trim() : "";
+    if (!resolvedVideoId || typeof wx.createVideoContext !== "function") {
+      return;
+    }
+    const ctx = wx.createVideoContext(resolvedVideoId, this);
+    if (ctx && typeof ctx.play === "function") {
+      ctx.play();
+    }
+  },
+
   onMapInlineVideoTap(event = {}) {
+    const activeDetail = this.data.markerPageVisible
+      ? this.data.markerPageDetail
+      : this.data.detailCard;
+    const videoId = event?.currentTarget?.dataset?.videoId || "";
+    if (this.isPinDetail(activeDetail)) {
+      this.playMapInlineVideo(videoId);
+      return;
+    }
     this.openMapInlineVideoFullscreen({
       url: event?.currentTarget?.dataset?.url || "",
       poster: event?.currentTarget?.dataset?.poster || "",
-      videoId: event?.currentTarget?.dataset?.videoId || ""
+      videoId
     });
   },
 
@@ -4582,13 +4612,24 @@ Page({
     }
   },
 
-  onMarkerPageVideoWaiting() {
+  isCurrentMarkerPageVideoEvent(event = {}) {
+    const index = Number(event?.currentTarget?.dataset?.index);
+    return Number.isFinite(index) && index === this.data.markerPageCurrentImage;
+  },
+
+  onMarkerPageVideoWaiting(event = {}) {
+    if (!this.isCurrentMarkerPageVideoEvent(event)) {
+      return;
+    }
     if (!this.data.markerPageVideoLoading) {
       this.setData({ markerPageVideoLoading: true });
     }
   },
 
-  onMarkerPageVideoReady() {
+  onMarkerPageVideoReady(event = {}) {
+    if (!this.isCurrentMarkerPageVideoEvent(event)) {
+      return;
+    }
     if (this.data.markerPageVideoLoading) {
       this.setData({ markerPageVideoLoading: false });
     }
