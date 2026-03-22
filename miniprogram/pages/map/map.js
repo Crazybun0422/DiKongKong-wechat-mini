@@ -375,6 +375,12 @@ const clampMapScale = (value) => {
   return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
 };
 
+const clampMapScaleFloat = (value) => {
+  const numeric = Number(value);
+  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
+  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, base));
+};
+
 const normalizeMapRotate = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
@@ -560,6 +566,26 @@ const pickScaleBarLength = (rawMeters) => {
   return {
     length,
     label: formatScaleLabel(length)
+  };
+};
+
+const resolveScaleBarDisplay = ({ rawMeters, metersPerPixel, pxPerRpx, baseRpx }) => {
+  if (!Number.isFinite(rawMeters) || rawMeters <= 0) {
+    return { label: "", widthRpx: Math.max(30, Number(baseRpx) || DEFAULT_SCALE_BAR_BASE_RPX), meters: 0 };
+  }
+  const nice = pickScaleBarLength(rawMeters);
+  const meters = Number.isFinite(nice?.length) && nice.length > 0 ? nice.length : rawMeters;
+  const label = nice.label || formatScaleLabel(meters);
+  const computedWidthRpx =
+    Number.isFinite(metersPerPixel) && metersPerPixel > 0 && Number.isFinite(pxPerRpx) && pxPerRpx > 0
+      ? meters / metersPerPixel / pxPerRpx
+      : baseRpx;
+  const maxWidthRpx = Math.max(30, Number(baseRpx) || DEFAULT_SCALE_BAR_BASE_RPX);
+  const widthRpx = Math.min(maxWidthRpx, Math.max(30, Math.round(computedWidthRpx * 10) / 10));
+  return {
+    label,
+    widthRpx,
+    meters
   };
 };
 
@@ -9725,21 +9751,26 @@ Page({
         : (this.data.center && typeof this.data.center.latitude === "number"
           ? this.data.center.latitude
           : DEFAULT_CENTER.latitude);
-    const zoom = clampMapScale(
-      Object.prototype.hasOwnProperty.call(ctx, "scale") ? ctx.scale : this.data.scale
-    );
+    const zoomSource = Object.prototype.hasOwnProperty.call(ctx, "rawScale")
+      ? ctx.rawScale
+      : (Object.prototype.hasOwnProperty.call(ctx, "scale") ? ctx.scale : this.data.scale);
+    const zoom = clampMapScaleFloat(zoomSource);
     const metersPerPixel = computeMetersPerPixel(latitude, zoom);
     if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) {
       return;
     }
     const rawMeters = metersPerPixel * pxWidth;
-    const nice = pickScaleBarLength(rawMeters);
-    const labelText = nice.label || formatScaleLabel(rawMeters);
-    this._lastScaleBarMeters = Number.isFinite(nice?.length) && nice.length > 0 ? nice.length : rawMeters;
+    const display = resolveScaleBarDisplay({
+      rawMeters,
+      metersPerPixel,
+      pxPerRpx,
+      baseRpx
+    });
+    this._lastScaleBarMeters = display.meters;
     this.setData({
       scaleBarVisible: true,
-      scaleBarLabel: labelText,
-      scaleBarWidthRpx: Math.max(30, Math.round(baseRpx))
+      scaleBarLabel: display.label,
+      scaleBarWidthRpx: display.widthRpx
     });
   },
 
@@ -9760,9 +9791,12 @@ Page({
     const metersPerPixel = computeMetersPerPixel(lat, clampMapScale(scale ?? this.data.scale));
     if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
     const rawMeters = metersPerPixel * pxWidth;
-    const nice = pickScaleBarLength(rawMeters);
-    if (Number.isFinite(nice?.length) && nice.length > 0) return nice.length;
-    return rawMeters;
+    return resolveScaleBarDisplay({
+      rawMeters,
+      metersPerPixel,
+      pxPerRpx,
+      baseRpx
+    }).meters;
   },
 
   shouldFetchNearbyMarkers(scale, latitude) {
@@ -10187,7 +10221,11 @@ Page({
         });
       };
       const afterSync = () => {
-        this.updateScaleBar({ scale, latitude: newCenter.latitude });
+        this.updateScaleBar({
+          scale,
+          rawScale: detail.scale,
+          latitude: newCenter.latitude
+        });
         this.refreshNearbyDisplayModes();
         run(scaleChanged);
         this.updateCenterPinIndicator();
@@ -10287,7 +10325,11 @@ Page({
           });
         };
         const afterUpdate = () => {
-          this.updateScaleBar({ scale, latitude: newCenter.latitude });
+          this.updateScaleBar({
+            scale,
+            rawScale: detail?.scale,
+            latitude: newCenter.latitude
+          });
           this.refreshNearbyDisplayModes();
           run();
           this.updateCenterPinIndicator();

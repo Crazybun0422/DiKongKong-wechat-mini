@@ -13,7 +13,8 @@ const {
   gcj02ToWgs84,
   wgs84ToGcj02,
   lonLatToMercator,
-  haversineMeters
+  haversineMeters,
+  outOfChina
 } = require("../../../../utils/coords");
 const provinceGeojson = require("../../map-meta-data/China.js");
 
@@ -1443,6 +1444,9 @@ Component({
       const center = this.resolveCenterForTiles(resolveRegionCenter(this._region) || this._center);
       if (!center) {
         return { status: "评估中", tone: "neutral" };
+      }
+      if (outOfChina(center.longitude, center.latitude)) {
+        return { status: NON_RESTRICTED_STATUS_TEXT, tone: "safe" };
       }
       const tile = this.findTileForPoint(center);
       if (!tile) {

@@ -4,6 +4,7 @@ const {
   buildProvinceLayerParams,
   findProvinceLayerRecordForPoint
 } = require("../../../../utils/uomProvinceSelector");
+const { outOfChina } = require("../../../../utils/coords");
 const provinceGeojson = require("../../map-meta-data/China.js");
 
 const UOM_WARNING_DISMISS_STORAGE_KEY = "uomTileWarningDismissed";
@@ -423,7 +424,10 @@ Component({
     updateStatusPanel() {
       if (this._destroyed) return;
       const center = this.resolveUomCenter();
-      const excludedRegion = resolveExcludedRegionRecord(center);
+      const excludedRegion =
+        (center && outOfChina(center.longitude, center.latitude))
+          ? { provinceCode: "outside-china" }
+          : resolveExcludedRegionRecord(center);
       const uom = excludedRegion
         ? { status: UOM_NON_RESTRICTED_STATUS_TEXT, tone: "safe" }
         : this.describeUomStatus();

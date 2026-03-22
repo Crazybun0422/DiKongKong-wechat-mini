@@ -185,6 +185,7 @@ function tileXYToBBOX3857(x, y, z) {
 }
 
 module.exports = {
+  outOfChina,
   gcj02ToWgs84,
   wgs84ToGcj02,
   gcj02ToBd09,
