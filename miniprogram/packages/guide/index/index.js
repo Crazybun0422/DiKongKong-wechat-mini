@@ -175,7 +175,6 @@ Page({
     if (this.data.submitLoading) return;
     this.setData({ submitLoading: true });
     this.submitPolicyAccess()
-      .then(() => this.ensureLocationPermission().catch(() => {}))
       .then(() => this.goMap())
       .catch((err) => {
         console.warn("submit policy access failed", err);
@@ -254,41 +253,6 @@ Page({
           app.globalData.latestUserProfileAt = Date.now();
         }
         return records;
-      });
-    });
-  },
-
-  ensureLocationPermission() {
-    return new Promise((resolve, reject) => {
-      wx.getSetting({
-        success: (res) => {
-          const granted = !!(res.authSetting && res.authSetting["scope.userLocation"]);
-          if (granted) {
-            resolve();
-            return;
-          }
-          this.authorizeLocation().then(resolve).catch(reject);
-        },
-        fail: reject
-      });
-    });
-  },
-
-  authorizeLocation() {
-    return new Promise((resolve, reject) => {
-      wx.authorize({
-        scope: "scope.userLocation",
-        success: () => resolve(),
-        fail: () => {
-          wx.openSetting({
-            success: (st) => {
-              const granted = !!(st.authSetting && st.authSetting["scope.userLocation"]);
-              if (granted) resolve();
-              else reject(new Error("permission-denied"));
-            },
-            fail: (err) => reject(err)
-          });
-        }
       });
     });
   },
