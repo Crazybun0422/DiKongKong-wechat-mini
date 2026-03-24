@@ -4,7 +4,7 @@
       id="main-map"
       class="map-canvas"
       style="height: calc(100vh + {{statusBarHeight}}px); margin-top: -{{statusBarHeight}}px;"
-      hidden="{{mapBlockerVisible || !mapCenterReady}}"
+      hidden="{{mapBlockerVisible}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"

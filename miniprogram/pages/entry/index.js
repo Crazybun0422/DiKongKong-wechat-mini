@@ -1,4 +1,5 @@
 const { fetchUserProfile, loadStoredProfile, resolveApiBase } = require("../../utils/profile");
+const { fetchMapLayerSettings } = require("../../utils/map-layer-settings");
 const { shouldShowGuide } = require("../../utils/policies");
 
 const DEFAULT_ERROR = "初始化失败，请重试";
@@ -105,6 +106,9 @@ Page({
     this.prepareLaunchOptions();
     const preloadGuide = this.preloadGuideSubpackage();
     this.ensureProfile()
+      .then((profile = {}) =>
+        this.preloadInitialMapLocationMode().then(() => profile)
+      )
       .then((profile = {}) => {
         if (this._navigating) return;
         if (shouldShowGuide(profile)) {
@@ -200,6 +204,30 @@ Page({
             });
         }
         throw err;
+      });
+  },
+
+  preloadInitialMapLocationMode() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || !app.globalData) {
+      return Promise.resolve(false);
+    }
+    const apiBase = app.globalData.apiBase || resolveApiBase();
+    const token = app.globalData.token;
+    if (!apiBase || !token) {
+      app.globalData.initialUsePlanetCenterPoint = false;
+      return Promise.resolve(false);
+    }
+    return fetchMapLayerSettings({ apiBase, token })
+      .then((settings = {}) => {
+        const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
+        app.globalData.initialUsePlanetCenterPoint = usePlanetCenterPoint;
+        return usePlanetCenterPoint;
+      })
+      .catch((err) => {
+        console.warn("entry preload map layer settings failed", err);
+        app.globalData.initialUsePlanetCenterPoint = false;
+        return false;
       });
   },
 

@@ -1361,6 +1361,17 @@ Page({
     return mergeLaunchOptions(pending, options || {});
   },
 
+  consumeInitialUsePlanetCenterPoint() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app?.globalData) return null;
+    const value = app.globalData.initialUsePlanetCenterPoint;
+    if (typeof value !== "boolean") {
+      return null;
+    }
+    app.globalData.initialUsePlanetCenterPoint = null;
+    return value;
+  },
+
   resolveWindowMetrics(event = {}) {
     const metrics = getWindowMetrics();
     const resize = readResizeWindowSize(event);
@@ -1449,10 +1460,16 @@ Page({
   },
 
   onLoad(options = {}) {
-    const cachedUsePlanetMyLocation = this.loadCachedUsePlanetMyLocationPreference();
-    if (typeof cachedUsePlanetMyLocation === "boolean") {
-      this.data.usePlanetCenterPoint = cachedUsePlanetMyLocation;
+    const initialUsePlanetCenterPoint = this.consumeInitialUsePlanetCenterPoint();
+    if (typeof initialUsePlanetCenterPoint === "boolean") {
+      this.data.usePlanetCenterPoint = initialUsePlanetCenterPoint;
       this.data.myLocationModeResolved = true;
+    } else {
+      const cachedUsePlanetMyLocation = this.loadCachedUsePlanetMyLocationPreference();
+      if (typeof cachedUsePlanetMyLocation === "boolean") {
+        this.data.usePlanetCenterPoint = cachedUsePlanetMyLocation;
+        this.data.myLocationModeResolved = true;
+      }
     }
     const launchOptions = this.consumePendingLaunchOptions(options);
     const launchCenterPreset = normalizeLaunchCenterShareOptions(launchOptions);
@@ -1636,6 +1653,7 @@ Page({
     this._centerShareLaunchLockTimer = null;
     this._pendingCenterActionShare = null;
     this._pendingCenterActionShareTimer = null;
+    this._skipNextApplyLayerInitialSync = false;
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
     this.captureInviteCode(launchOptions);
@@ -1654,7 +1672,12 @@ Page({
       this.markSharePermissionAttempted();
     } else {
       this._skipPendingFocusOnShow = false;
-      this.requestInitialLocation();
+      if (this.data.usePlanetCenterPoint) {
+        this._skipNextApplyLayerInitialSync = true;
+        this.requestInitialLocation();
+      } else if (this.data.myLocationModeResolved) {
+        this.markSharePermissionAttempted();
+      }
       this.consumePendingMarkerFocus({ immediate: true });
     }
     if (this.isMapCenterReady()) {
@@ -3018,19 +3041,17 @@ Page({
       });
   },
 
-  setSubscriptionBannerVisibility(show) {
-    const visible = !!show;
-    this.setData({ showSubscriptionBanner: visible }, () => {
-      if (visible) {
-        this.updateSubscriptionBannerLayout();
-        this.scheduleSubscriptionBannerLayoutRefresh(48, 1);
-      } else {
+  setSubscriptionBannerVisibility() {
+    if (this.data.showSubscriptionBanner !== false) {
+      this.setData({ showSubscriptionBanner: false }, () => {
         this.updatePreflightOverlayTop(false);
-      }
-    });
+      });
+      return;
+    }
+    this.updatePreflightOverlayTop(false);
   },
 
-  updatePreflightOverlayTop(showBanner = this.data.showSubscriptionBanner) {
+  updatePreflightOverlayTop() {
     const baseTopRpx = Number(this.data.preflightBaseTopRpx) || 120;
     const { screenWidth } = getWindowMetrics();
     const rpx = screenWidth ? screenWidth / 750 : 0;
@@ -3040,9 +3061,10 @@ Page({
     if (typeof wx !== "undefined" && typeof wx.getMenuButtonBoundingClientRect === "function") {
       try {
         const menuRect = wx.getMenuButtonBoundingClientRect();
+        const menuTop = Number(menuRect?.top);
         const menuBottom = Number(menuRect?.bottom);
-        if (Number.isFinite(menuBottom) && menuBottom > 0) {
-          topPx = menuBottom;
+        if (Number.isFinite(menuTop) && Number.isFinite(menuBottom) && menuBottom > menuTop) {
+          topPx = (menuTop + menuBottom) / 2;
         }
       } catch (err) {
         topPx = baseTopPx;
@@ -6870,6 +6892,14 @@ Page({
             };
             this.setMyLocationControlPoint(this._lastKnownLocation);
             afterLocationReady();
+            if (this._skipNextApplyLayerInitialSync) {
+              this._skipNextApplyLayerInitialSync = false;
+              return;
+            }
+          } else if (this._skipNextApplyLayerInitialSync) {
+            this._skipNextApplyLayerInitialSync = false;
+            afterLocationReady();
+            return;
           }
           this.syncMyLocationPoint({ silent: true }).finally(() => {
             if (!hasValidCoordinate(fallbackPoint?.latitude, fallbackPoint?.longitude)) {
@@ -8975,59 +9005,63 @@ Page({
   },
 
   pullAndCenterLocation(options = {}) {
-    wx.getLocation({
-      type: "gcj02",
-      isHighAccuracy: false,
-      highAccuracyExpireTime: 8000,
-      success: (res) => {
-        this._lastKnownLocation = {
-          latitude: res.latitude,
-          longitude: res.longitude
-        };
-        this.cacheMapLocation(this._lastKnownLocation);
-        this.setMyLocationControlPoint(this._lastKnownLocation);
-        this.refreshMarkerPageDistance();
-        let targetScale = null;
-        if (typeof options.scaleMeters === "number" && options.scaleMeters > 0) {
-          const computed = this.scaleForMeters(options.scaleMeters, res.latitude);
-          if (Number.isFinite(computed)) {
-            targetScale = computed;
-          }
-        }
-        if (!Number.isFinite(targetScale)) {
-          const fallbackScale = Object.prototype.hasOwnProperty.call(options, "scale")
-            ? options.scale
-            : this.data.scale;
-          targetScale = clampMapScale(fallbackScale);
-        }
-        let extraUpdates = null;
-        if (options.resetView) {
-          extraUpdates = {
-            mapRotate: 0,
-            mapSkew: 0,
-            compassRotate: 0,
-            compassSkew: 0,
-            compassVisible: false
+    return new Promise((resolve, reject) => {
+      wx.getLocation({
+        type: "gcj02",
+        isHighAccuracy: false,
+        highAccuracyExpireTime: 8000,
+        success: (res) => {
+          this._lastKnownLocation = {
+            latitude: res.latitude,
+            longitude: res.longitude
           };
-          this._mapRotate = 0;
-          this._mapSkew = 0;
-          this._skipNextRotateRegion = true;
+          this.cacheMapLocation(this._lastKnownLocation);
+          this.setMyLocationControlPoint(this._lastKnownLocation);
+          this.refreshMarkerPageDistance();
+          let targetScale = null;
+          if (typeof options.scaleMeters === "number" && options.scaleMeters > 0) {
+            const computed = this.scaleForMeters(options.scaleMeters, res.latitude);
+            if (Number.isFinite(computed)) {
+              targetScale = computed;
+            }
+          }
+          if (!Number.isFinite(targetScale)) {
+            const fallbackScale = Object.prototype.hasOwnProperty.call(options, "scale")
+              ? options.scale
+              : this.data.scale;
+            targetScale = clampMapScale(fallbackScale);
+          }
+          let extraUpdates = null;
+          if (options.resetView) {
+            extraUpdates = {
+              mapRotate: 0,
+              mapSkew: 0,
+              compassRotate: 0,
+              compassSkew: 0,
+              compassVisible: false
+            };
+            this._mapRotate = 0;
+            this._mapSkew = 0;
+            this._skipNextRotateRegion = true;
+          }
+          this.centerOnPoint(
+            { latitude: res.latitude, longitude: res.longitude },
+            targetScale,
+            !!options.silent,
+            extraUpdates
+          );
+          resolve(this._lastKnownLocation);
+        },
+        fail: (err) => {
+          console.warn("getLocation fail", err);
+          this.applyCachedMapLocationFallback({
+            allowDefault: true,
+            scale: this.data.scale
+          });
+          wx.showToast({ title: "定位失败，请在设置中开启定位权限", icon: "none" });
+          reject(err);
         }
-        this.centerOnPoint(
-          { latitude: res.latitude, longitude: res.longitude },
-          targetScale,
-          !!options.silent,
-          extraUpdates
-        );
-      },
-      fail: (err) => {
-        console.warn("getLocation fail", err);
-        this.applyCachedMapLocationFallback({
-          allowDefault: true,
-          scale: this.data.scale
-        });
-        wx.showToast({ title: "定位失败，请在设置中开启定位权限", icon: "none" });
-      }
+      });
     });
   },
 
