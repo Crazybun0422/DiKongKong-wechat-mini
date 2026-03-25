@@ -2545,7 +2545,7 @@ Page({
     const contentParts = [];
     const hasName = !!payload.name;
     const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
-    if (hasName && displayMode !== DISPLAY_MODE_SMALL_ICON_ONLY && displayMode !== "ICON_ONLY") {
+    if (hasName) {
       const formattedName = formatNearbyMarkerLabel(payload.name);
       if (formattedName) {
         contentParts.push(formattedName);
@@ -2559,7 +2559,7 @@ Page({
         contentParts.push(`高程${hText}`);
       }
     }
-    const content = contentParts.join(" ") || "标记位置";
+    const content = contentParts.join(" ");
     const marker = {
       id: payload.id || `pin-preview-${Date.now()}`,
       latitude,

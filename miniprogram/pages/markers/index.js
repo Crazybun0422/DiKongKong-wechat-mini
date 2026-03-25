@@ -176,6 +176,8 @@ const QR_CODE_MAX_COUNT = 2;
 const ATTACHMENT_FIXED_LABEL = "产品业务资料";
 const DEFAULT_CERTIFIED_STATUS_MESSAGE = "已完成认证支付，可继续完善店铺信息。";
 const POST_PAYMENT_STATUS_MESSAGE = "当前商户已完成认证支付，可继续完善店铺主页信息，或直接退出";
+const MERCHANT_NAME_MAX_LENGTH = 20;
+const PIN_NAME_MAX_LENGTH = 20;
 const CREATION_SUBSCRIPTION_TEMPLATE_IDS = normalizeTemplateIds([
   SUBSCRIPTION_TEMPLATE_IDS.reviewResult,
   SUBSCRIPTION_TEMPLATE_IDS.achievementReached
@@ -356,6 +358,23 @@ function createEmptyForm() {
     videoChannelId: "",
     videoId: "",
     adminInfo: { name: "", phone: "" }
+  };
+}
+
+function limitTextLength(value, maxLength) {
+  const text = typeof value === "string" ? value : `${value ?? ""}`;
+  const chars = Array.from(text);
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || chars.length <= maxLength) {
+    return {
+      value: text,
+      exceeded: false,
+      length: chars.length
+    };
+  }
+  return {
+    value: chars.slice(0, maxLength).join(""),
+    exceeded: true,
+    length: maxLength
   };
 }
 
@@ -3183,7 +3202,11 @@ Page({
   },
 
   buildPinCreatePayload(form = this.data.myPinForm) {
-    const name = (form.name || "").trim() || buildDefaultPinName();
+    const rawName = (form.name || "").trim();
+    if (Array.from(rawName).length > PIN_NAME_MAX_LENGTH) {
+      throw new Error(`标记名称最多${PIN_NAME_MAX_LENGTH}个字`);
+    }
+    const name = limitTextLength(rawName, PIN_NAME_MAX_LENGTH).value || buildDefaultPinName();
     if (!form.geometryType || !form.geometryCategory) {
       throw new Error("请先选择标记类型");
     }
@@ -4825,7 +4848,11 @@ Page({
   },
 
   onPinNameInput(e) {
-    this.setData({ "myPinForm.name": e?.detail?.value || "" });
+    const limited = limitTextLength(e?.detail?.value || "", PIN_NAME_MAX_LENGTH);
+    if (limited.exceeded) {
+      this.showPinNameLimitToast();
+    }
+    this.setData({ "myPinForm.name": limited.value });
   },
 
   onPinDescInput(e) {
@@ -5784,14 +5811,45 @@ Page({
     return ["attachments", "qrCodeImages", "videoChannelId", "videoId"].includes(`${field || ""}`);
   },
 
+  showMerchantNameLimitToast() {
+    const now = Date.now();
+    if (
+      Number.isFinite(this._merchantNameLimitToastAt) &&
+      now - this._merchantNameLimitToastAt < 1200
+    ) {
+      return;
+    }
+    this._merchantNameLimitToastAt = now;
+    wx.showToast({ title: `商户名称最多${MERCHANT_NAME_MAX_LENGTH}个字`, icon: "none" });
+  },
+
+  showPinNameLimitToast() {
+    const now = Date.now();
+    if (
+      Number.isFinite(this._pinNameLimitToastAt) &&
+      now - this._pinNameLimitToastAt < 1200
+    ) {
+      return;
+    }
+    this._pinNameLimitToastAt = now;
+    wx.showToast({ title: `标记名称最多${PIN_NAME_MAX_LENGTH}个字`, icon: "none" });
+  },
+
   onFormInput(e) {
     const field = e?.currentTarget?.dataset?.field;
     const group = e?.currentTarget?.dataset?.group;
-    const value = e?.detail?.value ?? "";
+    let value = e?.detail?.value ?? "";
     if (!field) return;
     if (!this.data.merchantCertified && this.isMerchantDecorationField(field)) {
       this.onMerchantDecorationLockedTap();
       return;
+    }
+    if (!group && field === "name") {
+      const limited = limitTextLength(value, MERCHANT_NAME_MAX_LENGTH);
+      value = limited.value;
+      if (limited.exceeded) {
+        this.showMerchantNameLimitToast();
+      }
     }
     if (group) {
       const path = `form.${group}.${field}`;
@@ -6208,6 +6266,10 @@ Page({
       wx.showToast({ title: "请填写商户名称", icon: "none" });
       return false;
     }
+    if (Array.from(form.name.trim()).length > MERCHANT_NAME_MAX_LENGTH) {
+      this.showMerchantNameLimitToast();
+      return false;
+    }
     if (!form.description.trim()) {
       wx.showToast({ title: "请填写业务简介", icon: "none" });
       return false;
@@ -6445,8 +6507,9 @@ Page({
 
   buildMarkerPayload(options = {}) {
     const form = this.data.form;
+    const limitedName = limitTextLength(form.name.trim(), MERCHANT_NAME_MAX_LENGTH).value;
     const payload = {
-      name: form.name.trim(),
+      name: limitedName,
       description: form.description.trim(),
       phone: form.phone.trim(),
       images: form.images.map((item) => item.fileName),

@@ -344,7 +344,7 @@
 .newbie-task-close {
   position: absolute;
   right: 4rpx;
-  top: -40rpx;
+  top: 60rpx;
   width: 76rpx;
   height: 76rpx;
   z-index: 2;
