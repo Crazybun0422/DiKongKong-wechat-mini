@@ -1653,11 +1653,21 @@ Page({
     this._centerShareLaunchLockTimer = null;
     this._pendingCenterActionShare = null;
     this._pendingCenterActionShareTimer = null;
+    this._nativeInitialLocationBootstrapTimer = null;
+    this._nativeInitialLocationBootstrapStarted = false;
+    this._skipInitialNativeAutoCenter = false;
     this._skipNextApplyLayerInitialSync = false;
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
     this.captureInviteCode(launchOptions);
     this.handleWorkGroupInviteOptions(launchOptions);
+    const app = typeof getApp === "function" ? getApp() : null;
+    const hasPendingMarkerFocus = !!app?.globalData?.pendingMarkerFocus;
+    const hasPendingPinPreview = !!app?.globalData?.pendingPinPreview;
+    this._skipInitialNativeAutoCenter =
+      launchCenterPreset.active === true ||
+      hasPendingMarkerFocus ||
+      hasPendingPinPreview;
     const hasCenterShareLaunch = this.initializeCenterShareLaunch(launchOptions);
     this.initializeShareLaunch(launchOptions);
     this.initializePinShareLaunch(launchOptions);
@@ -1676,7 +1686,7 @@ Page({
         this._skipNextApplyLayerInitialSync = true;
         this.requestInitialLocation();
       } else if (this.data.myLocationModeResolved) {
-        this.markSharePermissionAttempted();
+        this.bootstrapInitialNativeLocationCenter();
       }
       this.consumePendingMarkerFocus({ immediate: true });
     }
@@ -5724,6 +5734,7 @@ Page({
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
     if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
     if (this._checkinEntryStyleTimer) clearTimeout(this._checkinEntryStyleTimer);
+    if (this._nativeInitialLocationBootstrapTimer) clearTimeout(this._nativeInitialLocationBootstrapTimer);
     if (this._subscriptionBannerLayoutTimer) clearTimeout(this._subscriptionBannerLayoutTimer);
     if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
     if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
@@ -6909,6 +6920,7 @@ Page({
           return;
         }
         afterLocationReady();
+        this.bootstrapInitialNativeLocationCenter();
       }
     );
   },
@@ -10287,6 +10299,80 @@ Page({
         force: true
       });
     });
+  },
+
+  waitForLocationPermissionGrantedWithoutPrompt(options = {}) {
+    const maxAttempts = Math.max(1, Number(options.maxAttempts) || 80);
+    const delayMs = Math.max(120, Number(options.delayMs) || 250);
+    return new Promise((resolve) => {
+      if (typeof wx === "undefined" || typeof wx.getSetting !== "function") {
+        resolve(false);
+        return;
+      }
+      let attempts = 0;
+      const check = () => {
+        wx.getSetting({
+          success: (res = {}) => {
+            const granted = !!(res.authSetting && res.authSetting["scope.userLocation"]);
+            if (granted) {
+              resolve(true);
+              return;
+            }
+            attempts += 1;
+            if (attempts >= maxAttempts) {
+              resolve(false);
+              return;
+            }
+            this._nativeInitialLocationBootstrapTimer = setTimeout(() => {
+              this._nativeInitialLocationBootstrapTimer = null;
+              check();
+            }, delayMs);
+          },
+          fail: () => {
+            attempts += 1;
+            if (attempts >= maxAttempts) {
+              resolve(false);
+              return;
+            }
+            this._nativeInitialLocationBootstrapTimer = setTimeout(() => {
+              this._nativeInitialLocationBootstrapTimer = null;
+              check();
+            }, delayMs);
+          }
+        });
+      };
+      check();
+    });
+  },
+
+  bootstrapInitialNativeLocationCenter() {
+    if (this.data.usePlanetCenterPoint || !this.data.myLocationModeResolved) {
+      return;
+    }
+    if (this._skipPendingFocusOnShow || this._skipInitialNativeAutoCenter) {
+      this.markSharePermissionAttempted();
+      return;
+    }
+    if (this._nativeInitialLocationBootstrapStarted) {
+      return;
+    }
+    this._nativeInitialLocationBootstrapStarted = true;
+    this.waitForLocationPermissionGrantedWithoutPrompt()
+      .then((granted) => {
+        if (!granted) {
+          return false;
+        }
+        return this.pullAndCenterLocation({ silent: true })
+          .then(() => true)
+          .catch(() => false);
+      })
+      .finally(() => {
+        if (this._nativeInitialLocationBootstrapTimer) {
+          clearTimeout(this._nativeInitialLocationBootstrapTimer);
+          this._nativeInitialLocationBootstrapTimer = null;
+        }
+        this.markSharePermissionAttempted();
+      });
   },
 
   ensureLocationPermission() {

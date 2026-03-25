@@ -420,7 +420,7 @@
       <view
         class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
         bindtouchstart="onMarkerDetailTouchStart"
-        bindtouchmove="onMarkerDetailTouchMove"
+        catchtouchmove="onMarkerDetailTouchMove"
         bindtouchend="onMarkerDetailTouchEnd"
         bindtouchcancel="onMarkerDetailTouchCancel"
       >
@@ -554,14 +554,14 @@
     </block>
 
     <block wx:if="{{markerPageVisible}}">
-      <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
-        <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
+      <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}" catchtouchmove="noop">
+        <view class="marker-page-mask" bindtap="onMarkerPageMaskTap" catchtouchmove="noop"></view>
         <scroll-view
           scroll-y
           class="marker-page-scroll"
           bindscroll="onMarkerPageScroll"
           bindtouchstart="onMarkerPageTouchStart"
-          bindtouchmove="onMarkerPageTouchMove"
+          catchtouchmove="onMarkerPageTouchMove"
           bindtouchend="onMarkerPageTouchEnd"
           bindtouchcancel="onMarkerPageTouchCancel"
         >
