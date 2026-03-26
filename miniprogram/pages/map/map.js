@@ -61,6 +61,11 @@ const {
   updateMapLayerSettings
 } = require("../../utils/map-layer-settings");
 const {
+  prepareProvinceCityHighlightResource,
+  buildProvinceCityHighlightPolygons,
+  buildProvinceNodeId
+} = require("../../utils/province-city-highlight");
+const {
   fetchTemplateSettings,
   fetchSubscriptions,
   requestSubscribeMessageForTemplateIds,
@@ -200,6 +205,7 @@ const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
 const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
 const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
 const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
+const MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY = "enableProvinceCityHighlight";
 const SEARCH_LINK_OWNER_SEARCH = "search";
 const SEARCH_LINK_OWNER_MAP_TAP = "map-tap";
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
@@ -1164,6 +1170,9 @@ Page({
     mapUiScale: 1,
     mapUiScaleStyle: "",
     subscriptionBannerScaleStyle: "transform: translateY(-50%); transform-origin: left center;",
+    layerPanelMaxHeightPx: 0,
+    layerPanelBodyMaxHeightPx: 0,
+    layerPanelBodyHeightPx: 0,
     statusBarHeight: 0,
     centerPinOffsetPx: 0,
     markers: [],
@@ -1329,6 +1338,11 @@ Page({
     airBoardEnabled: true,
     usePlanetCenterPoint: false,
     centerTargetLinkEnabled: true,
+    provinceCityHighlightEnabled: false,
+    provinceCityTree: [],
+    provinceCityHighlightLoading: false,
+    provinceCityHighlightError: "",
+    provinceCityHighlightSelectedId: "",
     myLocationModeResolved: false,
     temporaryNoFlyZoneEnabled: true,
     uomDivisionEnabled: true,
@@ -1411,8 +1425,26 @@ Page({
     if (this.data.subscriptionBannerScaleStyle !== subscriptionBannerScaleStyle) {
       updates.subscriptionBannerScaleStyle = subscriptionBannerScaleStyle;
     }
+    const windowHeight = Number(metrics.windowHeight);
+    if (Number.isFinite(windowHeight) && windowHeight > 0) {
+      const pxPerRpx = this._pxPerRpx || ((metrics.windowWidth || 375) / 750) || 0.5;
+      const panelMaxHeightPx = Math.max(280, Math.floor(windowHeight * 0.8));
+      const bodyMaxHeightPx = Math.max(180, panelMaxHeightPx - Math.round(124 * pxPerRpx));
+      if (this.data.layerPanelMaxHeightPx !== panelMaxHeightPx) {
+        updates.layerPanelMaxHeightPx = panelMaxHeightPx;
+      }
+      if (this.data.layerPanelBodyMaxHeightPx !== bodyMaxHeightPx) {
+        updates.layerPanelBodyMaxHeightPx = bodyMaxHeightPx;
+      }
+    }
     if (Object.keys(updates).length) {
-      this.setData(updates);
+      this.setData(updates, () => {
+        if (this.data.layerPanelVisible) {
+          this.scheduleLayerPanelLayoutMeasure(0);
+        }
+      });
+    } else if (this.data.layerPanelVisible) {
+      this.scheduleLayerPanelLayoutMeasure(0);
     }
     if (options.refreshScaleBar === false) {
       return;
@@ -1562,6 +1594,7 @@ Page({
     this.updateMapCheckinEntryStyle();
     this.updateSubscriptionBannerLayout();
     this._layerPanelCloseTimer = null;
+    this._layerPanelMeasureTimer = null;
     this._addMiniAppPopupChecking = false;
     this._addMiniAppPopupVisible = false;
     this._addMiniAppPopupCheckTimer = null;
@@ -1657,6 +1690,13 @@ Page({
     this._nativeInitialLocationBootstrapStarted = false;
     this._skipInitialNativeAutoCenter = false;
     this._skipNextApplyLayerInitialSync = false;
+    this._provinceCityHighlightPolygons = [];
+    this._provinceCityHighlightTree = [];
+    this._provinceCityHighlightSelectedId = "";
+    this._provinceCityHighlightExpandedMap = Object.create(null);
+    this._provinceCityHighlightPolygonCache = new Map();
+    this._provinceCityHighlightResource = null;
+    this._provinceCityHighlightLoadToken = 0;
     this._likeHoldTimers = { marker: null, markerPage: null };
     this._likeHoldFired = { marker: false, markerPage: false };
     this.captureInviteCode(launchOptions);
@@ -5732,6 +5772,7 @@ Page({
     if (this._markerCertificationSheetCloseTimer) clearTimeout(this._markerCertificationSheetCloseTimer);
     if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
     if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
+    if (this._layerPanelMeasureTimer) clearTimeout(this._layerPanelMeasureTimer);
     if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
     if (this._checkinEntryStyleTimer) clearTimeout(this._checkinEntryStyleTimer);
     if (this._nativeInitialLocationBootstrapTimer) clearTimeout(this._nativeInitialLocationBootstrapTimer);
@@ -6319,7 +6360,9 @@ Page({
       clearTimeout(this._layerPanelCloseTimer);
       this._layerPanelCloseTimer = null;
     }
-    this.setData({ layerPanelVisible: true, layerPanelClosing: false });
+    this.setData({ layerPanelVisible: true, layerPanelClosing: false }, () => {
+      this.scheduleLayerPanelLayoutMeasure(32);
+    });
     this.loadMapLayerSettings(false);
   },
 
@@ -6443,7 +6486,7 @@ Page({
     }
     this.setData({ layerPanelClosing: true });
     this._layerPanelCloseTimer = setTimeout(() => {
-      this.setData({ layerPanelVisible: false, layerPanelClosing: false });
+      this.setData({ layerPanelVisible: false, layerPanelClosing: false, layerPanelBodyHeightPx: 0 });
       this._layerPanelCloseTimer = null;
     }, 220);
   },
@@ -6494,6 +6537,250 @@ Page({
       this.updateCenterPinIndicator();
       this.persistMapLayerSettings();
     });
+  },
+
+  buildProvinceCityTreeViewData(treeNodes = null) {
+    const source = Array.isArray(treeNodes) ? treeNodes : this._provinceCityHighlightTree;
+    const selectedId = `${this._provinceCityHighlightSelectedId || ""}`;
+    const expandedMap = this._provinceCityHighlightExpandedMap || {};
+    return (Array.isArray(source) ? source : []).map((province) => {
+      const children = Array.isArray(province?.children) ? province.children : [];
+      const expanded =
+        children.some((child) => `${child?.id || ""}` === selectedId) ||
+        expandedMap[province.id] === true;
+      const renderChildren = expanded
+        ? children.map((child) =>
+          Object.assign({}, child, {
+            selected: `${child?.id || ""}` === selectedId
+          })
+        )
+        : [];
+      return Object.assign({}, province, {
+        hasChildren: children.length > 0,
+        expanded: children.length > 0 ? expanded : false,
+        selected: `${province?.id || ""}` === selectedId,
+        children: renderChildren
+      });
+    });
+  },
+
+  updateProvinceCityTreeData(extra = {}) {
+    this.setData(
+      Object.assign(
+        {
+          provinceCityTree: this.buildProvinceCityTreeViewData(),
+          provinceCityHighlightSelectedId: `${this._provinceCityHighlightSelectedId || ""}`
+        },
+        extra || {}
+      ),
+      () => {
+        if (this.data.layerPanelVisible) {
+          this.scheduleLayerPanelLayoutMeasure(0);
+        }
+      }
+    );
+  },
+
+  scheduleLayerPanelLayoutMeasure(delay = 0) {
+    if (this._layerPanelMeasureTimer) {
+      clearTimeout(this._layerPanelMeasureTimer);
+    }
+    this._layerPanelMeasureTimer = setTimeout(() => {
+      this._layerPanelMeasureTimer = null;
+      this.measureLayerPanelLayout();
+    }, Math.max(0, Number(delay) || 0));
+  },
+
+  measureLayerPanelLayout() {
+    if (!this.data.layerPanelVisible) return;
+    const bodyMaxHeightPx = Number(this.data.layerPanelBodyMaxHeightPx);
+    const panelMaxHeightPx = Number(this.data.layerPanelMaxHeightPx);
+    if (!Number.isFinite(bodyMaxHeightPx) || bodyMaxHeightPx <= 0 || !Number.isFinite(panelMaxHeightPx)) {
+      return;
+    }
+    const pxPerRpx = this._pxPerRpx || 0.5;
+    const bodyBottomPaddingPx = Math.round(36 * pxPerRpx);
+    const query = wx.createSelectorQuery().in(this);
+    query.select("#layer-panel-content").boundingClientRect();
+    query.exec((result = []) => {
+      const contentRect = result[0] || null;
+      const contentHeight = Number(contentRect?.height);
+      if (!Number.isFinite(contentHeight) || contentHeight <= 0) {
+        return;
+      }
+      const nextBodyHeightPx = Math.max(
+        120,
+        Math.min(bodyMaxHeightPx, Math.ceil(contentHeight + bodyBottomPaddingPx))
+      );
+      if (this.data.layerPanelBodyHeightPx !== nextBodyHeightPx) {
+        this.setData({
+          layerPanelBodyHeightPx: nextBodyHeightPx,
+          layerPanelMaxHeightPx: panelMaxHeightPx
+        });
+      }
+    });
+  },
+
+  findProvinceCityTreeNodeById(nodeId, treeNodes = null) {
+    const targetId = `${nodeId || ""}`.trim();
+    if (!targetId) return null;
+    const source = Array.isArray(treeNodes) ? treeNodes : this._provinceCityHighlightTree;
+    for (let i = 0; i < source.length; i += 1) {
+      const province = source[i];
+      if (`${province?.id || ""}` === targetId) {
+        return province;
+      }
+      const children = Array.isArray(province?.children) ? province.children : [];
+      for (let j = 0; j < children.length; j += 1) {
+        if (`${children[j]?.id || ""}` === targetId) {
+          return children[j];
+        }
+      }
+    }
+    return null;
+  },
+
+  setProvinceCityHighlightPolygons(polygons = []) {
+    this._provinceCityHighlightPolygons = Array.isArray(polygons) ? polygons.slice() : [];
+    this.updateOverlayGraphics();
+  },
+
+  loadProvinceCityHighlightResource(options = {}) {
+    const apiBase = this.getApiBase();
+    const token = this.getAuthToken();
+    if (!apiBase || !token) {
+      this.updateProvinceCityTreeData({
+        provinceCityHighlightLoading: false,
+        provinceCityHighlightError: "省市图层暂不可用"
+      });
+      return Promise.resolve(false);
+    }
+    const loadToken = this._provinceCityHighlightLoadToken + 1;
+    this._provinceCityHighlightLoadToken = loadToken;
+    this.updateProvinceCityTreeData({
+      provinceCityHighlightLoading: true,
+      provinceCityHighlightError: ""
+    });
+    return prepareProvinceCityHighlightResource({
+      apiBase,
+      token
+    })
+      .then((resource) => {
+        if (this._provinceCityHighlightLoadToken !== loadToken) {
+          return false;
+        }
+        this._provinceCityHighlightResource = resource || null;
+        this._provinceCityHighlightTree = Array.isArray(resource?.tree) ? resource.tree : [];
+        this._provinceCityHighlightPolygonCache = new Map();
+        this.updateProvinceCityTreeData({
+          provinceCityHighlightLoading: false,
+          provinceCityHighlightError: ""
+        });
+        const selectedNode = this.findProvinceCityTreeNodeById(this._provinceCityHighlightSelectedId);
+        if (selectedNode) {
+          return this.applyProvinceCityHighlightSelection(selectedNode.id, {
+            showErrorToast: false
+          });
+        }
+        this.setProvinceCityHighlightPolygons([]);
+        return true;
+      })
+      .catch((err) => {
+        if (this._provinceCityHighlightLoadToken !== loadToken) {
+          return false;
+        }
+        console.warn("load province city highlight resource failed", err);
+        this.updateProvinceCityTreeData({
+          provinceCityHighlightLoading: false,
+          provinceCityHighlightError: "省市图层加载失败"
+        });
+        if (options.showErrorToast) {
+          wx.showToast({ title: "省市图层加载失败", icon: "none" });
+        }
+        return false;
+      });
+  },
+
+  syncProvinceCityHighlightLayer(enabled, options = {}) {
+    if (enabled !== true) {
+      this._provinceCityHighlightLoadToken += 1;
+      this.setProvinceCityHighlightPolygons([]);
+      this.updateProvinceCityTreeData({
+        provinceCityHighlightLoading: false,
+        provinceCityHighlightError: ""
+      });
+      return Promise.resolve(false);
+    }
+    return this.loadProvinceCityHighlightResource(options);
+  },
+
+  applyProvinceCityHighlightSelection(nodeId, options = {}) {
+    const node = this.findProvinceCityTreeNodeById(nodeId);
+    if (!node) {
+      return Promise.resolve(false);
+    }
+    if (!node.filePath) {
+      if (node.type === "province") {
+        const provinceId = `${node.id || ""}`;
+        this._provinceCityHighlightExpandedMap[provinceId] =
+          this._provinceCityHighlightExpandedMap[provinceId] !== true;
+        this.updateProvinceCityTreeData();
+      }
+      return Promise.resolve(false);
+    }
+    if (node.type === "city" && node.provinceName) {
+      this._provinceCityHighlightExpandedMap[buildProvinceNodeId(node.provinceName)] = true;
+    }
+    this._provinceCityHighlightSelectedId = `${node.id || ""}`;
+    this.updateProvinceCityTreeData();
+    const cacheKey = `${node.id || ""}`;
+    let polygonPromise = options.force === true ? null : this._provinceCityHighlightPolygonCache.get(cacheKey);
+    if (!polygonPromise) {
+      polygonPromise = buildProvinceCityHighlightPolygons(node.filePath);
+      this._provinceCityHighlightPolygonCache.set(cacheKey, polygonPromise);
+    }
+    return Promise.resolve(polygonPromise)
+      .then((polygons) => {
+        if (
+          this.data.provinceCityHighlightEnabled !== true ||
+          `${this._provinceCityHighlightSelectedId || ""}` !== cacheKey
+        ) {
+          return false;
+        }
+        this.setProvinceCityHighlightPolygons(polygons);
+        return true;
+      })
+      .catch((err) => {
+        console.warn("apply province city highlight selection failed", err);
+        if (`${this._provinceCityHighlightSelectedId || ""}` === cacheKey) {
+          this.setProvinceCityHighlightPolygons([]);
+        }
+        if (options.showErrorToast) {
+          wx.showToast({ title: "区域高亮加载失败", icon: "none" });
+        }
+        return false;
+      });
+  },
+
+  onProvinceCityHighlightSwitchChange(event = {}) {
+    const enabled = !!event?.detail?.value;
+    this.setData({ provinceCityHighlightEnabled: enabled }, () => {
+      this.persistMapLayerSettings();
+      this.syncProvinceCityHighlightLayer(enabled, { showErrorToast: true });
+    });
+  },
+
+  onProvinceCityTreeExpandTap(event = {}) {
+    const id = `${event?.currentTarget?.dataset?.id || ""}`.trim();
+    if (!id) return;
+    this._provinceCityHighlightExpandedMap[id] = this._provinceCityHighlightExpandedMap[id] !== true;
+    this.updateProvinceCityTreeData();
+  },
+
+  onProvinceCityTreeSelectTap(event = {}) {
+    const id = `${event?.currentTarget?.dataset?.id || ""}`.trim();
+    if (!id || this.data.provinceCityHighlightEnabled !== true) return;
+    this.applyProvinceCityHighlightSelection(id, { showErrorToast: true });
   },
 
   onMapElementToggle(event = {}) {
@@ -6679,6 +6966,15 @@ Page({
     return disabled !== true;
   },
 
+  resolveProvinceCityHighlightEnabled(settings = {}) {
+    const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+    const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY] : undefined;
+    if (raw === undefined || raw === null) {
+      return false;
+    }
+    return this.parseMapLayerExtraBoolean(raw, false) === true;
+  },
+
   buildMapLayerExtraConfigPayload() {
     const existing =
       this._mapLayerSettings && typeof this._mapLayerSettings.extraConfig === "object"
@@ -6687,6 +6983,8 @@ Page({
     const extraConfig = existing ? Object.assign({}, existing) : {};
     extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] =
       this.data.centerTargetLinkEnabled === false ? "true" : "false";
+    extraConfig[MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY] =
+      this.data.provinceCityHighlightEnabled === true ? "true" : "false";
     return extraConfig;
   },
 
@@ -6849,6 +7147,7 @@ Page({
     const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
     const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
     const centerTargetLinkEnabled = this.resolveCenterTargetLinkEnabled(settings);
+    const provinceCityHighlightEnabled = this.resolveProvinceCityHighlightEnabled(settings);
     const mapElementOptions = this.composeMapElementOptions({
       uomDivisionEnabled: uom,
       djiNoFlyZoneEnabled: dji,
@@ -6873,6 +7172,7 @@ Page({
         platformCoConstructionEnabled: platformCoConstruction,
         usePlanetCenterPoint,
         centerTargetLinkEnabled,
+        provinceCityHighlightEnabled,
         myLocationModeResolved: true,
         mapElementOptions
       },
@@ -6887,6 +7187,7 @@ Page({
           this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
           this.applyMerchantMarkersToggle(merchant);
           this.applyPinLayerToggle(true);
+          this.syncProvinceCityHighlightLayer(provinceCityHighlightEnabled, { showErrorToast: false });
           if (typeof options.onApplied === "function") {
             options.onApplied();
           }
@@ -10947,6 +11248,9 @@ Page({
     }
     if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
       circles.push(...this._nfzCircles);
+    }
+    if (Array.isArray(this._provinceCityHighlightPolygons)) {
+      polygons.push(...this._provinceCityHighlightPolygons);
     }
     if (Array.isArray(this._nearbyPinPolygons)) {
       polygons.push(...this._nearbyPinPolygons);
