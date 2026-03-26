@@ -206,6 +206,7 @@ const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
 const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
 const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
 const MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY = "enableProvinceCityHighlight";
+const MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY = "provinceCityHighlightSelection";
 const SEARCH_LINK_OWNER_SEARCH = "search";
 const SEARCH_LINK_OWNER_MAP_TAP = "map-tap";
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
@@ -2214,7 +2215,7 @@ Page({
     this.queueMapGraphicsSync({ markers: markersChanged, overlay: circlesChanged });
   },
 
-  setMyLocationControlPoint(point = null) {
+  setMyLocationControlPoint(point = null, options = {}) {
     const latitude = Number(point?.latitude);
     const longitude = Number(point?.longitude);
     if (!hasValidCoordinate(latitude, longitude)) {
@@ -2240,6 +2241,17 @@ Page({
       });
     }
     this.refreshMyLocationGraphics(normalized);
+    if (options.syncCenter === false) {
+      return;
+    }
+    const currentCenter = this._centerOverride || this.data.center || null;
+    const centerChanged =
+      !hasValidCoordinate(currentCenter?.latitude, currentCenter?.longitude) ||
+      Math.abs(Number(currentCenter.latitude) - latitude) > 1e-8 ||
+      Math.abs(Number(currentCenter.longitude) - longitude) > 1e-8;
+    if (centerChanged || !this.isMapCenterReady()) {
+      this.centerOnPoint(normalized, this.data.scale, true);
+    }
   },
 
   findMarkerById(markerId) {
@@ -6679,7 +6691,8 @@ Page({
         const selectedNode = this.findProvinceCityTreeNodeById(this._provinceCityHighlightSelectedId);
         if (selectedNode) {
           return this.applyProvinceCityHighlightSelection(selectedNode.id, {
-            showErrorToast: false
+            showErrorToast: false,
+            persist: false
           });
         }
         this.setProvinceCityHighlightPolygons([]);
@@ -6733,6 +6746,9 @@ Page({
     }
     this._provinceCityHighlightSelectedId = `${node.id || ""}`;
     this.updateProvinceCityTreeData();
+    if (options.persist !== false) {
+      this.persistMapLayerSettings();
+    }
     const cacheKey = `${node.id || ""}`;
     let polygonPromise = options.force === true ? null : this._provinceCityHighlightPolygonCache.get(cacheKey);
     if (!polygonPromise) {
@@ -6975,6 +6991,15 @@ Page({
     return this.parseMapLayerExtraBoolean(raw, false) === true;
   },
 
+  resolveProvinceCityHighlightSelectionId(settings = {}) {
+    const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+    const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY] : undefined;
+    if (typeof raw !== "string") {
+      return "";
+    }
+    return raw.trim();
+  },
+
   buildMapLayerExtraConfigPayload() {
     const existing =
       this._mapLayerSettings && typeof this._mapLayerSettings.extraConfig === "object"
@@ -6985,6 +7010,9 @@ Page({
       this.data.centerTargetLinkEnabled === false ? "true" : "false";
     extraConfig[MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY] =
       this.data.provinceCityHighlightEnabled === true ? "true" : "false";
+    const selectedId =
+      `${this._provinceCityHighlightSelectedId || this.data.provinceCityHighlightSelectedId || ""}`.trim();
+    extraConfig[MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY] = selectedId || null;
     return extraConfig;
   },
 
@@ -7063,7 +7091,7 @@ Page({
     const cachedPoint = this.resolveCachedMapLocationPoint();
     if (cachedPoint) {
       this._lastKnownLocation = cachedPoint;
-      this.setMyLocationControlPoint(cachedPoint);
+      this.setMyLocationControlPoint(cachedPoint, { syncCenter: false });
       if (shouldCenter) {
         this.centerOnPoint(cachedPoint, scale, true);
       }
@@ -7148,6 +7176,7 @@ Page({
     const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
     const centerTargetLinkEnabled = this.resolveCenterTargetLinkEnabled(settings);
     const provinceCityHighlightEnabled = this.resolveProvinceCityHighlightEnabled(settings);
+    const provinceCityHighlightSelectionId = this.resolveProvinceCityHighlightSelectionId(settings);
     const mapElementOptions = this.composeMapElementOptions({
       uomDivisionEnabled: uom,
       djiNoFlyZoneEnabled: dji,
@@ -7173,10 +7202,12 @@ Page({
         usePlanetCenterPoint,
         centerTargetLinkEnabled,
         provinceCityHighlightEnabled,
+        provinceCityHighlightSelectedId: provinceCityHighlightSelectionId,
         myLocationModeResolved: true,
         mapElementOptions
       },
       () => {
+        this._provinceCityHighlightSelectedId = provinceCityHighlightSelectionId;
         this.cacheUsePlanetMyLocationPreference(usePlanetCenterPoint);
         const afterLocationReady = () => {
           this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
@@ -8178,7 +8209,7 @@ Page({
         const point = { latitude, longitude };
         this._lastKnownLocation = point;
         this.cacheMapLocation(point);
-        this.setMyLocationControlPoint(point);
+        this.setMyLocationControlPoint(point, { syncCenter: false });
         this.refreshMarkerPageDistance();
         this.centerOnPoint(point, this.data.scale, true);
       },
@@ -9329,7 +9360,7 @@ Page({
             longitude: res.longitude
           };
           this.cacheMapLocation(this._lastKnownLocation);
-          this.setMyLocationControlPoint(this._lastKnownLocation);
+          this.setMyLocationControlPoint(this._lastKnownLocation, { syncCenter: false });
           this.refreshMarkerPageDistance();
           let targetScale = null;
           if (typeof options.scaleMeters === "number" && options.scaleMeters > 0) {
@@ -9368,10 +9399,12 @@ Page({
         fail: (err) => {
           console.warn("getLocation fail", err);
           this.applyCachedMapLocationFallback({
-            allowDefault: true,
+            allowDefault: options.allowDefaultFallback !== false,
             scale: this.data.scale
           });
-          wx.showToast({ title: "定位失败，请在设置中开启定位权限", icon: "none" });
+          if (!options.silent) {
+            wx.showToast({ title: "定位失败，请在设置中开启定位权限", icon: "none" });
+          }
           reject(err);
         }
       });
@@ -10646,6 +10679,33 @@ Page({
     });
   },
 
+  pullAndCenterLocationWithRetry(options = {}) {
+    const maxAttempts = Math.max(1, Number(options.maxAttempts) || 3);
+    const delayMs = Math.max(120, Number(options.delayMs) || 400);
+    let attempts = 0;
+    return new Promise((resolve) => {
+      const run = () => {
+        attempts += 1;
+        this.pullAndCenterLocation({
+          silent: true,
+          allowDefaultFallback: false
+        })
+          .then(() => resolve(true))
+          .catch(() => {
+            if (attempts >= maxAttempts) {
+              resolve(false);
+              return;
+            }
+            this._nativeInitialLocationBootstrapTimer = setTimeout(() => {
+              this._nativeInitialLocationBootstrapTimer = null;
+              run();
+            }, delayMs);
+          });
+      };
+      run();
+    });
+  },
+
   bootstrapInitialNativeLocationCenter() {
     if (this.data.usePlanetCenterPoint || !this.data.myLocationModeResolved) {
       return;
@@ -10663,9 +10723,10 @@ Page({
         if (!granted) {
           return false;
         }
-        return this.pullAndCenterLocation({ silent: true })
-          .then(() => true)
-          .catch(() => false);
+        return this.pullAndCenterLocationWithRetry({
+          maxAttempts: 4,
+          delayMs: 450
+        });
       })
       .finally(() => {
         if (this._nativeInitialLocationBootstrapTimer) {
