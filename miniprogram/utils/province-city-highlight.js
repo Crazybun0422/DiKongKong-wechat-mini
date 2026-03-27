@@ -513,10 +513,15 @@ const buildProvinceCityHighlightPolygons = async (filePath) => {
     const rawPoints = parseKmlCoordinateText(coordinateText);
     if (rawPoints.length < 3) return;
     const points = rawPoints
-      .map((point) => wgs84ToGcj02(Number(point.longitude), Number(point.latitude)))
+      // 临时关闭 WGS84 -> GCJ02 转换，直接使用 KML 原始坐标做对比。
+      // .map((point) => wgs84ToGcj02(Number(point.longitude), Number(point.latitude)))
+      // .map((point) => ({
+      //   longitude: Number(point?.lng),
+      //   latitude: Number(point?.lat)
+      // }))
       .map((point) => ({
-        longitude: Number(point?.lng),
-        latitude: Number(point?.lat)
+        longitude: Number(point?.longitude),
+        latitude: Number(point?.latitude)
       }))
       .filter((point) => Number.isFinite(point.longitude) && Number.isFinite(point.latitude));
     if (points.length < 3) return;
