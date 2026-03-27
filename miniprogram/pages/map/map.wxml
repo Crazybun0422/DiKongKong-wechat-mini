@@ -153,147 +153,57 @@
       </view>
     </view>
 
-    <block wx:if="{{coordinateSystemSheetVisible}}">
-      <view class="coordinate-system-sheet-mask" bindtap="onCoordinateSystemSheetMaskTap"></view>
-      <view class="coordinate-system-sheet" catchtap="onCoordinateSystemSheetTap">
-        <view class="coordinate-system-sheet-row">
-          <block wx:for="{{coordinateSystemOptions}}" wx:key="value">
-            <view
-              class="coordinate-system-sheet-option {{coordinateSystem === item.value ? 'is-active' : ''}}"
-              data-value="{{item.value}}"
-              bindtap="onCoordinateSystemOptionTap"
-            >
-              <view class="coordinate-system-sheet-radio"></view>
-              <text class="coordinate-system-sheet-option-text">{{item.label}}</text>
-            </view>
-          </block>
-        </view>
-        <rich-text
-          wx:if="{{coordinateSystemDescriptionNodes}}"
-          class="coordinate-system-sheet-description"
-          nodes="{{coordinateSystemDescriptionNodes}}"
-          selectable="true"
-          space="nbsp"
-        />
-      </view>
-    </block>
+    <coordinate-system-sheet
+      visible="{{coordinateSystemSheetVisible}}"
+      wide-layout="{{isWideLayout}}"
+      coordinate-system="{{coordinateSystem}}"
+      coordinate-system-options="{{coordinateSystemOptions}}"
+      coordinate-system-description-nodes="{{coordinateSystemDescriptionNodes}}"
+      bind:masktap="onCoordinateSystemSheetMaskTap"
+      bind:optiontap="onCoordinateSystemOptionTap"
+    />
 
-    <view class="preflight-overlay map-ui-scale-left {{stealthModeActive ? 'preflight-overlay--stealth' : ''}}" wx:if="{{showDashboardPanel}}" style="top: {{preflightTopPx}}px; {{mapUiScaleStyle}}">
-      <view class="preflight-card">
-        <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
-        <view class="drone-picker-block">
-          <!-- <view class="drone-description">
-            <text class="drone-description-title">此次执飞的无人机型号</text>
-            <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
-          </view> -->
-          <view class="drone-picker-display" bindtap="openDronePicker">
-            <text class="preflight-label">执飞机型：</text>
-            <text class="drone-picker-value picker-underline">{{dronePickerLabel}}</text>
-          </view>
-        </view>
-        <view class="preflight-row temporary-no-fly-row">
-          <view wx:if="{{temporaryNoFlyZoneInfo}}">
-            <view class="temporary-no-fly-content">
-              <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
-              <view
-                wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
-                class="temporary-no-fly-link"
-                hover-class="temporary-no-fly-link-hover"
-                bindtap="onTemporaryZoneLinkTap"
-                data-link="{{temporaryNoFlyZoneInfo.link}}"
-                data-path="{{temporaryNoFlyZoneInfo.linkPath}}"
-              >
-                {{temporaryNoFlyZoneInfo.displayName}}
-              </view>
-              <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
-            </view>
-          </view>
-          <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
-        </view>
-        <view class="preflight-row preflight-row--uom">
-          <view wx:if="{{uomLoading}}" class="preflight-inline-loading" aria-hidden="true">
-            <view class="preflight-inline-loading-trace"></view>
-            <view class="preflight-inline-loading-ring"></view>
-            <view class="preflight-inline-loading-core"></view>
-          </view>
-          <text class="preflight-label">位于UOM划分：</text>
-          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
-        </view>
-        <view class="preflight-row">
-          <text class="preflight-label">位于大疆划分：</text>
-          <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
-        </view>
-        <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
-        <text
-          class="center-pin-indicator"
-          wx:if="{{centerPinTitle}}"
-          bindtap="onCenterPinIndicatorTap"
-        >
-          {{centerPinTitle}}
-        </text>
-
-        <view wx:if="{{!stealthModeActive}}" class="control-row">
-          <view class="search-stack">
-            <view class="search-pill">
-              <input
-                class="search-field"
-                type="text"
-                placeholder="地址或经纬度"
-                placeholder-style="color:#f1f1f1"
-                value="{{keyword}}"
-                bindinput="onKeywordInput"
-                confirm-type="search"
-                bindconfirm="onSearchConfirm"
-              />
-              <button
-                class="search-btn"
-                hover-class="search-btn-hover"
-                hover-start-time="10"
-                hover-stay-time="80"
-                bindtap="onSearchTap"
-              >
-                <image class="search-btn-icon" src="/assets/search.png" mode="aspectFit" />
-              </button>
-            </view>
-            <button
-              class="search-tips-btn search-tips-btn--outside"
-              hover-class="search-tips-btn-hover"
-              hover-start-time="10"
-              hover-stay-time="80"
-              bindtap="onSearchCoordinateTipsTap"
-            >
-              <image class="search-tips-btn-icon" src="/assets/tip-search.png" mode="aspectFit" />
-            </button>
-            <view class="search-suggest-panel" wx:if="{{searchSuggestions.length || searchSuggestLoading || searchSuggestError}}">
-              <view class="search-suggest-state" wx:if="{{searchSuggestLoading}}">搜索中...</view>
-              <view class="search-suggest-state" wx:elif="{{searchSuggestError}}">{{searchSuggestError}}</view>
-              <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
-                <block wx:for="{{searchSuggestions}}" wx:key="id">
-                  <view
-                    class="search-suggest-item"
-                    data-index="{{index}}"
-                    bindtap="onSuggestionTap"
-                  >
-                    <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : (item.source === 'pin' ? 'suggest-title-pin' : '')}}">
-                      {{item.title}}
-                    </text>
-                    <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
-                  </view>
-                </block>
-              </scroll-view>
-            </view>
-          </view>
-        </view>
-      </view>
-    <city-report-h5-entry
+    <preflight-dashboard
+      wx:if="{{showDashboardPanel}}"
+      stealth-mode-active="{{stealthModeActive}}"
+      top-px="{{preflightTopPx}}"
+      ui-scale-style="{{mapUiScaleStyle}}"
+      drone-picker-label="{{dronePickerLabel}}"
+      temporary-no-fly-zone-info="{{temporaryNoFlyZoneInfo}}"
+      temporary-no-fly-tone="{{temporaryNoFlyTone}}"
+      temporary-no-fly-text="{{temporaryNoFlyText}}"
+      uom-loading="{{uomLoading}}"
+      uom-tone="{{uomTone}}"
+      uom-status="{{uomStatus}}"
+      dji-tone="{{djiTone}}"
+      dji-color="{{djiColor}}"
+      dji-status="{{djiStatus}}"
+      dji-status-extra="{{djiStatusExtra}}"
+      center-pin-title="{{centerPinTitle}}"
+      keyword="{{keyword}}"
+      search-suggestions="{{searchSuggestions}}"
+      search-suggest-loading="{{searchSuggestLoading}}"
+      search-suggest-error="{{searchSuggestError}}"
+      bind:opendronepicker="openDronePicker"
+      bind:temporaryzonelinktap="onTemporaryZoneLinkTap"
+      bind:centerpinindicatortap="onCenterPinIndicatorTap"
+      bind:keywordinput="onKeywordInput"
+      bind:searchconfirm="onSearchConfirm"
+      bind:searchtap="onSearchTap"
+      bind:searchcoordinatetipstap="onSearchCoordinateTipsTap"
+      bind:suggestiontap="onSuggestionTap"
+    />
+    <city-report-host
       wx:if="{{!stealthModeActive}}"
       id="city-report-h5-entry"
       center="{{cityReportCenter}}"
       active="{{showDashboardPanel && !stealthModeActive}}"
+      dialog-visible="{{cityReportDialogVisible}}"
+      dialog-text="{{cityReportDialogText}}"
       bind:statechange="onCityReportStateChange"
       bind:dialogchange="onCityReportDialogChange"
+      bind:dialogclose="onCityReportDialogClose"
     />
-    </view>
 
     <policy-update-modal
       visible="{{policyUpdateVisible}}"
@@ -307,109 +217,38 @@
       bind:privacy="onPolicyPrivacyTap"
     />
 
-    <view class="floating-controls map-ui-scale-right" wx:if="{{activeTab === 'home' && !stealthModeActive}}" style="{{mapUiScaleStyle}}">
-      <!-- <button
-        class="panorama-button"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onPanoramaDemoTap"
-      >
-        <text class="panorama-button-text">360</text>
-      </button> -->
-      <button
-        class="newbie-gift-entry"
-        wx:if="{{showNewbieGiftEntry}}"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onNewbieGiftTap"
-      >
-        <image class="newbie-gift-entry-icon" src="/assets/newbie-gift.png" mode="aspectFit" />
-      </button>
-      <button
-        class="layer-button"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onLayerButtonTap"
-      >
-        <image class="layer-button-icon" src="/assets/layer.png" mode="aspectFit" />
-      </button>
-      <!-- <button
-        class="dashboard-toggle topic-button"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onTopicButtonTap"
-      >
-        <image class="dashboard-toggle-icon" src="/assets/topic.png" mode="aspectFit" />
-      </button> -->
-      <button
-        class="dashboard-toggle"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onMarkerButtonTap"
-      >
-        <image class="dashboard-toggle-icon" src="/assets/idea.png" mode="aspectFit" />
-      </button>
-      <button
-        class="marker-button"
-        hover-class="marker-button-hover"
-        bindtap="onLocateTap"
-      >
-        <image class="marker-button-icon" src="/assets/location.png" mode="aspectFit" />
-      </button>
-    </view>
+    <map-floating-controls
+      visible="{{activeTab === 'home' && !stealthModeActive}}"
+      ui-scale-style="{{mapUiScaleStyle}}"
+      show-newbie-gift-entry="{{showNewbieGiftEntry}}"
+      bind:newbiegifttap="onNewbieGiftTap"
+      bind:layerbuttontap="onLayerButtonTap"
+      bind:markerbuttontap="onMarkerButtonTap"
+      bind:locatetap="onLocateTap"
+    />
 
-    <view class="bottom-controls map-ui-scale-bottom" wx:if="{{!stealthModeActive}}" style="{{mapUiScaleStyle}}">
-      <view class="bottom-menu">
-        <button class="menu-btn {{activeTab === 'home' ? 'is-active' : ''}}" bindtap="onMenuHomeTap">
-          <image class="menu-icon" src="{{activeTab === 'home' ? '/assets/home-active.png' : '/assets/home.png'}}" mode="aspectFit" />
-        </button>
-        <button class="menu-btn {{activeTab === 'profile' ? 'is-active' : ''}}" bindtap="onMenuProfileTap" id="menu-profile-btn">
-          <image class="menu-icon" src="{{activeTab === 'profile' ? '/assets/profile-active.png' : '/assets/profile.png'}}" mode="aspectFit" />
-          <view wx:if="{{showProfileRedDot}}" class="menu-badge">
-            <image class="menu-badge-dot" src="/assets/red-point.png" mode="aspectFit" />
-          </view>
-        </button>
-      </view>
-
-      <button
-        class="chat-fab"
-        hover-class="chat-fab-hover"
-        bindtap="onChatButtonTap"
-      >
-        <image class="chat-fab-icon" src="/assets/ai-chat.png" mode="aspectFit" />
-      </button>
-    </view>
-    <block wx:if="{{dronePickerVisible}}">
-      <view class="drone-picker-mask" bindtap="closeDronePicker"></view>
-      <view class="drone-picker-sheet">
-        <view class="drone-picker-sheet-header">
-          <view class="drone-description">
-            <text class="drone-description-title">此次执飞的无人机型号</text>
-            <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
-          </view>
-          <text class="drone-picker-confirm" bindtap="confirmDronePicker">确定</text>
-        </view>
-        <view class="drone-picker-sheet-body">
-          <scroll-view class="drone-category-list" scroll-y="true">
-            <block wx:for="{{droneCategories}}" wx:key="index">
-              <view
-                class="drone-category-item {{activeDroneCategoryIndex === index ? 'is-active' : ''}}"
-                data-index="{{index}}"
-                bindtap="onSelectDroneCategory"
-              >
-                {{item.label}}
-              </view>
-            </block>
-          </scroll-view>
-          <scroll-view class="drone-model-list" scroll-y="true">
-            <block wx:for="{{droneCategoryItems}}" wx:key="index">
-              <view
-                class="drone-picker-option {{pendingDroneIndex === item.index ? 'is-active' : ''}}"
-                data-index="{{item.index}}"
-                bindtap="onSelectDroneOption"
-              >
-                {{item.name}}
-              </view>
-            </block>
-          </scroll-view>
-        </view>
-      </view>
-    </block>
+    <map-bottom-nav
+      id="map-bottom-nav"
+      visible="{{!stealthModeActive}}"
+      ui-scale-style="{{mapUiScaleStyle}}"
+      active-tab="{{activeTab}}"
+      show-profile-red-dot="{{showProfileRedDot}}"
+      bind:menuhometap="onMenuHomeTap"
+      bind:menuprofiletap="onMenuProfileTap"
+      bind:chatbuttontap="onChatButtonTap"
+    />
+    <drone-picker-sheet
+      visible="{{dronePickerVisible}}"
+      wide-layout="{{isWideLayout}}"
+      drone-categories="{{droneCategories}}"
+      active-drone-category-index="{{activeDroneCategoryIndex}}"
+      drone-category-items="{{droneCategoryItems}}"
+      pending-drone-index="{{pendingDroneIndex}}"
+      bind:close="closeDronePicker"
+      bind:confirm="confirmDronePicker"
+      bind:selectcategory="onSelectDroneCategory"
+      bind:selectoption="onSelectDroneOption"
+    />
 
     <block wx:if="{{markerDetailVisible}}">
       <view
@@ -1005,17 +844,6 @@
     </block>
 
   </view>
-
-  <block wx:if="{{cityReportDialogVisible}}">
-    <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
-      <view class="city-report-dialog-container">
-        <view class="city-report-dialog-card">
-          <text class="city-report-dialog-text">{{cityReportDialogText}}</text>
-          <view class="city-report-dialog-btn" catchtap="onCityReportDialogClose">我知道了</view>
-        </view>
-      </view>
-    </view>
-  </block>
 
   <block wx:if="{{searchCoordinateTipsVisible}}">
     <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">

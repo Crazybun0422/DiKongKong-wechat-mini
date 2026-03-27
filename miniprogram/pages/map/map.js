@@ -5428,30 +5428,33 @@ Page({
   },
 
   measureInviteGuideTarget() {
-    return new Promise((resolve) => {
-      const query = wx.createSelectorQuery().in(this);
-      query.select("#menu-profile-btn").boundingClientRect();
-      query.exec((res) => {
-        const rect = res && res[0];
-        if (!rect) {
-          resolve(null);
-          return;
-        }
-        const { windowWidth, windowHeight } = getWindowMetrics();
-        const padding = 10;
-        const size = Math.max(rect.width, rect.height) + padding * 2;
-        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
-        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(windowWidth, left + size);
-        const bottomTop = Math.min(windowHeight, top + size);
-        resolve({
-          top,
-          left,
-          size,
-          rightLeft,
-          bottomTop
+    const nav = this.selectComponent("#map-bottom-nav");
+    const measurePromise =
+      nav && typeof nav.measureProfileButtonRect === "function"
+        ? nav.measureProfileButtonRect()
+        : new Promise((resolve) => {
+          const query = wx.createSelectorQuery().in(this);
+          query.select("#menu-profile-btn").boundingClientRect();
+          query.exec((res) => resolve((res && res[0]) || null));
         });
-      });
+    return Promise.resolve(measurePromise).then((rect) => {
+      if (!rect) {
+        return null;
+      }
+      const { windowWidth, windowHeight } = getWindowMetrics();
+      const padding = 10;
+      const size = Math.max(rect.width, rect.height) + padding * 2;
+      const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
+      const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
+      const rightLeft = Math.min(windowWidth, left + size);
+      const bottomTop = Math.min(windowHeight, top + size);
+      return {
+        top,
+        left,
+        size,
+        rightLeft,
+        bottomTop
+      };
     });
   },
 
@@ -6296,7 +6299,8 @@ Page({
       return;
     }
     const dataset = event?.currentTarget?.dataset || {};
-    const targetPath = dataset.path || info.linkPath || "";
+    const detail = event?.detail || {};
+    const targetPath = detail.path || dataset.path || info.linkPath || "";
     if (targetPath && typeof wx.navigateTo === "function") {
       wx.navigateTo({ url: targetPath });
       return;
@@ -8031,7 +8035,7 @@ Page({
   },
 
   onCoordinateSystemOptionTap(event) {
-    const next = normalizeCoordinateSystem(event?.currentTarget?.dataset?.value);
+    const next = normalizeCoordinateSystem(event?.currentTarget?.dataset?.value || event?.detail?.value);
     const changed = next !== this.data.coordinateSystem;
     const updates = {
       coordinateSystemSheetVisible: false
@@ -9188,7 +9192,7 @@ Page({
   },
 
   onSuggestionTap(e) {
-    const idx = Number(e.currentTarget.dataset.index);
+    const idx = Number(e?.currentTarget?.dataset?.index ?? e?.detail?.index);
     const suggestion = this.data.searchSuggestions?.[idx];
     if (!suggestion) return;
     if (
@@ -9243,7 +9247,7 @@ Page({
   },
 
   onSelectDroneCategory(e) {
-    const idx = Number(e.currentTarget.dataset.index);
+    const idx = Number(e?.currentTarget?.dataset?.index ?? e?.detail?.index);
     if (!Number.isFinite(idx)) return;
     const categories = Array.isArray(this.data.droneCategories) ? this.data.droneCategories : [];
     const category = categories[idx];
@@ -9255,7 +9259,7 @@ Page({
   },
 
   onSelectDroneOption(e) {
-    const idx = Number(e.currentTarget.dataset.index);
+    const idx = Number(e?.currentTarget?.dataset?.index ?? e?.detail?.index);
     if (!Number.isFinite(idx)) return;
     this.setData({ pendingDroneIndex: idx });
   },

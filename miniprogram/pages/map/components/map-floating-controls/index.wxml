@@ -1,0 +1,31 @@
+<view class="floating-controls" wx:if="{{visible}}" style="{{uiScaleStyle}}; transform-origin: right center;">
+  <button
+    class="newbie-gift-entry"
+    wx:if="{{showNewbieGiftEntry}}"
+    hover-class="dashboard-toggle-hover"
+    bindtap="onNewbieGiftTap"
+  >
+    <image class="newbie-gift-entry-icon" src="/assets/newbie-gift.png" mode="aspectFit" />
+  </button>
+  <button
+    class="layer-button"
+    hover-class="dashboard-toggle-hover"
+    bindtap="onLayerButtonTap"
+  >
+    <image class="layer-button-icon" src="/assets/layer.png" mode="aspectFit" />
+  </button>
+  <button
+    class="dashboard-toggle"
+    hover-class="dashboard-toggle-hover"
+    bindtap="onMarkerButtonTap"
+  >
+    <image class="dashboard-toggle-icon" src="/assets/idea.png" mode="aspectFit" />
+  </button>
+  <button
+    class="marker-button"
+    hover-class="marker-button-hover"
+    bindtap="onLocateTap"
+  >
+    <image class="marker-button-icon" src="/assets/location.png" mode="aspectFit" />
+  </button>
+</view>

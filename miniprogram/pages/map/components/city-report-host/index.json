@@ -1,0 +1,6 @@
+{
+  "component": true,
+  "usingComponents": {
+    "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index"
+  }
+}

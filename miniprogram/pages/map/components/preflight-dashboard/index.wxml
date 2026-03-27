@@ -1,0 +1,107 @@
+<view
+  class="preflight-overlay {{stealthModeActive ? 'preflight-overlay--stealth' : ''}}"
+  style="top: {{topPx}}px; {{uiScaleStyle}}; transform-origin: left top;"
+>
+  <view class="preflight-card">
+    <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
+    <view class="drone-picker-block">
+      <view class="drone-picker-display" bindtap="onOpenDronePickerTap">
+        <text class="preflight-label">执飞机型：</text>
+        <text class="drone-picker-value picker-underline">{{dronePickerLabel}}</text>
+      </view>
+    </view>
+    <view class="preflight-row temporary-no-fly-row">
+      <view wx:if="{{temporaryNoFlyZoneInfo}}">
+        <view class="temporary-no-fly-content">
+          <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
+          <view
+            wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
+            class="temporary-no-fly-link"
+            hover-class="temporary-no-fly-link-hover"
+            bindtap="onTemporaryZoneLinkTap"
+            data-link="{{temporaryNoFlyZoneInfo.link}}"
+            data-path="{{temporaryNoFlyZoneInfo.linkPath}}"
+          >
+            {{temporaryNoFlyZoneInfo.displayName}}
+          </view>
+          <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
+        </view>
+      </view>
+      <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
+    </view>
+    <view class="preflight-row preflight-row--uom">
+      <view wx:if="{{uomLoading}}" class="preflight-inline-loading" aria-hidden="true">
+        <view class="preflight-inline-loading-trace"></view>
+        <view class="preflight-inline-loading-ring"></view>
+        <view class="preflight-inline-loading-core"></view>
+      </view>
+      <text class="preflight-label">位于UOM划分：</text>
+      <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
+    </view>
+    <view class="preflight-row">
+      <text class="preflight-label">位于大疆划分：</text>
+      <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
+    </view>
+    <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
+    <text
+      class="center-pin-indicator"
+      wx:if="{{centerPinTitle}}"
+      bindtap="onCenterPinIndicatorTap"
+    >
+      {{centerPinTitle}}
+    </text>
+
+    <view wx:if="{{!stealthModeActive}}" class="control-row">
+      <view class="search-stack">
+        <view class="search-pill">
+          <input
+            class="search-field"
+            type="text"
+            placeholder="地址或经纬度"
+            placeholder-style="color:#f1f1f1"
+            value="{{keyword}}"
+            bindinput="onKeywordInput"
+            confirm-type="search"
+            bindconfirm="onSearchConfirm"
+          />
+          <button
+            class="search-btn"
+            hover-class="search-btn-hover"
+            hover-start-time="10"
+            hover-stay-time="80"
+            bindtap="onSearchTap"
+          >
+            <image class="search-btn-icon" src="/assets/search.png" mode="aspectFit" />
+          </button>
+        </view>
+        <button
+          class="search-tips-btn search-tips-btn--outside"
+          hover-class="search-tips-btn-hover"
+          hover-start-time="10"
+          hover-stay-time="80"
+          bindtap="onSearchCoordinateTipsTap"
+        >
+          <image class="search-tips-btn-icon" src="/assets/tip-search.png" mode="aspectFit" />
+        </button>
+        <view class="search-suggest-panel" wx:if="{{searchSuggestions.length || searchSuggestLoading || searchSuggestError}}">
+          <view class="search-suggest-state" wx:if="{{searchSuggestLoading}}">搜索中...</view>
+          <view class="search-suggest-state" wx:elif="{{searchSuggestError}}">{{searchSuggestError}}</view>
+          <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
+            <block wx:for="{{searchSuggestions}}" wx:key="id">
+              <view
+                class="search-suggest-item"
+                data-index="{{index}}"
+                bindtap="onSuggestionTap"
+              >
+                <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : (item.source === 'pin' ? 'suggest-title-pin' : '')}}">
+                  {{item.title}}
+                </text>
+                <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
+              </view>
+            </block>
+          </scroll-view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

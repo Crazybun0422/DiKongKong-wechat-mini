@@ -1,0 +1,18 @@
+<city-report-h5-entry
+  id="city-report-h5-entry-inner"
+  center="{{center}}"
+  active="{{active}}"
+  bind:statechange="onStateChange"
+  bind:dialogchange="onDialogChange"
+/>
+
+<block wx:if="{{dialogVisible}}">
+  <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
+    <view class="city-report-dialog-container">
+      <view class="city-report-dialog-card">
+        <text class="city-report-dialog-text">{{dialogText}}</text>
+        <view class="city-report-dialog-btn" catchtap="onDialogCloseTap">我知道了</view>
+      </view>
+    </view>
+  </view>
+</block>

@@ -1,0 +1,28 @@
+<block wx:if="{{visible}}">
+  <view class="coordinate-system-sheet-mask" bindtap="onMaskTap"></view>
+  <view
+    class="coordinate-system-sheet"
+    catchtap="noop"
+    style="{{wideLayout ? 'width:calc(100vw - 64rpx);max-width:920rpx;left:0;right:0;margin-left:auto;margin-right:auto;' : ''}}"
+  >
+    <view class="coordinate-system-sheet-row">
+      <block wx:for="{{coordinateSystemOptions}}" wx:key="value">
+        <view
+          class="coordinate-system-sheet-option {{coordinateSystem === item.value ? 'is-active' : ''}}"
+          data-value="{{item.value}}"
+          bindtap="onOptionTap"
+        >
+          <view class="coordinate-system-sheet-radio"></view>
+          <text class="coordinate-system-sheet-option-text">{{item.label}}</text>
+        </view>
+      </block>
+    </view>
+    <rich-text
+      wx:if="{{coordinateSystemDescriptionNodes}}"
+      class="coordinate-system-sheet-description"
+      nodes="{{coordinateSystemDescriptionNodes}}"
+      selectable="true"
+      space="nbsp"
+    />
+  </view>
+</block>
