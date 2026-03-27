@@ -22,7 +22,11 @@ Component({
     keyword: { type: String, value: "" },
     searchSuggestions: { type: Array, value: [] },
     searchSuggestLoading: { type: Boolean, value: false },
-    searchSuggestError: { type: String, value: "" }
+    searchSuggestError: { type: String, value: "" },
+    cityReportCenter: { type: Object, value: null },
+    cityReportActive: { type: Boolean, value: false },
+    cityReportDialogVisible: { type: Boolean, value: false },
+    cityReportDialogText: { type: String, value: "" }
   },
 
   methods: {
@@ -61,6 +65,25 @@ Component({
     onSuggestionTap(event = {}) {
       const index = Number(event.currentTarget?.dataset?.index);
       this.triggerEvent("suggestiontap", { index });
+    },
+
+    onCityReportStateChange(event = {}) {
+      this.triggerEvent("cityreportstatechange", event.detail || {});
+    },
+
+    onCityReportDialogChange(event = {}) {
+      this.triggerEvent("cityreportdialogchange", event.detail || {});
+    },
+
+    onCityReportDialogClose() {
+      this.triggerEvent("cityreportdialogclose");
+    },
+
+    closeCityReportDialog() {
+      const host = this.selectComponent("#city-report-h5-entry");
+      if (host && typeof host.closeDialog === "function") {
+        host.closeDialog();
+      }
     }
   }
 });

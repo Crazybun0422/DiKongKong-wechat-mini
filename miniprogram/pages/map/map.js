@@ -1126,6 +1126,43 @@ const formatLikeCountDisplay = (value) => {
   return `${Math.floor(num)}`;
 };
 
+const resolveEventDataset = (event = {}) => {
+  const currentTargetDataset = event?.currentTarget?.dataset;
+  if (currentTargetDataset && typeof currentTargetDataset === "object") {
+    return currentTargetDataset;
+  }
+  const detailDataset = event?.detail?.dataset;
+  if (detailDataset && typeof detailDataset === "object") {
+    return detailDataset;
+  }
+  return {};
+};
+
+const resolveEventTouches = (event = {}) => {
+  if (Array.isArray(event?.touches) && event.touches.length) {
+    return event.touches;
+  }
+  if (Array.isArray(event?.detail?.touches) && event.detail.touches.length) {
+    return event.detail.touches;
+  }
+  return [];
+};
+
+const resolveLikeEventPageFlag = (event = {}) => {
+  if (event?.currentTarget?.dataset?.page !== undefined) {
+    return event.currentTarget.dataset.page;
+  }
+  return event?.detail?.page;
+};
+
+const resolveLikeCountFromEvent = (event = {}) => {
+  const detailCount = Number(event?.detail?.count);
+  if (Number.isFinite(detailCount)) {
+    return detailCount;
+  }
+  return Number(resolveEventDataset(event).count);
+};
+
 const extractWorkGroupInvite = (options = {}) => {
   const readFromObject = (obj) => {
     if (!obj || typeof obj !== "object") return null;
@@ -4156,7 +4193,7 @@ Page({
 
   onMarkerDetailTouchStart(event) {
     if (!this.data.markerDetailAllowExpand) return;
-    const touch = event?.touches?.[0];
+    const touch = resolveEventTouches(event)[0];
     if (!touch) return;
     this._markerDetailTouch = {
       startY: touch.clientY,
@@ -4169,7 +4206,7 @@ Page({
   onMarkerDetailTouchMove(event) {
     if (!this.data.markerDetailAllowExpand) return;
     if (!this._markerDetailTouch) return;
-    const touch = event?.touches?.[0];
+    const touch = resolveEventTouches(event)[0];
     if (!touch) return;
     const deltaY = touch.clientY - this._markerDetailTouch.startY;
     this._markerDetailTouch.lastY = touch.clientY;
@@ -4205,7 +4242,7 @@ Page({
   },
 
   isCurrentMarkerDetailVideoEvent(event = {}) {
-    const index = Number(event?.currentTarget?.dataset?.index);
+    const index = Number(resolveEventDataset(event).index);
     return Number.isFinite(index) && index === this.data.markerDetailCurrentImage;
   },
 
@@ -4270,14 +4307,15 @@ Page({
     const activeDetail = this.data.markerPageVisible
       ? this.data.markerPageDetail
       : this.data.detailCard;
-    const videoId = event?.currentTarget?.dataset?.videoId || "";
+    const dataset = resolveEventDataset(event);
+    const videoId = dataset.videoId || "";
     if (this.isPinDetail(activeDetail)) {
       this.playMapInlineVideo(videoId);
       return;
     }
     this.openMapInlineVideoFullscreen({
-      url: event?.currentTarget?.dataset?.url || "",
-      poster: event?.currentTarget?.dataset?.poster || "",
+      url: dataset.url || "",
+      poster: dataset.poster || "",
       videoId
     });
   },
@@ -4559,7 +4597,7 @@ Page({
   },
 
   onMarkerDetailCallTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
+    const dataset = resolveEventDataset(event);
     const phone = dataset.phone || this.data.detailCard?.phone || "";
     const detail = this.data.detailCard || {};
     const markerId = this.resolveMarkerNewId(detail);
@@ -4570,7 +4608,7 @@ Page({
   onMarkerDetailNavigateTap(event) {
     const detail = this.data.detailCard;
     if (!detail) return;
-    const dataset = event?.currentTarget?.dataset || {};
+    const dataset = resolveEventDataset(event);
     this.openMarkerLocation(detail, dataset);
   },
 
@@ -4730,7 +4768,7 @@ Page({
   },
 
   isCurrentMarkerPageVideoEvent(event = {}) {
-    const index = Number(event?.currentTarget?.dataset?.index);
+    const index = Number(resolveEventDataset(event).index);
     return Number.isFinite(index) && index === this.data.markerPageCurrentImage;
   },
 
@@ -4762,7 +4800,7 @@ Page({
   },
 
   onMarkerPageTouchStart(event) {
-    const touch = event?.touches?.[0];
+    const touch = resolveEventTouches(event)[0];
     if (!touch) return;
     const canClose = (this._markerPageScrollTop || 0) <= MARKER_PAGE_SCROLL_TOP_THRESHOLD;
     this._markerPageTouch = {
@@ -4776,7 +4814,7 @@ Page({
 
   onMarkerPageTouchMove(event) {
     if (!this._markerPageTouch) return;
-    const touch = event?.touches?.[0];
+    const touch = resolveEventTouches(event)[0];
     if (!touch) return;
     const deltaY = touch.clientY - this._markerPageTouch.startY;
     if (
@@ -4819,7 +4857,7 @@ Page({
   },
 
   onMarkerPageAttachmentTap(event) {
-    const url = event?.currentTarget?.dataset?.url;
+    const url = resolveEventDataset(event).url;
     if (!url) {
       wx.showToast({ title: "附件不可用", icon: "none" });
       return;
@@ -4858,7 +4896,7 @@ Page({
   },
 
   onMarkerPageVideoTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
+    const dataset = resolveEventDataset(event);
     const url = dataset.url || "";
     const finderUserName = dataset.finder || "";
     const activityId = dataset.activity || "";
@@ -4913,7 +4951,7 @@ Page({
   },
 
   onMarkerPageCallTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
+    const dataset = resolveEventDataset(event);
     const phone = dataset.phone || this.data.markerPageDetail?.phone || "";
     const detail = this.data.markerPageDetail || {};
     const markerId = this.resolveMarkerNewId(detail);
@@ -4924,7 +4962,7 @@ Page({
   onMarkerPageNavigateTap(event) {
     const detail = this.data.markerPageDetail;
     if (!detail) return;
-    const dataset = event?.currentTarget?.dataset || {};
+    const dataset = resolveEventDataset(event);
     this.openMarkerLocation(detail, dataset);
   },
 
@@ -5628,9 +5666,14 @@ Page({
   },
 
   onCityReportDialogClose() {
-    const popup = this.selectComponent("#city-report-h5-entry");
-    if (popup && typeof popup.closeDialog === "function") {
-      popup.closeDialog();
+    const dashboard = this.selectComponent("#preflight-dashboard");
+    if (dashboard && typeof dashboard.closeCityReportDialog === "function") {
+      dashboard.closeCityReportDialog();
+    } else {
+      const popup = this.selectComponent("#city-report-h5-entry");
+      if (popup && typeof popup.closeDialog === "function") {
+        popup.closeDialog();
+      }
     }
     if (this.data.cityReportDialogVisible) {
       this.setData({ cityReportDialogVisible: false });
@@ -6508,7 +6551,7 @@ Page({
   },
 
   onMapLayerSelect(event = {}) {
-    const type = event?.currentTarget?.dataset?.type || "";
+    const type = resolveEventDataset(event).type || "";
     const nextType = type === "satellite" ? "satellite" : "standard";
     const enableSatellite = nextType === "satellite";
     this.setData({
@@ -6616,25 +6659,30 @@ Page({
     }
     const pxPerRpx = this._pxPerRpx || 0.5;
     const bodyBottomPaddingPx = Math.round(36 * pxPerRpx);
-    const query = wx.createSelectorQuery().in(this);
-    query.select("#layer-panel-content").boundingClientRect();
-    query.exec((result = []) => {
-      const contentRect = result[0] || null;
-      const contentHeight = Number(contentRect?.height);
-      if (!Number.isFinite(contentHeight) || contentHeight <= 0) {
-        return;
-      }
-      const nextBodyHeightPx = Math.max(
-        120,
-        Math.min(bodyMaxHeightPx, Math.ceil(contentHeight + bodyBottomPaddingPx))
-      );
-      if (this.data.layerPanelBodyHeightPx !== nextBodyHeightPx) {
-        this.setData({
-          layerPanelBodyHeightPx: nextBodyHeightPx,
-          layerPanelMaxHeightPx: panelMaxHeightPx
-        });
-      }
-    });
+    const panel = this.selectComponent("#map-layer-panel");
+    if (!panel || typeof panel.measureContentHeight !== "function") {
+      return;
+    }
+    Promise.resolve(panel.measureContentHeight())
+      .then((contentHeight) => {
+        const numericHeight = Number(contentHeight);
+        if (!Number.isFinite(numericHeight) || numericHeight <= 0) {
+          return;
+        }
+        const nextBodyHeightPx = Math.max(
+          120,
+          Math.min(bodyMaxHeightPx, Math.ceil(numericHeight + bodyBottomPaddingPx))
+        );
+        if (this.data.layerPanelBodyHeightPx !== nextBodyHeightPx) {
+          this.setData({
+            layerPanelBodyHeightPx: nextBodyHeightPx,
+            layerPanelMaxHeightPx: panelMaxHeightPx
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("measure layer panel layout failed", err);
+      });
   },
 
   findProvinceCityTreeNodeById(nodeId, treeNodes = null) {
@@ -6791,20 +6839,20 @@ Page({
   },
 
   onProvinceCityTreeExpandTap(event = {}) {
-    const id = `${event?.currentTarget?.dataset?.id || ""}`.trim();
+    const id = `${resolveEventDataset(event).id || ""}`.trim();
     if (!id) return;
     this._provinceCityHighlightExpandedMap[id] = this._provinceCityHighlightExpandedMap[id] !== true;
     this.updateProvinceCityTreeData();
   },
 
   onProvinceCityTreeSelectTap(event = {}) {
-    const id = `${event?.currentTarget?.dataset?.id || ""}`.trim();
+    const id = `${resolveEventDataset(event).id || ""}`.trim();
     if (!id || this.data.provinceCityHighlightEnabled !== true) return;
     this.applyProvinceCityHighlightSelection(id, { showErrorToast: true });
   },
 
   onMapElementToggle(event = {}) {
-    const id = event?.currentTarget?.dataset?.id;
+    const id = resolveEventDataset(event).id;
     if (!id) return;
     const flagMap = {
       uom: "uomDivisionEnabled",
@@ -8778,7 +8826,7 @@ Page({
   },
 
   onMarkerLikeTouchStart(e) {
-    const pageFlag = e?.currentTarget?.dataset?.page;
+    const pageFlag = resolveLikeEventPageFlag(e);
     const forPage = pageFlag === true || pageFlag === "true";
     const prefix = forPage ? "markerPage" : "marker";
     const type = this.data[`${prefix}LikeTargetType`];
@@ -8844,7 +8892,7 @@ Page({
   },
 
   onMarkerLikeTouchEnd(e) {
-    const pageFlag = e?.currentTarget?.dataset?.page;
+    const pageFlag = resolveLikeEventPageFlag(e);
     const forPage = pageFlag === true || pageFlag === "true";
     const prefix = forPage ? "markerPage" : "marker";
     if (!this._likeHoldFired[prefix]) {
@@ -8853,7 +8901,7 @@ Page({
   },
 
   onLikeCountTap(e) {
-    const count = Number(e?.currentTarget?.dataset?.count);
+    const count = resolveLikeCountFromEvent(e);
     if (!Number.isFinite(count)) return;
   },
 

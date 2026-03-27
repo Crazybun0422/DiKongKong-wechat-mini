@@ -104,4 +104,15 @@
       </view>
     </view>
   </view>
+  <city-report-host
+    wx:if="{{!stealthModeActive}}"
+    id="city-report-h5-entry"
+    center="{{cityReportCenter}}"
+    active="{{cityReportActive}}"
+    dialog-visible="{{cityReportDialogVisible}}"
+    dialog-text="{{cityReportDialogText}}"
+    bind:statechange="onCityReportStateChange"
+    bind:dialogchange="onCityReportDialogChange"
+    bind:dialogclose="onCityReportDialogClose"
+  />
 </view>

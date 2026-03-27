@@ -17,7 +17,10 @@
     "map-floating-controls": "/pages/map/components/map-floating-controls/index",
     "map-bottom-nav": "/pages/map/components/map-bottom-nav/index",
     "drone-picker-sheet": "/pages/map/components/drone-picker-sheet/index",
-    "coordinate-system-sheet": "/pages/map/components/coordinate-system-sheet/index"
+    "coordinate-system-sheet": "/pages/map/components/coordinate-system-sheet/index",
+    "map-layer-panel": "/pages/map/components/map-layer-panel/index",
+    "marker-detail-sheet": "/pages/map/components/marker-detail-sheet/index",
+    "marker-page-sheet": "/pages/map/components/marker-page-sheet/index"
   },
   "componentPlaceholder": {
     "newbie-task-popup": "view",
@@ -37,7 +40,10 @@
     "map-floating-controls": "view",
     "map-bottom-nav": "view",
     "drone-picker-sheet": "view",
-    "coordinate-system-sheet": "view"
+    "coordinate-system-sheet": "view",
+    "map-layer-panel": "view",
+    "marker-detail-sheet": "view",
+    "marker-page-sheet": "view"
   },
   "navigationStyle": "custom"
 }
