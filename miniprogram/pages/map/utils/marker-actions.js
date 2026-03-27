@@ -273,6 +273,34 @@ function resolveLikeTargetType(target = {}) {
   return "MARKER";
 }
 
+function resolveDeepRaw(raw = {}) {
+  let current = raw;
+  const seen = new Set();
+  while (
+    current &&
+    typeof current === "object" &&
+    current.raw &&
+    typeof current.raw === "object" &&
+    !seen.has(current.raw)
+  ) {
+    seen.add(current.raw);
+    current = current.raw;
+  }
+  return current && typeof current === "object" ? current : {};
+}
+
+function resolveMarkerNewId(page, detail = {}, marker = {}) {
+  const rawSource = resolveDeepRaw(detail.raw || marker?.extData?.raw || marker?.raw || {});
+  const extDetail = marker?.extData?.detail || {};
+  const value =
+    rawSource.markIdNew ??
+    detail.markIdNew ??
+    marker.markIdNew ??
+    extDetail.markIdNew ??
+    "";
+  return value ? `${value}`.trim() : "";
+}
+
 function resolveLikeTargetId(page, detail = {}, marker = {}, type = "") {
   const rawSource = page.resolveDeepRaw(detail.raw || marker?.extData?.raw || marker?.raw || {});
   const extDetail = marker?.extData?.detail || {};
@@ -465,6 +493,8 @@ module.exports = {
   trackMarkerExposure,
   trackPinExposure,
   openMarkerLocation,
+  resolveDeepRaw,
+  resolveMarkerNewId,
   resolveLikeTargetType,
   resolveLikeTargetId,
   applyLikeState,

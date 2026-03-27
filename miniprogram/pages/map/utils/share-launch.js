@@ -1,6 +1,11 @@
-const { fetchMarkerDetail } = require("../../../utils/markers");
+const { fetchMarkerDetail, buildFileDownloadUrl } = require("../../../utils/markers");
 const { fetchPinDetail } = require("../../../utils/pins");
 const { haversineMeters, wgs84ToGcj02 } = require("../../../utils/coords");
+const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery,
+  getShareInviteCode: getShareInviteCodeUtil
+} = require("../../../utils/share");
 
 const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 const MAP_MIN_SCALE = 0;
@@ -1092,6 +1097,195 @@ function focusOfflineMarker(page, request = {}) {
   page.openMarkerDetail(marker);
 }
 
+function applyOfflineSnapshot(detail, snapshot = {}) {
+  if (!detail || !snapshot || typeof snapshot !== "object") {
+    return;
+  }
+  const resolveUrl = (item) => {
+    if (!item) return "";
+    if (typeof item === "string") {
+      return item.trim();
+    }
+    if (typeof item.url === "string" && item.url.trim()) {
+      return item.url.trim();
+    }
+    if (typeof item.fileName === "string" && item.fileName.trim()) {
+      return item.fileName.trim();
+    }
+    return "";
+  };
+  if ((!detail.images || !detail.images.length) && Array.isArray(snapshot.images)) {
+    detail.images = snapshot.images
+      .map((item, index) => {
+        const url = resolveUrl(item);
+        if (!url) return null;
+        return {
+          id: (item && item.id) || `${detail.markerId || "offline"}-image-${index}`,
+          url,
+          fileName: (item && item.fileName) || url
+        };
+      })
+      .filter(Boolean);
+  }
+  if ((!detail.attachments || !detail.attachments.length) && Array.isArray(snapshot.attachments)) {
+    detail.attachments = snapshot.attachments
+      .map((item, index) => {
+        const url = resolveUrl(item);
+        if (!url) return null;
+        const displayName =
+          (item && (item.displayName || item.name || item.fileName)) ||
+          url.split("/").pop() ||
+          "附件";
+        return {
+          id: (item && item.id) || `${detail.markerId || "offline"}-attachment-${index}`,
+          url,
+          displayName,
+          fileName: (item && (item.fileName || item.name)) || displayName
+        };
+      })
+      .filter(Boolean);
+  }
+  if ((!detail.qrCodes || !detail.qrCodes.length) && Array.isArray(snapshot.qrCodes)) {
+    detail.qrCodes = snapshot.qrCodes
+      .map((item, index) => {
+        const url = resolveUrl(item);
+        if (!url) return null;
+        return {
+          id: (item && item.id) || `${detail.markerId || "offline"}-qr-${index}`,
+          url,
+          fileName: (item && (item.fileName || item.name)) || ""
+        };
+      })
+      .filter(Boolean);
+  }
+  if ((!detail.honors || !detail.honors.length) && Array.isArray(snapshot.honors)) {
+    detail.honors = snapshot.honors.slice();
+  }
+  if (!detail.description && snapshot.description) {
+    detail.description = snapshot.description;
+  }
+  if (!detail.phone && snapshot.phone) {
+    detail.phone = snapshot.phone;
+  }
+  if (!detail.locationText && snapshot.locationText) {
+    detail.locationText = snapshot.locationText;
+  }
+  if (!detail.name && snapshot.name) {
+    detail.name = snapshot.name;
+  }
+}
+
+function getShareInviteCodeValue() {
+  if (typeof getShareInviteCodeUtil !== "function") {
+    return "";
+  }
+  try {
+    return getShareInviteCodeUtil();
+  } catch (err) {
+    console.warn("getShareInviteCodeValue failed", err);
+    return "";
+  }
+}
+
+function onShareAppMessage(page, event = {}) {
+  const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: page.getApiBase() });
+  const isCenterPinShareButton =
+    event?.from === "button" &&
+    !page.data.markerPageVisible &&
+    !page.data.markerDetailVisible;
+  const centerShare = isCenterPinShareButton
+    ? page.buildCurrentCenterSharePayload()
+    : page.consumeCenterActionSharePayload();
+  if (isCenterPinShareButton) {
+    page.clearPendingCenterActionShare();
+  }
+  if (centerShare && centerShare.queryBase) {
+    return {
+      title: centerShare.title,
+      path: appendInviteCodeToPath(`/pages/map/map?${centerShare.queryBase}`),
+      imageUrl: posterUrl
+    };
+  }
+  const detail = page._lastMarkerDetail;
+  const inviteCode = getShareInviteCodeValue();
+  const fallback = {
+    title: "与uom、大疆100%同步的低空地图，来一起探索~",
+    path: appendInviteCodeToPath("/pages/map/map", { inviteCode }),
+    imageUrl: posterUrl
+  };
+  if (!detail) {
+    return fallback;
+  }
+  if (!page.isDetailSharable(detail)) {
+    page.showShareBlockedToast();
+    return fallback;
+  }
+  const rawDetail = detail?.raw || {};
+  const isPinDetail = page.isPinDetail(detail);
+  const targetValue = isPinDetail
+    ? (rawDetail.pinIdNew ?? detail.pinIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "")
+    : (rawDetail.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "");
+  const targetId = targetValue !== undefined && targetValue !== null ? `${targetValue}` : "";
+  if (!targetId) {
+    return fallback;
+  }
+  if (isPinDetail) {
+    return {
+      title: detail.name,
+      path: appendInviteCodeToPath(
+        `/pages/map/map?fs=1&pId=${encodeURIComponent(targetId)}`,
+        { inviteCode }
+      )
+    };
+  }
+  return {
+    title: detail.name,
+    path: appendInviteCodeToPath(
+      `/pages/map/map?fs=1&mId=${encodeURIComponent(targetId)}`,
+      { inviteCode }
+    )
+  };
+}
+
+function onShareTimeline(page) {
+  const centerShare = page.consumeCenterActionSharePayload();
+  if (centerShare && centerShare.queryBase) {
+    return {
+      title: centerShare.title,
+      query: appendInviteCodeToQuery(centerShare.queryBase)
+    };
+  }
+  const detail = page._lastMarkerDetail;
+  const inviteCode = getShareInviteCodeValue();
+  const fallback = {
+    title: "uom、大疆100%同步且可视化，还有低空智能体~",
+    query: appendInviteCodeToQuery("", { inviteCode })
+  };
+  if (!detail) {
+    return fallback;
+  }
+  if (!page.isDetailSharable(detail)) {
+    page.showShareBlockedToast();
+    return fallback;
+  }
+  const rawDetail = detail?.raw || {};
+  const isPinDetail = page.isPinDetail(detail);
+  const targetValue = isPinDetail
+    ? (rawDetail.pinIdNew ?? detail.pinIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "")
+    : (rawDetail.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "");
+  const targetId = targetValue !== undefined && targetValue !== null ? `${targetValue}` : "";
+  if (!targetId) {
+    return fallback;
+  }
+  const queryBase = isPinDetail
+    ? `pId=${encodeURIComponent(targetId)}&fs=1`
+    : `mId=${encodeURIComponent(targetId)}&fs=1`;
+  return {
+    title: fallback.title,
+    query: appendInviteCodeToQuery(queryBase, { inviteCode })
+  };
+}
+
 module.exports = {
   takePendingMarkerFocus,
   consumePendingMarkerFocus,
@@ -1122,5 +1316,9 @@ module.exports = {
   activateSharePinDetail,
   buildSharePinFromDetail,
   focusOnlineMarker,
-  focusOfflineMarker
+  focusOfflineMarker,
+  applyOfflineSnapshot,
+  getShareInviteCodeValue,
+  onShareAppMessage,
+  onShareTimeline
 };

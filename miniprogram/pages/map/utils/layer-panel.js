@@ -8,6 +8,11 @@ const {
   updateMapLayerSettings
 } = require("../../../utils/map-layer-settings");
 
+const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
+const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
+const MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY = "enableProvinceCityHighlight";
+const MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY = "provinceCityHighlightSelection";
+
 const resolveEventDataset = (event = {}) => {
   const currentTargetDataset = event?.currentTarget?.dataset;
   if (currentTargetDataset && typeof currentTargetDataset === "object") {
@@ -415,6 +420,196 @@ function onMapElementToggle(page, event = {}) {
   });
 }
 
+function applyNoFlyOverlayToggle(page, options = {}) {
+  const djiEnabled = options.djiEnabled !== false;
+  const temporaryEnabled = options.temporaryEnabled !== false;
+  if (!djiEnabled) {
+    page._djiPolygons = [];
+    page._djiCircles = [];
+    page.setData({
+      djiStatus: "已禁用",
+      djiStatusExtra: "",
+      djiTone: "warn",
+      djiColor: ""
+    });
+  } else {
+    page.setData({
+      djiStatus: "评估中",
+      djiStatusExtra: "",
+      djiTone: "neutral",
+      djiColor: ""
+    });
+  }
+  page.setDjiLayerEnabled(djiEnabled, { force: djiEnabled });
+  if (!temporaryEnabled) {
+    page._nfzPolygons = [];
+    page._nfzCircles = [];
+    page.setData({
+      temporaryNoFlyZoneInfo: null,
+      temporaryNoFlyText: "已禁用",
+      temporaryNoFlyTone: "warn"
+    });
+  } else {
+    page.setData({
+      temporaryNoFlyZoneInfo: null,
+      temporaryNoFlyText: "评估中",
+      temporaryNoFlyTone: "neutral"
+    });
+  }
+  page.setTemporaryNoFlyLayerEnabled(temporaryEnabled, { force: temporaryEnabled });
+  page.updateOverlayGraphics();
+}
+
+function applyMerchantMarkersToggle(page, enabled) {
+  if (enabled === false) {
+    page._nearbyMarkersRaw = [];
+    page._nearbyMarkers = [];
+    page._lastNearbyFetch = null;
+    page.syncAllMarkers();
+    return;
+  }
+  page.syncAllMarkers();
+  page.scheduleFetchMarkers(0, { force: true });
+}
+
+function applyPinLayerToggle(page, forceFetch = false) {
+  page.rebuildNearbyPinGraphics();
+  if (!page.isPinLayerEnabled()) {
+    if (page._pinsFetchTimer) {
+      clearTimeout(page._pinsFetchTimer);
+      page._pinsFetchTimer = null;
+    }
+    page._lastNearbyPinFetch = null;
+    return;
+  }
+  if (forceFetch && page.isPinLayerEnabled()) {
+    page.scheduleFetchPins(0, { force: true });
+  }
+}
+
+function parseMapLayerExtraBoolean(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return fallback;
+    if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function resolveCenterTargetLinkEnabled(page, settings = {}) {
+  const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+  const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] : undefined;
+  if (raw === undefined || raw === null) {
+    return true;
+  }
+  const disabled = parseMapLayerExtraBoolean(raw, false);
+  return disabled !== true;
+}
+
+function resolveProvinceCityHighlightEnabled(page, settings = {}) {
+  const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+  const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY] : undefined;
+  if (raw === undefined || raw === null) {
+    return false;
+  }
+  return parseMapLayerExtraBoolean(raw, false) === true;
+}
+
+function resolveProvinceCityHighlightSelectionId(page, settings = {}) {
+  const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+  const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY] : undefined;
+  if (typeof raw !== "string") {
+    return "";
+  }
+  return raw.trim();
+}
+
+function buildMapLayerExtraConfigPayload(page) {
+  const existing =
+    page._mapLayerSettings && typeof page._mapLayerSettings.extraConfig === "object"
+      ? page._mapLayerSettings.extraConfig
+      : null;
+  const extraConfig = existing ? Object.assign({}, existing) : {};
+  extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] =
+    page.data.centerTargetLinkEnabled === false ? "true" : "false";
+  extraConfig[MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY] =
+    page.data.provinceCityHighlightEnabled === true ? "true" : "false";
+  const selectedId =
+    `${page._provinceCityHighlightSelectedId || page.data.provinceCityHighlightSelectedId || ""}`.trim();
+  extraConfig[MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY] = selectedId || null;
+  return extraConfig;
+}
+
+function buildMapLayerSettingsPayload(page) {
+  return {
+    mapType: page.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
+    airspaceBoardEnabled: !!page.data.airBoardEnabled,
+    uomDivisionEnabled: !!page.data.uomDivisionEnabled,
+    djiNoFlyZoneEnabled: !!page.data.djiNoFlyZoneEnabled,
+    temporaryNoFlyZoneEnabled: !!page.data.temporaryNoFlyZoneEnabled,
+    merchantMarkersEnabled: !!page.data.merchantMarkersEnabled,
+    privateMarkersEnabled: !!page.data.privateMarkersEnabled,
+    groupSharingEnabled: !!page.data.groupSharingEnabled,
+    platformCoConstructionEnabled: !!page.data.platformCoConstructionEnabled,
+    useDefaultCenterPoint: !page.data.usePlanetCenterPoint,
+    aircraftModel: page.data.selectedDrone || "",
+    extraConfig: buildMapLayerExtraConfigPayload(page)
+  };
+}
+
+function loadCachedUsePlanetMyLocationPreference() {
+  if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return null;
+  try {
+    const cached = wx.getStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY);
+    if (typeof cached === "boolean") return cached;
+  } catch (err) {
+    console.warn("load cached usePlanetMyLocation preference failed", err);
+  }
+  return null;
+}
+
+function cacheUsePlanetMyLocationPreference(enabled) {
+  if (typeof wx === "undefined" || typeof wx.setStorageSync !== "function") return;
+  try {
+    wx.setStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY, enabled === true);
+  } catch (err) {
+    console.warn("cache usePlanetMyLocation preference failed", err);
+  }
+}
+
+function composeMapElementOptions(flags = {}) {
+  const state = Object.assign(
+    {
+      uomDivisionEnabled: true,
+      djiNoFlyZoneEnabled: true,
+      temporaryNoFlyZoneEnabled: true,
+      merchantMarkersEnabled: true,
+      privateMarkersEnabled: false,
+      groupSharingEnabled: false,
+      platformCoConstructionEnabled: true
+    },
+    flags
+  );
+  const djiEnabled = !!state.djiNoFlyZoneEnabled;
+  const tempEnabled = !!state.temporaryNoFlyZoneEnabled;
+  return [
+    { id: "uom", label: "uom划分", enabled: !!state.uomDivisionEnabled },
+    { id: "dji", label: "大疆划分", enabled: djiEnabled },
+    { id: "tempNoFly", label: "临时禁飞区", enabled: tempEnabled },
+    { id: "service", label: "商户服务", enabled: !!state.merchantMarkersEnabled },
+    { id: "private", label: "私有标记", enabled: !!state.privateMarkersEnabled },
+    { id: "group", label: "小组共享", enabled: !!state.groupSharingEnabled },
+    { id: "platform", label: "平台共建", enabled: !!state.platformCoConstructionEnabled }
+  ];
+}
+
 function applyLayerSettings(page, settings = {}, options = {}) {
   const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
   const airspace = settings.airspaceBoardEnabled !== false;
@@ -641,6 +836,18 @@ module.exports = {
   onProvinceCityTreeExpandTap,
   onProvinceCityTreeSelectTap,
   onMapElementToggle,
+  applyNoFlyOverlayToggle,
+  applyMerchantMarkersToggle,
+  applyPinLayerToggle,
+  parseMapLayerExtraBoolean,
+  resolveCenterTargetLinkEnabled,
+  resolveProvinceCityHighlightEnabled,
+  resolveProvinceCityHighlightSelectionId,
+  buildMapLayerExtraConfigPayload,
+  buildMapLayerSettingsPayload,
+  loadCachedUsePlanetMyLocationPreference,
+  cacheUsePlanetMyLocationPreference,
+  composeMapElementOptions,
   applyLayerSettings,
   loadMapLayerSettings,
   bootstrapMapLayerSettings,

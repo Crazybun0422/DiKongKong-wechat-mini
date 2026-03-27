@@ -65,6 +65,30 @@ const settleWithValue = (promise, options = {}) => {
     });
 };
 
+const cloneMarkerDetail = (detail = {}) => {
+  if (!detail || typeof detail !== "object") {
+    return {};
+  }
+  const cloneArray = (value) => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
+  };
+  const cloned = { ...detail };
+  cloned.images = cloneArray(detail.images);
+  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
+  cloned.attachments = cloneArray(detail.attachments);
+  cloned.qrCodes = cloneArray(detail.qrCodes);
+  cloned.videoAccounts = cloneArray(detail.videoAccounts);
+  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
+    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
+  } else if (!detail.primaryVideoAccount) {
+    cloned.primaryVideoAccount = null;
+  }
+  return cloned;
+};
+
 function buildSearchLocationArgs(page) {
   let locationArgs = null;
   const center = page._centerOverride || page.data.center;
@@ -137,6 +161,92 @@ function applyAirBoardToggle(page, enabled) {
 function clearSearchSelectionVisuals(page) {
   page.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_SEARCH });
   page.applySearchMarkers([]);
+}
+
+function isSearchMarkerSource(source = "") {
+  const src = `${source || ""}`.trim().toLowerCase();
+  if (!src || src.includes("search-link")) {
+    return false;
+  }
+  return (
+    src === "search" ||
+    src === "search-selected" ||
+    src === "marker-search" ||
+    src === "marker-search-selected" ||
+    src === "pin-search" ||
+    src === "pin-search-selected" ||
+    src === "coordinate-search" ||
+    src === "coordinate-search-selected"
+  );
+}
+
+function isSearchSelectionMarker(marker = {}) {
+  const source = marker?.extData?.source || marker?.source || "";
+  return isSearchMarkerSource(source);
+}
+
+function cloneSearchSelectionMarker(marker = {}) {
+  if (!marker || typeof marker !== "object") {
+    return null;
+  }
+  const next = Object.assign({}, marker);
+  if (marker.extData && typeof marker.extData === "object") {
+    next.extData = Object.assign({}, marker.extData);
+    if (marker.extData.detail && typeof marker.extData.detail === "object") {
+      next.extData.detail = cloneMarkerDetail(marker.extData.detail);
+    }
+  }
+  return next;
+}
+
+function resolveSearchSelectionAddress(page, marker = {}) {
+  const source = `${marker?.extData?.source || marker?.source || ""}`.trim().toLowerCase();
+  if (!source.includes("coordinate")) return;
+  const latitude = Number(marker.latitude);
+  const longitude = Number(marker.longitude);
+  const markerId = marker.id;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !markerId) {
+    return;
+  }
+  page.requestPinAddress(latitude, longitude)
+    .then((address) => {
+      if (!address) return;
+      applySearchMarkerAddress(page, markerId, address);
+    })
+    .catch((err) => console.warn("resolve coordinate search address failed", err));
+}
+
+function applySearchMarkerAddress(page, markerId, address) {
+  if (!markerId || !address || !Array.isArray(page._searchMarkers)) return;
+  let changed = false;
+  const nextMarkers = page._searchMarkers.map((marker) => {
+    if (`${marker?.id || ""}` !== `${markerId}`) {
+      return marker;
+    }
+    const next = Object.assign({}, marker);
+    const title = `${next.title || next.name || "经纬度位置"}`.trim();
+    next.callout = {
+      content: `${title}\n${address}`,
+      display: "ALWAYS",
+      borderRadius: 4,
+      padding: 4
+    };
+    if (next.extData && typeof next.extData === "object") {
+      const raw = Object.assign({}, next.extData.raw || {}, {
+        address,
+        location: { text: address }
+      });
+      const detail = Object.assign({}, next.extData.detail || {}, {
+        address,
+        locationText: address
+      });
+      next.extData = Object.assign({}, next.extData, { raw, detail });
+    }
+    changed = true;
+    return next;
+  });
+  if (!changed) return;
+  page.applySearchMarkers(nextMarkers);
 }
 
 function onKeywordInput(page, event = {}) {
@@ -489,7 +599,7 @@ function buildSearchSelectionMarker(page, suggestion = {}, index = 0) {
 }
 
 function applySearchSelectionFromMarker(page, marker, options = {}) {
-  if (!marker || !page.isSearchSelectionMarker(marker)) {
+  if (!marker || !isSearchSelectionMarker(marker)) {
     return false;
   }
   const latitude = Number(marker.latitude);
@@ -498,7 +608,7 @@ function applySearchSelectionFromMarker(page, marker, options = {}) {
     return false;
   }
   page.clearMapTapTargetPoint({ preserveSearchLink: true });
-  const selectedMarker = page.cloneSearchSelectionMarker(marker) || marker;
+  const selectedMarker = cloneSearchSelectionMarker(marker) || marker;
   const keyword = `${options.keyword || marker.title || marker.name || page.data.keyword || ""}`.trim();
   const target = { latitude, longitude };
   page.setData({
@@ -518,7 +628,7 @@ function applySearchSelectionFromMarker(page, marker, options = {}) {
       : 15;
     page.centerOnPoint(target, centerScale);
   }
-  page.resolveSearchSelectionAddress(selectedMarker);
+  resolveSearchSelectionAddress(page, selectedMarker);
   return true;
 }
 
@@ -586,6 +696,11 @@ module.exports = {
   updatePreflightOverlayTop,
   applyAirBoardToggle,
   clearSearchSelectionVisuals,
+  isSearchMarkerSource,
+  isSearchSelectionMarker,
+  cloneSearchSelectionMarker,
+  resolveSearchSelectionAddress,
+  applySearchMarkerAddress,
   onKeywordInput,
   onSearchConfirm,
   performSearch,
