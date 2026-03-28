@@ -19,11 +19,19 @@ function formatLikeCountDisplay(value) {
 
 function resolveEventDataset(event = {}) {
   const currentTargetDataset = event?.currentTarget?.dataset;
-  if (currentTargetDataset && typeof currentTargetDataset === "object") {
+  if (
+    currentTargetDataset &&
+    typeof currentTargetDataset === "object" &&
+    Object.keys(currentTargetDataset).length
+  ) {
     return currentTargetDataset;
   }
   const detailDataset = event?.detail?.dataset;
-  if (detailDataset && typeof detailDataset === "object") {
+  if (
+    detailDataset &&
+    typeof detailDataset === "object" &&
+    Object.keys(detailDataset).length
+  ) {
     return detailDataset;
   }
   return {};

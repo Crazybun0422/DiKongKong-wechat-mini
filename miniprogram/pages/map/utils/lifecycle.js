@@ -1,13 +1,4 @@
-const applyMapStatusBarStyle = () => {
-  if (typeof wx === "undefined" || typeof wx.setNavigationBarColor !== "function") {
-    return;
-  }
-  wx.setNavigationBarColor({
-    frontColor: "#000000",
-    backgroundColor: "#ffffff",
-    animation: { duration: 0, timingFunc: "linear" }
-  });
-};
+const { applyMapStatusBarStyle } = require("./map-shared");
 
 function onShow(page) {
   applyMapStatusBarStyle();

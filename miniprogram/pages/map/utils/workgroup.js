@@ -1,47 +1,6 @@
 const { loadStoredProfile } = require("../../../utils/profile");
 const { joinWorkGroup } = require("../../../utils/workGroups");
-
-const decodeParamValue = (value) => {
-  if (value === undefined || value === null) return "";
-  const text = `${value}`.trim();
-  if (!text) return "";
-  try {
-    return decodeURIComponent(text);
-  } catch (err) {
-    return text;
-  }
-};
-
-const parseSceneParams = (scene) => {
-  if (!scene || typeof scene !== "string") {
-    return {};
-  }
-  let decoded = scene;
-  try {
-    decoded = decodeURIComponent(scene);
-  } catch (err) {
-    decoded = `${scene}`;
-  }
-  decoded = decoded.replace(/\+/g, " ");
-  const params = {};
-  decoded.split(/[&,|]/).forEach((segment) => {
-    const chunk = segment.trim();
-    if (!chunk) return;
-    let separatorIndex = chunk.indexOf("=");
-    if (separatorIndex < 0) {
-      separatorIndex = chunk.indexOf(":");
-    }
-    if (separatorIndex < 0) {
-      params[chunk] = "";
-      return;
-    }
-    const key = chunk.slice(0, separatorIndex).trim();
-    const value = chunk.slice(separatorIndex + 1).trim();
-    if (!key) return;
-    params[key] = value;
-  });
-  return params;
-};
+const { decodeParamValue, parseSceneParams } = require("./launch-shared");
 
 const decodeMaybeURI = (text = "") => {
   if (typeof text !== "string") return "";

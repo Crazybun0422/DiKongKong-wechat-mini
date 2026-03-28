@@ -4,35 +4,15 @@ const {
   buildMapTapTargetState,
   updateMapTapTargetAddress,
   buildMapTapTargetMarker,
+  isMapTapTargetMarker,
   shouldRemoveMapTapTarget
 } = require("../../../utils/map-target-link");
 const { computeGreatCircleDistance } = require("../../../utils/distance");
+const { hasValidCoordinate } = require("./map-shared");
+const { cloneMarkerDetail } = require("./marker-shared");
 
 const SEARCH_LINK_OWNER_SEARCH = "search";
 const SEARCH_LINK_OWNER_MAP_TAP = "map-tap";
-
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
-
-const cloneMarkerDetail = (detail = {}) => {
-  if (!detail || typeof detail !== "object") return {};
-  const cloneArray = (value) => {
-    if (!Array.isArray(value)) return [];
-    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
-  };
-  const cloned = { ...detail };
-  cloned.images = cloneArray(detail.images);
-  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
-  cloned.attachments = cloneArray(detail.attachments);
-  cloned.qrCodes = cloneArray(detail.qrCodes);
-  cloned.videoAccounts = cloneArray(detail.videoAccounts);
-  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
-    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
-  } else if (!detail.primaryVideoAccount) {
-    cloned.primaryVideoAccount = null;
-  }
-  return cloned;
-};
 
 function applySearchMarkers(page, markers) {
   page._searchMarkers = Array.isArray(markers)
@@ -247,6 +227,7 @@ function onSearchLinkGraphicsChange(page, event = {}) {
 }
 
 module.exports = {
+  isMapTapTargetMarker,
   applySearchMarkers,
   formatCenterPinLinkDistance,
   buildCenterPinLinkState,

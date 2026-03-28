@@ -9,25 +9,11 @@ const {
   isTencentCosStsValid,
   buildTencentCosSignedUrl
 } = require("../../../utils/tencent-cos");
-
-const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
+const { hasValidCoordinate, clampMapScale } = require("./map-shared");
+const { isKmlShapeType } = require("./marker-shared");
 const MY_LOCATION_MARKER_ID = 991001;
 const MY_LOCATION_MARKER_ICON_PATH = "/assets/p-point.png";
 const MY_LOCATION_MARKER_SIZE = 40;
-
-const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
-
-const clampMapScale = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  const rounded = Math.round(base);
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
-};
 
 const formatNearbyMarkerLabel = (value) => {
   if (typeof value !== "string") return "";

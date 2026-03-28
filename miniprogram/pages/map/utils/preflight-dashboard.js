@@ -6,6 +6,7 @@ const {
   buildCoordinateSuggestion
 } = require("../../../utils/coordinate-search");
 const { gcj02ToWgs84 } = require("../../../utils/coords");
+const { cloneMarkerDetail } = require("./marker-shared");
 
 const MAX_SEARCH_SUGGESTIONS = 10;
 const MAX_SEARCH_RESULTS = 20;
@@ -65,30 +66,6 @@ const settleWithValue = (promise, options = {}) => {
     });
 };
 
-const cloneMarkerDetail = (detail = {}) => {
-  if (!detail || typeof detail !== "object") {
-    return {};
-  }
-  const cloneArray = (value) => {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
-  };
-  const cloned = { ...detail };
-  cloned.images = cloneArray(detail.images);
-  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
-  cloned.attachments = cloneArray(detail.attachments);
-  cloned.qrCodes = cloneArray(detail.qrCodes);
-  cloned.videoAccounts = cloneArray(detail.videoAccounts);
-  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
-    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
-  } else if (!detail.primaryVideoAccount) {
-    cloned.primaryVideoAccount = null;
-  }
-  return cloned;
-};
-
 function buildSearchLocationArgs(page) {
   let locationArgs = null;
   const center = page._centerOverride || page.data.center;
@@ -130,8 +107,9 @@ function fillPinSuggestionAddresses(page, suggestions = [], keywordSnapshot = ""
 
 function updatePreflightOverlayTop(page) {
   const baseTopRpx = Number(page.data.preflightBaseTopRpx) || 120;
-  const { screenWidth } = getWindowMetrics();
-  const rpx = screenWidth ? screenWidth / 750 : 0;
+  const { windowWidth } = getWindowMetrics();
+  const baselineWidth = windowWidth ? Math.min(windowWidth, 375) : 375;
+  const rpx = baselineWidth ? baselineWidth / 750 : 0;
   const baseTopPx = rpx > 0 ? baseTopRpx * rpx : 60;
   let topPx = baseTopPx;
 

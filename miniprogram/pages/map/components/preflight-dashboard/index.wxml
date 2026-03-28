@@ -1,6 +1,6 @@
 <view
   class="preflight-overlay {{stealthModeActive ? 'preflight-overlay--stealth' : ''}}"
-  style="top: {{topPx}}px; {{uiScaleStyle}}; transform-origin: left top;"
+  style="top: {{topPx}}px; left: {{leftPx}}px; {{uiScaleStyle}}; transform-origin: left top;"
 >
   <view class="preflight-card">
     <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
@@ -54,16 +54,21 @@
     <view wx:if="{{!stealthModeActive}}" class="control-row">
       <view class="search-stack">
         <view class="search-pill">
+          <view class="search-input-wrap">
+            <view class="search-display {{keyword ? '' : 'search-display--placeholder'}}">
+              {{keyword || '地址或经纬度'}}
+            </view>
           <input
             class="search-field"
             type="text"
-            placeholder="地址或经纬度"
-            placeholder-style="color:#f1f1f1"
+            placeholder=""
+            cursor-color="#ffffff"
             value="{{keyword}}"
             bindinput="onKeywordInput"
             confirm-type="search"
             bindconfirm="onSearchConfirm"
           />
+          </view>
           <button
             class="search-btn"
             hover-class="search-btn-hover"

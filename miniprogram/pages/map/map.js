@@ -35,16 +35,22 @@ const pinPreviewUtils = require("./utils/pin-preview");
 const policyGuideUtils = require("./utils/policy-guide");
 const mapPluginsUtils = require("./utils/map-plugins");
 const miscActionsUtils = require("./utils/misc-actions");
-
-const DEFAULT_CENTER = {
-  latitude: 39.908823,
-  longitude: 116.39747
-};
+const {
+  DEFAULT_CENTER,
+  MAP_MIN_SCALE,
+  MAP_MAX_SCALE,
+  DEFAULT_MAP_SCALE,
+  DEFAULT_SCALE_BAR_BASE_RPX,
+  CENTER_PIN_FOLLOW_TIP_TEXT,
+  DEFAULT_MAP_CHECKIN_ENTRY_STYLE,
+  hasValidCoordinate
+} = require("./utils/map-shared");
+const {
+  COORDINATE_SYSTEM_OPTIONS,
+  resolveCoordinateSystemDisplayLabel
+} = require("./utils/coordinate-system");
 
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
 const MARKER_SVIP_ICON_PATH = "/assets/svip2.png";
 const MARKER_CERTIFICATION_INFO_ITEMS = [
   {
@@ -66,33 +72,6 @@ const MARKER_CERTIFICATION_INFO_ITEMS = [
     description: "主页提供更丰富的案例、产品文档等展示"
   }
 ];
-const DEFAULT_SCALE_BAR_BASE_RPX = 80;
-const CENTER_PIN_FOLLOW_TIP_TEXT = "长按解除绑定状态~";
-const DEFAULT_MAP_CHECKIN_ENTRY_STYLE =
-  "top: calc(env(safe-area-inset-top) + 96rpx); right: 24rpx; width: 150rpx; height: 50rpx;";
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
-const COORDINATE_SYSTEM_OPTIONS = [
-  { value: "gcj02", label: "GCJ-02" },
-  { value: "bd09", label: "BD09" },
-  { value: "wgs84", label: "WGS84" },
-  { value: "cgcs2000", label: "CGCS2000" }
-];
-
-const COORDINATE_SYSTEM_DISPLAY_LABEL_MAP = {
-  gcj02: "gcj-02",
-  bd09: "bd09",
-  wgs84: "wgs84",
-  cgcs2000: "cgcs2000"
-};
-
-const normalizeCoordinateSystem = (value) => {
-  const raw = `${value || ""}`.toLowerCase();
-  return COORDINATE_SYSTEM_OPTIONS.some((item) => item.value === raw) ? raw : "gcj02";
-};
-
-const resolveCoordinateSystemDisplayLabel = (coordinateSystem) =>
-  COORDINATE_SYSTEM_DISPLAY_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "gcj-02";
 
 Page({
   data: {
@@ -109,6 +88,7 @@ Page({
     mapUiScale: 1,
     mapUiScaleStyle: "",
     subscriptionBannerScaleStyle: "transform: translateY(-50%); transform-origin: left center;",
+    subscriptionBannerLeftPx: 8,
     layerPanelMaxHeightPx: 0,
     layerPanelBodyMaxHeightPx: 0,
     layerPanelBodyHeightPx: 0,
@@ -211,6 +191,13 @@ Page({
     preflightBaseTopRpx: 120,
     preflightTopRpx: 120,
     preflightTopPx: 60,
+    preflightLeftPx: 8,
+    scaleControlsLeftPx: 16,
+    scaleControlsBottomPx: 120,
+    compassBottomPx: 245,
+    floatingControlsRightPx: 16,
+    floatingControlsBottomPx: 131,
+    bottomNavBottomPx: 21,
     policyUpdateVisible: false,
     policyUpdateType: "",
     policyUpdateTitle: "",
@@ -1596,6 +1583,10 @@ Page({
     return targetLinkUtils.onSearchLinkGraphicsChange(this, event);
   },
 
+  isMapTapTargetMarker(marker = {}) {
+    return targetLinkUtils.isMapTapTargetMarker(marker);
+  },
+
   isMyLocationCirclesChanged(prev = [], next = []) {
     return pinPreviewUtils.isMyLocationCirclesChanged(prev, next);
   },
@@ -2107,5 +2098,3 @@ Page({
   },
 
 });
-
-

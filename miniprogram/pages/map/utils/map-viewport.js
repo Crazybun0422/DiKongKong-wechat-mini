@@ -1,31 +1,20 @@
 const { haversineMeters } = require("../../../utils/coords");
-
-const DEFAULT_CENTER = {
-  latitude: 39.908823,
-  longitude: 116.39747
-};
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
 const EARTH_RADIUS_METERS = 6378137;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
 const WEB_TILE_SIZE = 256;
 const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
-const DEFAULT_SCALE_BAR_BASE_RPX = 80;
-const MIN_CENTER_SYNC_METERS = 6;
-const MAP_COMPASS_ROTATE_THRESHOLD = 1;
-const MAP_COMPASS_ROTATE_SYNC_DELTA = 1;
-const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
-
-const clampMapScale = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  const rounded = Math.round(base);
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
-};
-
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+const {
+  DEFAULT_CENTER,
+  MAP_MAX_SCALE,
+  DEFAULT_MAP_SCALE,
+  DEFAULT_SCALE_BAR_BASE_RPX,
+  MIN_CENTER_SYNC_METERS,
+  MAP_COMPASS_ROTATE_THRESHOLD,
+  MAP_COMPASS_ROTATE_SYNC_DELTA,
+  MAP_COMPASS_SKEW_SYNC_DELTA,
+  hasValidCoordinate,
+  clampMapScale
+} = require("./map-shared");
 
 const normalizeMapRotate = (value) => {
   const numeric = Number(value);
@@ -391,8 +380,12 @@ function onRegionChange(page, e) {
         rawScale: detail.scale,
         latitude: newCenter.latitude
       });
-      page.refreshNearbyDisplayModes();
       run(scaleChanged);
+      try {
+        page.refreshNearbyDisplayModes();
+      } catch (err) {
+        console.warn("refreshNearbyDisplayModes failed", err);
+      }
       page.updateCenterPinIndicator();
     };
     if (shouldSync || forceScaleSync) {
@@ -491,8 +484,12 @@ function updateCenterAndRadius(page, detail) {
           rawScale: detail?.scale,
           latitude: newCenter.latitude
         });
-        page.refreshNearbyDisplayModes();
         run();
+        try {
+          page.refreshNearbyDisplayModes();
+        } catch (err) {
+          console.warn("refreshNearbyDisplayModes failed", err);
+        }
         page.updateCenterPinIndicator();
       };
       if (needSync || forceScaleSync) {

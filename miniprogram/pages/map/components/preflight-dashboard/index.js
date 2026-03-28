@@ -6,6 +6,7 @@ Component({
   properties: {
     stealthModeActive: { type: Boolean, value: false },
     topPx: { type: Number, value: 0 },
+    leftPx: { type: Number, value: 0 },
     uiScaleStyle: { type: String, value: "" },
     dronePickerLabel: { type: String, value: "" },
     temporaryNoFlyZoneInfo: { type: Object, value: null },

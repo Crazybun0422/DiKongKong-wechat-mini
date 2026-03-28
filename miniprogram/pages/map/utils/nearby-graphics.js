@@ -131,10 +131,23 @@ function buildNearbyMerchantMarker(page, item = {}, index = 0, scaleInMeters = n
 function rebuildNearbyMarkerGraphics(page) {
   const rawList = Array.isArray(page._nearbyMarkersRaw) ? page._nearbyMarkersRaw : [];
   const scaleInMeters = page.getCurrentScaleInMeters(page.data.scale);
-  page._nearbyMarkers = rawList
-    .map((item, index) => buildNearbyMerchantMarker(page, item, index, scaleInMeters))
-    .filter(Boolean);
-  page.trackMarkerExposure(page._nearbyMarkers);
+  const markers = [];
+  rawList.forEach((item, index) => {
+    try {
+      const marker = buildNearbyMerchantMarker(page, item, index, scaleInMeters);
+      if (marker) {
+        markers.push(marker);
+      }
+    } catch (err) {
+      console.warn("build nearby merchant marker failed", err, item);
+    }
+  });
+  page._nearbyMarkers = markers;
+  try {
+    page.trackMarkerExposure(page._nearbyMarkers);
+  } catch (err) {
+    console.warn("track nearby marker exposure failed", err);
+  }
   page.syncAllMarkers();
 }
 
@@ -153,7 +166,11 @@ function applyNearbyPins(page, list) {
   page._nearbyPinsRaw = Array.isArray(list) ? list : [];
   rebuildNearbyPinGraphics(page);
   page.updateCenterPinIndicator();
-  page.trackPinExposure(page._nearbyPinMarkers);
+  try {
+    page.trackPinExposure(page._nearbyPinMarkers);
+  } catch (err) {
+    console.warn("track nearby pin exposure failed", err);
+  }
 }
 
 function rebuildNearbyPinGraphics(page) {
@@ -174,37 +191,41 @@ function rebuildNearbyPinGraphics(page) {
   const rawList = Array.isArray(page._nearbyPinsRaw) ? page._nearbyPinsRaw : [];
   const scaleInMeters = page.getCurrentScaleInMeters(page.data.scale);
   rawList.forEach((item, index) => {
-    const pin = page.normalizeNearbyPin(item);
-    if (!pin || !page.isPinVisibilityEnabled(pin.visibility)) return;
-    if (previewId && `${pin.id || ""}` === previewId) return;
-    if (pin.shape.type === "POINT") {
-      const marker = page.buildPinPreviewMarker({
-        id: pin.id || `pin-${index}`,
-        name: pin.name,
-        location: pin.location,
-        shape: pin.shape,
-        height: pin.height,
-        coordsAreGcj: true,
-        raw: item,
-        scaleInMeters
-      });
-      if (marker) {
-        marker.extData = Object.assign({}, marker.extData, {
-          source: "pin-nearby",
-          raw: item
+    try {
+      const pin = page.normalizeNearbyPin(item);
+      if (!pin || !page.isPinVisibilityEnabled(pin.visibility)) return;
+      if (previewId && `${pin.id || ""}` === previewId) return;
+      if (pin.shape.type === "POINT") {
+        const marker = page.buildPinPreviewMarker({
+          id: pin.id || `pin-${index}`,
+          name: pin.name,
+          location: pin.location,
+          shape: pin.shape,
+          height: pin.height,
+          coordsAreGcj: true,
+          raw: item,
+          scaleInMeters
         });
-        markers.push(marker);
+        if (marker) {
+          marker.extData = Object.assign({}, marker.extData, {
+            source: "pin-nearby",
+            raw: item
+          });
+          markers.push(marker);
+        }
+        return;
       }
-      return;
-    }
-    const zone = page.buildPinPreviewZone(pin.shape);
-    if (!zone) return;
-    const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
-    if (Array.isArray(graphics.polygons)) {
-      polygons.push(...graphics.polygons);
-    }
-    if (Array.isArray(graphics.circles)) {
-      circles.push(...graphics.circles);
+      const zone = page.buildPinPreviewZone(pin.shape);
+      if (!zone) return;
+      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
+      if (Array.isArray(graphics.polygons)) {
+        polygons.push(...graphics.polygons);
+      }
+      if (Array.isArray(graphics.circles)) {
+        circles.push(...graphics.circles);
+      }
+    } catch (err) {
+      console.warn("build nearby pin graphics failed", err, item);
     }
   });
   page._nearbyPinMarkers = markers;

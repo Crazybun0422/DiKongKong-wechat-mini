@@ -10,10 +10,11 @@ const {
   resolveMapDisplayMode,
   getDisplayModeMarkerSize
 } = require("../../../utils/map-display-mode");
-
-const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
-
-const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
+const { hasValidCoordinate } = require("./map-shared");
+const {
+  isKmlShapeType,
+  cloneMarkerDetail
+} = require("./marker-shared");
 
 const flattenCoordinateList = (value) => {
   if (!Array.isArray(value)) return [];
@@ -77,33 +78,6 @@ const resolveShapeCoordinates = (shape = {}) => {
   }
   return { coordinates: flattenCoordinateList(coordinates), resolvedType };
 };
-
-const cloneMarkerDetail = (detail = {}) => {
-  if (!detail || typeof detail !== "object") {
-    return {};
-  }
-  const cloneArray = (value) => {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
-  };
-  const cloned = { ...detail };
-  cloned.images = cloneArray(detail.images);
-  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
-  cloned.attachments = cloneArray(detail.attachments);
-  cloned.qrCodes = cloneArray(detail.qrCodes);
-  cloned.videoAccounts = cloneArray(detail.videoAccounts);
-  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
-    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
-  } else if (!detail.primaryVideoAccount) {
-    cloned.primaryVideoAccount = null;
-  }
-  return cloned;
-};
-
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 
 const formatNearbyMarkerLabel = (value) => {
   if (typeof value !== "string") {

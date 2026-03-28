@@ -1,17 +1,7 @@
 const { fetchNearbyMarkers } = require("../../../utils/markers");
 const { fetchNearbyPins } = require("../../../utils/pins");
 const { haversineMeters, gcj02ToWgs84 } = require("../../../utils/coords");
-
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
-
-const clampMapScale = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  const rounded = Math.round(base);
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
-};
+const { clampMapScale } = require("./map-shared");
 
 function computeMarkerRadiusKm(page, context = {}) {
   const region = context?.region;

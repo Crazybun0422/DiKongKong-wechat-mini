@@ -6,6 +6,9 @@ Component({
   properties: {
     visible: { type: Boolean, value: false },
     uiScaleStyle: { type: String, value: "" },
+    uiScale: { type: Number, value: 1 },
+    wideLayout: { type: Boolean, value: false },
+    containerStyle: { type: String, value: "" },
     activeTab: { type: String, value: "home" },
     showProfileRedDot: { type: Boolean, value: false }
   },

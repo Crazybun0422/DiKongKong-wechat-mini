@@ -1,6 +1,8 @@
 const { resolveCertifiedState } = require("../../../utils/marker-detail");
 const { gcj02ToWgs84 } = require("../../../utils/coords");
 const { formatDistanceText, computeGreatCircleDistance } = require("../../../utils/distance");
+const { isTruthyFlag } = require("./launch-shared");
+const { cloneMarkerDetail } = require("./marker-shared");
 
 const MARKER_CERTIFICATION_SHEET_CLOSE_DURATION = 220;
 const MARKER_PAGE_SCROLL_TOP_THRESHOLD = 36;
@@ -19,30 +21,6 @@ function buildBadgeTitleParts(title, fallback = "") {
     titleTailText: tail
   };
 }
-
-const cloneMarkerDetail = (detail = {}) => {
-  if (!detail || typeof detail !== "object") {
-    return {};
-  }
-  const cloneArray = (value) => {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
-  };
-  const cloned = { ...detail };
-  cloned.images = cloneArray(detail.images);
-  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
-  cloned.attachments = cloneArray(detail.attachments);
-  cloned.qrCodes = cloneArray(detail.qrCodes);
-  cloned.videoAccounts = cloneArray(detail.videoAccounts);
-  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
-    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
-  } else if (!detail.primaryVideoAccount) {
-    cloned.primaryVideoAccount = null;
-  }
-  return cloned;
-};
 
 const resolveEventDataset = (event = {}) => {
   const detailDataset = event?.detail?.dataset;
@@ -68,17 +46,6 @@ const resolveEventTouches = (event = {}) => {
     return event.touches;
   }
   return [];
-};
-
-const isTruthyFlag = (value) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return false;
-    return ["1", "true", "yes", "y", "on", "share"].includes(normalized);
-  }
-  return false;
 };
 
 function openMarkerDetail(page, marker) {

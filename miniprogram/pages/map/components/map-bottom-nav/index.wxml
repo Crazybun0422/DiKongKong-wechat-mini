@@ -1,4 +1,8 @@
-<view class="bottom-controls" wx:if="{{visible}}" style="{{uiScaleStyle}}; transform-origin: center bottom;">
+<view
+  class="bottom-controls"
+  wx:if="{{visible}}"
+  style="{{containerStyle}} {{wideLayout && uiScale < 0.9999 ? 'transform: translateX(-50%) scale(' + uiScale + '); transform-origin: center bottom;' : 'transform: translateX(-50%); transform-origin: center bottom;'}}"
+>
   <view class="bottom-menu">
     <button class="menu-btn {{activeTab === 'home' ? 'is-active' : ''}}" bindtap="onMenuHomeTap">
       <image class="menu-icon" src="{{activeTab === 'home' ? '/assets/home-active.png' : '/assets/home.png'}}" mode="aspectFit" />

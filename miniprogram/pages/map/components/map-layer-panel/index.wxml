@@ -17,10 +17,6 @@
         class="layer-panel-body"
         style="height: {{layerPanelBodyHeightPx || layerPanelBodyMaxHeightPx}}px; max-height: {{layerPanelBodyMaxHeightPx}}px;"
         enable-flex="true"
-        bindtouchstart="noop"
-        catchtouchmove="noop"
-        bindtouchend="noop"
-        bindtouchcancel="noop"
       >
         <view id="layer-panel-content">
           <view class="layer-type-grid">

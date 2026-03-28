@@ -1,4 +1,4 @@
-<view class="floating-controls" wx:if="{{visible}}" style="{{uiScaleStyle}}; transform-origin: right center;">
+<view class="floating-controls" wx:if="{{visible}}" style="{{containerStyle}} {{uiScaleStyle}}; transform-origin: right bottom;">
   <button
     class="newbie-gift-entry"
     wx:if="{{showNewbieGiftEntry}}"

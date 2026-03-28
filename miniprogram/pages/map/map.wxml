@@ -4,7 +4,6 @@
       id="main-map"
       class="map-canvas"
       style="height: calc(100vh + {{statusBarHeight}}px); margin-top: -{{statusBarHeight}}px;"
-      hidden="{{mapBlockerVisible}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
@@ -89,7 +88,7 @@
       id="subscription-banner"
       class="subscription-banner map-ui-scale-left"
       wx:if="{{activeTab === 'home' && showSubscriptionBanner && !stealthModeActive}}"
-      style="top: {{subscriptionBannerTopPx}}px; {{subscriptionBannerScaleStyle}}"
+      style="top: {{subscriptionBannerTopPx}}px; left: {{subscriptionBannerLeftPx}}px; {{subscriptionBannerScaleStyle}}"
     >
       <view class="subscription-banner-text">
         确保有新功能、空投福利时，您永远是第一批知道的~
@@ -106,7 +105,7 @@
     <view
       class="map-checkin-entry-wrap map-ui-scale-right"
       wx:if="{{activeTab === 'home' && !stealthModeActive}}"
-      style="{{checkinEntryStyle}} {{mapUiScaleStyle}}"
+      style="{{checkinEntryStyle}}"
     >
       <button
         id="map-checkin-entry-btn"
@@ -120,7 +119,11 @@
         />
       </button>
     </view>
-    <view class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}" wx:if="{{compassVisible}}" style="{{mapUiScaleStyle}}">
+    <view
+      class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}"
+      wx:if="{{compassVisible}}"
+      style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{compassBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+    >
       <map-compass
         rotate="{{compassRotate}}"
         skew="{{compassSkew}}"
@@ -128,7 +131,11 @@
         bind:compasstap="onCompassTap"
       />
     </view>
-    <view class="map-scale-container map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}" wx:if="{{scaleBarVisible}}" style="{{mapUiScaleStyle}}">
+    <view
+      class="map-scale-container map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}"
+      wx:if="{{scaleBarVisible}}"
+      style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{scaleControlsBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+    >
       <view class="map-scale">
         <text class="map-scale-label">{{scaleBarLabel}}</text>
         <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
@@ -168,6 +175,7 @@
       id="preflight-dashboard"
       stealth-mode-active="{{stealthModeActive}}"
       top-px="{{preflightTopPx}}"
+      left-px="{{preflightLeftPx}}"
       ui-scale-style="{{mapUiScaleStyle}}"
       drone-picker-label="{{dronePickerLabel}}"
       temporary-no-fly-zone-info="{{temporaryNoFlyZoneInfo}}"
@@ -216,6 +224,7 @@
 
     <map-floating-controls
       visible="{{activeTab === 'home' && !stealthModeActive}}"
+      container-style="right: {{floatingControlsRightPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{floatingControlsBottomPx}}px);"
       ui-scale-style="{{mapUiScaleStyle}}"
       show-newbie-gift-entry="{{showNewbieGiftEntry}}"
       bind:newbiegifttap="onNewbieGiftTap"
@@ -227,7 +236,9 @@
     <map-bottom-nav
       id="map-bottom-nav"
       visible="{{!stealthModeActive}}"
-      ui-scale-style="{{mapUiScaleStyle}}"
+      container-style="bottom: calc(env(safe-area-inset-bottom) + {{bottomNavBottomPx}}px);"
+      wide-layout="{{isWideLayout}}"
+      ui-scale="{{mapUiScale}}"
       active-tab="{{activeTab}}"
       show-profile-red-dot="{{showProfileRedDot}}"
       bind:menuhometap="onMenuHomeTap"

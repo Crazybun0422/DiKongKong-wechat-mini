@@ -113,10 +113,11 @@ Component({
     updateScaleStyles(scaleValue) {
       const rawScale = Number(scaleValue);
       const resolvedScale =
+        Number.isFinite(rawScale) && rawScale > 0 ? Math.min(1, Math.max(0.1, rawScale)) : 1;
+      const sheetScale =
         Number.isFinite(rawScale) && rawScale > 0 ? Math.min(1, Math.max(0.35, rawScale)) : 1;
-      const scaleStyle = resolvedScale < 0.9999 ? `transform: scale(${resolvedScale});` : "";
-      const touchAreaScaleStyle = scaleStyle;
-      const sheetScaleStyle = scaleStyle;
+      const touchAreaScaleStyle = resolvedScale < 0.9999 ? `transform: scale(${resolvedScale});` : "";
+      const sheetScaleStyle = sheetScale < 0.9999 ? `transform: scale(${sheetScale});` : "";
       if (
         this.data.touchAreaScaleStyle === touchAreaScaleStyle
         && this.data.sheetScaleStyle === sheetScaleStyle

@@ -1,10 +1,10 @@
 const { fetchCheckinDetail } = require("../../../utils/checkin");
 const { updateMapLayerSettings } = require("../../../utils/map-layer-settings");
-
-const DEFAULT_MAP_CHECKIN_ENTRY_STYLE =
-  "top: calc(env(safe-area-inset-top) + 96rpx); right: 24rpx; width: 150rpx; height: 50rpx;";
-const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
-const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
+const {
+  DEFAULT_MAP_CHECKIN_ENTRY_STYLE,
+  ADD_MINI_APP_SUPPRESS_SECONDS,
+  ADD_MINI_APP_CHECK_DELAY_MS
+} = require("./map-shared");
 
 const getWindowMetrics = () => {
   let windowInfo = {};
@@ -172,27 +172,29 @@ function updateMapCheckinEntryStyle(page) {
     }
     return;
   }
-  const { screenWidth } = getWindowMetrics();
-  if (!screenWidth) {
+  const { windowWidth } = getWindowMetrics();
+  if (!windowWidth) {
     if (!page.data.checkinEntryStyle) {
       page.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
     }
     return;
   }
-  const rpx = screenWidth / 750;
+  const baselineWidth = Math.min(windowWidth, 375);
+  const rpx = baselineWidth / 750;
   const buttonWidth = 150 * rpx;
   const buttonHeight = 50 * rpx;
   const gapY = 16 * rpx;
   const top = menuRect.bottom + gapY;
-  const right = Math.max(12 * rpx, screenWidth - menuRect.right);
+  const right = Math.max(12 * rpx, windowWidth - menuRect.right);
   page.setData({
     checkinEntryStyle: `top:${top.toFixed(2)}px;right:${right.toFixed(2)}px;width:${buttonWidth.toFixed(2)}px;height:${buttonHeight.toFixed(2)}px;`
   });
 }
 
 function updateSubscriptionBannerLayout(page, retry = 0) {
-  const { screenWidth } = getWindowMetrics();
-  const fallbackTopPx = screenWidth ? (90 * screenWidth) / 750 : 44;
+  const { windowWidth } = getWindowMetrics();
+  const baselineWidth = windowWidth ? Math.min(windowWidth, 375) : 375;
+  const fallbackTopPx = baselineWidth ? (90 * baselineWidth) / 750 : 44;
   const applyFallback = () => {
     page.setData({
       subscriptionBannerTopPx: fallbackTopPx

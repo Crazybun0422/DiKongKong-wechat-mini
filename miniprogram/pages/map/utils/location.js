@@ -1,22 +1,9 @@
-const DEFAULT_CENTER = {
-  latitude: 39.908823,
-  longitude: 116.39747
-};
-
 const MAP_LAST_LOCATION_STORAGE_KEY = "map.lastKnownLocation";
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
-
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
-
-const clampMapScale = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  const rounded = Math.round(base);
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
-};
+const {
+  DEFAULT_CENTER,
+  hasValidCoordinate,
+  clampMapScale
+} = require("./map-shared");
 
 function normalizeCachedMapLocation(payload = null) {
   const latitude = Number(payload?.latitude);

@@ -3,9 +3,11 @@ const {
   gcj02ToBd09,
   gcj02ToCgcs2000
 } = require("../../../utils/coords");
-
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+const { hasValidCoordinate } = require("./map-shared");
+const {
+  COORDINATE_SYSTEM_OPTIONS,
+  resolveCoordinateSystemDisplayLabel
+} = require("./coordinate-system");
 
 const formatCoordinateParts = (lat, lng) => {
   const latNum = Number(lat);
@@ -52,20 +54,6 @@ const normalizeAddressText = (value) => {
   return value.replace(/\s+/g, " ").trim();
 };
 
-const COORDINATE_SYSTEM_OPTIONS = [
-  { value: "gcj02", label: "GCJ-02" },
-  { value: "bd09", label: "BD09" },
-  { value: "wgs84", label: "WGS84" },
-  { value: "cgcs2000", label: "CGCS2000" }
-];
-
-const COORDINATE_SYSTEM_DISPLAY_LABEL_MAP = {
-  gcj02: "gcj-02",
-  bd09: "bd09",
-  wgs84: "wgs84",
-  cgcs2000: "cgcs2000"
-};
-
 const COORDINATE_SYSTEM_CLIPBOARD_LABEL_MAP = {
   gcj02: "GCJ-02",
   bd09: "BD09",
@@ -77,9 +65,6 @@ const normalizeCoordinateSystem = (value) => {
   const raw = `${value || ""}`.toLowerCase();
   return COORDINATE_SYSTEM_OPTIONS.some((item) => item.value === raw) ? raw : "gcj02";
 };
-
-const resolveCoordinateSystemDisplayLabel = (coordinateSystem) =>
-  COORDINATE_SYSTEM_DISPLAY_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "gcj-02";
 
 const resolveCoordinateSystemLabel = (coordinateSystem) =>
   COORDINATE_SYSTEM_CLIPBOARD_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "GCJ-02";

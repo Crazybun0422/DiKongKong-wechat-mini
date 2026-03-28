@@ -1,38 +1,21 @@
 const { loadStoredProfile: loadStoredProfileUtil } = require("../../../utils/profile");
-
-const DEFAULT_CENTER = {
-  latitude: 39.908823,
-  longitude: 116.39747
-};
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
 const EARTH_RADIUS_METERS = 6378137;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
 const WEB_TILE_SIZE = 256;
 const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
 const CSS_PIXELS_PER_CM = 96 / 2.54;
-const DEFAULT_SCALE_BAR_BASE_RPX = 80;
-const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
+const {
+  DEFAULT_CENTER,
+  DEFAULT_SCALE_BAR_BASE_RPX,
+  MARKER_FETCH_SCALE_LIMIT_METERS,
+  clampMapScale,
+  clampMapScaleFloat
+} = require("./map-shared");
 const MAP_WIDE_LAYOUT_MIN_WIDTH = 560;
 const MAP_WIDE_LAYOUT_MIN_RATIO = 1.1;
 const MAP_UI_BASE_WIDTH_PX = 375;
-const MAP_UI_SCALE_MIN = 0.35;
 const WINDOW_RESIZE_DEBOUNCE_MS = 80;
-
-const clampMapScale = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  const rounded = Math.round(base);
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
-};
-
-const clampMapScaleFloat = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, base));
-};
 
 const getWindowMetrics = () => {
   let windowInfo = {};
@@ -107,14 +90,25 @@ const resolveWideLayout = (metrics = {}) => {
 
 const resolveMapUiScale = (metrics = {}, wideLayout = false) => {
   const width = Number(metrics.windowWidth);
-  if (!wideLayout || !Number.isFinite(width) || width <= 0) {
+  if (!Number.isFinite(width) || width <= 0) {
+    return 1;
+  }
+  if (width <= MAP_UI_BASE_WIDTH_PX) {
     return 1;
   }
   const scale = MAP_UI_BASE_WIDTH_PX / width;
   if (!Number.isFinite(scale) || scale <= 0) {
     return 1;
   }
-  return Math.min(1, Math.max(MAP_UI_SCALE_MIN, scale));
+  return Math.min(1, Math.max(0.1, scale));
+};
+
+const resolveBaselineWidth = (metrics = {}) => {
+  const width = Number(metrics.windowWidth);
+  if (!Number.isFinite(width) || width <= 0) {
+    return MAP_UI_BASE_WIDTH_PX;
+  }
+  return Math.min(width, MAP_UI_BASE_WIDTH_PX);
 };
 
 const mergeLaunchOptions = (primary = {}, secondary = {}) => Object.assign({}, secondary || {}, primary || {});
@@ -404,6 +398,8 @@ function refreshResponsiveLayout(page, options = {}) {
   initializeSystemInfo(page, options.force === true, metrics);
   const wideLayout = resolveWideLayout(metrics);
   const uiScale = resolveMapUiScale(metrics, wideLayout);
+  const baselineWidth = resolveBaselineWidth(metrics);
+  const baselinePxPerRpx = baselineWidth / 750;
   const roundedScale = Number(uiScale.toFixed(4));
   const uiScaleStyle = roundedScale < 0.9999 ? `transform: scale(${roundedScale});` : "";
   const subscriptionBannerScaleStyle =
@@ -422,6 +418,39 @@ function refreshResponsiveLayout(page, options = {}) {
   }
   if (page.data.subscriptionBannerScaleStyle !== subscriptionBannerScaleStyle) {
     updates.subscriptionBannerScaleStyle = subscriptionBannerScaleStyle;
+  }
+  const roundAnchorPx = (rpx) => Math.round(rpx * baselinePxPerRpx * 100) / 100;
+  const subscriptionBannerLeftPx = roundAnchorPx(16);
+  const preflightLeftPx = roundAnchorPx(16);
+  const scaleControlsLeftPx = roundAnchorPx(32);
+  const scaleControlsBottomPx = roundAnchorPx(240);
+  const compassBottomPx = roundAnchorPx(490);
+  const floatingControlsRightPx = roundAnchorPx(32);
+  const floatingControlsBottomPx = roundAnchorPx(262);
+  const bottomNavBottomPx = roundAnchorPx(42);
+  if (page.data.subscriptionBannerLeftPx !== subscriptionBannerLeftPx) {
+    updates.subscriptionBannerLeftPx = subscriptionBannerLeftPx;
+  }
+  if (page.data.preflightLeftPx !== preflightLeftPx) {
+    updates.preflightLeftPx = preflightLeftPx;
+  }
+  if (page.data.scaleControlsLeftPx !== scaleControlsLeftPx) {
+    updates.scaleControlsLeftPx = scaleControlsLeftPx;
+  }
+  if (page.data.scaleControlsBottomPx !== scaleControlsBottomPx) {
+    updates.scaleControlsBottomPx = scaleControlsBottomPx;
+  }
+  if (page.data.compassBottomPx !== compassBottomPx) {
+    updates.compassBottomPx = compassBottomPx;
+  }
+  if (page.data.floatingControlsRightPx !== floatingControlsRightPx) {
+    updates.floatingControlsRightPx = floatingControlsRightPx;
+  }
+  if (page.data.floatingControlsBottomPx !== floatingControlsBottomPx) {
+    updates.floatingControlsBottomPx = floatingControlsBottomPx;
+  }
+  if (page.data.bottomNavBottomPx !== bottomNavBottomPx) {
+    updates.bottomNavBottomPx = bottomNavBottomPx;
   }
   const windowHeight = Number(metrics.windowHeight);
   if (Number.isFinite(windowHeight) && windowHeight > 0) {

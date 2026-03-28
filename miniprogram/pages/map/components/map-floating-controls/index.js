@@ -5,6 +5,7 @@ Component({
 
   properties: {
     visible: { type: Boolean, value: false },
+    containerStyle: { type: String, value: "" },
     uiScaleStyle: { type: String, value: "" },
     showNewbieGiftEntry: { type: Boolean, value: false }
   },
