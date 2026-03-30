@@ -210,6 +210,17 @@
       bind:cityreportdialogclose="onCityReportDialogClose"
     />
 
+    <block wx:if="{{cityReportDialogVisible}}">
+      <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
+        <view class="city-report-dialog-container">
+          <view class="city-report-dialog-card">
+            <text class="city-report-dialog-text">{{cityReportDialogText}}</text>
+            <view class="city-report-dialog-btn" catchtap="onCityReportDialogClose">我知道了</view>
+          </view>
+        </view>
+      </view>
+    </block>
+
     <policy-update-modal
       visible="{{policyUpdateVisible}}"
       update-type="{{policyUpdateType}}"

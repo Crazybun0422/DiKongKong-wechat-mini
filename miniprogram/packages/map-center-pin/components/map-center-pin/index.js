@@ -334,29 +334,7 @@ Component({
             activeCache = localCache;
             return null;
           }
-          const controller = startLatestEasterEggResourceDownload({
-            fileName: latestConfig.fileName,
-            version: latestConfig.version,
-            segmentCount: 20,
-            onProgress: (progress) => {
-              this.updateAfeiPreparationProgress(progress);
-            }
-          });
-          this._afeiDownloadController = controller;
-          return controller.promise;
-        })
-        .then((downloadResult) => {
-          if (this._afeiAbortByUser) {
-            throw new Error("download-aborted");
-          }
-          if (!downloadResult || !downloadResult.tempFilePath || !latestConfig) {
-            return null;
-          }
-          return cacheEasterEggResourceDownload({
-            tempFilePath: downloadResult.tempFilePath,
-            fileName: latestConfig.fileName,
-            version: latestConfig.version
-          });
+          return this.downloadAndCacheLatestAfeiResource(latestConfig);
         })
         .then((cachedResult = null) => {
           if (cachedResult) {
@@ -369,6 +347,19 @@ Component({
             fileName: latestConfig.fileName,
             version: latestConfig.version,
             zipPath: activeCache.path
+          }).catch((extractErr) => {
+            if (this._afeiAbortByUser) {
+              throw new Error("download-aborted");
+            }
+            console.warn("afei extract failed, retry with fresh download", extractErr);
+            return this.downloadAndCacheLatestAfeiResource(latestConfig).then((freshCache) => {
+              activeCache = freshCache;
+              return ensureEasterEggResourceExtracted({
+                fileName: latestConfig.fileName,
+                version: latestConfig.version,
+                zipPath: activeCache.path
+              });
+            });
           });
         })
         .then((resource) => {
@@ -414,6 +405,40 @@ Component({
 
     cleanupAfeiPreparationInternals() {
       this._afeiDownloadController = null;
+    },
+
+    downloadAndCacheLatestAfeiResource(config = {}) {
+      if (!config || !config.fileName || !config.version) {
+        return Promise.reject(new Error("missing-easter-egg-config"));
+      }
+      const controller = startLatestEasterEggResourceDownload({
+        fileName: config.fileName,
+        version: config.version,
+        segmentCount: 20,
+        onProgress: (progress) => {
+          this.updateAfeiPreparationProgress(progress);
+        }
+      });
+      this._afeiDownloadController = controller;
+      return controller.promise
+        .then((downloadResult) => {
+          if (this._afeiAbortByUser) {
+            throw new Error("download-aborted");
+          }
+          if (!downloadResult || !downloadResult.tempFilePath) {
+            throw new Error("missing-download-temp-file");
+          }
+          return cacheEasterEggResourceDownload({
+            tempFilePath: downloadResult.tempFilePath,
+            fileName: config.fileName,
+            version: config.version
+          });
+        })
+        .finally(() => {
+          if (this._afeiDownloadController === controller) {
+            this._afeiDownloadController = null;
+          }
+        });
     },
 
     updateAfeiPreparationProgress(value) {
