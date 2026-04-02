@@ -75,19 +75,24 @@
       <view class="search-stack">
         <view class="search-pill">
           <view class="search-input-wrap">
-            <view class="search-display {{keyword ? '' : 'search-display--placeholder'}}">
+            <view
+              wx:if="{{!searchFieldFocused}}"
+              class="search-display {{keyword ? '' : 'search-display--placeholder'}}"
+            >
               {{keyword || '地址或经纬度'}}
             </view>
-          <input
-            class="search-field"
-            type="text"
-            placeholder=""
-            cursor-color="#FFFFFF"
-            value="{{keyword}}"
-            bindinput="onKeywordInput"
-            confirm-type="search"
-            bindconfirm="onSearchConfirm"
-          />
+            <input
+              class="search-field {{searchFieldFocused ? 'search-field--focused' : ''}}"
+              type="text"
+              placeholder=""
+              cursor-color="#FFFFFF"
+              value="{{keyword}}"
+              bindfocus="onSearchFocus"
+              bindblur="onSearchBlur"
+              bindinput="onKeywordInput"
+              confirm-type="search"
+              bindconfirm="onSearchConfirm"
+            />
           </view>
           <button
             class="search-btn"

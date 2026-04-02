@@ -1,4 +1,4 @@
-const PREFLIGHT_GLOW_DURATION_MS = 4800;
+const PREFLIGHT_GLOW_DURATION_MS = 9600;
 const PREFLIGHT_GLOW_FRAME_MS = 33;
 const PREFLIGHT_GLOW_SEGMENT_RPX = 22;
 const PREFLIGHT_ENTRY_CANVAS_INSET_RPX = 1;
@@ -173,7 +173,8 @@ function drawPreflightGlow(ctx, width, height, elapsedMs) {
 
 Component({
   data: {
-    preflightGlowCanvasStyle: ""
+    preflightGlowCanvasStyle: "",
+    searchFieldFocused: false
   },
 
   options: {
@@ -359,6 +360,14 @@ Component({
 
     onKeywordInput(event = {}) {
       this.triggerEvent("keywordinput", event.detail || {});
+    },
+
+    onSearchFocus() {
+      this.setData({ searchFieldFocused: true });
+    },
+
+    onSearchBlur() {
+      this.setData({ searchFieldFocused: false });
     },
 
     onSearchConfirm(event = {}) {

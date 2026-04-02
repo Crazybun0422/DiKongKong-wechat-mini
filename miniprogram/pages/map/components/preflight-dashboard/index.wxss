@@ -189,6 +189,10 @@
   display: block;
 }
 
+.search-field--focused {
+  color: rgba(255, 255, 255, 0.96);
+}
+
 .search-field::placeholder {
   color: rgba(255, 255, 255, 0.02);
 }
