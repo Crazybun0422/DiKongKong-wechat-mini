@@ -11,6 +11,12 @@
       hover-stay-time="80"
       bindtap="onPreflightEntryTap"
     >
+      <canvas
+        id="preflightEntryGlowCanvas"
+        type="2d"
+        class="preflight-entry-glow-canvas"
+        style="{{preflightGlowCanvasStyle}}"
+      ></canvas>
       <image class="preflight-entry-icon" src="/assets/preflight-save.png" mode="aspectFit" />
       <text class="preflight-entry-text">飞行安全准备</text>
       <view class="preflight-entry-chevron-group" aria-hidden="true">

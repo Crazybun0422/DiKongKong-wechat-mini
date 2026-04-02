@@ -16,22 +16,12 @@
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-.preflight-entry::before {
-  content: "";
+.preflight-entry-glow-canvas {
   position: absolute;
-  width: 1rpx;
-  height: 1rpx;
-  left: 26rpx;
-  top: 2rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 1);
-  box-shadow:
-    0 0 6rpx rgba(255, 255, 255, 0.86),
-    0 0 12rpx rgba(255, 255, 255, 0.32),
-    0 0 18rpx rgba(255, 255, 255, 0.12);
-  z-index: 3;
-  transform: translate(-50%, -50%);
-  animation: preflight-entry-border-dot 3.2s linear infinite;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .preflight-entry::after {
@@ -40,7 +30,6 @@
   inset: 1rpx;
   border-radius: inherit;
   background: rgba(255, 255, 255, 0.07);
-  border: 1rpx solid rgba(255, 255, 255, 0.12);
   box-sizing: border-box;
   box-shadow:
     inset 0 1rpx 0 rgba(255, 255, 255, 0.08),
@@ -128,100 +117,6 @@
   100% {
     background-position: -120% 50%;
     opacity: 0.58;
-  }
-}
-
-@keyframes preflight-entry-border-dot {
-  0% {
-    left: 26rpx;
-    top: 2rpx;
-    opacity: 0.9;
-  }
-
-  18% {
-    left: 40%;
-    top: 2rpx;
-    opacity: 0.96;
-  }
-
-  28% {
-    left: calc(100% - 26rpx);
-    top: 2rpx;
-    opacity: 1;
-  }
-
-  32% {
-    left: calc(100% - 14rpx);
-    top: 5rpx;
-  }
-
-  36% {
-    left: calc(100% - 6rpx);
-    top: 14rpx;
-  }
-
-  40% {
-    left: calc(100% - 2rpx);
-    top: 29rpx;
-  }
-
-  44% {
-    left: calc(100% - 6rpx);
-    top: 44rpx;
-  }
-
-  50% {
-    left: calc(100% - 14rpx);
-    top: 53rpx;
-    opacity: 0.95;
-  }
-
-  60% {
-    left: calc(100% - 26rpx);
-    top: 56rpx;
-  }
-
-  74% {
-    left: 40%;
-    top: 56rpx;
-    opacity: 0.95;
-  }
-
-  84% {
-    left: 26rpx;
-    top: 56rpx;
-    opacity: 1;
-  }
-
-  88% {
-    left: 14rpx;
-    top: 53rpx;
-  }
-
-  92% {
-    left: 6rpx;
-    top: 44rpx;
-  }
-
-  96% {
-    left: 2rpx;
-    top: 29rpx;
-  }
-
-  98% {
-    left: 6rpx;
-    top: 14rpx;
-  }
-
-  99% {
-    left: 14rpx;
-    top: 5rpx;
-  }
-
-  100% {
-    left: 26rpx;
-    top: 2rpx;
-    opacity: 0.9;
   }
 }
 
