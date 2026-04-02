@@ -82,7 +82,7 @@
             class="search-field"
             type="text"
             placeholder=""
-            cursor-color="#ffffff"
+            cursor-color="#FFFFFF"
             value="{{keyword}}"
             bindinput="onKeywordInput"
             confirm-type="search"

@@ -182,7 +182,7 @@
   line-height: 72rpx;
   border: none;
   background: transparent;
-  color: transparent;
+  color: rgba(255, 255, 255, 0.02);
   font-size: 28rpx;
   padding: 0 8rpx 0 0;
   box-sizing: border-box;
@@ -190,7 +190,7 @@
 }
 
 .search-field::placeholder {
-  color: transparent;
+  color: rgba(255, 255, 255, 0.02);
 }
 
 button.search-tips-btn {
