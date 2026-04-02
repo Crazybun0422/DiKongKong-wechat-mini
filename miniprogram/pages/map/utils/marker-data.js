@@ -13,7 +13,11 @@ const {
 const { hasValidCoordinate } = require("./map-shared");
 const {
   isKmlShapeType,
-  cloneMarkerDetail
+  cloneMarkerDetail,
+  resolvePinPointCategory,
+  resolvePinPointIconPath,
+  buildPinDisplayName,
+  buildPinPointCalloutContent
 } = require("./marker-shared");
 
 const flattenCoordinateList = (value) => {
@@ -660,6 +664,9 @@ function createPinSearchPayload(page, raw = {}, options = {}) {
     detail.id ||
     options.fallbackId ||
     `pin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const pointCategory = shape.pointCategory || shape.pointcategory;
+  const height = Number(raw.height ?? raw.altitude ?? shape.height ?? coords[0]?.altitude);
+  const displayName = buildPinDisplayName(detail.name || "", pointCategory, height) || detail.name || "";
   return {
     id: markerId,
     latitude,
@@ -669,7 +676,13 @@ function createPinSearchPayload(page, raw = {}, options = {}) {
       longitude
     },
     shapeType: resolvedShapeType,
-    name: detail.name || "",
+    shape: {
+      type: resolvedShapeType,
+      pointCategory,
+      style: shape.style
+    },
+    height,
+    name: displayName,
     locationText: detail.locationText || "",
     detail,
     raw
@@ -678,16 +691,21 @@ function createPinSearchPayload(page, raw = {}, options = {}) {
 
 function buildPinSearchMarker(payload = {}, options = {}) {
   if (!payload) return null;
+  const shapeType = `${payload.shapeType || payload.shape?.type || payload.raw?.shape?.type || ""}`.toUpperCase();
+  if (shapeType && shapeType !== "POINT") {
+    return null;
+  }
+  const category = resolvePinPointCategory(payload);
   const marker = {
     id: payload.id || `pin-${Date.now()}`,
     latitude: payload.latitude,
     longitude: payload.longitude,
     title: payload.name,
-    iconPath: "/assets/default.png",
+    iconPath: resolvePinPointIconPath(payload),
     width: 44,
     height: 44
   };
-  const calloutContent = formatNearbyMarkerLabel(payload.name || "");
+  const calloutContent = buildPinPointCalloutContent(payload.name || "", category, payload.height);
   if (calloutContent) {
     marker.callout = buildMarkerNameCallout(calloutContent, {
       color: "#14532d",

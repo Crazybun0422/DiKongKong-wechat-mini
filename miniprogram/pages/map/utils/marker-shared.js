@@ -53,9 +53,60 @@ const buildMarkerNameCallout = (content, overrides = {}) => {
   );
 };
 
+const resolvePinPointCategory = (value = {}) => {
+  const shape = value?.shape || value?.raw?.shape || {};
+  return `${shape.pointCategory || shape.pointcategory || value?.pointCategory || value?.pointcategory || ""}`.toUpperCase();
+};
+
+const resolvePinPointIconPath = (value = {}) => {
+  const category = resolvePinPointCategory(value);
+  const iconMap = {
+    GENERAL: "/assets/default.png",
+    WARNING: "/assets/drone-warning.png",
+    AERIAL_SHOT: "/assets/aerial.png",
+    TAKEOFF_LANDING: "/assets/dock.png",
+    TALL_BUILDING: "/assets/elevation.png"
+  };
+  return iconMap[category] || "/assets/default.png";
+};
+
+const buildPinDisplayName = (name = "", category = "", height) => {
+  const baseName = `${name || ""}`.trim();
+  const normalizedCategory = `${category || ""}`.toUpperCase();
+  if (normalizedCategory !== "TALL_BUILDING" || !Number.isFinite(Number(height))) {
+    return baseName;
+  }
+  const heightText = `${Math.round(Number(height))}m`;
+  if (baseName) {
+    if (baseName.includes(heightText)) {
+      return baseName;
+    }
+    return `${baseName}·${heightText}`;
+  }
+  return `高程${heightText}`;
+};
+
+const buildPinPointCalloutContent = (name = "", category = "", height) => {
+  return formatNearbyMarkerLabel(buildPinDisplayName(name, category, height));
+  const contentParts = [];
+  const formattedName = formatNearbyMarkerLabel(name || "");
+  if (formattedName) {
+    contentParts.push(formattedName);
+  }
+  if (`${category || ""}`.toUpperCase() === "TALL_BUILDING" && Number.isFinite(Number(height))) {
+    const heightText = `${Math.round(Number(height))}m`;
+    contentParts.push(name ? heightText : `高程${heightText}`);
+  }
+  return contentParts.join(" ");
+};
+
 module.exports = {
   isKmlShapeType,
   cloneMarkerDetail,
   formatNearbyMarkerLabel,
-  buildMarkerNameCallout
+  buildMarkerNameCallout,
+  resolvePinPointCategory,
+  resolvePinPointIconPath,
+  buildPinDisplayName,
+  buildPinPointCalloutContent
 };

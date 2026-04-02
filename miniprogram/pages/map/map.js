@@ -495,11 +495,11 @@ Page({
   },
 
   normalizePreviewCoordinate(entry) {
-    return pinPreviewUtils.normalizePreviewCoordinate(this, entry);
+    return pinPreviewUtils.normalizePreviewCoordinate(entry);
   },
 
   normalizePreviewCoordinateList(raw = []) {
-    return pinPreviewUtils.normalizePreviewCoordinateList(this, raw);
+    return pinPreviewUtils.normalizePreviewCoordinateList(raw);
   },
 
   lookupPinAddress(detail) {

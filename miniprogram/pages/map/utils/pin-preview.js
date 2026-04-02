@@ -10,7 +10,12 @@ const {
   buildTencentCosSignedUrl
 } = require("../../../utils/tencent-cos");
 const { hasValidCoordinate, clampMapScale } = require("./map-shared");
-const { isKmlShapeType } = require("./marker-shared");
+const {
+  isKmlShapeType,
+  resolvePinPointCategory,
+  resolvePinPointIconPath,
+  buildPinPointCalloutContent
+} = require("./marker-shared");
 const MY_LOCATION_MARKER_ID = 991001;
 const MY_LOCATION_MARKER_ICON_PATH = "/assets/p-point.png";
 const MY_LOCATION_MARKER_SIZE = 40;
@@ -372,15 +377,8 @@ function buildPinPreviewMarker(page, payload = {}) {
   const lat = Number(location.latitude);
   const lng = Number(location.longitude);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  const category = `${payload.shape?.pointCategory || ""}`.toUpperCase();
-  const iconMap = {
-    GENERAL: "/assets/default.png",
-    WARNING: "/assets/drone-warning.png",
-    AERIAL_SHOT: "/assets/aerial.png",
-    TAKEOFF_LANDING: "/assets/dock.png",
-    TALL_BUILDING: "/assets/elevation.png"
-  };
-  const iconPath = iconMap[category] || "/assets/default.png";
+  const category = resolvePinPointCategory(payload);
+  const iconPath = resolvePinPointIconPath(payload);
   const displayMode = page.resolveMarkerDisplayMode(payload.raw || payload, payload.scaleInMeters);
   if (displayMode === page.DISPLAY_MODE_HIDDEN || displayMode === "HIDDEN") return null;
   const contentParts = [];
@@ -400,7 +398,7 @@ function buildPinPreviewMarker(page, payload = {}) {
     width: 32,
     height: 32
   };
-  const content = contentParts.join(" ");
+  const content = buildPinPointCalloutContent(payload.name || "", category, payload.height);
   if (content) {
     marker.callout = buildMarkerNameCallout(content, { fontSize: 10, fontWeight: "normal" });
   }

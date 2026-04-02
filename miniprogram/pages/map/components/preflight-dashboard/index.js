@@ -31,6 +31,10 @@ Component({
   },
 
   methods: {
+    onPreflightEntryTap() {
+      this.triggerEvent("preflightentrytap");
+    },
+
     onOpenDronePickerTap() {
       this.triggerEvent("opendronepicker");
     },

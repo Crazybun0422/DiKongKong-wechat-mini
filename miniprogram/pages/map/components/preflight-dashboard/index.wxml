@@ -3,7 +3,21 @@
   style="top: {{topPx}}px; left: {{leftPx}}px; {{uiScaleStyle}}; transform-origin: left top;"
 >
   <view class="preflight-card">
-    <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
+    <view
+      wx:if="{{!stealthModeActive}}"
+      class="preflight-entry"
+      hover-class="preflight-entry--hover"
+      hover-start-time="10"
+      hover-stay-time="80"
+      bindtap="onPreflightEntryTap"
+    >
+      <image class="preflight-entry-icon" src="/assets/preflight-save.png" mode="aspectFit" />
+      <text class="preflight-entry-text">飞行安全准备</text>
+      <view class="preflight-entry-chevron-group" aria-hidden="true">
+        <text class="preflight-entry-chevron preflight-entry-chevron--first">></text>
+        <text class="preflight-entry-chevron preflight-entry-chevron--second">></text>
+      </view>
+    </view>
     <view class="drone-picker-block">
       <view class="drone-picker-display" bindtap="onOpenDronePickerTap">
         <text class="preflight-label">执飞机型：</text>
