@@ -1,0 +1,6 @@
+{
+  "component": true,
+  "usingComponents": {
+    "city-report-host": "/pages/map/components/city-report-host/index"
+  }
+}

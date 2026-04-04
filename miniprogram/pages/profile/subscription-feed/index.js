@@ -6,6 +6,11 @@ const {
 } = require("../../../utils/open-platform");
 const { resolveApiBase } = require("../../../utils/profile");
 const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery,
+  getShareInviteCode
+} = require("../../../utils/share");
+const {
   fetchTemplateSettings,
   fetchLatestSubscriptionPush,
   SUBSCRIPTION_TEMPLATE_ID,
@@ -76,6 +81,8 @@ function getRichTextAttribute(event, keys = []) {
   return "";
 }
 
+const SUBSCRIPTION_FEED_PAGE_PATH = "/pages/profile/subscription-feed/index";
+
 Page({
   data: {
     loading: true,
@@ -94,6 +101,13 @@ Page({
   onLoad() {
     if (DEFAULT_TITLE && typeof wx.setNavigationBarTitle === "function") {
       wx.setNavigationBarTitle({ title: DEFAULT_TITLE });
+    }
+    if (typeof wx.showShareMenu === "function") {
+      try {
+        wx.showShareMenu({ menus: ["shareAppMessage", "shareTimeline"] });
+      } catch (err) {
+        console.warn("showShareMenu in subscription-feed failed", err);
+      }
     }
     this.setData({
       adFloatingVisible: true,
@@ -118,6 +132,22 @@ Page({
 
   onRetryTap() {
     this.loadContent();
+  },
+
+  onShareAppMessage() {
+    const inviteCode = getShareInviteCode();
+    return {
+      title: this.data.title || DEFAULT_TITLE,
+      path: appendInviteCodeToPath(SUBSCRIPTION_FEED_PAGE_PATH, { inviteCode })
+    };
+  },
+
+  onShareTimeline() {
+    const inviteCode = getShareInviteCode();
+    return {
+      title: this.data.title || DEFAULT_TITLE,
+      query: appendInviteCodeToQuery("", { inviteCode })
+    };
   },
 
   loadContent(options = {}) {

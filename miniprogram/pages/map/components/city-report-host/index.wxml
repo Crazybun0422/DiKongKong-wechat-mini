@@ -1,0 +1,7 @@
+<city-report-h5-entry
+  id="city-report-h5-entry-inner"
+  center="{{center}}"
+  active="{{active}}"
+  bind:statechange="onStateChange"
+  bind:dialogchange="onDialogChange"
+/>

@@ -1,0 +1,40 @@
+<block wx:if="{{visible}}">
+  <view class="drone-picker-mask" bindtap="onMaskTap"></view>
+  <view
+    class="drone-picker-sheet"
+    catchtap="noop"
+    style="{{wideLayout ? 'width:calc(100vw - 64rpx);max-width:920rpx;left:0;right:0;margin-left:auto;margin-right:auto;' : ''}}"
+  >
+    <view class="drone-picker-sheet-header">
+      <view class="drone-description">
+        <text class="drone-description-title">此次执飞的无人机型号</text>
+        <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
+      </view>
+      <text class="drone-picker-confirm" bindtap="onConfirmTap">确定</text>
+    </view>
+    <view class="drone-picker-sheet-body">
+      <scroll-view class="drone-category-list" scroll-y="true">
+        <block wx:for="{{droneCategories}}" wx:key="index">
+          <view
+            class="drone-category-item {{activeDroneCategoryIndex === index ? 'is-active' : ''}}"
+            data-index="{{index}}"
+            bindtap="onSelectCategory"
+          >
+            {{item.label}}
+          </view>
+        </block>
+      </scroll-view>
+      <scroll-view class="drone-model-list" scroll-y="true">
+        <block wx:for="{{droneCategoryItems}}" wx:key="index">
+          <view
+            class="drone-picker-option {{pendingDroneIndex === item.index ? 'is-active' : ''}}"
+            data-index="{{item.index}}"
+            bindtap="onSelectOption"
+          >
+            {{item.name}}
+          </view>
+        </block>
+      </scroll-view>
+    </view>
+  </view>
+</block>

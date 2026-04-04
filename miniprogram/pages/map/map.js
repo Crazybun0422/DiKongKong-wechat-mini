@@ -1,130 +1,57 @@
-﻿const { fetchDrones } = require("../../utils/drones");
-const { searchPlaces } = require("../../utils/search");
-const {
-  fetchNearbyMarkers,
-  fetchMarkerDetail,
-  incrementMarkerExposure,
-  incrementMarkerPhoneCall,
-  searchMarkers,
-  buildFileDownloadUrl,
-  buildFileStreamUrl
-} = require("../../utils/markers");
-const { fetchNearbyPins, searchPins, incrementPinExposure, fetchPinDetail } = require("../../utils/pins");
-const {
-  normalizeMarkerDetail: normalizeMarkerDetailUtil,
-  resolveCertifiedState
-} = require("../../utils/marker-detail");
-const { reverseGeocode } = require("../../utils/geocoder");
-const {
-  parseCoordinateSearchKeyword,
-  buildCoordinateSuggestion,
-  convertParsedCoordinateToGcj02,
-  SEARCH_COORDINATE_TIPS_TEXT
-} = require("../../utils/coordinate-search");
-const {
-  buildNoFlyZoneGraphics
-} = require("../../utils/no-fly-zones");
-const {
-  haversineMeters,
-  gcj02ToWgs84,
-  wgs84ToGcj02,
-  gcj02ToBd09,
-  gcj02ToCgcs2000
-} = require("../../utils/coords");
-const {
-  formatDistanceText,
-  computeGreatCircleDistance
-} = require("../../utils/distance");
+﻿const { SEARCH_COORDINATE_TIPS_TEXT } = require("../../utils/coordinate-search");
 const { QQMAP_CUSTOM_STYLE_ID, MAP_DEBUG_PANEL_ENABLED } = require("../../utils/config");
-const { getMapKeySync, prefetchMapKey } = require("../../utils/map-key");
+const { getMapKeySync } = require("../../utils/map-key");
+const cityReportUtils = require("./utils/city-report");
+const layerPanelUtils = require("./utils/layer-panel");
+const dronePickerUtils = require("./utils/drone-picker");
+const floatingControlsUtils = require("./utils/floating-controls");
+const bottomNavUtils = require("./utils/bottom-nav");
+const preflightDashboardUtils = require("./utils/preflight-dashboard");
+const locationUtils = require("./utils/location");
+const lifecycleUtils = require("./utils/lifecycle");
+const bootstrapUtils = require("./utils/bootstrap");
+const compassUtils = require("./utils/compass");
+const engagementUtils = require("./utils/engagement");
+const workgroupUtils = require("./utils/workgroup");
+const cleanupUtils = require("./utils/cleanup");
+const debugUtils = require("./utils/debug");
+const subscriptionUtils = require("./utils/subscription");
+const shareLaunchUtils = require("./utils/share-launch");
+const markerDetailStateUtils = require("./utils/marker-detail-state");
+const markerActionsUtils = require("./utils/marker-actions");
+const centerHitUtils = require("./utils/center-hit");
+const centerPinActionsUtils = require("./utils/center-pin-actions");
+const centerPinFollowUtils = require("./utils/center-pin-follow");
+const centerPinUiUtils = require("./utils/center-pin-ui");
+const mapGraphicsUtils = require("./utils/map-graphics");
+const markerDataUtils = require("./utils/marker-data");
+const pageRuntimeUtils = require("./utils/page-runtime");
+const mapViewportUtils = require("./utils/map-viewport");
+const nearbyFetchUtils = require("./utils/nearby-fetch");
+const mapGeometryUtils = require("./utils/map-geometry");
+const nearbyGraphicsUtils = require("./utils/nearby-graphics");
+const targetLinkUtils = require("./utils/target-link");
+const pinPreviewUtils = require("./utils/pin-preview");
+const policyGuideUtils = require("./utils/policy-guide");
+const mapPluginsUtils = require("./utils/map-plugins");
+const miscActionsUtils = require("./utils/misc-actions");
 const {
-  loadStoredProfile: loadStoredProfileUtil,
-  prepareAvatarForUpload,
-  fetchUserProfile
-} = require("../../utils/profile");
+  DEFAULT_CENTER,
+  MAP_MIN_SCALE,
+  MAP_MAX_SCALE,
+  DEFAULT_MAP_SCALE,
+  DEFAULT_SCALE_BAR_BASE_RPX,
+  CENTER_PIN_FOLLOW_TIP_TEXT,
+  DEFAULT_MAP_CHECKIN_ENTRY_STYLE,
+  hasValidCoordinate
+} = require("./utils/map-shared");
 const {
-  fetchLatestUserAgreement,
-  fetchLatestPrivacyPolicy,
-  extractPolicyAccessVersions,
-  normalizePolicyVersion,
-  recordPolicyAccess
-} = require("../../utils/policies");
-const {
-  appendInviteCodeToPath,
-  appendInviteCodeToQuery,
-  getShareInviteCode: getShareInviteCodeUtil
-} = require("../../utils/share");
-const { like, unlike, fetchLikeCount, fetchLikeStatus } = require("../../utils/likes");
-const { joinWorkGroup } = require("../../utils/workGroups");
-const {
-  fetchMapLayerSettings,
-  updateMapLayerSettings
-} = require("../../utils/map-layer-settings");
-const {
-  fetchTemplateSettings,
-  fetchSubscriptions,
-  requestSubscribeMessageForTemplateIds,
-  updateSubscriptions,
-  fetchLatestSubscriptionPush,
-  SUBSCRIPTION_TEMPLATE_ID,
-  normalizeTemplateIds,
-  extractAcceptedTemplateIdsFromWxSetting
-} = require("../../utils/subscriptions");
-const { fetchCheckinDetail } = require("../../utils/checkin");
-const { REQUIRED_SUBSCRIPTION_TEMPLATE_IDS, SUBSCRIPTION_TEMPLATE_IDS } = require("../../config/subscription-templates");
-const { setSubscribeWaitOverlay } = require("../../utils/subscribe-wait");
-const { fetchLatestItemVersion, updateLatestItemVersion, normalizeVersion } = require("../../utils/latest-items");
-const {
-  isWeChatRuntime,
-  isDevtoolsRuntime,
-  isDesktopRuntime,
-  shouldUseWeChatUom
-} = require("../../utils/runtime");
-const {
-  fetchCoordinateSystemDescription,
-  fetchCoordinateLongPressGuide
-} = require("../../utils/map-guides");
-const { transformHtmlContent } = require("../../utils/open-platform");
-const {
-  fetchTencentCosConfig,
-  fetchTencentCosSts,
-  buildCosHost,
-  isTencentCosStsValid,
-  buildTencentCosSignedUrl
-} = require("../../utils/tencent-cos");
-const {
-  DISPLAY_MODE_ICON_WITH_NAME,
-  DISPLAY_MODE_SMALL_ICON_ONLY,
-  DISPLAY_MODE_HIDDEN,
-  resolveMapDisplayMode,
-  getDisplayModeMarkerSize
-} = require("../../utils/map-display-mode");
-const {
-  normalizeMapTapPoint,
-  canReplaceMapTapTarget,
-  buildMapTapTargetState,
-  updateMapTapTargetAddress,
-  buildMapTapTargetMarker,
-  isMapTapTargetMarker,
-  shouldRemoveMapTapTarget
-} = require("../../utils/map-target-link");
-
-const DEFAULT_CENTER = {
-  latitude: 39.908823,
-  longitude: 116.39747
-};
+  COORDINATE_SYSTEM_OPTIONS,
+  resolveCoordinateSystemDisplayLabel
+} = require("./utils/coordinate-system");
 
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
-const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
-const PENDING_INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
-const PANORAMA_DEMO_FILE = "ex.jpg";
-const PANORAMA_FALLBACK_ASSET = "/assets/ex.jpg";
-const MAP_MIN_SCALE = 0;
-const MAP_MAX_SCALE = 18;
-const DEFAULT_MAP_SCALE = 11;
-const ATTACHMENT_DISPLAY_LABEL = "企业产品和业务介绍";
 const MARKER_SVIP_ICON_PATH = "/assets/svip2.png";
-const MARKER_CERTIFICATION_SHEET_CLOSE_DURATION = 220;
 const MARKER_CERTIFICATION_INFO_ITEMS = [
   {
     id: "location",
@@ -146,1008 +73,6 @@ const MARKER_CERTIFICATION_INFO_ITEMS = [
   }
 ];
 
-function buildBadgeTitleParts(title, fallback = "") {
-  const displayText = typeof title === "string" && title ? title : fallback;
-  const chars = Array.from(displayText || "");
-  const tail = chars.length ? chars.pop() : "";
-  return {
-    titleDisplayText: displayText,
-    titlePrefixText: chars.join(""),
-    titleTailText: tail
-  };
-}
-
-const MARKER_EXPOSURE_CACHE_TTL = 5 * 60 * 1000;
-const MAX_SEARCH_SUGGESTIONS = 10;
-const MAX_SEARCH_RESULTS = 20;
-const MARKER_PAGE_SCROLL_TOP_THRESHOLD = 36;
-const MARKER_PAGE_CLOSE_FAST_DISTANCE = 50;
-const MARKER_PAGE_CLOSE_FAST_DURATION = 600;
-const MARKER_PAGE_CLOSE_DISTANCE = 90;
-const EARTH_RADIUS_METERS = 6378137;
-const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
-const WEB_TILE_SIZE = 256;
-const METERS_PER_PIXEL_BASE = EARTH_CIRCUMFERENCE / WEB_TILE_SIZE;
-const CSS_PIXELS_PER_CM = 96 / 2.54;
-const DEFAULT_SCALE_BAR_BASE_RPX = 80;
-const LOCATE_SCALE_METERS = 500;
-const MY_LOCATION_MARKER_ID = 991001;
-const MY_LOCATION_MARKER_ICON_PATH = "/assets/p-point.png";
-const MY_LOCATION_MARKER_SIZE = 40;
-const MY_LOCATION_DIRECTION_THRESHOLD = 1;
-const MY_LOCATION_DIRECTION_SYNC_INTERVAL_MS = 500;
-const MARKER_FETCH_SCALE_LIMIT_METERS = 5000;
-const MIN_CENTER_SYNC_METERS = 6;
-const CENTER_SHARE_LOCK_DURATION_MS = 10000;
-const CENTER_SHARE_LOCK_MAX_DRIFT_METERS = 2000;
-const CENTER_SHARE_LOCK_ALIGN_DELAY_MS = 120;
-const CENTER_PIN_FOLLOW_INTERVAL_MS = 1000;
-const CENTER_PIN_FOLLOW_ERROR_TOAST_INTERVAL_MS = 5000;
-const CENTER_PIN_CLOSE_TAP_SUPPRESS_MS = 320;
-const CENTER_PIN_FOLLOW_TIP_TEXT = "长按解除绑定状态~";
-const MAP_WIDE_LAYOUT_MIN_WIDTH = 560;
-const MAP_WIDE_LAYOUT_MIN_RATIO = 1.1;
-const WINDOW_RESIZE_DEBOUNCE_MS = 80;
-const DEFAULT_MAP_CHECKIN_ENTRY_STYLE =
-  "top: calc(env(safe-area-inset-top) + 96rpx); right: 24rpx; width: 150rpx; height: 50rpx;";
-const MAP_UI_BASE_WIDTH_PX = 375;
-const MAP_UI_SCALE_MIN = 0.35;
-const MAP_COMPASS_ROTATE_THRESHOLD = 1;
-const MAP_COMPASS_ROTATE_SYNC_DELTA = 1;
-const MAP_COMPASS_SKEW_SYNC_DELTA = 0.5;
-const ADD_MINI_APP_SUPPRESS_SECONDS = 72 * 60 * 60;
-const ADD_MINI_APP_CHECK_DELAY_MS = 2000;
-const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
-const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
-const SEARCH_LINK_OWNER_SEARCH = "search";
-const SEARCH_LINK_OWNER_MAP_TAP = "map-tap";
-const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
-
-const isKmlShapeType = (value) => KML_SHAPE_TYPES.has(`${value || ""}`.toUpperCase());
-
-const normalizeStyleColorToTransparent = (value) => {
-  if (typeof value !== "string") return value;
-  const raw = value.trim();
-  if (!raw) return value;
-  const lower = raw.toLowerCase();
-  if (lower === "transparent") return value;
-  if (lower.startsWith("rgba")) {
-    const match = lower.match(/rgba\(([^)]+)\)/);
-    if (match && match[1]) {
-      const parts = match[1].split(",").map((p) => p.trim());
-      const alpha = Number(parts[3]);
-      if (Number.isFinite(alpha) && alpha <= 0) return value;
-    }
-    return "rgba(0,0,0,0)";
-  }
-  if (lower.startsWith("rgb(") || lower.startsWith("hsl(") || lower.startsWith("hsla")) {
-    return "rgba(0,0,0,0)";
-  }
-  if (lower.startsWith("#")) {
-    if (lower.length === 9) {
-      const hex = lower.slice(1);
-      if (hex.startsWith("00") || hex.endsWith("00")) return value;
-    }
-    return "#00000000";
-  }
-  return "transparent";
-};
-
-const normalizeKmlStyle = (style) => {
-  if (!style || typeof style !== "object") return style;
-  const next = Object.assign({}, style);
-  const colorKeys = ["color", "fillColor", "strokeColor", "lineColor", "polyColor", "outlineColor"];
-  colorKeys.forEach((key) => {
-    if (typeof next[key] === "string") {
-      next[key] = normalizeStyleColorToTransparent(next[key]);
-    }
-  });
-  return next;
-};
-
-const normalizeKmlShape = (shape = {}) => {
-  if (!shape || typeof shape !== "object") return shape;
-  const type = `${shape.type || ""}`.toUpperCase();
-  if (!isKmlShapeType(type)) return shape;
-  const style = normalizeKmlStyle(shape.style);
-  if (style === shape.style) return shape;
-  return Object.assign({}, shape, { style });
-};
-
-const flattenCoordinateList = (raw) => {
-  if (!Array.isArray(raw) || !raw.length) return [];
-  if (
-    Array.isArray(raw[0]) &&
-    raw[0].length &&
-    (Array.isArray(raw[0][0]) || (raw[0][0] && typeof raw[0][0] === "object"))
-  ) {
-    return raw[0];
-  }
-  return raw;
-};
-
-const resolveCoordinateGroup = (shape = {}) => {
-  const groups = shape.coordinateGroups || shape.coordinateGroup;
-  if (!groups) return null;
-  if (Array.isArray(groups)) return { type: "", coordinates: groups };
-  if (typeof groups !== "object") return null;
-  const entries = Object.entries(groups).filter(([, value]) => Array.isArray(value) && value.length);
-  if (!entries.length) return null;
-  const findBy = (keys = []) =>
-    entries.find(([key]) => keys.some((target) => key.toLowerCase().includes(target)));
-  const polygon = findBy(["polygon", "poly", "area"]);
-  if (polygon) return { type: "POLYGON", coordinates: polygon[1] };
-  const line = findBy(["line", "path"]);
-  if (line) return { type: "LINE", coordinates: line[1] };
-  const point = findBy(["point"]);
-  if (point) return { type: "POINT", coordinates: point[1] };
-  const first = entries[0];
-  return { type: "", coordinates: first[1] };
-};
-
-const resolvePinVideoRef = (raw = {}) => {
-  if (!raw || typeof raw !== "object") return "";
-  const candidates = [
-    raw.videoLink,
-    raw.video,
-    raw.videoUrl,
-    raw.videoFileName,
-    raw.videoPath,
-    raw.videoName,
-    raw.media?.videoLink,
-    raw.media?.video,
-    raw.content?.videoLink
-  ];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-    if (candidate && typeof candidate === "object") {
-      const nested =
-        candidate.url ||
-        candidate.fileName ||
-        candidate.filename ||
-        candidate.objectName ||
-        candidate.path ||
-        "";
-      if (typeof nested === "string" && nested.trim()) {
-        return nested.trim();
-      }
-    }
-  }
-  return "";
-};
-
-const resolvePinVideoUrl = (videoRef = "", options = {}) => {
-  const ref = typeof videoRef === "string" ? videoRef.trim() : "";
-  if (!ref) return "";
-  const cosHost = `${options.cosHost || ""}`.trim();
-  const isOldSignedCosUrl = /^https?:\/\//i.test(ref) && /[?&]q-sign-algorithm=/i.test(ref);
-  if (options.isSCos && cosHost && options.cosSts) {
-    return buildTencentCosSignedUrl(ref, {
-      host: cosHost,
-      sts: options.cosSts
-    }) || ref;
-  }
-  if (options.isSCos && isOldSignedCosUrl) {
-    return "";
-  }
-  if (/^https?:\/\//i.test(ref)) {
-    return ref;
-  }
-  if (options.isSCos && cosHost) {
-    return `https://${cosHost}/${ref.replace(/^\/+/, "")}`;
-  }
-  return buildFileStreamUrl(ref, { apiBase: options.apiBase });
-};
-
-const resolveShapeCoordinates = (shape = {}) => {
-  const baseType = `${shape.type || ""}`.toUpperCase();
-  let coordinates = Array.isArray(shape.coordinates) ? shape.coordinates : [];
-  let resolvedType = baseType || "POINT";
-  if (!coordinates.length) {
-    const grouped = resolveCoordinateGroup(shape);
-    if (grouped && Array.isArray(grouped.coordinates) && grouped.coordinates.length) {
-      coordinates = grouped.coordinates;
-      if (grouped.type) resolvedType = grouped.type;
-    }
-  }
-  if (isKmlShapeType(baseType) && resolvedType === baseType) {
-    const radius = Number(shape.radius);
-    const width = Number(shape.width);
-    if (Number.isFinite(radius) && radius > 0) {
-      resolvedType = "CIRCLE";
-    } else if (Number.isFinite(width) && width > 0) {
-      resolvedType = "LINE";
-    } else if (Array.isArray(coordinates) && coordinates.length <= 1) {
-      resolvedType = "POINT";
-    } else if (coordinates.length) {
-      resolvedType = "POLYGON";
-    }
-  }
-  return { coordinates: flattenCoordinateList(coordinates), resolvedType };
-};
-
-const clampMapScale = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  const rounded = Math.round(base);
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
-};
-
-const clampMapScaleFloat = (value) => {
-  const numeric = Number(value);
-  const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
-  return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, base));
-};
-
-const normalizeMapRotate = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return null;
-  let normalized = numeric % 360;
-  if (normalized < 0) normalized += 360;
-  if (Math.abs(normalized - 360) < 0.0001) normalized = 0;
-  return normalized;
-};
-
-const formatNearbyMarkerLabel = (value) => {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-  const chars = Array.from(trimmed);
-  if (chars.length <= 7) {
-    return chars.join("");
-  }
-  return `${chars.slice(0, 6).join("")}…`;
-};
-
-const buildMarkerNameCallout = (content, overrides = {}) => {
-  if (!content) {
-    return null;
-  }
-  return Object.assign(
-    {
-      content,
-      color: "#111827",
-      fontSize: 12,
-      fontWeight: "bold",
-      display: "ALWAYS",
-      borderRadius: 5,
-      padding: 6,
-      borderColor: "#111827",
-      borderWidth: 0.4
-    },
-    overrides
-  );
-};
-
-const getWindowMetrics = () => {
-  let windowInfo = {};
-  let deviceInfo = {};
-  if (typeof wx !== "undefined") {
-    if (typeof wx.getWindowInfo === "function") {
-      try {
-        windowInfo = wx.getWindowInfo() || {};
-      } catch (err) {
-        windowInfo = {};
-      }
-    }
-    if (typeof wx.getDeviceInfo === "function") {
-      try {
-        deviceInfo = wx.getDeviceInfo() || {};
-      } catch (err) {
-        deviceInfo = {};
-      }
-    }
-  }
-  const windowWidth = Number(windowInfo.windowWidth) || 375;
-  const windowHeight = Number(windowInfo.windowHeight) || 667;
-  const screenWidth = Number(windowInfo.screenWidth || deviceInfo.screenWidth) || windowWidth;
-  const screenHeight = Number(windowInfo.screenHeight || deviceInfo.screenHeight) || windowHeight;
-  const statusBarHeight = Number(windowInfo.statusBarHeight || deviceInfo.statusBarHeight) || 0;
-  const platform = `${deviceInfo.platform || windowInfo.platform || ""}`.toLowerCase();
-  const pixelRatio = Number(windowInfo.pixelRatio || deviceInfo.pixelRatio) || 1;
-  return {
-    windowWidth,
-    windowHeight,
-    screenWidth,
-    screenHeight,
-    statusBarHeight,
-    platform,
-    pixelRatio
-  };
-};
-
-const readResizeWindowSize = (event = {}) => {
-  if (!event || typeof event !== "object") {
-    return { windowWidth: null, windowHeight: null };
-  }
-  let size = event.size || null;
-  if (Array.isArray(size)) {
-    size = size[0] || null;
-  }
-  if (!size || typeof size !== "object") {
-    size = event;
-  }
-  const windowWidth = Number(size.windowWidth || size.width);
-  const windowHeight = Number(size.windowHeight || size.height);
-  return {
-    windowWidth: Number.isFinite(windowWidth) && windowWidth > 0 ? windowWidth : null,
-    windowHeight: Number.isFinite(windowHeight) && windowHeight > 0 ? windowHeight : null
-  };
-};
-
-const resolveWideLayout = (metrics = {}) => {
-  const width = Number(metrics.windowWidth);
-  const height = Number(metrics.windowHeight);
-  if (!Number.isFinite(width) || width <= 0) {
-    return false;
-  }
-  if (width >= MAP_WIDE_LAYOUT_MIN_WIDTH) {
-    return true;
-  }
-  if (Number.isFinite(height) && height > 0) {
-    return width / height >= MAP_WIDE_LAYOUT_MIN_RATIO;
-  }
-  return false;
-};
-
-const resolveMapUiScale = (metrics = {}, wideLayout = false) => {
-  const width = Number(metrics.windowWidth);
-  if (!wideLayout || !Number.isFinite(width) || width <= 0) {
-    return 1;
-  }
-  const scale = MAP_UI_BASE_WIDTH_PX / width;
-  if (!Number.isFinite(scale) || scale <= 0) {
-    return 1;
-  }
-  return Math.min(1, Math.max(MAP_UI_SCALE_MIN, scale));
-};
-
-const applyMapStatusBarStyle = () => {
-  if (typeof wx === "undefined" || typeof wx.setNavigationBarColor !== "function") {
-    return;
-  }
-  wx.setNavigationBarColor({
-    frontColor: "#000000",
-    backgroundColor: "#ffffff",
-    animation: { duration: 0, timingFunc: "linear" }
-  });
-};
-
-const computeMetersPerPixel = (latitude, zoomLevel) => {
-  if (!Number.isFinite(zoomLevel)) {
-    return 0;
-  }
-  const lat = Math.max(-85, Math.min(85, Number(latitude) || 0));
-  const zoom = Math.max(0, zoomLevel);
-  const radians = (lat * Math.PI) / 180;
-  const cosLat = Math.cos(radians);
-  return (METERS_PER_PIXEL_BASE * cosLat) / Math.pow(2, zoom);
-};
-
-const formatScaleLabel = (meters) => {
-  if (!Number.isFinite(meters) || meters <= 0) {
-    return "";
-  }
-  if (meters >= 1000) {
-    const km = meters / 1000;
-    return km >= 10 ? `${Math.round(km)} km` : `${Math.round(km * 10) / 10} km`;
-  }
-  if (meters >= 1) {
-    return `${Math.round(meters)} m`;
-  }
-  return `${Number(meters.toFixed(1))} m`;
-};
-
-const pickScaleBarLength = (rawMeters) => {
-  if (!Number.isFinite(rawMeters) || rawMeters <= 0) {
-    return { length: 0, label: "" };
-  }
-  const exponent = Math.floor(Math.log10(rawMeters));
-  const pow = Math.pow(10, exponent);
-  const steps = [1, 2, 5];
-  let length = steps[0] * pow;
-  for (let i = 0; i < steps.length; i += 1) {
-    const candidate = steps[i] * pow;
-    if (candidate <= rawMeters) {
-      length = candidate;
-    } else {
-      break;
-    }
-  }
-  if (!Number.isFinite(length) || length <= 0) {
-    length = rawMeters;
-  }
-  return {
-    length,
-    label: formatScaleLabel(length)
-  };
-};
-
-const resolveScaleBarDisplay = ({ rawMeters, metersPerPixel, pxPerRpx, baseRpx }) => {
-  if (!Number.isFinite(rawMeters) || rawMeters <= 0) {
-    return { label: "", widthRpx: Math.max(30, Number(baseRpx) || DEFAULT_SCALE_BAR_BASE_RPX), meters: 0 };
-  }
-  const nice = pickScaleBarLength(rawMeters);
-  const meters = Number.isFinite(nice?.length) && nice.length > 0 ? nice.length : rawMeters;
-  const label = nice.label || formatScaleLabel(meters);
-  const computedWidthRpx =
-    Number.isFinite(metersPerPixel) && metersPerPixel > 0 && Number.isFinite(pxPerRpx) && pxPerRpx > 0
-      ? meters / metersPerPixel / pxPerRpx
-      : baseRpx;
-  const maxWidthRpx = Math.max(30, Number(baseRpx) || DEFAULT_SCALE_BAR_BASE_RPX);
-  const widthRpx = Math.min(maxWidthRpx, Math.max(30, Math.round(computedWidthRpx * 10) / 10));
-  return {
-    label,
-    widthRpx,
-    meters
-  };
-};
-
-const decodeMaybeURI = (text = "") => {
-  if (typeof text !== "string") return "";
-  let current = text.replace(/\+/g, " ");
-  for (let i = 0; i < 3; i += 1) {
-    try {
-      if (/%[0-9a-fA-F]{2}/.test(current)) {
-        const decoded = decodeURIComponent(current);
-        if (decoded === current) break;
-        current = decoded;
-        continue;
-      }
-    } catch (err) {
-      console.warn("decodeMaybeURI failed", err);
-      break;
-    }
-    break;
-  }
-  return current;
-};
-
-const hasAllRequiredSubscriptions = (ids = [], requiredIds = REQUIRED_SUBSCRIPTION_TEMPLATE_IDS) => {
-  const normalized = normalizeTemplateIds(ids);
-  const normalizedRequired = normalizeTemplateIds(requiredIds);
-  if (!normalizedRequired.length) return true;
-  return normalizedRequired.every((id) => normalized.includes(id));
-};
-
-const resolvePanoramaSource = (apiBase) => {
-  const candidate = buildFileDownloadUrl(PANORAMA_DEMO_FILE, { apiBase });
-  if (!candidate) return PANORAMA_FALLBACK_ASSET;
-  if (/^https?:\/\//.test(candidate) || candidate.startsWith("wxfile://")) {
-    return candidate;
-  }
-  if (candidate.startsWith("/")) {
-    return candidate;
-  }
-  return PANORAMA_FALLBACK_ASSET;
-};
-
-const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
-
-const downloadPanoramaWithRetry = (url, options = {}) =>
-  new Promise((resolve, reject) => {
-    let attempts = 0;
-    const retryDelay = Number.isFinite(options.retryDelayMs) ? options.retryDelayMs : 1200;
-    const attempt = () => {
-      attempts += 1;
-      wx.downloadFile({
-        url,
-        success: (res) => {
-          const statusCode = Number(res?.statusCode);
-          const filePath = res?.tempFilePath;
-          if (statusCode === 200 && filePath) {
-            resolve(filePath);
-            return;
-          }
-          const err = new Error(`download-panorama-status-${statusCode || "unknown"}`);
-          reject(err);
-        },
-        fail: (err) => {
-          const msg = `${err?.errMsg || ""}`.toLowerCase();
-          if (msg.includes("timeout") || msg.includes("time out")) {
-            console.warn("panorama download timeout, retrying", { attempts, url });
-            setTimeout(attempt, retryDelay);
-            return;
-          }
-          reject(err || new Error("download-panorama-failed"));
-        }
-      });
-    };
-    attempt();
-  });
-
-const resolvePanoramaFilePath = (source) => {
-  if (!source) return Promise.reject(new Error("missing-panorama-source"));
-  if (isHttpUrl(source)) {
-    return downloadPanoramaWithRetry(source);
-  }
-  return prepareAvatarForUpload(source);
-};
-
-const settleWithValue = (promise, options = {}) => {
-  const defaultValue =
-    options && Object.prototype.hasOwnProperty.call(options, "defaultValue")
-      ? options.defaultValue
-      : undefined;
-  return promise
-    .then((value) => ({ ok: true, value }))
-    .catch((error) => {
-      if (typeof options?.onError === "function") {
-        options.onError(error);
-      } else {
-        console.warn(options?.label || "Promise rejected", error);
-      }
-      return { ok: false, error, value: defaultValue };
-    });
-};
-
-const cloneMarkerDetail = (detail = {}) => {
-  if (!detail || typeof detail !== "object") {
-    return {};
-  }
-  const cloneArray = (value) => {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value.map((item) => (item && typeof item === "object" ? { ...item } : item));
-  };
-  const cloned = { ...detail };
-  cloned.images = cloneArray(detail.images);
-  cloned.honors = Array.isArray(detail.honors) ? [...detail.honors] : [];
-  cloned.attachments = cloneArray(detail.attachments);
-  cloned.qrCodes = cloneArray(detail.qrCodes);
-  cloned.videoAccounts = cloneArray(detail.videoAccounts);
-  if (detail.primaryVideoAccount && typeof detail.primaryVideoAccount === "object") {
-    cloned.primaryVideoAccount = { ...detail.primaryVideoAccount };
-  } else if (!detail.primaryVideoAccount) {
-    cloned.primaryVideoAccount = null;
-  }
-  return cloned;
-};
-
-const decodeParamValue = (value) => {
-  if (value === undefined || value === null) return "";
-  const text = `${value}`.trim();
-  if (!text) return "";
-  try {
-    return decodeURIComponent(text);
-  } catch (err) {
-    return text;
-  }
-};
-
-const isTruthyFlag = (value) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return false;
-    return ["1", "true", "yes", "y", "on", "share"].includes(normalized);
-  }
-  return false;
-};
-
-const parseSceneParams = (scene) => {
-  if (!scene || typeof scene !== "string") {
-    return {};
-  }
-  let decoded = scene;
-  try {
-    decoded = decodeURIComponent(scene);
-  } catch (err) {
-    decoded = `${scene}`;
-  }
-  decoded = decoded.replace(/\+/g, " ");
-  const params = {};
-  decoded.split(/[&,|]/).forEach((segment) => {
-    const chunk = segment.trim();
-    if (!chunk) return;
-    let separatorIndex = chunk.indexOf("=");
-    if (separatorIndex < 0) {
-      separatorIndex = chunk.indexOf(":");
-    }
-    if (separatorIndex < 0) {
-      params[chunk] = "";
-      return;
-    }
-    const key = chunk.slice(0, separatorIndex).trim();
-    const value = chunk.slice(separatorIndex + 1).trim();
-    if (!key) return;
-    params[key] = value;
-  });
-  return params;
-};
-
-const hasValidCoordinate = (lat, lng) =>
-  Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
-
-const formatCoordinateParts = (lat, lng) => {
-  const latNum = Number(lat);
-  const lngNum = Number(lng);
-  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
-  const latText = latNum.toFixed(6);
-  const lngText = lngNum.toFixed(6);
-  return { lngText, latText };
-};
-
-const formatCoordinateDisplayParts = (lat, lng) => {
-  const parts = formatCoordinateParts(lat, lng);
-  if (!parts) return null;
-  const latNum = Number(lat);
-  const lngNum = Number(lng);
-  return {
-    lngText: `${parts.lngText}°${lngNum >= 0 ? "E" : "W"}`,
-    latText: `${parts.latText}°${latNum >= 0 ? "N" : "S"}`
-  };
-};
-
-const formatDmsUnit = (value) => {
-  const abs = Math.abs(Number(value) || 0);
-  const degree = Math.floor(abs);
-  const minuteFloat = (abs - degree) * 60;
-  const minute = Math.floor(minuteFloat);
-  const second = (minuteFloat - minute) * 60;
-  const secondText = Number(second.toFixed(2)).toString();
-  return `${degree}°${minute}'${secondText}"`;
-};
-
-const formatCoordinateDms = (value, axis) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "";
-  const direction =
-    axis === "lng"
-      ? (numeric >= 0 ? "东经" : "西经")
-      : (numeric >= 0 ? "北纬" : "南纬");
-  return `${direction}${formatDmsUnit(numeric)}`;
-};
-
-const normalizeAddressText = (value) => {
-  if (typeof value !== "string") return "";
-  return value.replace(/\s+/g, " ").trim();
-};
-
-const COORDINATE_SYSTEM_OPTIONS = [
-  { value: "gcj02", label: "GCJ-02" },
-  { value: "bd09", label: "BD09" },
-  { value: "wgs84", label: "WGS84" },
-  { value: "cgcs2000", label: "CGCS2000" }
-];
-
-const COORDINATE_SYSTEM_DISPLAY_LABEL_MAP = {
-  gcj02: "gcj-02",
-  bd09: "bd09",
-  wgs84: "wgs84",
-  cgcs2000: "cgcs2000"
-};
-
-const COORDINATE_SYSTEM_CLIPBOARD_LABEL_MAP = {
-  gcj02: "GCJ-02",
-  bd09: "BD09",
-  wgs84: "WGS84",
-  cgcs2000: "CGCS2000"
-};
-
-const normalizeCoordinateSystem = (value) => {
-  const raw = `${value || ""}`.toLowerCase();
-  return COORDINATE_SYSTEM_OPTIONS.some((item) => item.value === raw) ? raw : "gcj02";
-};
-
-const resolveCoordinateSystemDisplayLabel = (coordinateSystem) =>
-  COORDINATE_SYSTEM_DISPLAY_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "gcj-02";
-
-const resolveCoordinateSystemLabel = (coordinateSystem) =>
-  COORDINATE_SYSTEM_CLIPBOARD_LABEL_MAP[normalizeCoordinateSystem(coordinateSystem)] || "GCJ-02";
-
-const convertCoordinateFromGcj02 = (lng, lat, coordinateSystem = "gcj02") => {
-  const baseLng = Number(lng);
-  const baseLat = Number(lat);
-  if (!Number.isFinite(baseLng) || !Number.isFinite(baseLat)) return null;
-  const normalized = normalizeCoordinateSystem(coordinateSystem);
-  let converted = { lng: baseLng, lat: baseLat };
-  if (normalized === "wgs84") {
-    converted = gcj02ToWgs84(baseLng, baseLat);
-  } else if (normalized === "bd09") {
-    converted = gcj02ToBd09(baseLng, baseLat);
-  } else if (normalized === "cgcs2000") {
-    converted = gcj02ToCgcs2000(baseLng, baseLat);
-  }
-  const outLng = Number(converted?.lng);
-  const outLat = Number(converted?.lat);
-  if (!Number.isFinite(outLng) || !Number.isFinite(outLat)) {
-    return { lng: baseLng, lat: baseLat };
-  }
-  return { lng: outLng, lat: outLat };
-};
-
-const buildCoordinateClipboardText = ({
-  lat,
-  lng,
-  coordinateSystem = "gcj02",
-  address = ""
-} = {}) => {
-  const decimal = formatCoordinateParts(lat, lng);
-  if (!decimal) return "";
-  const lngDms = formatCoordinateDms(lng, "lng");
-  const latDms = formatCoordinateDms(lat, "lat");
-  const normalizedAddress = normalizeAddressText(address);
-  const lines = [
-    `坐标系：${resolveCoordinateSystemLabel(coordinateSystem)}`,
-    `经度(十进制)：${decimal.lngText}`,
-    `纬度(十进制)：${decimal.latText}`,
-    `经度(时分秒)：${lngDms || "-"}`,
-    `纬度(时分秒)：${latDms || "-"}`,
-    `详细地址：${normalizedAddress || "未获取到地址"}`
-  ];
-  return lines.join("\n");
-};
-
-const normalizeLaunchMarkerOptions = (options = {}) => {
-  const normalized = {
-    markerId: "",
-    delayUntilPermission: false
-  };
-  if (!options || typeof options !== "object") {
-    return normalized;
-  }
-  const candidateKeys = ["mId", "markerId", "markerID", "markId", "markID", "id"];
-  for (const key of candidateKeys) {
-    if (options[key] !== undefined && options[key] !== null) {
-      const decoded = decodeParamValue(options[key]);
-      if (decoded) {
-        normalized.markerId = decoded;
-        break;
-      }
-    }
-  }
-  const shareFlag = options.fs ?? options.fromShare ?? options.share ?? options.source;
-  if (isTruthyFlag(shareFlag)) {
-    normalized.delayUntilPermission = true;
-  }
-  const sceneParams = parseSceneParams(options.scene);
-  const sceneMarkerId =
-    sceneParams.mId ||
-    sceneParams.markerId ||
-    sceneParams.markerID ||
-    sceneParams.markId ||
-    sceneParams.markID;
-  if (!normalized.markerId && sceneMarkerId) {
-    normalized.markerId = decodeParamValue(sceneMarkerId);
-  }
-  if (!normalized.delayUntilPermission && sceneParams.fs) {
-    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fs);
-  } else if (!normalized.delayUntilPermission && sceneParams.fromShare) {
-    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
-  } else if (!normalized.delayUntilPermission && sceneParams.share) {
-    normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
-  }
-  if (typeof options.q === "string" && options.q.trim()) {
-    const decoded = decodeParamValue(options.q);
-    const queryIndex = decoded.indexOf("?");
-    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
-    const qParams = parseSceneParams(queryString);
-    const qMarkerId =
-      qParams.mId ||
-      qParams.markerId ||
-      qParams.markerID ||
-      qParams.markId ||
-      qParams.markID;
-    if (!normalized.markerId && qMarkerId) {
-      normalized.markerId = decodeParamValue(qMarkerId);
-    }
-    if (!normalized.delayUntilPermission && qParams.fs) {
-      normalized.delayUntilPermission = isTruthyFlag(qParams.fs);
-    } else if (!normalized.delayUntilPermission && qParams.fromShare) {
-      normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
-    } else if (!normalized.delayUntilPermission && qParams.share) {
-      normalized.delayUntilPermission = isTruthyFlag(qParams.share);
-    }
-  }
-  return normalized;
-};
-
-const normalizeLaunchPinOptions = (options = {}) => {
-  const normalized = {
-    pinId: "",
-    delayUntilPermission: false
-  };
-  if (!options || typeof options !== "object") {
-    return normalized;
-  }
-  const candidateKeys = ["pId", "pinId", "pinID", "id"];
-  for (const key of candidateKeys) {
-    if (options[key] !== undefined && options[key] !== null) {
-      const decoded = decodeParamValue(options[key]);
-      if (decoded) {
-        normalized.pinId = decoded;
-        break;
-      }
-    }
-  }
-  const shareFlag = options.fs ?? options.fromShare ?? options.share ?? options.source;
-  if (isTruthyFlag(shareFlag)) {
-    normalized.delayUntilPermission = true;
-  }
-  const sceneParams = parseSceneParams(options.scene);
-  const scenePinId = sceneParams.pId || sceneParams.pinId || sceneParams.pinID;
-  if (!normalized.pinId && scenePinId) {
-    normalized.pinId = decodeParamValue(scenePinId);
-  }
-  if (!normalized.delayUntilPermission && sceneParams.fs) {
-    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fs);
-  } else if (!normalized.delayUntilPermission && sceneParams.fromShare) {
-    normalized.delayUntilPermission = isTruthyFlag(sceneParams.fromShare);
-  } else if (!normalized.delayUntilPermission && sceneParams.share) {
-    normalized.delayUntilPermission = isTruthyFlag(sceneParams.share);
-  }
-  if (typeof options.q === "string" && options.q.trim()) {
-    const decoded = decodeParamValue(options.q);
-    const queryIndex = decoded.indexOf("?");
-    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
-    const qParams = parseSceneParams(queryString);
-    const qPinId = qParams.pId || qParams.pinId || qParams.pinID;
-    if (!normalized.pinId && qPinId) {
-      normalized.pinId = decodeParamValue(qPinId);
-    }
-    if (!normalized.delayUntilPermission && qParams.fs) {
-      normalized.delayUntilPermission = isTruthyFlag(qParams.fs);
-    } else if (!normalized.delayUntilPermission && qParams.fromShare) {
-      normalized.delayUntilPermission = isTruthyFlag(qParams.fromShare);
-    } else if (!normalized.delayUntilPermission && qParams.share) {
-      normalized.delayUntilPermission = isTruthyFlag(qParams.share);
-    }
-  }
-  return normalized;
-};
-
-const normalizeLaunchCenterShareOptions = (options = {}) => {
-  const normalized = {
-    active: false,
-    latitude: null,
-    longitude: null,
-    scale: 15
-  };
-  if (!options || typeof options !== "object") {
-    return normalized;
-  }
-  const readFromObject = (source) => {
-    if (!source || typeof source !== "object") return null;
-    const hasCenterKeys =
-      source.clat !== undefined ||
-      source.clng !== undefined ||
-      source.centerLat !== undefined ||
-      source.centerLng !== undefined;
-    const explicitFlag = source.cs ?? source.centerShare ?? source.shareCenter ?? source.center;
-    if (!hasCenterKeys && !isTruthyFlag(explicitFlag)) {
-      return null;
-    }
-    const lat = Number(source.clat ?? source.centerLat ?? source.lat ?? source.latitude);
-    const lng = Number(source.clng ?? source.centerLng ?? source.lng ?? source.longitude);
-    if (!hasValidCoordinate(lat, lng)) {
-      return null;
-    }
-    const scaleRaw = Number(source.cscale ?? source.zoom ?? source.scale);
-    return {
-      latitude: lat,
-      longitude: lng,
-      scale: Number.isFinite(scaleRaw) ? scaleRaw : normalized.scale
-    };
-  };
-  const applyPayload = (payload) => {
-    if (!payload) return false;
-    normalized.active = true;
-    normalized.latitude = payload.latitude;
-    normalized.longitude = payload.longitude;
-    normalized.scale = clampMapScale(payload.scale);
-    return true;
-  };
-  if (applyPayload(readFromObject(options))) {
-    return normalized;
-  }
-  if (applyPayload(readFromObject(options.query))) {
-    return normalized;
-  }
-  if (applyPayload(readFromObject(parseSceneParams(options.scene)))) {
-    return normalized;
-  }
-  if (typeof options.q === "string" && options.q.trim()) {
-    const decoded = decodeParamValue(options.q);
-    const queryIndex = decoded.indexOf("?");
-    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
-    const qParams = parseSceneParams(queryString);
-    if (applyPayload(readFromObject(qParams))) {
-      return normalized;
-    }
-  }
-  return normalized;
-};
-
-const extractInviteCodeFromOptions = (options = {}) => {
-  const readInviteFromObject = (source) => {
-    if (!source || typeof source !== "object") return "";
-    const candidate = source.ic ?? source.inviteCode ?? source.invitationCode;
-    if (candidate === undefined || candidate === null) return "";
-    return decodeParamValue(candidate);
-  };
-  if (!options || typeof options !== "object") {
-    return "";
-  }
-  const direct = readInviteFromObject(options);
-  if (direct) return direct;
-  if (options.query) {
-    const fromQuery = readInviteFromObject(options.query);
-    if (fromQuery) return fromQuery;
-  }
-  const sceneParams = parseSceneParams(options.scene);
-  const fromScene = readInviteFromObject(sceneParams);
-  if (fromScene) return fromScene;
-  if (typeof options.q === "string" && options.q.trim()) {
-    const decoded = decodeParamValue(options.q);
-    const queryIndex = decoded.indexOf("?");
-    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
-    const qParams = parseSceneParams(queryString);
-    const fromQ = readInviteFromObject(qParams);
-    if (fromQ) return fromQ;
-  }
-  return "";
-};
-
-const mergeLaunchOptions = (primary = {}, secondary = {}) => {
-  const merged = Object.assign({}, primary || {}, secondary || {});
-  const primaryQuery = primary?.query && typeof primary.query === "object" ? primary.query : {};
-  const secondaryQuery = secondary?.query && typeof secondary.query === "object" ? secondary.query : {};
-  const query = Object.assign({}, primaryQuery, secondaryQuery);
-  if (Object.keys(query).length) {
-    merged.query = query;
-  }
-  return merged;
-};
-
-const formatLikeCountDisplay = (value) => {
-  const num = Number(value);
-  if (!Number.isFinite(num) || num < 0) return "0";
-  if (num >= 1000) {
-    const k = num / 1000;
-    return `${Math.round(k * 10) / 10}k`;
-  }
-  return `${Math.floor(num)}`;
-};
-
-const extractWorkGroupInvite = (options = {}) => {
-  const readFromObject = (obj) => {
-    if (!obj || typeof obj !== "object") return null;
-    const invitationCode = decodeParamValue(obj.ic || obj.invitationCode || obj.inviteCode);
-    const groupId = decodeParamValue(obj.groupId || obj.workGroupId);
-    const groupName = decodeParamValue(obj.groupName);
-    if (!invitationCode || !groupId) return null;
-    return { invitationCode, groupId, groupName };
-  };
-
-  const direct = readFromObject(options);
-  if (direct) return direct;
-  if (options.query) {
-    const fromQuery = readFromObject(options.query);
-    if (fromQuery) return fromQuery;
-  }
-  const sceneParams = parseSceneParams(options.scene);
-  const fromScene = readFromObject(sceneParams);
-  if (fromScene) return fromScene;
-  if (typeof options.q === "string" && options.q.trim()) {
-    const decoded = decodeParamValue(options.q);
-    const queryIndex = decoded.indexOf("?");
-    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
-    const qParams = parseSceneParams(queryString);
-    const fromQ = readFromObject(qParams);
-    if (fromQ) return fromQ;
-  }
-  return null;
-};
-
 Page({
   data: {
     keyword: "",
@@ -1163,6 +88,10 @@ Page({
     mapUiScale: 1,
     mapUiScaleStyle: "",
     subscriptionBannerScaleStyle: "transform: translateY(-50%); transform-origin: left center;",
+    subscriptionBannerLeftPx: 8,
+    layerPanelMaxHeightPx: 0,
+    layerPanelBodyMaxHeightPx: 0,
+    layerPanelBodyHeightPx: 0,
     statusBarHeight: 0,
     centerPinOffsetPx: 0,
     markers: [],
@@ -1262,6 +191,13 @@ Page({
     preflightBaseTopRpx: 120,
     preflightTopRpx: 120,
     preflightTopPx: 60,
+    preflightLeftPx: 8,
+    scaleControlsLeftPx: 16,
+    scaleControlsBottomPx: 120,
+    compassBottomPx: 245,
+    floatingControlsRightPx: 16,
+    floatingControlsBottomPx: 131,
+    bottomNavBottomPx: 21,
     policyUpdateVisible: false,
     policyUpdateType: "",
     policyUpdateTitle: "",
@@ -1282,6 +218,8 @@ Page({
     markerLikeTargetType: "",
     markerLikeTargetId: "",
     markerLikeCountDisplay: "",
+    markerLikeHintLabel: "",
+    markerLikeResultLabel: "",
     markerPageVisible: false,
     markerPageClosing: false,
     markerPageDetail: null,
@@ -1292,6 +230,8 @@ Page({
     markerPageLikeTargetType: "",
     markerPageLikeTargetId: "",
     markerPageLikeCountDisplay: "",
+    markerPageLikeHintLabel: "",
+    markerPageLikeResultLabel: "",
     markerPageLikeAnimating: false,
     markerPageLikeHoldLabel: "",
     markerPageLikeLabelType: "",
@@ -1328,6 +268,11 @@ Page({
     airBoardEnabled: true,
     usePlanetCenterPoint: false,
     centerTargetLinkEnabled: true,
+    provinceCityHighlightEnabled: false,
+    provinceCityTree: [],
+    provinceCityHighlightLoading: false,
+    provinceCityHighlightError: "",
+    provinceCityHighlightSelectedId: "",
     myLocationModeResolved: false,
     temporaryNoFlyZoneEnabled: true,
     uomDivisionEnabled: true,
@@ -1353,342 +298,35 @@ Page({
   },
 
   consumePendingLaunchOptions(options = {}) {
-    const app = typeof getApp === "function" ? getApp() : null;
-    const pending = app?.globalData?.pendingLaunchOptions;
-    if (!pending) return options || {};
-    app.globalData.pendingLaunchOptions = null;
-    return mergeLaunchOptions(pending, options || {});
+    return pageRuntimeUtils.consumePendingLaunchOptions(options);
+  },
+
+  consumeInitialUsePlanetCenterPoint() {
+    return pageRuntimeUtils.consumeInitialUsePlanetCenterPoint();
   },
 
   resolveWindowMetrics(event = {}) {
-    const metrics = getWindowMetrics();
-    const resize = readResizeWindowSize(event);
-    if (Number.isFinite(resize.windowWidth) && resize.windowWidth > 0) {
-      metrics.windowWidth = resize.windowWidth;
-    }
-    if (Number.isFinite(resize.windowHeight) && resize.windowHeight > 0) {
-      metrics.windowHeight = resize.windowHeight;
-    }
-    return metrics;
+    return pageRuntimeUtils.resolveWindowMetrics(event);
   },
 
   refreshResponsiveLayout(options = {}) {
-    const metrics =
-      options && options.metrics && typeof options.metrics === "object"
-        ? options.metrics
-        : this.resolveWindowMetrics(options.event);
-    this.initializeSystemInfo(options.force === true, metrics);
-    const wideLayout = resolveWideLayout(metrics);
-    const uiScale = resolveMapUiScale(metrics, wideLayout);
-    const roundedScale = Number(uiScale.toFixed(4));
-    const uiScaleStyle = roundedScale < 0.9999 ? `transform: scale(${roundedScale});` : "";
-    const subscriptionBannerScaleStyle =
-      roundedScale < 0.9999
-        ? `transform: translateY(-50%) scale(${roundedScale}); transform-origin: left center;`
-        : "transform: translateY(-50%); transform-origin: left center;";
-    const updates = {};
-    if (this.data.isWideLayout !== wideLayout) {
-      updates.isWideLayout = wideLayout;
-    }
-    if (this.data.mapUiScale !== roundedScale) {
-      updates.mapUiScale = roundedScale;
-    }
-    if (this.data.mapUiScaleStyle !== uiScaleStyle) {
-      updates.mapUiScaleStyle = uiScaleStyle;
-    }
-    if (this.data.subscriptionBannerScaleStyle !== subscriptionBannerScaleStyle) {
-      updates.subscriptionBannerScaleStyle = subscriptionBannerScaleStyle;
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
-    if (options.refreshScaleBar === false) {
-      return;
-    }
-    const latitude = Number(this.data?.center?.latitude);
-    this.updateScaleBar({
-      scale: this.data.scale,
-      latitude: Number.isFinite(latitude) ? latitude : DEFAULT_CENTER.latitude
-    });
+    return pageRuntimeUtils.refreshResponsiveLayout(this, options);
   },
 
   registerWindowResizeListener() {
-    if (typeof wx === "undefined" || typeof wx.onWindowResize !== "function") {
-      return;
-    }
-    if (this._onWindowResize) {
-      return;
-    }
-    this._onWindowResize = (event = {}) => {
-      this._lastResizeEvent = event;
-      if (this._windowResizeTimer) {
-        clearTimeout(this._windowResizeTimer);
-      }
-      this._windowResizeTimer = setTimeout(() => {
-        this._windowResizeTimer = null;
-        this.refreshResponsiveLayout({ event: this._lastResizeEvent, force: true });
-      }, WINDOW_RESIZE_DEBOUNCE_MS);
-    };
-    wx.onWindowResize(this._onWindowResize);
+    return pageRuntimeUtils.registerWindowResizeListener(this);
   },
 
   unregisterWindowResizeListener() {
-    if (this._windowResizeTimer) {
-      clearTimeout(this._windowResizeTimer);
-      this._windowResizeTimer = null;
-    }
-    if (!this._onWindowResize) {
-      return;
-    }
-    if (typeof wx !== "undefined" && typeof wx.offWindowResize === "function") {
-      wx.offWindowResize(this._onWindowResize);
-    }
-    this._onWindowResize = null;
-    this._lastResizeEvent = null;
+    return pageRuntimeUtils.unregisterWindowResizeListener(this);
   },
 
   onLoad(options = {}) {
-    const cachedUsePlanetMyLocation = this.loadCachedUsePlanetMyLocationPreference();
-    if (typeof cachedUsePlanetMyLocation === "boolean") {
-      this.data.usePlanetCenterPoint = cachedUsePlanetMyLocation;
-      this.data.myLocationModeResolved = true;
-    }
-    const launchOptions = this.consumePendingLaunchOptions(options);
-    const launchCenterPreset = normalizeLaunchCenterShareOptions(launchOptions);
-    if (launchCenterPreset.active) {
-      const presetLat = Number(launchCenterPreset.latitude);
-      const presetLng = Number(launchCenterPreset.longitude);
-      if (hasValidCoordinate(presetLat, presetLng)) {
-        this.data.center = { latitude: presetLat, longitude: presetLng };
-        this.data.scale = clampMapScale(launchCenterPreset.scale || 15);
-        this.data.mapCenterReady = true;
-      }
-    }
-    applyMapStatusBarStyle();
-    this.mapCtx = wx.createMapContext("main-map");
-    this._isIOS = false;
-    this.loadMapSubKey();
-    this.prefetchTencentCosConfig();
-    this.ensureTencentCosSts();
-    this.applyCustomMapStyle();
-    this._windowResizeTimer = null;
-    this._onWindowResize = null;
-    this._lastResizeEvent = null;
-    this.refreshResponsiveLayout({ force: true, refreshScaleBar: false });
-    this.registerWindowResizeListener();
-    let appBase = {};
-    try {
-      if (typeof wx !== "undefined" && typeof wx.getAppBaseInfo === "function") {
-        appBase = wx.getAppBaseInfo() || {};
-      }
-    } catch (err) {
-      appBase = {};
-    }
-    const appName = `${appBase.appName || appBase.hostName || ""}`.toLowerCase();
-    const host = `${appBase.host || appBase.hostName || ""}`.toLowerCase();
-    const isDevtools = isDevtoolsRuntime();
-    const runtimeIsWeChat = isWeChatRuntime();
-    const runtimeIsDesktop = isDesktopRuntime();
-    const useWeChatUom = shouldUseWeChatUom();
-    console.log("[map] runtime", {
-      runtimeIsWeChat,
-      runtimeIsDesktop,
-      useWeChatUom,
-      appName,
-      host
-    });
-    this._runtimeIsWeChat = useWeChatUom;
-    this.data.isWeChatRuntime = useWeChatUom;
-    const debugEnabled = MAP_DEBUG_PANEL_ENABLED === true;
-    if (debugEnabled) {
-      this._debugInfoBase = this.collectRuntimeDebugInfo({
-        appBase,
-        runtimeIsWeChat,
-        runtimeIsDesktop,
-        useWeChatUom,
-        isDevtools
-      });
-    }
-    this.setData({
-      isWeChatRuntime: useWeChatUom,
-      debugEnabled,
-      debugInfo: debugEnabled ? this.buildDebugInfo({}) : {}
-    });
-    this._mapMarkerIdMap = new Map();
-    this._mapMarkerIdSeq = 100000;
-    this._mapLayerSettingsLoaded = false;
-    this._mapLayerAircraftModelWritten = false;
-    this._pendingAircraftModel = "";
-    this._markersFetchTimer = null;
-    this._pinsFetchTimer = null;
-    this._pendingRegionUpdates = 0;
-    this._mapSkew = 0;
-    this._mapRotate = 0;
-    this._myLocationDirection = null;
-    this._onMyLocationCompassChange = null;
-    this._myLocationDirectionTracking = false;
-    this._myLocationDirectionLastSyncAt = 0;
-    this._overlookSyncAvoidUntil = 0;
-    this._centerOverride = this.data.center;
-    this.updateMapCheckinEntryStyle();
-    this.updateSubscriptionBannerLayout();
-    this._layerPanelCloseTimer = null;
-    this._addMiniAppPopupChecking = false;
-    this._addMiniAppPopupVisible = false;
-    this._addMiniAppPopupCheckTimer = null;
-    this._mapLayerSettings = null;
-    this._uomPluginInitTimer = null;
-    this._uomPluginInitialized = false;
-    this._uomPluginInitLogged = false;
-    this._djiLayer = null;
-    this._djiLayerInitTimer = null;
-    this._djiLayerInitialized = false;
-    this._djiLayerInitLogged = false;
-    this._temporaryNoFlyLayer = null;
-    this._temporaryNoFlyLayerInitTimer = null;
-    this._temporaryNoFlyLayerInitialized = false;
-    this._temporaryNoFlyLayerInitLogged = false;
-    this._djiPolygons = [];
-    this._djiCircles = [];
-    this._mapLayerSettingsInitPromise = null;
-    this._mapGuideConfigLoaded = false;
-    this._nfzPolygons = [];
-    this._nfzCircles = [];
-    this._suggestTimer = null;
-    this._uom2Markers = [];
-    this.prefetchSubscriptionLatest();
-    this.setData({
-      mapElementOptions: this.composeMapElementOptions({
-        uomDivisionEnabled: this.data.uomDivisionEnabled,
-        djiNoFlyZoneEnabled: this.data.djiNoFlyZoneEnabled,
-        temporaryNoFlyZoneEnabled: this.data.temporaryNoFlyZoneEnabled,
-        merchantMarkersEnabled: this.data.merchantMarkersEnabled,
-        privateMarkersEnabled: this.data.privateMarkersEnabled,
-        groupSharingEnabled: this.data.groupSharingEnabled,
-        platformCoConstructionEnabled: this.data.platformCoConstructionEnabled
-      })
-    });
-    this._droneList = [];
-    this.loadDronesFromApi();
-    this.bootstrapMapLayerSettings(true);
-    this._markerExposureCache = new Map();
-    this._pinExposureCache = new Map();
-    this._activeMarkersRequest = null;
-    this._lastNearbyFetch = null;
-    this._activePinsRequest = null;
-    this._lastNearbyPinFetch = null;
-    this._nearbyMarkersRaw = [];
-    this._nearbyMarkers = [];
-    this._nearbyPinsRaw = [];
-    this._nearbyPinMarkers = [];
-    this._nearbyPinPolygons = [];
-    this._nearbyPinCircles = [];
-    this._searchMarkers = [];
-    this._searchLinkMarkers = [];
-    this._searchLinkPolylines = [];
-    this._searchLinkOwner = "";
-    this._lastMarkerDetail = null;
-    this._markerDetailCloseTimer = null;
-    this._markerPageCloseTimer = null;
-    this._markerDetailTouch = null;
-    this._markerPageTouch = null;
-    this._markerPageScrollTop = 0;
-    this._markerDetailExpandTimer = null;
-    this._markerDetailExpandLock = false;
-    this._restoreMarkerDetailTimer = null;
-    this._manualMarkers = [];
-    this._mapTapTarget = null;
-    this._mapTapTargetMarkers = [];
-    this._mapTapTargetTapAt = 0;
-    this._mapTapTargetResolveToken = 0;
-    this._mapTapSuppressUntil = 0;
-    this._previewPolygons = [];
-    this._previewCircles = [];
-    this._previewMarker = null;
-    this._previewPinId = null;
-    this._lastKnownLocation = null;
-    this._myLocationMarkers = [];
-    this._myLocationCircles = [];
-    this._mapGraphicsSyncTimer = null;
-    this._pendingMapGraphicsSync = null;
-    this._centerPinFollowActive = false;
-    this._centerPinFollowPaused = false;
-    this._centerPinFollowTimer = null;
-    this._centerPinFollowLocating = false;
-    this._centerPinFollowLastErrorAt = 0;
-    this._centerPinOpenSuppressUntil = 0;
-    this._centerPinWelcomeBubbleDismissedInGesture = false;
-    this._shareCenterLaunch = null;
-    this._stealthModeSnapshot = null;
-    this._centerShareLaunchLock = null;
-    this._centerShareLaunchLockTimer = null;
-    this._pendingCenterActionShare = null;
-    this._pendingCenterActionShareTimer = null;
-    this._likeHoldTimers = { marker: null, markerPage: null };
-    this._likeHoldFired = { marker: false, markerPage: false };
-    this.captureInviteCode(launchOptions);
-    this.handleWorkGroupInviteOptions(launchOptions);
-    const hasCenterShareLaunch = this.initializeCenterShareLaunch(launchOptions);
-    this.initializeShareLaunch(launchOptions);
-    this.initializePinShareLaunch(launchOptions);
-    if (hasCenterShareLaunch) {
-      const app = typeof getApp === "function" ? getApp() : null;
-      if (app && app.globalData) {
-        app.globalData.pendingMarkerFocus = null;
-        app.globalData.pendingPinPreview = null;
-      }
-      this._skipPendingFocusOnShow = true;
-      this.applyCenterShareLaunch();
-      this.markSharePermissionAttempted();
-    } else {
-      this._skipPendingFocusOnShow = false;
-      this.requestInitialLocation();
-      this.consumePendingMarkerFocus({ immediate: true });
-    }
-    if (this.isMapCenterReady()) {
-      const initialViewportCenter = this._centerOverride || this.data.center;
-      const initialViewportScale = this.data.scale;
-      this.scheduleFetchMarkers(0, {
-        center: initialViewportCenter,
-        scale: initialViewportScale,
-        force: true
-      });
-      this.scheduleFetchPins(0, {
-        center: initialViewportCenter,
-        scale: initialViewportScale,
-        force: true
-      });
-      this.syncTemporaryNoFlyLayerViewport({
-        center: initialViewportCenter,
-        region: this._lastRegion || null,
-        scale: initialViewportScale,
-        force: true
-      });
-      this.syncDjiLayerViewport({
-        center: initialViewportCenter,
-        region: this._lastRegion || null,
-        scale: initialViewportScale,
-        force: true
-      });
-      this.updateScaleBar();
-      this.updateCenterPinIndicator();
-    }
-    this.autoLoginOnLaunch();
-    this.checkPolicyUpdateOnLaunch();
-    // this.initSubscriptionBanner();
-    this.loadCheckinStatus();
-
+    return bootstrapUtils.onLoad(this, options);
   },
 
   onReady() {
-    this.updateMapCheckinEntryStyle();
-    this.updateSubscriptionBannerLayout();
-    this.scheduleMapCheckinEntryStyleRefresh();
-    if (this.isMapCenterReady()) {
-      this.ensureUomPluginReady();
-      this.ensureDjiLayerReady();
-      this.ensureTemporaryNoFlyLayerReady();
-    }
+    return lifecycleUtils.onReady(this);
   },
 
   isMapCenterReady() {
@@ -1697,4106 +335,871 @@ Page({
   },
 
   loadMapSubKey() {
-    prefetchMapKey({ apiBase: this.getApiBase() })
-      .then((mapKey) => {
-        const nextKey = typeof mapKey === "string" ? mapKey.trim() : "";
-        if (!nextKey || nextKey === this.data.mapSubKey) return;
-        this.setData({ mapSubKey: nextKey });
-      })
-      .catch((err) => {
-        console.warn("loadMapSubKey failed", err);
-      });
+    return mapPluginsUtils.loadMapSubKey(this);
   },
 
   ensureUomPluginReady(retry = 0) {
-    if (this._uomPlugin && this._uomPluginInitialized) return;
-    if (!this._uomPluginInitLogged) {
-      console.log("[uom-plugin] init check");
-      this._uomPluginInitLogged = true;
-    }
-    const selector = this.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
-    console.log("[uom-plugin] select", { selector, useWeChatUom: this.data.isWeChatRuntime });
-    const plugin = this.selectComponent(selector);
-    if (plugin && typeof plugin.init === "function") {
-      console.log("[uom-plugin] instance ready, init");
-      plugin.init({
-        mapCtx: this.mapCtx,
-        center: this._centerOverride || this.data.center,
-        centerPin: this._centerOverride || this.data.center,
-        scale: this.data.scale,
-        region: this._lastRegion,
-        enabled: this.data.uomDivisionEnabled
-      });
-      this._uomPlugin = plugin;
-      this._uomPluginInitialized = true;
-      return;
-    }
-    if (retry === 0) {
-      console.warn("[uom-plugin] instance not ready, retrying");
-    }
-    if (retry >= 10) {
-      console.warn("[uom-plugin] init retries exhausted");
-      return;
-    }
-    if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
-    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
-    this._uomPluginInitTimer = setTimeout(() => {
-      this._uomPluginInitTimer = null;
-      this.ensureUomPluginReady(retry + 1);
-    }, delay);
+    return mapPluginsUtils.ensureUomPluginReady(this, retry);
   },
 
   ensureDjiLayerReady(retry = 0) {
-    if (this._djiLayer && this._djiLayerInitialized) return;
-    if (!this._djiLayerInitLogged) {
-      this._djiLayerInitLogged = true;
-      console.log("[dji-layer] init check");
-    }
-    const layer = this.selectComponent("#dji-no-fly-layer");
-    if (
-      layer &&
-      typeof layer.init === "function" &&
-      typeof layer.updateViewport === "function" &&
-      typeof layer.updateQuery === "function" &&
-      typeof layer.setEnabled === "function"
-    ) {
-      this._djiLayer = layer;
-      this._djiLayerInitialized = true;
-      layer.init({
-        enabled: this.data.djiNoFlyZoneEnabled !== false,
-        center: this._centerOverride || this.data.center,
-        region: this._lastRegion || null,
-        scale: this.data.scale,
-        drone: this.data.selectedDrone || "",
-        levels: this.data.levelsInput || DEFAULT_LEVELS_PARAM,
-        force: true
-      });
-      return;
-    }
-    if (retry >= 10) {
-      console.warn("[dji-layer] init retries exhausted");
-      return;
-    }
-    if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
-    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
-    this._djiLayerInitTimer = setTimeout(() => {
-      this._djiLayerInitTimer = null;
-      this.ensureDjiLayerReady(retry + 1);
-    }, delay);
+    return mapPluginsUtils.ensureDjiLayerReady(this, retry);
   },
 
   syncDjiLayerViewport(options = {}) {
-    this.ensureDjiLayerReady();
-    if (!this._djiLayer || typeof this._djiLayer.updateViewport !== "function") return;
-    this._djiLayer.updateViewport({
-      center: options.center || this._centerOverride || this.data.center,
-      region: options.region || this._lastRegion || null,
-      scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : this.data.scale,
-      force: options.force === true
-    });
+    return mapPluginsUtils.syncDjiLayerViewport(this, options);
   },
 
   syncDjiLayerQuery(options = {}) {
-    this.ensureDjiLayerReady();
-    if (!this._djiLayer || typeof this._djiLayer.updateQuery !== "function") return;
-    this._djiLayer.updateQuery({
-      drone: this.data.selectedDrone || "",
-      levels: this.data.levelsInput || DEFAULT_LEVELS_PARAM,
-      force: options.force === true
-    });
+    return mapPluginsUtils.syncDjiLayerQuery(this, options);
   },
 
   setDjiLayerEnabled(enabled, options = {}) {
-    this.ensureDjiLayerReady();
-    if (!this._djiLayer || typeof this._djiLayer.setEnabled !== "function") return;
-    this._djiLayer.setEnabled(enabled !== false, {
-      force: options.force === true
-    });
+    return mapPluginsUtils.setDjiLayerEnabled(this, enabled, options);
   },
 
   onDjiGraphicsChange(event = {}) {
-    const detail = event?.detail || {};
-    this._djiPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
-    this._djiCircles = Array.isArray(detail.circles) ? detail.circles : [];
-    this.updateOverlayGraphics();
+    return mapPluginsUtils.onDjiGraphicsChange(this, event);
   },
 
   onDjiStatusChange(event = {}) {
-    const detail = event?.detail || {};
-    const updates = {};
-    if (Object.prototype.hasOwnProperty.call(detail, "djiStatus")) {
-      updates.djiStatus = detail.djiStatus;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "djiStatusExtra")) {
-      updates.djiStatusExtra = detail.djiStatusExtra;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "djiTone")) {
-      updates.djiTone = detail.djiTone;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "djiColor")) {
-      updates.djiColor = detail.djiColor || "";
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "djiMsg")) {
-      updates.djiMsg = detail.djiMsg || "";
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "loadingDji")) {
-      updates.loadingDji = !!detail.loadingDji;
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
+    return mapPluginsUtils.onDjiStatusChange(this, event);
   },
 
   ensureTemporaryNoFlyLayerReady(retry = 0) {
-    if (this._temporaryNoFlyLayer && this._temporaryNoFlyLayerInitialized) return;
-    if (!this._temporaryNoFlyLayerInitLogged) {
-      this._temporaryNoFlyLayerInitLogged = true;
-      console.log("[temporary-no-fly-layer] init check");
-    }
-    const layer = this.selectComponent("#temporary-no-fly-layer");
-    if (
-      layer &&
-      typeof layer.init === "function" &&
-      typeof layer.updateViewport === "function" &&
-      typeof layer.setEnabled === "function"
-    ) {
-      this._temporaryNoFlyLayer = layer;
-      this._temporaryNoFlyLayerInitialized = true;
-      layer.init({
-        enabled: this.data.temporaryNoFlyZoneEnabled !== false,
-        center: this._centerOverride || this.data.center,
-        region: this._lastRegion || null,
-        scale: this.data.scale,
-        apiBase: this.getApiBase(),
-        force: true
-      });
-      return;
-    }
-    if (retry >= 10) {
-      console.warn("[temporary-no-fly-layer] init retries exhausted");
-      return;
-    }
-    if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
-    const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
-    this._temporaryNoFlyLayerInitTimer = setTimeout(() => {
-      this._temporaryNoFlyLayerInitTimer = null;
-      this.ensureTemporaryNoFlyLayerReady(retry + 1);
-    }, delay);
+    return mapPluginsUtils.ensureTemporaryNoFlyLayerReady(this, retry);
   },
 
   syncTemporaryNoFlyLayerViewport(options = {}) {
-    this.ensureTemporaryNoFlyLayerReady();
-    if (!this._temporaryNoFlyLayer || typeof this._temporaryNoFlyLayer.updateViewport !== "function") return;
-    this._temporaryNoFlyLayer.updateViewport({
-      center: options.center || this._centerOverride || this.data.center,
-      region: options.region || this._lastRegion || null,
-      scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : this.data.scale,
-      apiBase: this.getApiBase(),
-      force: options.force === true
-    });
+    return mapPluginsUtils.syncTemporaryNoFlyLayerViewport(this, options);
   },
 
   setTemporaryNoFlyLayerEnabled(enabled, options = {}) {
-    this.ensureTemporaryNoFlyLayerReady();
-    if (!this._temporaryNoFlyLayer || typeof this._temporaryNoFlyLayer.setEnabled !== "function") return;
-    this._temporaryNoFlyLayer.setEnabled(enabled !== false, {
-      force: options.force === true
-    });
+    return mapPluginsUtils.setTemporaryNoFlyLayerEnabled(this, enabled, options);
   },
 
   onTemporaryNoFlyGraphicsChange(event = {}) {
-    const detail = event?.detail || {};
-    this._nfzPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
-    this._nfzCircles = Array.isArray(detail.circles) ? detail.circles : [];
-    this.updateOverlayGraphics();
+    return mapPluginsUtils.onTemporaryNoFlyGraphicsChange(this, event);
   },
 
   onTemporaryNoFlyStatusChange(event = {}) {
-    const detail = event?.detail || {};
-    const updates = {};
-    if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyZoneInfo")) {
-      updates.temporaryNoFlyZoneInfo = detail.temporaryNoFlyZoneInfo || null;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyText")) {
-      updates.temporaryNoFlyText = detail.temporaryNoFlyText || "";
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyTone")) {
-      updates.temporaryNoFlyTone = detail.temporaryNoFlyTone || "neutral";
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
+    return mapPluginsUtils.onTemporaryNoFlyStatusChange(this, event);
   },
 
   ensureMapMarkerId(value) {
-    if (Number.isFinite(value)) return Number(value);
-    const text = value === undefined || value === null ? "" : `${value}`.trim();
-    if (!text) {
-      this._mapMarkerIdSeq += 1;
-      return this._mapMarkerIdSeq;
-    }
-    const numeric = Number(text);
-    if (Number.isFinite(numeric)) return numeric;
-    if (!this._mapMarkerIdMap) {
-      this._mapMarkerIdMap = new Map();
-      this._mapMarkerIdSeq = 100000;
-    }
-    if (this._mapMarkerIdMap.has(text)) {
-      return this._mapMarkerIdMap.get(text);
-    }
-    this._mapMarkerIdSeq += 1;
-    const mapped = this._mapMarkerIdSeq;
-    this._mapMarkerIdMap.set(text, mapped);
-    return mapped;
+    return markerDataUtils.ensureMapMarkerId(this, value);
   },
 
   normalizeMapMarkerId(marker) {
-    if (!marker || typeof marker !== "object") return marker;
-    const rawId =
-      marker.id !== undefined && marker.id !== null
-        ? marker.id
-        : marker.markerId ?? marker.markerID;
-    const mappedId = this.ensureMapMarkerId(rawId);
-    marker.id = mappedId;
-    return marker;
+    return markerDataUtils.normalizeMapMarkerId(this, marker);
   },
 
   normalizeMapMarkerList(list) {
-    if (!Array.isArray(list)) return list;
-    list.forEach((marker) => this.normalizeMapMarkerId(marker));
-    return list;
+    return markerDataUtils.normalizeMapMarkerList(this, list);
   },
 
   getCurrentScaleInMeters(scale = this.data.scale, latitude) {
-    const latSource =
-      latitude ??
-      this._centerOverride?.latitude ??
-      this.data.center?.latitude;
-    return this.estimateScaleBarMeters(scale, latSource);
+    return markerDataUtils.getCurrentScaleInMeters(this, scale, latitude);
   },
 
   resolveMarkerDisplayMode(raw = {}, scaleInMeters) {
-    return resolveMapDisplayMode(raw, scaleInMeters);
+    return markerDataUtils.resolveMarkerDisplayMode(raw, scaleInMeters);
   },
 
   applyDisplayModeToMarker(marker = {}, raw = {}, options = {}) {
-    if (!marker || typeof marker !== "object") {
-      return null;
-    }
-    const hasDisplayConfig =
-      !!raw &&
-      typeof raw === "object" &&
-      (
-        Object.prototype.hasOwnProperty.call(raw, "mapDisplayMode") ||
-        (
-          raw.mapDisplayModes &&
-          typeof raw.mapDisplayModes === "object" &&
-          Object.keys(raw.mapDisplayModes).length > 0
-        )
-      );
-    if (!hasDisplayConfig) {
-      return Object.assign({}, marker);
-    }
-    const mode = this.resolveMarkerDisplayMode(raw, options.scaleInMeters);
-    if (!mode || mode === DISPLAY_MODE_HIDDEN) {
-      return null;
-    }
-    const next = Object.assign({}, marker);
-    const extData = Object.assign({}, next.extData || {});
-    extData.mapDisplayMode = mode;
-    next.extData = extData;
-    if (next.callout) {
-      next.callout = Object.assign({}, next.callout, {
-        display: mode === DISPLAY_MODE_ICON_WITH_NAME ? "ALWAYS" : "BYCLICK"
-      });
-    }
-    if (mode === DISPLAY_MODE_SMALL_ICON_ONLY) {
-      const size = getDisplayModeMarkerSize(mode, options.baseSize || next.width || next.height);
-      next.width = size;
-      next.height = size;
-    }
-    return next;
+    return markerDataUtils.applyDisplayModeToMarker(this, marker, raw, options);
   },
 
   buildCanonicalMarkerKey(marker = {}) {
-    if (!marker || typeof marker !== "object") return "";
-    const source = `${marker?.extData?.source || marker?.source || ""}`.trim().toLowerCase();
-    const raw = marker?.extData?.raw || {};
-    const detail = marker?.extData?.detail || {};
-    const isPin =
-      source.includes("pin") ||
-      raw?.pinIdNew !== undefined ||
-      raw?.shape ||
-      raw?.visibility ||
-      detail?.shape;
-    const candidates = isPin
-      ? [raw?.pinIdNew, raw?.id, detail?.markerId, detail?.id, marker?.markerId, marker?.id]
-      : [raw?.markIdNew, raw?.markId, raw?.id, detail?.markerId, detail?.id, marker?.markerId, marker?.id];
-    for (const candidate of candidates) {
-      if (candidate !== undefined && candidate !== null && `${candidate}`.trim()) {
-        return `${isPin ? "pin" : "marker"}:${`${candidate}`.trim()}`;
-      }
-    }
-    const latitude = Number(marker?.latitude);
-    const longitude = Number(marker?.longitude);
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      return `${source || "map"}:${latitude.toFixed(6)},${longitude.toFixed(6)}`;
-    }
-    return "";
+    return markerDataUtils.buildCanonicalMarkerKey(marker);
   },
 
   dedupeMapMarkers(list = []) {
-    if (!Array.isArray(list) || !list.length) return [];
-    const seen = new Set();
-    const result = [];
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-      const marker = list[i];
-      const key = this.buildCanonicalMarkerKey(marker);
-      if (key && seen.has(key)) {
-        continue;
-      }
-      if (key) {
-        seen.add(key);
-      }
-      result.unshift(marker);
-    }
-    return result;
+    return markerDataUtils.dedupeMapMarkers(list);
   },
 
   buildMyLocationMarker(point = {}) {
-    const latitude = Number(point?.latitude);
-    const longitude = Number(point?.longitude);
-    if (!hasValidCoordinate(latitude, longitude)) return null;
-    const rotate = this.normalizeCompassDirection(this._myLocationDirection);
-    return {
-      id: MY_LOCATION_MARKER_ID,
-      latitude,
-      longitude,
-      iconPath: MY_LOCATION_MARKER_ICON_PATH,
-      width: MY_LOCATION_MARKER_SIZE,
-      height: MY_LOCATION_MARKER_SIZE,
-      alpha: 1,
-      zIndex: 1300,
-      rotate: Math.round(rotate || 0),
-      anchor: {
-        x: 0.5,
-        y: 0.5
-      },
-      extData: {
-        source: "my-location-map"
-      }
-    };
+    return pinPreviewUtils.buildMyLocationMarker(this, point);
   },
 
   buildMyLocationMarkers(point = {}) {
-    if (!this.data.usePlanetCenterPoint) return [];
-    const pointer = this.buildMyLocationMarker(point);
-    return pointer ? [pointer] : [];
+    return pinPreviewUtils.buildMyLocationMarkers(this, point);
   },
 
   buildMyLocationCircles(point = {}) {
-    return [];
+    return pinPreviewUtils.buildMyLocationCircles(this, point);
   },
 
   refreshMyLocationGraphics(point = null) {
-    const latitude = Number(point?.latitude);
-    const longitude = Number(point?.longitude);
-    if (!hasValidCoordinate(latitude, longitude)) {
-      const hadMarkers = Array.isArray(this._myLocationMarkers) && this._myLocationMarkers.length > 0;
-      const hadCircles = Array.isArray(this._myLocationCircles) && this._myLocationCircles.length > 0;
-      if (hadMarkers || hadCircles) {
-        this._myLocationMarkers = [];
-        this._myLocationCircles = [];
-        this.queueMapGraphicsSync({ markers: hadMarkers, overlay: hadCircles });
-      }
-      return;
-    }
-    const normalized = { latitude, longitude };
-    const markers = this.buildMyLocationMarkers(normalized);
-    const prevMarkers = Array.isArray(this._myLocationMarkers) ? this._myLocationMarkers : [];
-    const markersChanged = this.isMyLocationMarkersChanged(prevMarkers, markers);
-    if (markersChanged) {
-      this._myLocationMarkers = markers;
-    }
-    const circles = this.buildMyLocationCircles(normalized);
-    const prevCircles = Array.isArray(this._myLocationCircles) ? this._myLocationCircles : [];
-    const circlesChanged = this.isMyLocationCirclesChanged(prevCircles, circles);
-    if (circlesChanged) {
-      this._myLocationCircles = circles;
-    }
-    if (!markersChanged && !circlesChanged) return;
-    this.queueMapGraphicsSync({ markers: markersChanged, overlay: circlesChanged });
+    return pinPreviewUtils.refreshMyLocationGraphics(this, point);
   },
 
-  setMyLocationControlPoint(point = null) {
-    const latitude = Number(point?.latitude);
-    const longitude = Number(point?.longitude);
-    if (!hasValidCoordinate(latitude, longitude)) {
-      if (this.data.myLocationVisible || this.data.myLocationPoint) {
-        this.setData({
-          myLocationPoint: null,
-          myLocationVisible: false
-        });
-      }
-      this.refreshMyLocationGraphics(null);
-      return;
-    }
-    const normalized = { latitude, longitude };
-    const prev = this.data.myLocationPoint || {};
-    const changed =
-      !hasValidCoordinate(prev.latitude, prev.longitude) ||
-      Math.abs(Number(prev.latitude) - latitude) > 1e-8 ||
-      Math.abs(Number(prev.longitude) - longitude) > 1e-8;
-    if (changed || this.data.myLocationVisible !== true) {
-      this.setData({
-        myLocationPoint: normalized,
-        myLocationVisible: true
-      });
-    }
-    this.refreshMyLocationGraphics(normalized);
+  setMyLocationControlPoint(point = null, options = {}) {
+    return pinPreviewUtils.setMyLocationControlPoint(this, point, options);
   },
 
   findMarkerById(markerId) {
-    if (markerId === undefined || markerId === null) return null;
-    const targetId = this.ensureMapMarkerId(markerId);
-    const nearby = Array.isArray(this._nearbyMarkers) ? this._nearbyMarkers : [];
-    const nearbyPins = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
-    const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
-    const mapTapTarget = Array.isArray(this._mapTapTargetMarkers) ? this._mapTapTargetMarkers : [];
-    const preview = this._previewMarker ? [this._previewMarker] : [];
-    const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const combined = manual.concat(nearbyPins, nearby, search, mapTapTarget, preview);
-    for (const marker of combined) {
-      const currentId = this.ensureMapMarkerId(marker?.id ?? marker?.markerId ?? marker?.markerID);
-      if (currentId === targetId) {
-        return marker;
-      }
-    }
-    return null;
+    return markerDataUtils.findMarkerById(this, markerId);
   },
 
   takePendingMarkerFocus() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (!app || !app.globalData) return null;
-    const payload = app.globalData.pendingMarkerFocus;
-    if (payload) {
-      app.globalData.pendingMarkerFocus = null;
-      return payload;
-    }
-    return null;
+    return shareLaunchUtils.takePendingMarkerFocus(this);
   },
 
   consumePendingMarkerFocus(options = {}) {
-    const request = this.takePendingMarkerFocus();
-    if (!request) return;
-    if (request.mode === "offline" || request.offlineRaw) {
-      this.focusOfflineMarker(request);
-      return;
-    }
-    this.focusOnlineMarker(request);
+    return shareLaunchUtils.consumePendingMarkerFocus(this, options);
   },
 
   consumePendingPinPreview() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (!app || !app.globalData) return;
-    const preview = app.globalData.pendingPinPreview;
-    if (!preview) return;
-    app.globalData.pendingPinPreview = null;
-    this.applyPinPreview(preview);
+    return shareLaunchUtils.consumePendingPinPreview(this);
   },
 
   applyPinPreview(payload = {}) {
-    if (!payload || !payload.shape) return;
-    this.clearPinPreview();
-    this._previewPinId = payload.id || "";
-    const center = this.computePinPreviewCenter(payload.shape, payload);
-    const zone = this.buildPinPreviewZone(payload.shape);
-    if (zone) {
-      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
-      this._previewPolygons = Array.isArray(graphics.polygons) ? graphics.polygons : [];
-      this._previewCircles = Array.isArray(graphics.circles) ? graphics.circles : [];
-    }
-    const marker = this.buildPinPreviewMarker(payload);
-    if (marker) {
-      marker.extData = Object.assign({}, marker.extData, {
-        source: "pin-preview",
-        raw: payload
-      });
-      this._previewMarker = marker;
-      if (!this._previewPinId) {
-        this._previewPinId = marker.id || "";
-      }
-    }
-    this.updateOverlayGraphics();
-    this.syncAllMarkers();
-    this.updateCenterPinIndicator();
-    if (center) {
-      this.centerOnPoint(center, clampMapScale(payload.zoom || 16));
-    }
+    return pinPreviewUtils.applyPinPreview(this, payload);
   },
 
   buildPinDetailFromPin(pin = {}) {
-    const rawPin = pin.raw || pin;
-    const shapeRaw = rawPin.shape || {};
-    const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
-    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
-    const resolved = resolveShapeCoordinates(shape);
-    const normalizedCoords = this.normalizePreviewCoordinateList(resolved.coordinates);
-    const primary =
-      normalizedCoords[0] ||
-      this.normalizePreviewCoordinate(rawPin.location) ||
-      this.normalizePreviewCoordinate({ latitude: rawPin.latitude, longitude: rawPin.longitude }) ||
-      {};
-    const apiBase = this.getApiBase();
-    const normalized = this.normalizeMarkerDetail(rawPin);
-    const pinIdValue = rawPin.pinIdNew ?? rawPin.pinId ?? rawPin.id ?? "";
-    const pinId = pinIdValue !== undefined && pinIdValue !== null ? `${pinIdValue}` : "";
-    const resolveImageRef = (item) => {
-      if (!item) return "";
-      if (typeof item === "string") {
-        return item.trim();
-      }
-      if (typeof item === "object") {
-        const candidate =
-          item.fileName ||
-          item.filename ||
-          item.objectName ||
-          item.path ||
-          item.location ||
-          item.url ||
-          item.imageUrl ||
-          "";
-        return typeof candidate === "string" ? candidate.trim() : "";
-      }
-      return "";
-    };
-    const rawImages = Array.isArray(rawPin.images) ? rawPin.images : [];
-    const images = rawImages
-      .map((img, idx) => {
-        const ref = resolveImageRef(img);
-        const url = ref ? buildFileDownloadUrl(ref, { apiBase }) : "";
-        if (!url) return null;
-        return {
-          url,
-          id: `${pinId || rawPin.id || "pin"}-image-${idx}`
-        };
-      })
-      .filter((img) => !!img.url);
-    const videoRef = resolvePinVideoRef(rawPin);
-    const videoUrl = resolvePinVideoUrl(videoRef, {
-      apiBase,
-      isSCos: rawPin.isSCos !== false,
-      cosHost: this._tencentCosConfig?.host || "",
-      cosSts: this._tencentCosSts || null
-    });
-    const mediaItems = images
-      .map((item) => Object.assign({ type: "image" }, item))
-      .concat(
-        videoUrl
-          ? [{
-            type: "video",
-            url: videoUrl,
-            poster: images[0]?.url || "",
-            id: `${pinId || rawPin.id || "pin"}-video-0`,
-            isSCos: rawPin.isSCos !== false
-          }]
-          : []
-      );
-    const pointCategory = `${rawPin.shape?.pointCategory || rawPin.shape?.pointcategory || ""}`.toUpperCase();
-    const heightDisplay =
-      Number.isFinite(normalized.height) && normalized.height > 0 ? `${Math.round(normalized.height)}m` : "";
-    const nameBase = normalized.name || rawPin.name || rawPin.title || "自定义标记";
-    const name =
-      pointCategory === "TALL_BUILDING" && heightDisplay ? `${nameBase}·${heightDisplay}` : nameBase;
-    const latCandidates = [primary.latitude, rawPin.location?.latitude, rawPin.latitude, normalized.latitude];
-    const lngCandidates = [primary.longitude, rawPin.location?.longitude, rawPin.longitude, normalized.longitude];
-    const latitude = latCandidates.find((v) => Number.isFinite(Number(v)));
-    const longitude = lngCandidates.find((v) => Number.isFinite(Number(v)));
-    const detail = {
-      id: pinId,
-      markerId: pinId,
-      name,
-      locationText: normalized.locationText || rawPin.location?.text || rawPin.address || "",
-      latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : undefined,
-      longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : undefined,
-      description: normalized.description || rawPin.description || "",
-      images: images.length ? images : normalized.images || [],
-      mediaItems,
-      videoLink: videoRef || "",
-      isSCos: rawPin.isSCos !== false && !!videoRef,
-      creatorName: normalized.creatorName || rawPin.creatorName || "",
-      raw: rawPin,
-      source: "pin"
-    };
-
-    if (
-      !detail.locationText &&
-      Number.isFinite(Number(detail.latitude)) &&
-      Number.isFinite(Number(detail.longitude))
-    ) {
-      this.lookupPinAddress(detail);
-    }
-    console.log("Built pin detail ->>", detail.latitude, detail.longitude);
-    return detail;
+    return pinPreviewUtils.buildPinDetailFromPin(this, pin);
   },
 
   prefetchTencentCosConfig() {
-    fetchTencentCosConfig({ apiBase: this.getApiBase() })
-      .then((config = {}) => {
-        const bucket = Array.isArray(config.buckets) ? `${config.buckets[0] || ""}`.trim() : "";
-        const region = `${config.region || ""}`.trim();
-        this._tencentCosConfig = Object.assign({}, config, {
-          bucket,
-          region,
-          host: buildCosHost(bucket, region)
-        });
-      })
-      .catch((err) => {
-        console.warn("map prefetch tencent cos config failed", err);
-      });
+    return pinPreviewUtils.prefetchTencentCosConfig(this);
   },
 
   ensureTencentCosSts(force = false) {
-    if (!force && isTencentCosStsValid(this._tencentCosSts)) {
-      return Promise.resolve(this._tencentCosSts);
-    }
-    if (this._tencentCosStsPromise) {
-      return this._tencentCosStsPromise;
-    }
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) {
-      return Promise.resolve(null);
-    }
-    this._tencentCosStsPromise = fetchTencentCosSts({ apiBase, token })
-      .then((sts = {}) => {
-        this._tencentCosSts = sts;
-        return sts;
-      })
-      .catch((err) => {
-        console.warn("map fetch tencent cos sts failed", err);
-        return null;
-      })
-      .finally(() => {
-        this._tencentCosStsPromise = null;
-      });
-    return this._tencentCosStsPromise;
+    return pinPreviewUtils.ensureTencentCosSts(this, force);
   },
 
   ensurePlayablePinDetailMedia(detail, options = {}) {
-    if (!detail || !this.isPinDetail(detail)) {
-      return Promise.resolve();
-    }
-    return this.ensureTencentCosSts().then((sts) => {
-      const cosHost = this._tencentCosConfig?.host || "";
-      if (!sts || !cosHost) return;
-      const mediaItems = Array.isArray(detail.mediaItems) ? detail.mediaItems : [];
-      let changed = false;
-      const nextMediaItems = mediaItems.map((item = {}) => {
-        if (`${item.type || ""}`.toLowerCase() !== "video") {
-          return item;
-        }
-        const signedUrl = resolvePinVideoUrl(item.url || detail.videoLink || "", {
-          apiBase: this.getApiBase(),
-          isSCos: item.isSCos !== false && detail.isSCos !== false,
-          cosHost,
-          cosSts: sts
-        });
-        if (!signedUrl || signedUrl === item.url) {
-          return item;
-        }
-        changed = true;
-        return Object.assign({}, item, { url: signedUrl });
-      });
-      if (!changed) return;
-      const nextDetail = Object.assign({}, detail, { mediaItems: nextMediaItems });
-      if (options.forDetailCard && this.data.detailCard && (this.data.detailCard.id === detail.id || this.data.detailCard.markerId === detail.markerId)) {
-        this.setData({ detailCard: nextDetail });
-      }
-      if (options.forPage && this.data.markerPageDetail && (this.data.markerPageDetail.id === detail.id || this.data.markerPageDetail.markerId === detail.markerId)) {
-        this.setData({ markerPageDetail: nextDetail });
-      }
-      if (this._lastMarkerDetail && (this._lastMarkerDetail.id === detail.id || this._lastMarkerDetail.markerId === detail.markerId)) {
-        this._lastMarkerDetail = nextDetail;
-      }
-    });
+    return pinPreviewUtils.ensurePlayablePinDetailMedia(this, detail, options);
   },
 
   ensurePinAddress(detail) {
-    if (!detail || detail.source !== "pin") return;
-    if (detail.locationText) return;
-    const lat = Number(detail.latitude);
-    const lng = Number(detail.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    this.requestPinAddress(lat, lng)
-      .then((address) => {
-        if (address) {
-          this.applyPinAddress(detail.markerId || detail.id, address);
-        }
-      })
-      .catch((err) => {
-        console.warn("reverse geocode pin failed", err);
-      });
+    return pinPreviewUtils.ensurePinAddress(this, detail);
   },
 
   clearPinPreview() {
-    this._previewPolygons = [];
-    this._previewCircles = [];
-    this._previewMarker = null;
-    this._previewPinId = null;
-    this.updateOverlayGraphics();
-    this.syncAllMarkers();
-    this.updateCenterPinIndicator();
+    return pinPreviewUtils.clearPinPreview(this);
   },
 
   buildPinPreviewZone(shape = {}) {
-    const shapeType = `${shape.type || ""}`.toUpperCase();
-    const normalizedShape = isKmlShapeType(shapeType) ? normalizeKmlShape(shape) : shape;
-    const resolved = resolveShapeCoordinates(normalizedShape);
-    const type = resolved.resolvedType || shapeType;
-    const coordinates = this.normalizePreviewCoordinateList(resolved.coordinates);
-    if (!coordinates.length) return null;
-    if (type === "CIRCLE") {
-      const center = coordinates[0];
-      const radiusKm = Number(shape.radius);
-      if (!center || !Number.isFinite(radiusKm) || radiusKm <= 0) {
-        return null;
-      }
-      return {
-        type: "CIRCLE",
-        circle: {
-          latitude: center.latitude,
-          longitude: center.longitude,
-          radiusMeters: radiusKm * 1000
-        }
-      };
-    }
-    if (type === "LINE" || type === "PATH") {
-      return {
-        type: "PATH",
-        coordinates,
-        pathDistanceMeters: Number(shape.width) || 0
-      };
-    }
-    return {
-      type: "POLYGON",
-      coordinates
-    };
+    return pinPreviewUtils.buildPinPreviewZone(this, shape);
   },
 
   buildPinPreviewMarker(payload = {}) {
-    const location = payload.location || {};
-    const lat = Number(location.latitude);
-    const lng = Number(location.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return null;
-    }
-    const latitude = lat;
-    const longitude = lng;
-    const category = `${payload.shape?.pointCategory || ""}`.toUpperCase();
-    const ICON_MAP = {
-      GENERAL: "/assets/default.png",
-      WARNING: "/assets/drone-warning.png",
-      AERIAL_SHOT: "/assets/aerial.png",
-      TAKEOFF_LANDING: "/assets/dock.png",
-      TALL_BUILDING: "/assets/elevation.png"
-    };
-    const iconPath = ICON_MAP[category] || "/assets/default.png";
-    const displayMode = this.resolveMarkerDisplayMode(payload.raw || payload, payload.scaleInMeters);
-    if (displayMode === DISPLAY_MODE_HIDDEN) {
-      return null;
-    }
-    const contentParts = [];
-    const hasName = !!payload.name;
-    const hasHeight = category === "TALL_BUILDING" && Number.isFinite(payload.height);
-    if (hasName && displayMode !== DISPLAY_MODE_SMALL_ICON_ONLY && displayMode !== "ICON_ONLY") {
-      const formattedName = formatNearbyMarkerLabel(payload.name);
-      if (formattedName) {
-        contentParts.push(formattedName);
-      }
-    }
-    if (hasHeight) {
-      const hText = `${Math.round(payload.height)}米`;
-      if (hasName) {
-        contentParts.push(hText);
-      } else {
-        contentParts.push(`高程${hText}`);
-      }
-    }
-    const content = contentParts.join(" ") || "标记位置";
-    const marker = {
-      id: payload.id || `pin-preview-${Date.now()}`,
-      latitude,
-      longitude,
-      iconPath,
-      width: 32,
-      height: 32
-    };
-    if (content) {
-      marker.callout = buildMarkerNameCallout(content, {
-        fontSize: 10,
-        fontWeight: "normal"
-      });
-    }
-    return this.applyDisplayModeToMarker(marker, payload.raw || payload, {
-      scaleInMeters: payload.scaleInMeters,
-      baseSize: 32
-    });
+    return pinPreviewUtils.buildPinPreviewMarker(this, payload);
   },
 
   computePinPreviewCenter(shape = {}, payload = {}) {
-    const location = payload.location;
-    const resolved = resolveShapeCoordinates(shape || {});
-    const coords = Array.isArray(resolved.coordinates) ? resolved.coordinates : [];
-    const normalized = this.normalizePreviewCoordinateList(coords);
-    const target = (location && hasValidCoordinate(location.latitude, location.longitude))
-      ? location
-      : normalized[0];
-    if (target && hasValidCoordinate(target.latitude, target.longitude)) {
-      const latitude = Number(target.latitude);
-      const longitude = Number(target.longitude);
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        return { latitude, longitude };
-      }
-    }
-    if (normalized.length) {
-      const avgLat = normalized.reduce((sum, item) => sum + item.latitude, 0) / normalized.length;
-      const avgLng = normalized.reduce((sum, item) => sum + item.longitude, 0) / normalized.length;
-      const latitude = avgLat;
-      const longitude = avgLng;
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        return { latitude, longitude };
-      }
-    }
-    return null;
+    return pinPreviewUtils.computePinPreviewCenter(this, shape, payload);
   },
 
   normalizePreviewCoordinate(entry) {
-    if (!entry) return null;
-    if (Array.isArray(entry) && entry.length >= 2) {
-      const lng = Number(entry[0]);
-      const lat = Number(entry[1]);
-      const alt = Number(entry[2]);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      const coord = { latitude: lat, longitude: lng };
-      if (Number.isFinite(alt)) coord.altitude = alt;
-      return coord;
-    }
-    const lat = Number(entry.latitude ?? entry.lat);
-    const lng = Number(entry.longitude ?? entry.lng);
-    const alt = Number(entry.altitude ?? entry.height ?? entry.alt);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    const coord = { latitude: lat, longitude: lng };
-    if (Number.isFinite(alt)) coord.altitude = alt;
-    return coord;
+    return pinPreviewUtils.normalizePreviewCoordinate(entry);
   },
 
   normalizePreviewCoordinateList(raw = []) {
-    if (!Array.isArray(raw) || !raw.length) return [];
-    const list = flattenCoordinateList(raw);
-    return list.map((coord) => this.normalizePreviewCoordinate(coord)).filter(Boolean);
+    return pinPreviewUtils.normalizePreviewCoordinateList(raw);
   },
 
   lookupPinAddress(detail) {
-    const lat = Number(detail?.latitude);
-    const lng = Number(detail?.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    this.requestPinAddress(lat, lng)
-      .then((address) => {
-        if (address) {
-          this.applyPinAddress(detail.markerId || detail.id, address);
-        }
-      })
-      .catch((err) => console.warn("lookupPinAddress failed", err));
+    return pinPreviewUtils.lookupPinAddress(this, detail);
   },
 
   extractAddressFromGeocode(res = {}) {
-    return (
-      res.recommend ||
-      res.formatted_addresses?.recommend ||
-      res.address ||
-      res.formatted_address ||
-      res.title ||
-      ""
-    );
+    return pinPreviewUtils.extractAddressFromGeocode(res);
   },
 
   requestPinAddress(lat, lng) {
-    const attemptReverse = (latitude, longitude) =>
-      reverseGeocode(latitude, longitude).then((res = {}) => this.extractAddressFromGeocode(res) || "");
-
-    const wgs = gcj02ToWgs84(lng, lat);
-    const hasWgs = Number.isFinite(wgs?.lat) && Number.isFinite(wgs?.lng);
-
-    if (hasWgs) {
-      return attemptReverse(wgs.lat, wgs.lng).then((addr) => {
-        if (addr) return addr;
-        return attemptReverse(lat, lng);
-      });
-    }
-    return attemptReverse(lat, lng);
+    return pinPreviewUtils.requestPinAddress(this, lat, lng);
   },
 
   applyPinAddress(markerId, address) {
-    if (!address) return;
-    if (
-      markerId &&
-      this.data.detailCard &&
-      (this.data.detailCard.markerId === markerId || this.data.detailCard.id === markerId)
-    ) {
-      this.setData({
-        "detailCard.locationText": address
-      });
-    }
-    if (
-      markerId &&
-      this.data.markerPageDetail &&
-      (this.data.markerPageDetail.markerId === markerId || this.data.markerPageDetail.id === markerId)
-    ) {
-      this.setData({
-        "markerPageDetail.locationText": address
-      });
-    }
+    return pinPreviewUtils.applyPinAddress(this, markerId, address);
   },
 
   fillPinSuggestionAddresses(suggestions = [], keywordSnapshot = "") {
-    const list = Array.isArray(suggestions) ? suggestions : [];
-    list.forEach((item, idx) => {
-      if (item.source !== "pin") return;
-      if (item.address) return;
-      const lat = Number(item.latitude);
-      const lng = Number(item.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      this.requestPinAddress(lat, lng)
-        .then((addr) => {
-          if (!addr) return;
-          if (keywordSnapshot !== this.data.keyword.trim()) return;
-          const patch = {};
-          patch[`searchSuggestions[${idx}].address`] = addr;
-          this.setData(patch);
-        })
-        .catch((err) => console.warn("pin suggest reverse geocode failed", err));
-    });
+    return preflightDashboardUtils.fillPinSuggestionAddresses(this, suggestions, keywordSnapshot);
   },
 
   autoLoginOnLaunch() {
-    this.ensureAccessToken()
-      .then(() => {
-        this.loadMapGuideConfigs().catch((err) => {
-          console.warn("loadMapGuideConfigs failed", err);
-        });
-        wx.nextTick(() => {
-          const popup = this.selectComponent("#newbie-task-popup");
-          if (popup && typeof popup.loadTasks === "function") {
-            popup.loadTasks();
-          }
-        });
-      })
-      .catch((err) => {
-        console.warn("自动登录失败", err);
-      });
+    return policyGuideUtils.autoLoginOnLaunch(this);
   },
 
   loadMapGuideConfigs() {
-    const apiBase = this.getApiBase();
-    if (!apiBase) {
-      this.setData({
-        coordinateSystemDescriptionNodes: "",
-        coordinateLongPressGuideNodes: ""
-      });
-      this._mapGuideConfigLoaded = false;
-      return Promise.resolve();
-    }
-    const token = this.getAuthToken();
-    if (!token) {
-      this.setData({
-        coordinateSystemDescriptionNodes: "",
-        coordinateLongPressGuideNodes: ""
-      });
-      this._mapGuideConfigLoaded = false;
-      return Promise.resolve();
-    }
-    const parseRichText = (content) => {
-      const html = typeof content === "string" ? content : "";
-      if (!html.trim()) return "";
-      return transformHtmlContent(html, { apiBase });
-    };
-    const loadCoordinateSystemDescription = fetchCoordinateSystemDescription({ apiBase, token })
-      .then((payload = {}) => parseRichText(payload.content))
-      .catch((err) => {
-        console.warn("loadCoordinateSystemDescription failed", err);
-        return "";
-      });
-    const loadCoordinateLongPressGuide = fetchCoordinateLongPressGuide({ apiBase, token })
-      .then((payload = {}) => parseRichText(payload.content))
-      .catch((err) => {
-        console.warn("loadCoordinateLongPressGuide failed", err);
-        return "";
-      });
-    return Promise.all([loadCoordinateSystemDescription, loadCoordinateLongPressGuide]).then(
-      ([coordinateSystemDescriptionNodes, coordinateLongPressGuideNodes]) => {
-        this.setData({
-          coordinateSystemDescriptionNodes,
-          coordinateLongPressGuideNodes
-        });
-      }
-    ).finally(() => {
-      this._mapGuideConfigLoaded = true;
-    });
+    return policyGuideUtils.loadMapGuideConfigs(this);
   },
 
   checkPolicyUpdateOnLaunch() {
-    if (this._policyUpdateChecking || this._policyUpdateChecked) return;
-    this._policyUpdateChecking = true;
-    const apiBase = this.getApiBase();
-    if (!apiBase) {
-      this._policyUpdateChecking = false;
-      return;
-    }
-    const app = typeof getApp === "function" ? getApp() : null;
-    const cachedProfile = app?.globalData?.latestUserProfile;
-    const loadLatestPolicies = () =>
-      Promise.all([
-        fetchLatestUserAgreement({ apiBase }),
-        fetchLatestPrivacyPolicy({ apiBase })
-      ]);
-    const loadProfile = () =>
-      fetchUserProfile({
-        apiBase,
-        token: this.getAuthToken()
-      });
-    this.ensureAccessToken()
-      .then(() => {
-        const profilePromise = cachedProfile ? Promise.resolve(cachedProfile) : loadProfile();
-        return Promise.all([profilePromise, loadLatestPolicies()]);
-      })
-      .then(([profile, [latestAgreement, latestPrivacy]]) => {
-        if (app && app.globalData && profile && profile !== cachedProfile) {
-          app.globalData.latestUserProfile = profile;
-          app.globalData.latestUserProfileAt = Date.now();
-        }
-        const record = extractPolicyAccessVersions(profile || {});
-        const agreementVersion = normalizePolicyVersion(latestAgreement?.version);
-        const privacyVersion = normalizePolicyVersion(latestPrivacy?.version);
-        const agreementNeedsUpdate =
-          agreementVersion && record.userAgreementVersion !== agreementVersion;
-        const privacyNeedsUpdate =
-          privacyVersion && record.privacyPolicyVersion !== privacyVersion;
-        if (!agreementNeedsUpdate && !privacyNeedsUpdate) {
-          this._policyUpdateChecked = true;
-          return;
-        }
-        const updateType = agreementNeedsUpdate && privacyNeedsUpdate
-          ? "both"
-          : (agreementNeedsUpdate ? "agreement" : "privacy");
-        const title =
-          updateType === "both"
-            ? "协议更新提示"
-            : (updateType === "agreement" ? "用户协议更新提示" : "隐私政策更新提示");
-        this._policyUpdateVersions = {
-          userAgreementVersion: agreementVersion || record.userAgreementVersion,
-          privacyPolicyVersion: privacyVersion || record.privacyPolicyVersion
-        };
-        this._policyUpdatePolicies = {
-          agreement: latestAgreement || null,
-          privacy: latestPrivacy || null
-        };
-        this.setData({
-          policyUpdateVisible: true,
-          policyUpdateType: updateType,
-          policyUpdateTitle: title,
-          policyUpdateClosing: false,
-          mapBlockerVisible: true
-        }, () => {
-          this.updateMapBlockerVisible();
-        });
-      })
-      .catch((err) => {
-        console.warn("checkPolicyUpdateOnLaunch failed", err);
-      })
-      .finally(() => {
-        this._policyUpdateChecking = false;
-      });
+    return policyGuideUtils.checkPolicyUpdateOnLaunch(this);
   },
 
   onPolicyUpdateAgree() {
-    if (this._policyUpdateSubmitting) return;
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    const versions = this._policyUpdateVersions || {};
-    const policies = this._policyUpdatePolicies || {};
-    const updateType = this.data.policyUpdateType;
-    if (!apiBase || !token) {
-      return;
-    }
-    this._policyUpdateSubmitting = true;
-    this.setData({ policyUpdateSubmitting: true });
-    const tasks = [];
-    if (updateType === "agreement" || updateType === "both") {
-      const version = normalizePolicyVersion(policies?.agreement?.version || versions.userAgreementVersion);
-      if (version) {
-        tasks.push(
-          recordPolicyAccess(
-            {
-              agreementType: "terms",
-              version,
-              docHash: policies?.agreement?.docHash,
-              scene: "POPUP"
-            },
-            { apiBase, token }
-          )
-        );
-      }
-    }
-    if (updateType === "privacy" || updateType === "both") {
-      const version = normalizePolicyVersion(policies?.privacy?.version || versions.privacyPolicyVersion);
-      if (version) {
-        tasks.push(
-          recordPolicyAccess(
-            {
-              agreementType: "privacy",
-              version,
-              docHash: policies?.privacy?.docHash,
-              scene: "POPUP"
-            },
-            { apiBase, token }
-          )
-        );
-      }
-    }
-    Promise.all(tasks)
-      .then(() => {
-        this._policyUpdateChecked = true;
-        this.setData({ policyUpdateClosing: true }, () => {
-          if (this._policyUpdateCloseTimer) {
-            clearTimeout(this._policyUpdateCloseTimer);
-          }
-          this._policyUpdateCloseTimer = setTimeout(() => {
-            this._policyUpdateCloseTimer = null;
-            this.setData({
-              policyUpdateVisible: false,
-              policyUpdateClosing: false,
-              policyUpdateSubmitting: false
-            }, () => {
-              this.updateMapBlockerVisible();
-            });
-          }, 240);
-        });
-      })
-      .catch((err) => {
-        console.warn("record policy access failed", err);
-        wx.showToast({ title: "提交失败，请稍后重试", icon: "none" });
-        this.setData({ policyUpdateSubmitting: false });
-      })
-      .finally(() => {
-        this._policyUpdateSubmitting = false;
-      });
+    return policyGuideUtils.onPolicyUpdateAgree(this);
   },
 
   onPolicyUpdateDisagree() {
-    if (typeof wx.exitMiniProgram === "function") {
-      wx.exitMiniProgram();
-      return;
-    }
-    if (this.data.policyUpdateVisible) {
-      this.setData({ policyUpdateVisible: false }, () => {
-        this.updateMapBlockerVisible();
-      });
-    }
-    wx.showToast({ title: "请同意后继续使用", icon: "none" });
+    return policyGuideUtils.onPolicyUpdateDisagree(this);
   },
 
   onPolicyAgreementTap() {
-    wx.navigateTo({ url: "/packages/guide/policy/index?type=agreement" });
+    return policyGuideUtils.onPolicyAgreementTap(this);
   },
 
   onPolicyPrivacyTap() {
-    wx.navigateTo({ url: "/packages/guide/policy/index?type=privacy" });
+    return policyGuideUtils.onPolicyPrivacyTap(this);
   },
 
   initSubscriptionBanner() {
-    this.evaluateSubscriptionBannerVisibility().catch((err) => {
-      console.warn("initSubscriptionBanner failed", err);
-    });
+    return subscriptionUtils.initSubscriptionBanner(this);
   },
 
   waitForSubscriptionSettingsReady() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && typeof app.syncSubscriptionsFromWxSetting === "function") {
-      try {
-        const promise = app.syncSubscriptionsFromWxSetting();
-        if (promise && typeof promise.then === "function") {
-          return promise.catch((err) => {
-            console.warn("waitForSubscriptionSettingsReady failed", err);
-            return { ids: [], mainSwitch: true };
-          });
-        }
-      } catch (err) {
-        console.warn("syncSubscriptionsFromWxSetting threw", err);
-      }
-    }
-    if (app && app.globalData && Array.isArray(app.globalData.subscriptionAcceptedTemplateIds)) {
-      return Promise.resolve({
-        ids: app.globalData.subscriptionAcceptedTemplateIds,
-        mainSwitch: app.globalData.subscriptionMainSwitch !== false
-      });
-    }
-    return Promise.resolve({ ids: [], mainSwitch: true });
+    return subscriptionUtils.waitForSubscriptionSettingsReady(this);
   },
 
   setGlobalSubscriptionIds(list = [], mainSwitch = true) {
-    const app = typeof getApp === "function" ? getApp() : null;
-    const normalized = normalizeTemplateIds(list);
-    if (app && app.globalData) {
-      app.globalData.subscriptionAcceptedTemplateIds = normalized;
-      app.globalData.subscriptionSettingsReady = true;
-      app.globalData.subscriptionMainSwitch = mainSwitch !== false;
-    }
-    return normalized;
+    return subscriptionUtils.setGlobalSubscriptionIds(this, list, mainSwitch);
   },
 
   setGlobalRequiredSubscriptionIds(list = []) {
-    const app = typeof getApp === "function" ? getApp() : null;
-    const normalized = normalizeTemplateIds(list);
-    if (app && app.globalData) {
-      app.globalData.subscriptionRequiredTemplateIds = normalized;
-    }
-    return normalized;
+    return subscriptionUtils.setGlobalRequiredSubscriptionIds(this, list);
   },
 
   resolveRequiredSubscriptionTemplateIds() {
-    const configured = normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS);
-    const app = typeof getApp === "function" ? getApp() : null;
-    const cached = normalizeTemplateIds(app?.globalData?.subscriptionRequiredTemplateIds || []);
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) {
-      return Promise.resolve(cached);
-    }
-    return fetchTemplateSettings({ apiBase, token })
-      .then(({ templateIds = [] }) => {
-        const available = normalizeTemplateIds(templateIds);
-        const required = configured.filter((id) => available.includes(id));
-        return this.setGlobalRequiredSubscriptionIds(required);
-      })
-      .catch((err) => {
-        console.warn("resolveRequiredSubscriptionTemplateIds failed", err);
-        return cached;
-      });
+    return subscriptionUtils.resolveRequiredSubscriptionTemplateIds(this);
   },
 
-  setSubscriptionBannerVisibility(show) {
-    const visible = !!show;
-    this.setData({ showSubscriptionBanner: visible }, () => {
-      if (visible) {
-        this.updateSubscriptionBannerLayout();
-        this.scheduleSubscriptionBannerLayoutRefresh(48, 1);
-      } else {
-        this.updatePreflightOverlayTop(false);
-      }
-    });
+  setSubscriptionBannerVisibility() {
+    return subscriptionUtils.setSubscriptionBannerVisibility(this);
   },
 
-  updatePreflightOverlayTop(showBanner = this.data.showSubscriptionBanner) {
-    const baseTopRpx = Number(this.data.preflightBaseTopRpx) || 120;
-    const { screenWidth } = getWindowMetrics();
-    const rpx = screenWidth ? screenWidth / 750 : 0;
-    const baseTopPx = rpx > 0 ? baseTopRpx * rpx : 60;
-    let topPx = baseTopPx;
-
-    if (typeof wx !== "undefined" && typeof wx.getMenuButtonBoundingClientRect === "function") {
-      try {
-        const menuRect = wx.getMenuButtonBoundingClientRect();
-        const menuBottom = Number(menuRect?.bottom);
-        if (Number.isFinite(menuBottom) && menuBottom > 0) {
-          topPx = menuBottom;
-        }
-      } catch (err) {
-        topPx = baseTopPx;
-      }
-    }
-
-    this.setData({
-      preflightTopRpx: rpx > 0 ? topPx / rpx : baseTopRpx,
-      preflightTopPx: topPx
-    });
+  updatePreflightOverlayTop() {
+    return preflightDashboardUtils.updatePreflightOverlayTop(this);
   },
 
   getSubscriptionMainSwitch() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData) {
-      return app.globalData.subscriptionMainSwitch !== false;
-    }
-    return true;
+    return subscriptionUtils.getSubscriptionMainSwitch(this);
   },
 
   evaluateSubscriptionBannerVisibility() {
-    return Promise.all([
-      this.waitForSubscriptionSettingsReady(),
-      this.resolveRequiredSubscriptionTemplateIds()
-    ])
-      .then(([payload = {}, requiredIds = []]) => {
-        const clientIds = Array.isArray(payload.ids) ? payload.ids : [];
-        const mainSwitch = payload.mainSwitch !== false;
-        const normalizedClient = this.setGlobalSubscriptionIds(clientIds, mainSwitch);
-        if (!requiredIds.length) {
-          this.setSubscriptionBannerVisibility(false);
-          return normalizedClient;
-        }
-        // console.log("mainSwitch =", mainSwitch, "clientIds =", normalizedClient);
-        if (!mainSwitch) {
-          this.setSubscriptionBannerVisibility(true);
-          return normalizedClient;
-        }
-        const apiBase = this.getApiBase();
-        const token = this.getAuthToken();
-        if (!apiBase || !token) {
-          this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient, requiredIds));
-          return normalizedClient;
-        }
-        return fetchSubscriptions({ apiBase, token })
-          .then((serverIds) => {
-            const normalized = this.setGlobalSubscriptionIds(serverIds, mainSwitch);
-            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalized, requiredIds));
-            return normalized;
-          })
-          .catch((err) => {
-            console.warn("evaluateSubscriptionBannerVisibility failed", err);
-            this.setSubscriptionBannerVisibility(!hasAllRequiredSubscriptions(normalizedClient, requiredIds));
-            return normalizedClient;
-          });
-      })
-      .catch((err) => {
-        console.warn("evaluateSubscriptionBannerVisibility outer failed", err);
-        this.setSubscriptionBannerVisibility(false);
-        return [];
-      });
+    return subscriptionUtils.evaluateSubscriptionBannerVisibility(this);
   },
 
   captureInviteCode(options = {}) {
-    const inviteCode = extractInviteCodeFromOptions(options);
-    if (!inviteCode) {
-      return;
-    }
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && typeof app.setPendingInviteCode === "function") {
-      app.setPendingInviteCode(inviteCode);
-      return;
-    }
-    if (typeof wx !== "undefined" && typeof wx.setStorageSync === "function") {
-      try {
-        wx.setStorageSync(PENDING_INVITE_CODE_STORAGE_KEY, inviteCode);
-      } catch (err) {
-        console.warn("Failed to cache invite code locally", err);
-      }
-    }
+    return shareLaunchUtils.captureInviteCode(this, options);
   },
 
   initializeCenterShareLaunch(options = {}) {
-    const normalized = normalizeLaunchCenterShareOptions(options);
-    if (!normalized.active) {
-      this._shareCenterLaunch = null;
-      return false;
-    }
-    this._shareCenterLaunch = normalized;
-    return true;
+    return shareLaunchUtils.initializeCenterShareLaunch(this, options);
   },
 
   applyCenterShareLaunch() {
-    const launch = this._shareCenterLaunch;
-    if (!launch || !launch.active) return false;
-    const latitude = Number(launch.latitude);
-    const longitude = Number(launch.longitude);
-    if (!hasValidCoordinate(latitude, longitude)) {
-      this._shareCenterLaunch = null;
-      return false;
-    }
-    this.centerOnPoint(
-      { latitude, longitude },
-      clampMapScale(launch.scale || 15),
-      true
-    );
-    this._centerShareLaunchLock = {
-      latitude,
-      longitude,
-      scale: clampMapScale(launch.scale || 15),
-      expiresAt: Date.now() + CENTER_SHARE_LOCK_DURATION_MS
-    };
-    this.scheduleCenterShareLaunchLockAlign(CENTER_SHARE_LOCK_ALIGN_DELAY_MS);
-    this._shareCenterLaunch = null;
-    return true;
+    return shareLaunchUtils.applyCenterShareLaunch(this);
   },
 
   scheduleCenterShareLaunchLockAlign(delay = 0) {
-    const lock = this._centerShareLaunchLock;
-    if (!lock) return;
-    if (this._centerShareLaunchLockTimer) {
-      clearTimeout(this._centerShareLaunchLockTimer);
-      this._centerShareLaunchLockTimer = null;
-    }
-    const wait = Math.max(0, Number(delay) || 0);
-    this._centerShareLaunchLockTimer = setTimeout(() => {
-      this._centerShareLaunchLockTimer = null;
-      const latestLock = this._centerShareLaunchLock;
-      if (!latestLock) return;
-      if (Date.now() > Number(latestLock.expiresAt || 0)) {
-        this._centerShareLaunchLock = null;
-        return;
-      }
-      const point = {
-        latitude: Number(latestLock.latitude),
-        longitude: Number(latestLock.longitude)
-      };
-      if (!hasValidCoordinate(point.latitude, point.longitude)) {
-        this._centerShareLaunchLock = null;
-        return;
-      }
-      const targetScale = clampMapScale(latestLock.scale || this.data.scale || DEFAULT_MAP_SCALE);
-      this.setData({ center: point, scale: targetScale }, () => {
-        if (this.mapCtx && typeof this.mapCtx.moveToLocation === "function") {
-          this.mapCtx.moveToLocation({
-            latitude: point.latitude,
-            longitude: point.longitude
-          });
-        }
-      });
-    }, wait);
+    return shareLaunchUtils.scheduleCenterShareLaunchLockAlign(this, delay);
   },
 
   shouldIgnoreCenterShareLaunchSync(targetCenter, cause = "") {
-    const lock = this._centerShareLaunchLock;
-    if (!lock) return false;
-    if (Date.now() > Number(lock.expiresAt || 0)) {
-      this._centerShareLaunchLock = null;
-      if (this._centerShareLaunchLockTimer) {
-        clearTimeout(this._centerShareLaunchLockTimer);
-        this._centerShareLaunchLockTimer = null;
-      }
-      return false;
-    }
-    const normalizedCause = `${cause || ""}`.toLowerCase();
-    if (
-      normalizedCause === "drag" ||
-      normalizedCause === "gesture" ||
-      normalizedCause === "scale" ||
-      normalizedCause === "rotate" ||
-      normalizedCause === "skew" ||
-      normalizedCause === "overlook"
-    ) {
-      this._centerShareLaunchLock = null;
-      if (this._centerShareLaunchLockTimer) {
-        clearTimeout(this._centerShareLaunchLockTimer);
-        this._centerShareLaunchLockTimer = null;
-      }
-      return false;
-    }
-    if (
-      !targetCenter ||
-      !hasValidCoordinate(targetCenter.latitude, targetCenter.longitude)
-    ) {
-      return true;
-    }
-    const driftMeters = haversineMeters(
-      lock.latitude,
-      lock.longitude,
-      targetCenter.latitude,
-      targetCenter.longitude
-    );
-    if (
-      Number.isFinite(driftMeters) &&
-      driftMeters <= CENTER_SHARE_LOCK_MAX_DRIFT_METERS
-    ) {
-      this._centerShareLaunchLock = null;
-      if (this._centerShareLaunchLockTimer) {
-        clearTimeout(this._centerShareLaunchLockTimer);
-        this._centerShareLaunchLockTimer = null;
-      }
-      return false;
-    }
-    this.scheduleCenterShareLaunchLockAlign(60);
-    return true;
+    return shareLaunchUtils.shouldIgnoreCenterShareLaunchSync(this, targetCenter, cause);
   },
 
   prepareCenterActionShare() {
-    const center = this._centerOverride || this.data.center;
-    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-      this._pendingCenterActionShare = null;
-      return null;
-    }
-    const latitude = Number(center.latitude);
-    const longitude = Number(center.longitude);
-    const fallbackAddress = `${this.data.centerPinTitle || ""}`.trim();
-    const payload = {
-      createdAt: Date.now(),
-      latitude,
-      longitude,
-      address: fallbackAddress
-    };
-    if (this._pendingCenterActionShareTimer) {
-      clearTimeout(this._pendingCenterActionShareTimer);
-      this._pendingCenterActionShareTimer = null;
-    }
-    this._pendingCenterActionShare = payload;
-    this._pendingCenterActionShareTimer = setTimeout(() => {
-      if (this._pendingCenterActionShare === payload) {
-        this._pendingCenterActionShare = null;
-      }
-      this._pendingCenterActionShareTimer = null;
-    }, 20 * 1000);
-    this.requestPinAddress(latitude, longitude)
-      .then((address) => {
-        if (this._pendingCenterActionShare !== payload) return;
-        const resolved = `${address || ""}`.trim();
-        if (resolved) {
-          payload.address = resolved;
-        }
-      })
-      .catch((err) => {
-        console.warn("prepareCenterActionShare reverse geocode failed", err);
-      });
-    return payload;
+    return shareLaunchUtils.prepareCenterActionShare(this);
   },
 
   buildCenterActionSharePayload(payload = {}) {
-    const latitude = Number(payload.latitude);
-    const longitude = Number(payload.longitude);
-    if (!hasValidCoordinate(latitude, longitude)) return null;
-    const latText = latitude.toFixed(6);
-    const lngText = longitude.toFixed(6);
-    const title = "风里雨里我在这里等你~";
-    const queryBase = `fs=1&cs=1&clat=${encodeURIComponent(latText)}&clng=${encodeURIComponent(lngText)}`;
-    return {
-      title,
-      queryBase
-    };
+    return shareLaunchUtils.buildCenterActionSharePayload(this, payload);
   },
 
   buildCurrentCenterSharePayload() {
-    const center = this._centerOverride || this.data.center;
-    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-      return null;
-    }
-    return this.buildCenterActionSharePayload({
-      latitude: Number(center.latitude),
-      longitude: Number(center.longitude)
-    });
+    return shareLaunchUtils.buildCurrentCenterSharePayload(this);
   },
 
   consumeCenterActionSharePayload() {
-    const payload = this._pendingCenterActionShare;
-    if (!payload) return null;
-    this.clearPendingCenterActionShare();
-    const age = Date.now() - Number(payload.createdAt || 0);
-    if (!Number.isFinite(age) || age > 60 * 1000) {
-      return null;
-    }
-    return this.buildCenterActionSharePayload(payload);
+    return shareLaunchUtils.consumeCenterActionSharePayload(this);
   },
 
   clearPendingCenterActionShare() {
-    if (this._pendingCenterActionShareTimer) {
-      clearTimeout(this._pendingCenterActionShareTimer);
-      this._pendingCenterActionShareTimer = null;
-    }
-    this._pendingCenterActionShare = null;
+    return shareLaunchUtils.clearPendingCenterActionShare(this);
   },
 
   initializeShareLaunch(options = {}) {
-    this._shareLaunchMarkerId = "";
-    this._shareLaunchWaitForPermission = false;
-    this._shareLaunchPermissionSettled = true;
-    this._shareLaunchHandled = false;
-    this._shareLaunchDetail = null;
-    this._shareLaunchError = null;
-    this._shareMarkerFetchPromise = null;
-    this._shareMarkerFetchSeq = 0;
-    this._shareLaunchNeedAuthRetry = false;
-    this._shareLaunchAuthPromise = null;
-    const normalized = normalizeLaunchMarkerOptions(options);
-    if (!normalized.markerId) {
-      return;
-    }
-    this._shareLaunchMarkerId = normalized.markerId;
-    this._shareLaunchWaitForPermission = !!normalized.delayUntilPermission;
-    this._shareLaunchPermissionSettled = !this._shareLaunchWaitForPermission;
-    this.fetchShareMarkerDetailById(normalized.markerId);
+    return shareLaunchUtils.initializeShareLaunch(this, options);
   },
 
   fetchShareMarkerDetailById(markerId, options = {}) {
-    const id = `${markerId || ""}`.trim();
-    if (!id) {
-      return;
-    }
-    const allowRetry = options.allowRetry !== false;
-    this._shareMarkerFetchSeq = (this._shareMarkerFetchSeq || 0) + 1;
-    const seq = this._shareMarkerFetchSeq;
-    const request = fetchMarkerDetail(id, {
-      apiBase: this.getApiBase(),
-      token: this.getAuthToken()
-    });
-    this._shareMarkerFetchPromise = request;
-    request
-      .then((detail) => {
-        if (this._shareMarkerFetchPromise !== request || this._shareMarkerFetchSeq !== seq) {
-          return;
-        }
-        this._shareMarkerFetchPromise = null;
-        this._shareLaunchDetail = detail;
-        this._shareLaunchError = null;
-        this._shareLaunchNeedAuthRetry = false;
-        this.tryActivateShareMarker();
-      })
-      .catch((err) => {
-        if (this._shareMarkerFetchPromise !== request || this._shareMarkerFetchSeq !== seq) {
-          return;
-        }
-        this._shareMarkerFetchPromise = null;
-        if (allowRetry && err && err.message === "missing-token") {
-          this._shareLaunchNeedAuthRetry = true;
-          this._shareLaunchDetail = null;
-          this._shareLaunchError = null;
-          if (this._shareLaunchPermissionSettled) {
-            this.retryShareMarkerDetailAfterAuth();
-          }
-          return;
-        }
-        this._shareLaunchDetail = null;
-        this._shareLaunchError = err || new Error("marker-detail-failed");
-        this.tryActivateShareMarker();
-      });
+    return shareLaunchUtils.fetchShareMarkerDetailById(this, markerId, options);
   },
 
   markSharePermissionAttempted() {
-    if (this._shareLaunchMarkerId && this._shareLaunchWaitForPermission && !this._shareLaunchPermissionSettled) {
-      this._shareLaunchPermissionSettled = true;
-      if (this._shareLaunchNeedAuthRetry) {
-        this.retryShareMarkerDetailAfterAuth();
-      } else {
-        this.tryActivateShareMarker();
-      }
-    }
-    if (this._sharePinLaunchId && this._sharePinWaitForPermission && !this._sharePinPermissionSettled) {
-      this._sharePinPermissionSettled = true;
-      if (this._sharePinNeedAuthRetry) {
-        this.retrySharePinDetailAfterAuth();
-      } else {
-        this.tryActivateSharePin();
-      }
-    }
+    return shareLaunchUtils.markSharePermissionAttempted(this);
   },
 
   retryShareMarkerDetailAfterAuth() {
-    if (!this._shareLaunchMarkerId) {
-      this.tryActivateShareMarker();
-      return;
-    }
-    const fetchAfterAuth = () => {
-      if (!this._shareLaunchMarkerId || this._shareLaunchHandled) {
-        this.tryActivateShareMarker();
-        return;
-      }
-      this._shareLaunchNeedAuthRetry = false;
-      this.fetchShareMarkerDetailById(this._shareLaunchMarkerId, { allowRetry: false });
-    };
-    if (this.hasAccessToken()) {
-      fetchAfterAuth();
-      return;
-    }
-    if (this._shareLaunchAuthPromise) {
-      return;
-    }
-    this._shareLaunchAuthPromise = this.ensureProfileAuthenticated()
-      .then(() => {
-        fetchAfterAuth();
-      })
-      .catch((err) => {
-        this._shareLaunchError = err || new Error("login-failed");
-        this.tryActivateShareMarker();
-      })
-      .finally(() => {
-        this._shareLaunchAuthPromise = null;
-      });
+    return shareLaunchUtils.retryShareMarkerDetailAfterAuth(this);
   },
 
   tryActivateShareMarker() {
-    if (!this._shareLaunchMarkerId || this._shareLaunchHandled) {
-      return;
-    }
-    if (!this._shareLaunchPermissionSettled) {
-      return;
-    }
-    if (this._shareLaunchDetail) {
-      const success = this.activateShareMarkerDetail(this._shareLaunchDetail);
-      this._shareLaunchHandled = true;
-      this._shareLaunchDetail = null;
-      this._shareLaunchMarkerId = "";
-      if (!success) {
-        return;
-      }
-      return;
-    }
-    if (this._shareLaunchError) {
-      this.handleShareMarkerError(this._shareLaunchError);
-      this._shareLaunchHandled = true;
-      this._shareLaunchMarkerId = "";
-      this._shareLaunchError = null;
-    }
+    return shareLaunchUtils.tryActivateShareMarker(this);
   },
 
   handleShareMarkerError(err) {
-    const message =
-      err && err.message === "missing-token"
-        ? "请先登录后再查看商户详情"
-        : "加载商户详情失败，请稍后重试";
-    wx.showToast({ title: message, icon: "none" });
+    return shareLaunchUtils.handleShareMarkerError(this, err);
   },
 
   activateShareMarkerDetail(rawDetail) {
-    const marker = this.buildShareMarkerFromDetail(rawDetail);
-    if (!marker) {
-      wx.showToast({ title: "商户信息不完整", icon: "none" });
-      return false;
-    }
-    const detail = marker?.extData?.detail || {};
-    const isApproved = this.isDetailApproved(detail);
-    if (!isApproved) {
-      this._manualMarkers = [marker];
-      this.syncAllMarkers();
-    } else if (Array.isArray(this._manualMarkers) && this._manualMarkers.length) {
-      this._manualMarkers = [];
-      this.syncAllMarkers();
-    }
-    this.centerOnPoint(
-      { latitude: marker.latitude, longitude: marker.longitude },
-      clampMapScale(16)
-    );
-    if (isApproved) {
-      this.scheduleFetchMarkers(0, {
-        force: true,
-        center: { latitude: marker.latitude, longitude: marker.longitude },
-        scale: this.data.scale
-      });
-    }
-    this.openMarkerPage(detail);
-    return true;
+    return shareLaunchUtils.activateShareMarkerDetail(this, rawDetail);
   },
 
   buildShareMarkerFromDetail(rawDetail = {}) {
-    if (!rawDetail) {
-      return null;
-    }
-    const detail = this.composeMarkerDetail(rawDetail, {}, {
-      source: "share",
-      id: rawDetail.id,
-      name: rawDetail.name,
-      locationText: rawDetail.locationText
-    });
-    const latitude = Number(detail.latitude);
-    const longitude = Number(detail.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return null;
-    }
-    const gcj = wgs84ToGcj02(longitude, latitude);
-    const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latitude;
-    const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : longitude;
-    const markerName = detail.name || "商户位置";
-    const markerId = detail.markerId || detail.id || rawDetail.id || `share-${Date.now()}`;
-    const marker = {
-      id: markerId,
-      latitude: latitudeGcj,
-      longitude: longitudeGcj,
-      title: markerName,
-      iconPath: "/assets/drone.png",
-      width: 44,
-      height: 44,
-      extData: {
-        source: "share",
-        raw: rawDetail,
-        detail: cloneMarkerDetail(detail)
-      }
-    };
-    const calloutContent = formatNearbyMarkerLabel(markerName);
-    if (calloutContent) {
-      marker.callout = buildMarkerNameCallout(calloutContent);
-    }
-    return marker;
+    return shareLaunchUtils.buildShareMarkerFromDetail(this, rawDetail);
   },
 
   initializePinShareLaunch(options = {}) {
-    this._sharePinLaunchId = "";
-    this._sharePinWaitForPermission = false;
-    this._sharePinPermissionSettled = true;
-    this._sharePinHandled = false;
-    this._sharePinDetail = null;
-    this._sharePinError = null;
-    this._sharePinFetchPromise = null;
-    this._sharePinFetchSeq = 0;
-    this._sharePinNeedAuthRetry = false;
-    this._sharePinAuthPromise = null;
-    const normalized = normalizeLaunchPinOptions(options);
-    if (!normalized.pinId) {
-      return;
-    }
-    this._sharePinLaunchId = normalized.pinId;
-    this._sharePinWaitForPermission = !!normalized.delayUntilPermission;
-    this._sharePinPermissionSettled = !this._sharePinWaitForPermission;
-    this.fetchSharePinDetailById(normalized.pinId);
+    return shareLaunchUtils.initializePinShareLaunch(this, options);
   },
 
   fetchSharePinDetailById(pinId, options = {}) {
-    const id = `${pinId || ""}`.trim();
-    if (!id) {
-      return;
-    }
-    const allowRetry = options.allowRetry !== false;
-    this._sharePinFetchSeq = (this._sharePinFetchSeq || 0) + 1;
-    const seq = this._sharePinFetchSeq;
-    const request = fetchPinDetail(id, {
-      apiBase: this.getApiBase(),
-      token: this.getAuthToken()
-    });
-    this._sharePinFetchPromise = request;
-    request
-      .then((detail) => {
-        if (this._sharePinFetchPromise !== request || this._sharePinFetchSeq !== seq) {
-          return;
-        }
-        this._sharePinFetchPromise = null;
-        this._sharePinDetail = detail;
-        this._sharePinError = null;
-        this._sharePinNeedAuthRetry = false;
-        this.tryActivateSharePin();
-      })
-      .catch((err) => {
-        if (this._sharePinFetchPromise !== request || this._sharePinFetchSeq !== seq) {
-          return;
-        }
-        this._sharePinFetchPromise = null;
-        if (allowRetry && err && err.message === "missing-token") {
-          this._sharePinNeedAuthRetry = true;
-          this._sharePinDetail = null;
-          this._sharePinError = null;
-          if (this._sharePinPermissionSettled) {
-            this.retrySharePinDetailAfterAuth();
-          }
-          return;
-        }
-        this._sharePinDetail = null;
-        this._sharePinError = err || new Error("pin-detail-failed");
-        this.tryActivateSharePin();
-      });
+    return shareLaunchUtils.fetchSharePinDetailById(this, pinId, options);
   },
 
   retrySharePinDetailAfterAuth() {
-    if (!this._sharePinLaunchId) {
-      this.tryActivateSharePin();
-      return;
-    }
-    const fetchAfterAuth = () => {
-      if (!this._sharePinLaunchId || this._sharePinHandled) {
-        this.tryActivateSharePin();
-        return;
-      }
-      this._sharePinNeedAuthRetry = false;
-      this.fetchSharePinDetailById(this._sharePinLaunchId, { allowRetry: false });
-    };
-    if (this.hasAccessToken()) {
-      fetchAfterAuth();
-      return;
-    }
-    if (this._sharePinAuthPromise) {
-      return;
-    }
-    this._sharePinAuthPromise = this.ensureProfileAuthenticated()
-      .then(() => {
-        fetchAfterAuth();
-      })
-      .catch((err) => {
-        this._sharePinError = err || new Error("login-failed");
-        this.tryActivateSharePin();
-      })
-      .finally(() => {
-        this._sharePinAuthPromise = null;
-      });
+    return shareLaunchUtils.retrySharePinDetailAfterAuth(this);
   },
 
   tryActivateSharePin() {
-    if (!this._sharePinLaunchId || this._sharePinHandled) {
-      return;
-    }
-    if (!this._sharePinPermissionSettled) {
-      return;
-    }
-    if (this._sharePinDetail) {
-      const success = this.activateSharePinDetail(this._sharePinDetail);
-      this._sharePinHandled = true;
-      this._sharePinDetail = null;
-      this._sharePinLaunchId = "";
-      if (!success) {
-        return;
-      }
-      return;
-    }
-    if (this._sharePinError) {
-      this.handleSharePinError(this._sharePinError);
-      this._sharePinHandled = true;
-      this._sharePinLaunchId = "";
-      this._sharePinError = null;
-    }
+    return shareLaunchUtils.tryActivateSharePin(this);
   },
 
   handleSharePinError(err) {
-    const message =
-      err && err.message === "missing-token"
-        ? "请先登录后查看标记信息"
-        : "加载标记信息失败，请稍后再试";
-    wx.showToast({ title: message, icon: "none" });
+    return shareLaunchUtils.handleSharePinError(this, err);
   },
 
   activateSharePinDetail(rawDetail) {
-    const marker = this.buildSharePinFromDetail(rawDetail);
-    if (!marker) {
-      wx.showToast({ title: "标记信息异常", icon: "none" });
-      return false;
-    }
-    const detail = marker?.extData?.detail || {};
-    const isApproved = this.isDetailSharable(detail);
-    // 分享只需要定位并打开详情，不强行重绘标记或覆盖列表
-    this._previewPolygons = [];
-    this._previewCircles = [];
-    this.updateOverlayGraphics();
-    this.centerOnPoint(
-      { latitude: marker.latitude, longitude: marker.longitude },
-      clampMapScale(16)
-    );
-    this.openMarkerPage(detail);
-    return true;
+    return shareLaunchUtils.activateSharePinDetail(this, rawDetail);
   },
 
   buildSharePinFromDetail(rawDetail = {}) {
-    if (!rawDetail) {
-      return null;
-    }
-    const detail = this.buildPinDetailFromPin(rawDetail);
-    if (!detail) {
-      return null;
-    }
-    const latitude = Number(detail.latitude);
-    const longitude = Number(detail.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return null;
-    }
-    const markerName = detail.name || "空标记";
-    const markerId = detail.markerId || detail.id || rawDetail.id || `pin-share-${Date.now()}`;
-    const previewMarker =
-      this.buildPinPreviewMarker({
-        id: markerId,
-        name: markerName,
-        location: { latitude, longitude },
-        shape: rawDetail.shape || detail.raw?.shape,
-        height: rawDetail.height || rawDetail.altitude || detail.height
-      }) || {};
-    const marker = Object.assign(
-      {
-        id: markerId,
-        latitude,
-        longitude,
-        iconPath: "/assets/default.png",
-        width: 32,
-        height: 32
-      },
-      previewMarker
-    );
-    marker.latitude = Number.isFinite(marker.latitude) ? marker.latitude : latitude;
-    marker.longitude = Number.isFinite(marker.longitude) ? marker.longitude : longitude;
-    if (!marker.callout || !marker.callout.content) {
-      const calloutContent = formatNearbyMarkerLabel(markerName);
-      if (calloutContent) {
-        marker.callout = buildMarkerNameCallout(calloutContent);
-      }
-    }
-    marker.extData = Object.assign({}, marker.extData, {
-      source: "pin-share",
-      raw: rawDetail,
-      detail: cloneMarkerDetail(detail)
-    });
-    return marker;
+    return shareLaunchUtils.buildSharePinFromDetail(this, rawDetail);
   },
 
   focusOnlineMarker(request = {}) {
-    const latitude = Number(request.latitude);
-    const longitude = Number(request.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return;
-    }
-    this.clearManualMarkers();
-    const gcj = wgs84ToGcj02(longitude, latitude);
-    const target = {
-      latitude: Number.isFinite(gcj?.lat) ? gcj.lat : latitude,
-      longitude: Number.isFinite(gcj?.lng) ? gcj.lng : longitude
-    };
-    this.centerOnPoint(target, clampMapScale(request.scale || 15));
+    return shareLaunchUtils.focusOnlineMarker(this, request);
   },
 
   focusOfflineMarker(request = {}) {
-    const latitude = Number(request.latitude);
-    const longitude = Number(request.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      wx.showToast({ title: "标记缺少位置信息", icon: "none" });
-      return;
-    }
-    const rawDetail =
-      request.offlineRaw && typeof request.offlineRaw === "object"
-        ? Object.assign({}, request.offlineRaw)
-        : {};
-    const detail = this.composeMarkerDetail(rawDetail, {}, {
-      source: "offline",
-      id: request.markerId,
-      name: request.name,
-      locationText: request.locationText,
-      latitude,
-      longitude
-    });
-    this.applyOfflineSnapshot(detail, request.detailSnapshot);
-    detail.shareDisabled = request.shareDisabled !== false;
-    if (request.reviewStatus) {
-      detail.reviewStatus = request.reviewStatus;
-    }
-    const gcj = wgs84ToGcj02(longitude, latitude);
-    const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latitude;
-    const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : longitude;
-    const markerId = detail.markerId || request.markerId || `offline-${Date.now()}`;
-    const markerName = detail.name || request.name || "离线标记";
-    const marker = {
-      id: markerId,
-      latitude: latitudeGcj,
-      longitude: longitudeGcj,
-      title: markerName,
-      iconPath: "/assets/drone-offline.png",
-      width: 44,
-      height: 44,
-      extData: {
-        source: "offline",
-        raw: rawDetail,
-        detail: cloneMarkerDetail(detail)
-      }
-    };
-    const calloutContent = formatNearbyMarkerLabel(markerName);
-    if (calloutContent) {
-      marker.callout = buildMarkerNameCallout(calloutContent);
-    }
-    this._manualMarkers = [marker];
-    this.syncAllMarkers();
-    this.centerOnPoint(
-      { latitude: latitudeGcj, longitude: longitudeGcj },
-      clampMapScale(request.scale || 15)
-    );
-    this.openMarkerDetail(marker);
+    return shareLaunchUtils.focusOfflineMarker(this, request);
   },
 
   applyOfflineSnapshot(detail, snapshot = {}) {
-    if (!detail || !snapshot || typeof snapshot !== "object") {
-      return;
-    }
-    const resolveUrl = (item) => {
-      if (!item) return "";
-      if (typeof item === "string") {
-        return item.trim();
-      }
-      if (typeof item.url === "string" && item.url.trim()) {
-        return item.url.trim();
-      }
-      if (typeof item.fileName === "string" && item.fileName.trim()) {
-        return item.fileName.trim();
-      }
-      return "";
-    };
-    if ((!detail.images || !detail.images.length) && Array.isArray(snapshot.images)) {
-      detail.images = snapshot.images
-        .map((item, index) => {
-          const url = resolveUrl(item);
-          if (!url) return null;
-          return {
-            id: (item && item.id) || `${detail.markerId || "offline"}-image-${index}`,
-            url,
-            fileName: (item && item.fileName) || url
-          };
-        })
-        .filter(Boolean);
-    }
-    if ((!detail.attachments || !detail.attachments.length) && Array.isArray(snapshot.attachments)) {
-      detail.attachments = snapshot.attachments
-        .map((item, index) => {
-          const url = resolveUrl(item);
-          if (!url) return null;
-          const displayName =
-            (item && (item.displayName || item.name || item.fileName)) ||
-            url.split("/").pop() ||
-            "附件";
-          return {
-            id: (item && item.id) || `${detail.markerId || "offline"}-attachment-${index}`,
-            url,
-            displayName,
-            fileName: (item && (item.fileName || item.name)) || displayName
-          };
-        })
-        .filter(Boolean);
-    }
-    if ((!detail.qrCodes || !detail.qrCodes.length) && Array.isArray(snapshot.qrCodes)) {
-      detail.qrCodes = snapshot.qrCodes
-        .map((item, index) => {
-          const url = resolveUrl(item);
-          if (!url) return null;
-          return {
-            id: (item && item.id) || `${detail.markerId || "offline"}-qr-${index}`,
-            url,
-            fileName: (item && (item.fileName || item.name)) || ""
-          };
-        })
-        .filter(Boolean);
-    }
-    if ((!detail.honors || !detail.honors.length) && Array.isArray(snapshot.honors)) {
-      detail.honors = snapshot.honors.slice();
-    }
-    if (!detail.description && snapshot.description) {
-      detail.description = snapshot.description;
-    }
-    if (!detail.phone && snapshot.phone) {
-      detail.phone = snapshot.phone;
-    }
-    if (!detail.locationText && snapshot.locationText) {
-      detail.locationText = snapshot.locationText;
-    }
-    if (!detail.name && snapshot.name) {
-      detail.name = snapshot.name;
-    }
+    return shareLaunchUtils.applyOfflineSnapshot(detail, snapshot);
   },
 
   clearManualMarkers() {
-    if (Array.isArray(this._manualMarkers) && this._manualMarkers.length) {
-      this._manualMarkers = [];
-      this.syncAllMarkers();
-    }
+    return mapGraphicsUtils.clearManualMarkers(this);
   },
 
   openMarkerDetail(marker) {
-    if (!marker) return;
-    const isPin = (marker?.extData?.source || marker?.source || "").toLowerCase().includes("pin");
-    const pinRaw = marker?.extData?.raw || marker?.raw || null;
-    const pinDetail = isPin ? this.buildPinDetailFromPin(pinRaw || marker) : null;
-    const detail = pinDetail || this.resolveMarkerDetail(marker);
-    console.log("openMarkerDetail", marker, detail);
-    if (!detail) {
-      wx.showToast({ title: "未找到商户信息", icon: "none" });
-      return;
-    }
-
-    const viewDetail = this.applyMarkerCertificationState(cloneMarkerDetail(detail));
-    this._lastMarkerDetail = viewDetail;
-    if (this._markerDetailCloseTimer) {
-      clearTimeout(this._markerDetailCloseTimer);
-      this._markerDetailCloseTimer = null;
-    }
-    if (this._markerDetailExpandTimer) {
-      clearTimeout(this._markerDetailExpandTimer);
-      this._markerDetailExpandTimer = null;
-    }
-    this._markerDetailExpandLock = false;
-    console.log("Displaying marker detail", viewDetail);
-    this.hideMarkerCertificationSheet(true);
-    this.setData({
-      markerDetailVisible: true,
-      markerDetailClosing: false,
-      markerDetailExpanding: false,
-      detailCard: viewDetail,
-      markerDetailAllowExpand: true,
-      markerDetailCurrentImage: 0,
-      markerDetailVideoLoading: this.isVideoMediaItem(this.getDetailMediaList(viewDetail)[0])
-    });
-    this.loadMarkerLikeInfo({ detail: viewDetail, target: marker });
-    if (isPin) {
-      this.ensurePinAddress(viewDetail);
-      this.ensurePlayablePinDetailMedia(viewDetail, { forDetailCard: true });
-    }
+    return markerDetailStateUtils.openMarkerDetail(this, marker);
   },
 
   onMarkerTap(event) {
-    const markerId = event?.detail?.markerId;
-    this._mapTapSuppressUntil = Date.now() + 300;
-    const marker = this.findMarkerById(markerId);
-    if (!marker) return;
-    if (isMapTapTargetMarker(marker)) return;
-    this.applySearchSelectionFromMarker(marker, {
-      keyword: marker?.title || marker?.name || this.data.keyword
-    });
-    const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
-    if (src.includes("pin")) {
-      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
-      if (shapeType && shapeType !== "POINT") return;
-    }
-    this.openMarkerDetail(marker);
+    return markerDetailStateUtils.onMarkerTap(this, event);
   },
 
   onMarkerCalloutTap(event) {
-    const markerId = event?.detail?.markerId;
-    this._mapTapSuppressUntil = Date.now() + 300;
-    const marker = this.findMarkerById(markerId);
-    if (!marker) return;
-    if (isMapTapTargetMarker(marker)) return;
-    this.applySearchSelectionFromMarker(marker, {
-      keyword: marker?.title || marker?.name || this.data.keyword
-    });
-    const src = `${marker?.extData?.source || marker.source || ""}`.toLowerCase();
-    if (src.includes("pin")) {
-      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
-      if (shapeType && shapeType !== "POINT") return;
-    }
-    this.openMarkerDetail(marker);
+    return markerDetailStateUtils.onMarkerCalloutTap(this, event);
   },
 
   closeMarkerDetail(immediate = false) {
-    if (!this.data.markerDetailVisible) return;
-    if (this._markerDetailCloseTimer) {
-      clearTimeout(this._markerDetailCloseTimer);
-      this._markerDetailCloseTimer = null;
-    }
-    if (this._markerDetailExpandTimer) {
-      clearTimeout(this._markerDetailExpandTimer);
-      this._markerDetailExpandTimer = null;
-    }
-    this._markerDetailExpandLock = false;
-    if (immediate) {
-      this.hideMarkerCertificationSheet(true);
-      this.setData({
-        markerDetailVisible: false,
-        markerDetailClosing: false,
-        markerDetailExpanding: false,
-        detailCard: null
-      });
-      return;
-    }
-    this.hideMarkerCertificationSheet(true);
-    this.setData({ markerDetailClosing: true });
-    this._markerDetailCloseTimer = setTimeout(() => {
-      this._markerDetailCloseTimer = null;
-      this.setData({
-        markerDetailVisible: false,
-        markerDetailClosing: false,
-        markerDetailExpanding: false,
-        detailCard: null
-      });
-    }, 200);
+    return markerDetailStateUtils.closeMarkerDetail(this, immediate);
   },
 
   onMarkerDetailMaskTap() {
-    this.closeMarkerDetail();
+    return markerDetailStateUtils.onMarkerDetailMaskTap(this);
   },
 
   onCreatorNameTap() {
-    wx.showToast({
-      title: "后续支持发布者信息哦~敬请期待！",
-      icon: "none"
-    });
+    return markerDetailStateUtils.onCreatorNameTap();
   },
 
   onMarkerDetailMaskTouchMove() {
-    // Stop marker detail gestures from reaching the map beneath
+    return markerDetailStateUtils.onMarkerDetailMaskTouchMove();
   },
 
   onMarkerDetailCloseTap() {
-    this.closeMarkerDetail();
+    return markerDetailStateUtils.onMarkerDetailCloseTap(this);
   },
 
   onMarkerDetailMoreTap() {
-    this.triggerMarkerDetailExpand();
+    return markerDetailStateUtils.onMarkerDetailMoreTap(this);
   },
 
   triggerMarkerDetailExpand() {
-    const detail = this.data.detailCard;
-    if (!detail) return;
-    if (this.data.markerDetailExpanding) return;
-    if (this._markerDetailExpandLock) return;
-    if (this._markerDetailExpandTimer) {
-      clearTimeout(this._markerDetailExpandTimer);
-      this._markerDetailExpandTimer = null;
-    }
-    this._markerDetailExpandLock = true;
-    this.setData({ markerDetailExpanding: true });
-    this._markerDetailExpandTimer = setTimeout(() => {
-      this._markerDetailExpandTimer = null;
-      this._markerDetailExpandLock = false;
-      const currentDetail = this.data.detailCard || detail;
-      if (!currentDetail) {
-        this.setData({ markerDetailExpanding: false });
-        return;
-      }
-      const restored = cloneMarkerDetail(currentDetail);
-      this._lastMarkerDetail = restored;
-      this.openMarkerPage(restored);
-      this.setData({ markerDetailExpanding: false });
-    }, 220);
+    return markerDetailStateUtils.triggerMarkerDetailExpand(this);
   },
 
   onMarkerDetailTouchStart(event) {
-    if (!this.data.markerDetailAllowExpand) return;
-    const touch = event?.touches?.[0];
-    if (!touch) return;
-    this._markerDetailTouch = {
-      startY: touch.clientY,
-      lastY: touch.clientY,
-      deltaY: 0,
-      startTime: Date.now()
-    };
+    return markerDetailStateUtils.onMarkerDetailTouchStart(this, event);
   },
 
   onMarkerDetailTouchMove(event) {
-    if (!this.data.markerDetailAllowExpand) return;
-    if (!this._markerDetailTouch) return;
-    const touch = event?.touches?.[0];
-    if (!touch) return;
-    const deltaY = touch.clientY - this._markerDetailTouch.startY;
-    this._markerDetailTouch.lastY = touch.clientY;
-    this._markerDetailTouch.deltaY = deltaY;
+    return markerDetailStateUtils.onMarkerDetailTouchMove(this, event);
   },
 
   onMarkerDetailTouchEnd() {
-    if (!this.data.markerDetailAllowExpand) return;
-    const info = this._markerDetailTouch;
-    this._markerDetailTouch = null;
-    if (!info) return;
-    const deltaY = info.deltaY || 0;
-    const duration = Date.now() - info.startTime;
-    if ((deltaY <= -80 && duration <= 600) || deltaY <= -140) {
-      this.triggerMarkerDetailExpand();
-    }
+    return markerDetailStateUtils.onMarkerDetailTouchEnd(this);
   },
 
   onMarkerDetailTouchCancel() {
-    if (!this.data.markerDetailAllowExpand) return;
-    this._markerDetailTouch = null;
+    return markerDetailStateUtils.onMarkerDetailTouchCancel(this);
   },
 
   onMarkerDetailSwiperChange(e) {
-    const idx = Number(e?.detail?.current);
-    if (Number.isFinite(idx)) {
-      const media = this.getDetailMediaList(this.data.detailCard || {});
-      this.setData({
-        markerDetailCurrentImage: idx,
-        markerDetailVideoLoading: this.isVideoMediaItem(media[idx])
-      });
-    }
+    return markerDetailStateUtils.onMarkerDetailSwiperChange(this, e);
   },
 
-  onMarkerDetailVideoWaiting() {
-    if (!this.data.markerDetailVideoLoading) {
-      this.setData({ markerDetailVideoLoading: true });
-    }
+  isCurrentMarkerDetailVideoEvent(event = {}) {
+    return markerDetailStateUtils.isCurrentMarkerDetailVideoEvent(this, event);
   },
 
-  onMarkerDetailVideoReady() {
-    if (this.data.markerDetailVideoLoading) {
-      this.setData({ markerDetailVideoLoading: false });
-    }
+  onMarkerDetailVideoWaiting(event = {}) {
+    return markerDetailStateUtils.onMarkerDetailVideoWaiting(this, event);
+  },
+
+  onMarkerDetailVideoReady(event = {}) {
+    return markerDetailStateUtils.onMarkerDetailVideoReady(this, event);
   },
 
   openMapInlineVideoFullscreen(options = {}) {
-    const url = typeof options.url === "string" ? options.url.trim() : "";
-    if (!url) return;
-    const poster = typeof options.poster === "string" ? options.poster.trim() : "";
-    const videoId = typeof options.videoId === "string" ? options.videoId.trim() : "";
-    if (typeof wx.previewMedia === "function") {
-      wx.previewMedia({
-        sources: [{
-          url,
-          type: "video",
-          poster
-        }],
-        current: 0,
-        showmenu: true
-      });
-      return;
-    }
-    if (videoId && typeof wx.createVideoContext === "function") {
-      const ctx = wx.createVideoContext(videoId, this);
-      if (ctx && typeof ctx.play === "function") {
-        ctx.play();
-      }
-      if (ctx && typeof ctx.requestFullScreen === "function") {
-        ctx.requestFullScreen({ direction: 0 });
-      }
-    }
+    return markerDetailStateUtils.openMapInlineVideoFullscreen(this, options);
+  },
+
+  playMapInlineVideo(videoId = "") {
+    return markerDetailStateUtils.playMapInlineVideo(this, videoId);
   },
 
   onMapInlineVideoTap(event = {}) {
-    this.openMapInlineVideoFullscreen({
-      url: event?.currentTarget?.dataset?.url || "",
-      poster: event?.currentTarget?.dataset?.poster || "",
-      videoId: event?.currentTarget?.dataset?.videoId || ""
-    });
+    return markerDetailStateUtils.onMapInlineVideoTap(this, event);
   },
 
   isMarkerCertified(detail = {}) {
-    if (!detail || typeof detail !== "object") {
-      return false;
-    }
-    if (isTruthyFlag(detail.isCertified) || isTruthyFlag(detail.paid)) {
-      return true;
-    }
-    return resolveCertifiedState(detail.raw || {});
+    return markerDetailStateUtils.isMarkerCertified(this, detail);
   },
 
   applyMarkerCertificationState(detail = {}) {
-    if (!detail || typeof detail !== "object") {
-      return detail;
-    }
-    const isCertified = this.isMarkerCertified(detail);
-    const titleParts = buildBadgeTitleParts(detail.name, "未命名商户");
-    detail.isCertified = isCertified;
-    detail.titleDisplayText = titleParts.titleDisplayText;
-    detail.titlePrefixText = titleParts.titlePrefixText;
-    detail.titleTailText = titleParts.titleTailText;
-    if (isCertified && detail.paid === undefined) {
-      detail.paid = true;
-    }
-    return detail;
+    return markerDetailStateUtils.applyMarkerCertificationState(this, detail);
   },
 
   getDetailMediaList(detail = {}) {
-    if (Array.isArray(detail?.mediaItems) && detail.mediaItems.length) {
-      return detail.mediaItems;
-    }
-    if (Array.isArray(detail?.images) && detail.images.length) {
-      return detail.images;
-    }
-    return [];
+    return markerDetailStateUtils.getDetailMediaList(detail);
   },
 
   isVideoMediaItem(item = {}) {
-    return `${item?.type || ""}`.toLowerCase() === "video";
+    return markerDetailStateUtils.isVideoMediaItem(item);
   },
 
   onMarkerCertificationBadgeTap() {
-    const detail = this.data.markerPageDetail || this.data.detailCard || this._lastMarkerDetail;
-    if (!this.isMarkerCertified(detail)) {
-      return;
-    }
-    if (this._markerCertificationSheetCloseTimer) {
-      clearTimeout(this._markerCertificationSheetCloseTimer);
-      this._markerCertificationSheetCloseTimer = null;
-    }
-    this.setData({
-      markerCertificationSheetVisible: true,
-      markerCertificationSheetClosing: false
-    });
+    return markerDetailStateUtils.onMarkerCertificationBadgeTap(this);
   },
 
   hideMarkerCertificationSheet(immediate = false) {
-    if (!this.data.markerCertificationSheetVisible) {
-      return;
-    }
-    if (this._markerCertificationSheetCloseTimer) {
-      clearTimeout(this._markerCertificationSheetCloseTimer);
-      this._markerCertificationSheetCloseTimer = null;
-    }
-    if (immediate) {
-      this.setData({
-        markerCertificationSheetVisible: false,
-        markerCertificationSheetClosing: false
-      });
-      return;
-    }
-    this.setData({ markerCertificationSheetClosing: true });
-    this._markerCertificationSheetCloseTimer = setTimeout(() => {
-      this._markerCertificationSheetCloseTimer = null;
-      this.setData({
-        markerCertificationSheetVisible: false,
-        markerCertificationSheetClosing: false
-      });
-    }, MARKER_CERTIFICATION_SHEET_CLOSE_DURATION);
+    return markerDetailStateUtils.hideMarkerCertificationSheet(this, immediate);
   },
 
   onMarkerCertificationSheetMaskTap() {
-    this.hideMarkerCertificationSheet();
+    return markerDetailStateUtils.onMarkerCertificationSheetMaskTap(this);
   },
 
   makePhoneCall(phone, options = {}) {
-    const value = typeof phone === "string" ? phone.trim() : `${phone || ""}`.trim();
-    const markerIdRaw = options.markerId !== undefined && options.markerId !== null ? `${options.markerId}` : "";
-    const markerId = markerIdRaw.trim();
-    if (!value) {
-      wx.showToast({ title: "暂无联系电话", icon: "none" });
-      return;
-    }
-    if (typeof wx?.makePhoneCall === "function") {
-      wx.makePhoneCall({
-        phoneNumber: value,
-        success: () => {
-          if (markerId) {
-            this.incrementMarkerPhoneCallCount(markerId);
-          }
-        }
-      });
-      return;
-    }
-    if (typeof wx?.setClipboardData === "function") {
-      wx.setClipboardData({
-        data: value,
-        success: () => {
-          wx.showToast({ title: "号码已复制", icon: "none" });
-        }
-      });
-      return;
-    }
-    wx.showToast({ title: "请手动拨打", icon: "none" });
+    return markerActionsUtils.makePhoneCall(this, phone, options);
   },
 
   openCallSheet(options = {}) {
-    const phoneValue =
-      typeof options.phone === "string"
-        ? options.phone.trim()
-        : `${options.phone || ""}`.trim();
-    if (!phoneValue) {
-      wx.showToast({ title: "暂无联系电话", icon: "none" });
-      return;
-    }
-    const markerId =
-      options.markerId !== undefined && options.markerId !== null
-        ? `${options.markerId}`.trim()
-        : "";
-    const markerName = typeof options.name === "string" ? options.name : "";
-    this.setData({
-      callSheetVisible: true,
-      callSheetPhone: phoneValue,
-      callSheetMarkerId: markerId,
-      callSheetMarkerName: markerName
-    });
+    return markerActionsUtils.openCallSheet(this, options);
   },
 
   hideCallSheet() {
-    if (!this.data.callSheetVisible) {
-      return;
-    }
-    this.setData({
-      callSheetVisible: false,
-      callSheetPhone: "",
-      callSheetMarkerId: "",
-      callSheetMarkerName: ""
-    });
+    return markerActionsUtils.hideCallSheet(this);
   },
 
   onCallSheetConfirm() {
-    const phone = this.data.callSheetPhone || "";
-    const markerId = this.data.callSheetMarkerId || "";
-    this.hideCallSheet();
-    this.makePhoneCall(phone, { markerId });
+    return markerActionsUtils.onCallSheetConfirm(this);
   },
 
   onCallSheetCancel() {
-    this.hideCallSheet();
+    return markerActionsUtils.onCallSheetCancel(this);
   },
 
   onCallSheetMaskTap() {
-    this.hideCallSheet();
+    return markerActionsUtils.onCallSheetMaskTap(this);
   },
 
   incrementMarkerPhoneCallCount(markerId) {
-    if (!markerId) {
-      return;
-    }
-    incrementMarkerPhoneCall(markerId, {
-      apiBase: this.getApiBase(),
-      token: this.getAuthToken()
-    }).catch((err) => {
-      console.warn("Increment marker phone call failed", err);
-    });
+    return markerActionsUtils.incrementMarkerPhoneCallCount(this, markerId);
   },
 
   incrementMarkerExposureCount(markerId) {
-    if (!markerId) {
-      return;
-    }
-    incrementMarkerExposure(markerId, {
-      apiBase: this.getApiBase(),
-      token: this.getAuthToken()
-    }).catch((err) => {
-      console.warn("Increment marker exposure failed", err);
-    });
+    return markerActionsUtils.incrementMarkerExposureCount(this, markerId);
   },
 
   incrementPinExposureCount(pinId) {
-    if (!pinId) {
-      return;
-    }
-    incrementPinExposure(pinId, {
-      apiBase: this.getApiBase(),
-      token: this.getAuthToken()
-    }).catch((err) => {
-      console.warn("Increment pin exposure failed", err);
-    });
+    return markerActionsUtils.incrementPinExposureCount(this, pinId);
   },
 
   pruneMarkerExposureCache(now = Date.now()) {
-    if (!this._markerExposureCache || typeof this._markerExposureCache.forEach !== "function") {
-      return;
-    }
-    const threshold = now - MARKER_EXPOSURE_CACHE_TTL;
-    const staleKeys = [];
-    this._markerExposureCache.forEach((timestamp, key) => {
-      if (!Number.isFinite(timestamp) || timestamp < threshold) {
-        staleKeys.push(key);
-      }
-    });
-    staleKeys.forEach((key) => this._markerExposureCache.delete(key));
+    return markerActionsUtils.pruneMarkerExposureCache(this, now);
   },
 
   prunePinExposureCache(now = Date.now()) {
-    if (!this._pinExposureCache || typeof this._pinExposureCache.forEach !== "function") {
-      return;
-    }
-    const threshold = now - MARKER_EXPOSURE_CACHE_TTL;
-    const staleKeys = [];
-    this._pinExposureCache.forEach((timestamp, key) => {
-      if (!Number.isFinite(timestamp) || timestamp < threshold) {
-        staleKeys.push(key);
-      }
-    });
-    staleKeys.forEach((key) => this._pinExposureCache.delete(key));
+    return markerActionsUtils.prunePinExposureCache(this, now);
   },
 
   trackMarkerExposure(markers) {
-    if (!Array.isArray(markers) || !markers.length) {
-      return;
-    }
-    if (!this._markerExposureCache) {
-      this._markerExposureCache = new Map();
-    }
-    const now = Date.now();
-    this.pruneMarkerExposureCache(now);
-    markers.forEach((marker) => {
-      const detail = this.resolveMarkerDetail(marker);
-      const markerId = this.resolveMarkerNewId(detail, marker);
-      if (!markerId) {
-        return;
-      }
-      if (markerId.startsWith("nearby-")) {
-        return;
-      }
-      const lastExposure = this._markerExposureCache.get(markerId);
-      if (Number.isFinite(lastExposure) && now - lastExposure < MARKER_EXPOSURE_CACHE_TTL) {
-        return;
-      }
-      this._markerExposureCache.set(markerId, now);
-      this.incrementMarkerExposureCount(markerId);
-    });
+    return markerActionsUtils.trackMarkerExposure(this, markers);
   },
 
   openMarkerLocation(detail, overrides = {}) {
-    const latitude = Number(overrides.latitude ?? detail?.latitude);
-    const longitude = Number(overrides.longitude ?? detail?.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      wx.showToast({ title: "暂无定位信息", icon: "none" });
-      return;
-    }
-    const name = overrides.name || detail?.name || "商户位置";
-    const address = overrides.address || detail?.locationText || "";
-    if (typeof wx?.openLocation === "function") {
-      wx.openLocation({
-        latitude,
-        longitude,
-        name,
-        address
-      });
-      return;
-    }
-    wx.showToast({ title: "当前环境不支持导航", icon: "none" });
+    return markerActionsUtils.openMarkerLocation(this, detail, overrides);
   },
 
   onMarkerDetailCallTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
-    const phone = dataset.phone || this.data.detailCard?.phone || "";
-    const detail = this.data.detailCard || {};
-    const markerId = this.resolveMarkerNewId(detail);
-    const name = detail?.name || "";
-    this.openCallSheet({ phone, markerId, name });
+    return markerDetailStateUtils.onMarkerDetailCallTap(this, event);
   },
 
   onMarkerDetailNavigateTap(event) {
-    const detail = this.data.detailCard;
-    if (!detail) return;
-    const dataset = event?.currentTarget?.dataset || {};
-    this.openMarkerLocation(detail, dataset);
+    return markerDetailStateUtils.onMarkerDetailNavigateTap(this, event);
   },
 
   openMarkerPage(detail) {
-    if (!detail) return;
-    if (this._markerPageCloseTimer) {
-      clearTimeout(this._markerPageCloseTimer);
-      this._markerPageCloseTimer = null;
-    }
-    if (this._restoreMarkerDetailTimer) {
-      clearTimeout(this._restoreMarkerDetailTimer);
-      this._restoreMarkerDetailTimer = null;
-    }
-    const pageDetail = this.applyMarkerCertificationState(cloneMarkerDetail(detail));
-    // console.log("pageDetail->>", pageDetail)
-    this.normalizeMarkerPageDetail(pageDetail);
-    this._lastMarkerDetail = pageDetail;
-    const isPin = this.isPinDetail(pageDetail);
-    const distanceText = this.buildMarkerDistanceText(pageDetail);
-    this.setData({
-      markerPageVisible: true,
-      markerPageClosing: false,
-      markerPageDetail: pageDetail,
-      markerPageCurrentImage: 0,
-      markerPageVideoLoading: this.isVideoMediaItem(this.getDetailMediaList(pageDetail)[0]),
-      markerPageShareEnabled: this.isDetailSharable(pageDetail),
-      markerPageIsPin: isPin,
-      markerPageDistanceText: distanceText
-    });
-    this.loadMarkerLikeInfo({ detail: pageDetail, target: detail, forPage: true });
-    if (isPin) {
-      this.ensurePlayablePinDetailMedia(pageDetail, { forPage: true });
-    }
-    this._markerPageScrollTop = 0;
-    this._markerPageTouch = null;
-    this.closeMarkerDetail(true);
+    return markerDetailStateUtils.openMarkerPage(this, detail);
   },
 
   onMarkerPosterTap() {
-    const detail = this.data.markerPageDetail || this._lastMarkerDetail;
-    if (!detail) return;
-    const raw = detail.raw || {};
-    const targetValue = raw.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? raw.id ?? "";
-    const markerId = targetValue !== undefined && targetValue !== null ? `${targetValue}`.trim() : "";
-    if (!markerId) {
-      wx.showToast({ title: "暂无可用商户", icon: "none" });
-      return;
-    }
-    wx.navigateTo({
-      url: `/pages/markers/merchant-poster/index?mId=${encodeURIComponent(markerId)}`
-    });
+    return markerDetailStateUtils.onMarkerPosterTap(this);
   },
 
   refreshMarkerPageDistance() {
-    if (!this.data.markerPageVisible || !this.data.markerPageDetail) {
-      return;
-    }
-    const distanceText = this.buildMarkerDistanceText(this.data.markerPageDetail);
-    if (distanceText === this.data.markerPageDistanceText) {
-      return;
-    }
-    this.setData({ markerPageDistanceText: distanceText });
+    return markerDetailStateUtils.refreshMarkerPageDistance(this);
   },
 
   buildMarkerDistanceText(detail) {
-    const distance = this.computeMarkerDistance(detail);
-    if (!Number.isFinite(distance) || distance < 0) {
-      return "";
-    }
-    return formatDistanceText(distance);
+    return markerDetailStateUtils.buildMarkerDistanceText(this, detail);
   },
 
   normalizeMarkerPageDetail(detail = {}) {
-    if (!detail || typeof detail !== "object") {
-      return;
-    }
-    if (Array.isArray(detail.attachments) && detail.attachments.length) {
-      const first = detail.attachments.find((item) => item && (item.url || item.fileName));
-      if (first) {
-        const normalized = Object.assign({}, first);
-        normalized.displayName = ATTACHMENT_DISPLAY_LABEL;
-        normalized.shortName = ATTACHMENT_DISPLAY_LABEL;
-        if (!normalized.url && typeof normalized.fileName === "string" && normalized.fileName.trim()) {
-          normalized.url = normalized.fileName.trim();
-        }
-        detail.attachments = [normalized];
-        return;
-      }
-    }
-    detail.attachments = [];
+    return markerDetailStateUtils.normalizeMarkerPageDetail(detail);
   },
 
   computeMarkerDistance(detail) {
-    if (!detail) return NaN;
-    const markerLat = Number(detail.latitude);
-    const markerLng = Number(detail.longitude);
-    if (!Number.isFinite(markerLat) || !Number.isFinite(markerLng)) {
-      return NaN;
-    }
-    const location = this._lastKnownLocation;
-    const userLat = Number(location?.latitude);
-    const userLng = Number(location?.longitude);
-    if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
-      return NaN;
-    }
-    const userWgs = gcj02ToWgs84(userLng, userLat);
-    const userLatWgs = Number.isFinite(userWgs?.lat) ? userWgs.lat : userLat;
-    const userLngWgs = Number.isFinite(userWgs?.lng) ? userWgs.lng : userLng;
-    const meters = computeGreatCircleDistance(
-      { latitude: markerLat, longitude: markerLng },
-      { latitude: userLatWgs, longitude: userLngWgs }
-    );
-    return Number.isFinite(meters) ? meters : NaN;
+    return markerDetailStateUtils.computeMarkerDistance(this, detail);
   },
 
   closeMarkerPage(options = {}) {
-    const { restoreDetail = true } = options || {};
-    if (!this.data.markerPageVisible) return;
-    this.hideMarkerCertificationSheet(true);
-    if (this._markerPageCloseTimer) {
-      clearTimeout(this._markerPageCloseTimer);
-      this._markerPageCloseTimer = null;
-    }
-    const finalize = () => {
-      this._markerPageCloseTimer = null;
-      this.setData({
-        markerPageVisible: false,
-        markerPageClosing: false,
-        markerPageDetail: null,
-        markerPageCurrentImage: 0,
-        markerPageShareEnabled: true,
-        markerPageDistanceText: ""
-      });
-      this._markerPageTouch = null;
-      this._markerPageScrollTop = 0;
-      if (restoreDetail) {
-        this.scheduleRestoreMarkerDetail(80);
-      }
-    };
-    this.setData({ markerPageClosing: true });
-    this._markerPageCloseTimer = setTimeout(finalize, 240);
+    return markerDetailStateUtils.closeMarkerPage(this, options);
   },
 
   onMarkerPageMaskTap() {
-    this.closeMarkerPage();
+    return markerDetailStateUtils.onMarkerPageMaskTap(this);
   },
 
   onMarkerPageSwiperChange(event) {
-    const current = Number(event?.detail?.current);
-    if (Number.isFinite(current)) {
-      const media = this.getDetailMediaList(this.data.markerPageDetail || {});
-      this.setData({
-        markerPageCurrentImage: current,
-        markerPageVideoLoading: this.isVideoMediaItem(media[current])
-      });
-    }
+    return markerDetailStateUtils.onMarkerPageSwiperChange(this, event);
   },
 
-  onMarkerPageVideoWaiting() {
-    if (!this.data.markerPageVideoLoading) {
-      this.setData({ markerPageVideoLoading: true });
-    }
+  isCurrentMarkerPageVideoEvent(event = {}) {
+    return markerDetailStateUtils.isCurrentMarkerPageVideoEvent(this, event);
   },
 
-  onMarkerPageVideoReady() {
-    if (this.data.markerPageVideoLoading) {
-      this.setData({ markerPageVideoLoading: false });
-    }
+  onMarkerPageVideoWaiting(event = {}) {
+    return markerDetailStateUtils.onMarkerPageVideoWaiting(this, event);
+  },
+
+  onMarkerPageVideoReady(event = {}) {
+    return markerDetailStateUtils.onMarkerPageVideoReady(this, event);
   },
 
   onMarkerPageScroll(event) {
-    const top = Number(event?.detail?.scrollTop);
-    if (Number.isFinite(top)) {
-      this._markerPageScrollTop = Math.max(0, top);
-      return;
-    }
-    this._markerPageScrollTop = 0;
+    return markerDetailStateUtils.onMarkerPageScroll(this, event);
   },
 
   onMarkerPageTouchStart(event) {
-    const touch = event?.touches?.[0];
-    if (!touch) return;
-    const canClose = (this._markerPageScrollTop || 0) <= MARKER_PAGE_SCROLL_TOP_THRESHOLD;
-    this._markerPageTouch = {
-      startY: touch.clientY,
-      lastY: touch.clientY,
-      deltaY: 0,
-      startTime: Date.now(),
-      canClose
-    };
+    return markerDetailStateUtils.onMarkerPageTouchStart(this, event);
   },
 
   onMarkerPageTouchMove(event) {
-    if (!this._markerPageTouch) return;
-    const touch = event?.touches?.[0];
-    if (!touch) return;
-    const deltaY = touch.clientY - this._markerPageTouch.startY;
-    if (
-      !this._markerPageTouch.canClose &&
-      (this._markerPageScrollTop || 0) <= MARKER_PAGE_SCROLL_TOP_THRESHOLD &&
-      deltaY >= 0
-    ) {
-      // 已经滑到顶部，再次下拉触发关闭手势
-      this._markerPageTouch.canClose = true;
-      this._markerPageTouch.startY = touch.clientY;
-      this._markerPageTouch.deltaY = 0;
-      this._markerPageTouch.startTime = Date.now();
-    }
-    this._markerPageTouch.lastY = touch.clientY;
-    this._markerPageTouch.deltaY = deltaY;
+    return markerDetailStateUtils.onMarkerPageTouchMove(this, event);
   },
 
   onMarkerPageTouchEnd() {
-    const info = this._markerPageTouch;
-    this._markerPageTouch = null;
-    if (!info) return;
-    if (!info.canClose) {
-      return;
-    }
-    const deltaY = info.deltaY || 0;
-    const duration = Date.now() - info.startTime;
-    const fastSwipe =
-      deltaY >= MARKER_PAGE_CLOSE_FAST_DISTANCE && duration <= MARKER_PAGE_CLOSE_FAST_DURATION;
-    const longSwipe = deltaY >= MARKER_PAGE_CLOSE_DISTANCE;
-    if (
-      this._markerPageScrollTop <= MARKER_PAGE_SCROLL_TOP_THRESHOLD &&
-      (fastSwipe || longSwipe)
-    ) {
-      this.closeMarkerPage();
-    }
+    return markerDetailStateUtils.onMarkerPageTouchEnd(this);
   },
 
   onMarkerPageTouchCancel() {
-    this._markerPageTouch = null;
+    return markerDetailStateUtils.onMarkerPageTouchCancel(this);
   },
 
   onMarkerPageAttachmentTap(event) {
-    const url = event?.currentTarget?.dataset?.url;
-    if (!url) {
-      wx.showToast({ title: "附件不可用", icon: "none" });
-      return;
-    }
-    wx.showLoading({ title: "下载中...", mask: true });
-    wx.downloadFile({
-      url,
-      success: (res) => {
-        const statusCode = Number(res?.statusCode);
-        const filePath = res?.tempFilePath;
-        if (statusCode === 200 && filePath) {
-          if (typeof wx.openDocument === "function") {
-            wx.openDocument({
-              filePath,
-              showMenu: true,
-              success: () => wx.hideLoading(),
-              fail: () => {
-                wx.hideLoading();
-                wx.showToast({ title: "打开失败", icon: "none" });
-              }
-            });
-            return;
-          }
-          wx.hideLoading();
-          wx.showToast({ title: "已下载", icon: "success" });
-          return;
-        }
-        wx.hideLoading();
-        wx.showToast({ title: "下载失败", icon: "none" });
-      },
-      fail: () => {
-        wx.hideLoading();
-        wx.showToast({ title: "下载失败", icon: "none" });
-      }
-    });
+    return markerDetailStateUtils.onMarkerPageAttachmentTap(this, event);
   },
 
   onMarkerPageVideoTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
-    const url = dataset.url || "";
-    const finderUserName = dataset.finder || "";
-    const activityId = dataset.activity || "";
-
-
-
-    const proceed = () => {
-      if (finderUserName && activityId && typeof wx?.openChannelsActivity === "function") {
-        console.log("here is wx.openChannelsActivity", finderUserName, activityId)
-        wx.openChannelsActivity({
-          finderUserName, feedId: activityId,
-          success: res => console.log('open ok', res),
-          fail: err => {
-            console.warn('open fail', err);
-            // wx.showModal({ title: '打开失败', content: JSON.stringify(err) });
-          },
-          complete: res => console.log('open complete', res)
-        });
-        return;
-      }
-      if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
-        wx.openChannelsUserProfile({ finderUserName });
-        return;
-      }
-      if (activityId && typeof wx?.openChannelsActivity === "function") {
-        wx.openChannelsActivity({ activityId });
-        return;
-      }
-      if (url && /^https?:\/\//.test(url)) {
-        if (/^https?:\/\/mp\.weixin\.qq\.com\//.test(url) && typeof wx?.navigateTo === "function") {
-          wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}` });
-          return;
-        }
-        if (typeof wx?.setClipboardData === "function") {
-          wx.setClipboardData({
-            data: url,
-            success: () => {
-              wx.showToast({ title: "链接已复制", icon: "none" });
-            },
-            fail: () => {
-              wx.showToast({ title: "复制失败", icon: "none" });
-            }
-          });
-        } else {
-          wx.showToast({ title: "请复制链接访问", icon: "none" });
-        }
-        return;
-      }
-      wx.showToast({ title: "视频不可用", icon: "none" });
-    };
-    proceed();
+    return markerDetailStateUtils.onMarkerPageVideoTap(this, event);
   },
 
   onMarkerPageCallTap(event) {
-    const dataset = event?.currentTarget?.dataset || {};
-    const phone = dataset.phone || this.data.markerPageDetail?.phone || "";
-    const detail = this.data.markerPageDetail || {};
-    const markerId = this.resolveMarkerNewId(detail);
-    const name = detail?.name || "";
-    this.openCallSheet({ phone, markerId, name });
+    return markerDetailStateUtils.onMarkerPageCallTap(this, event);
   },
 
   onMarkerPageNavigateTap(event) {
-    const detail = this.data.markerPageDetail;
-    if (!detail) return;
-    const dataset = event?.currentTarget?.dataset || {};
-    this.openMarkerLocation(detail, dataset);
+    return markerDetailStateUtils.onMarkerPageNavigateTap(this, event);
   },
 
   getDetailReviewStatus(detail) {
-    if (!detail) return "";
-    return `${detail.reviewStatus || detail.raw?.reviewStatus || detail.raw?.status || ""}`.trim().toUpperCase();
+    return markerDetailStateUtils.getDetailReviewStatus(detail);
   },
 
   isDetailApproved(detail) {
-    const status = this.getDetailReviewStatus(detail);
-    if (!status) return false;
-    if (status === "APPROVED") return true;
-    return status.startsWith("APPROVED");
+    return markerDetailStateUtils.isDetailApproved(this, detail);
   },
 
   isPinDetail(detail) {
-    const source = `${detail?.source || detail?.raw?.source || ""}`.toLowerCase();
-    if (source.includes("pin")) return true;
-    if (detail?.raw && typeof detail.raw === "object" && detail.raw.shape) return true;
-    return false;
+    return markerDetailStateUtils.isPinDetail(this, detail);
   },
 
   isDetailSharable(detail) {
-    if (!detail || detail.shareDisabled) {
-      return false;
-    }
-    return this.isDetailApproved(detail);
+    return markerDetailStateUtils.isDetailSharable(this, detail);
   },
 
   showShareBlockedToast() {
-    if (typeof wx?.showToast === "function") {
-      wx.showToast({ title: "审核通过后才能分享", icon: "none" });
-    }
+    return markerDetailStateUtils.showShareBlockedToast();
   },
 
   onMarkerPageShareDisabledTap() {
-    this.showShareBlockedToast();
+    return markerDetailStateUtils.onMarkerPageShareDisabledTap();
   },
 
   getShareInviteCodeValue() {
-    if (typeof getShareInviteCodeUtil !== "function") {
-      return "";
-    }
-    try {
-      return getShareInviteCodeUtil();
-    } catch (err) {
-      console.warn("getShareInviteCodeValue failed", err);
-      return "";
-    }
+    return shareLaunchUtils.getShareInviteCodeValue(this);
   },
 
   onShareAppMessage(event = {}) {
-    const posterUrl = buildFileDownloadUrl("main-page.png", { apiBase: this.getApiBase() });
-    const isCenterPinShareButton =
-      event?.from === "button" &&
-      !this.data.markerPageVisible &&
-      !this.data.markerDetailVisible;
-    const centerShare = isCenterPinShareButton
-      ? this.buildCurrentCenterSharePayload()
-      : this.consumeCenterActionSharePayload();
-    if (isCenterPinShareButton) {
-      this.clearPendingCenterActionShare();
-    }
-    if (centerShare && centerShare.queryBase) {
-      return {
-        title: centerShare.title,
-        path: appendInviteCodeToPath(`/pages/map/map?${centerShare.queryBase}`),
-        imageUrl: posterUrl
-      };
-    }
-    const detail = this._lastMarkerDetail;
-    const inviteCode = this.getShareInviteCodeValue();
-    const fallback = {
-      title: "与uom、大疆100%同步的低空地图，来一起探索~",
-      path: appendInviteCodeToPath("/pages/map/map", { inviteCode }),
-      imageUrl: posterUrl
-    };
-    if (!detail) {
-      return fallback;
-    }
-    if (!this.isDetailSharable(detail)) {
-      this.showShareBlockedToast();
-      return fallback;
-    }
-    const rawDetail = detail?.raw || {};
-    const isPinDetail = this.isPinDetail(detail);
-    const targetValue = isPinDetail
-      ? (rawDetail.pinIdNew ?? detail.pinIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "")
-      : (rawDetail.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "");
-    const targetId = targetValue !== undefined && targetValue !== null ? `${targetValue}` : "";
-    if (!targetId) {
-      return fallback;
-    }
-    if (isPinDetail) {
-      const shareTitle = detail.name;
-      return {
-        title: shareTitle,
-        path: appendInviteCodeToPath(
-          `/pages/map/map?fs=1&pId=${encodeURIComponent(targetId)}`,
-          { inviteCode }
-        )
-      };
-    }
-    const shareTitle = detail.name;
-    return {
-      title: shareTitle,
-      path: appendInviteCodeToPath(
-        `/pages/map/map?fs=1&mId=${encodeURIComponent(targetId)}`,
-        { inviteCode }
-      )
-    };
+    return shareLaunchUtils.onShareAppMessage(this, event);
   },
 
   onShareTimeline() {
-    const centerShare = this.consumeCenterActionSharePayload();
-    if (centerShare && centerShare.queryBase) {
-      return {
-        title: centerShare.title,
-        query: appendInviteCodeToQuery(centerShare.queryBase)
-      };
-    }
-    const detail = this._lastMarkerDetail;
-    const inviteCode = this.getShareInviteCodeValue();
-    const fallback = {
-      title: "uom、大疆100%同步且可视化，还有低空智能体~",
-      query: appendInviteCodeToQuery("", { inviteCode })
-    };
-    if (!detail) {
-      return fallback;
-    }
-    if (!this.isDetailSharable(detail)) {
-      this.showShareBlockedToast();
-      return fallback;
-    }
-    const rawDetail = detail?.raw || {};
-    const isPinDetail = this.isPinDetail(detail);
-    const targetValue = isPinDetail
-      ? (rawDetail.pinIdNew ?? detail.pinIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "")
-      : (rawDetail.markIdNew ?? detail.markIdNew ?? detail.markerId ?? detail.id ?? rawDetail.id ?? "");
-    const targetId = targetValue !== undefined && targetValue !== null ? `${targetValue}` : "";
-    if (!targetId) {
-      return fallback;
-    }
-    const queryBase = isPinDetail
-      ? `pId=${encodeURIComponent(targetId)}&fs=1`
-      : `mId=${encodeURIComponent(targetId)}&fs=1`;
-    const query = appendInviteCodeToQuery(queryBase, { inviteCode });
-    return {
-      title: fallback.title,
-      query
-    };
+    return shareLaunchUtils.onShareTimeline(this);
   },
 
   applyCustomMapStyle() {
-    const styleId = this.data.customMapStyleId;
-    if (!styleId) {
-      return;
-    }
-    if (typeof wx !== "undefined" && typeof wx.setMapCustomStyle === "function") {
-      wx.setMapCustomStyle({ styleId });
-      return;
-    }
-    if (this.mapCtx && typeof this.mapCtx.setCustomMapStyle === "function") {
-      this.mapCtx.setCustomMapStyle({ styleId });
-    }
+    return miscActionsUtils.applyCustomMapStyle(this);
   },
 
   onShow() {
-    applyMapStatusBarStyle();
-    this.startMyLocationDirectionTracking();
-    this.refreshResponsiveLayout({ force: true });
-    this.updateMapCheckinEntryStyle();
-    this.updateSubscriptionBannerLayout();
-    this.scheduleMapCheckinEntryStyleRefresh();
-    this.loadCheckinStatus();
-    if (this.data.activeTab !== "home") {
-      this.setData({
-        activeTab: "home",
-        showDashboardPanel: !!this.data.airBoardEnabled
-      });
-    }
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
-      this.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
-    }
-    // this.evaluateSubscriptionBannerVisibility();
-    this.setData({ showSubscriptionBanner: false });
-    if (this.data.joinInvitePrompt && !this.data.joinInviting) {
-      this.promptJoinWorkGroup(this.data.joinInvitePrompt);
-    }
-    this.resumeCenterPinLocationFollow();
-    if (this._skipPendingFocusOnShow) {
-      this._skipPendingFocusOnShow = false;
-    } else {
-      this.consumePendingMarkerFocus({ source: "show" });
-      this.consumePendingPinPreview();
-    }
-    this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
-    if (app && app.globalData && app.globalData.checkinGuide?.active && app.globalData.checkinGuide.step === "map") {
-      this.showCheckinGuideOnMap();
-    } else if (this.data.showCheckinGuideMap) {
-      this.setData({ showCheckinGuideMap: false });
-    }
-    if (app && app.globalData && app.globalData.inviteGuide?.active && app.globalData.inviteGuide.step === "map") {
-      this.showInviteGuideOnMap();
-    } else if (this.data.showInviteGuideMap) {
-      this.setData({ showInviteGuideMap: false });
-    }
-    if (this.getAuthToken()) {
-      this.loadMapGuideConfigs().catch((err) => {
-        console.warn("loadMapGuideConfigs onShow failed", err);
-      });
-    }
-    this.scheduleAddMiniAppPopupCheck("show");
+    return lifecycleUtils.onShow(this);
   },
 
   onResize(event = {}) {
-    this.refreshResponsiveLayout({ event, force: true });
-    this.updateMapCheckinEntryStyle();
-    this.updateSubscriptionBannerLayout();
+    return lifecycleUtils.onResize(this, event);
   },
 
   normalizeCompassDirection(value) {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) return null;
-    let normalized = numeric % 360;
-    if (normalized < 0) normalized += 360;
-    return normalized;
+    return compassUtils.normalizeCompassDirection(value);
   },
 
   computeCompassDirectionDelta(next, prev) {
-    const a = this.normalizeCompassDirection(next);
-    const b = this.normalizeCompassDirection(prev);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return Number.POSITIVE_INFINITY;
-    let delta = Math.abs(a - b) % 360;
-    if (delta > 180) delta = 360 - delta;
-    return delta;
+    return compassUtils.computeCompassDirectionDelta(this, next, prev);
   },
 
   startMyLocationDirectionTracking() {
-    if (this._myLocationDirectionTracking) return;
-    if (
-      typeof wx === "undefined" ||
-      typeof wx.startCompass !== "function" ||
-      typeof wx.onCompassChange !== "function"
-    ) {
-      return;
-    }
-    const onCompassChange = (res = {}) => {
-      const now = Date.now();
-      if (now - Number(this._myLocationDirectionLastSyncAt || 0) < MY_LOCATION_DIRECTION_SYNC_INTERVAL_MS) {
-        return;
-      }
-      const direction = this.normalizeCompassDirection(res.direction);
-      if (!Number.isFinite(direction)) return;
-      const prev = this.normalizeCompassDirection(this._myLocationDirection);
-      if (
-        Number.isFinite(prev) &&
-        this.computeCompassDirectionDelta(direction, prev) < MY_LOCATION_DIRECTION_THRESHOLD
-      ) {
-        return;
-      }
-      this._myLocationDirection = direction;
-      this._myLocationDirectionLastSyncAt = now;
-      if (Array.isArray(this._myLocationMarkers) && this._myLocationMarkers.length > 0) {
-        const point = this.data.myLocationPoint || this._lastKnownLocation || null;
-        this.refreshMyLocationGraphics(point);
-      }
-    };
-    this._onMyLocationCompassChange = onCompassChange;
-    this._myLocationDirectionTracking = true;
-    wx.onCompassChange(onCompassChange);
-    wx.startCompass({
-      fail: (err) => {
-        console.warn("start compass fail", err);
-      }
-    });
+    return compassUtils.startMyLocationDirectionTracking(this);
   },
 
   stopMyLocationDirectionTracking() {
-    if (!this._myLocationDirectionTracking) return;
-    if (
-      typeof wx !== "undefined" &&
-      this._onMyLocationCompassChange &&
-      typeof wx.offCompassChange === "function"
-    ) {
-      wx.offCompassChange(this._onMyLocationCompassChange);
-    }
-    this._onMyLocationCompassChange = null;
-    this._myLocationDirectionTracking = false;
-    this._myLocationDirectionLastSyncAt = 0;
-    if (typeof wx !== "undefined" && typeof wx.stopCompass === "function") {
-      wx.stopCompass({
-        fail: () => { }
-      });
-    }
+    return compassUtils.stopMyLocationDirectionTracking(this);
   },
 
   onHide() {
-    this.stopMyLocationDirectionTracking();
-    this.pauseCenterPinLocationFollow();
-    this.clearPinPreview();
-    this.hideMarkerCertificationSheet(true);
-    if (this._checkinEntryStyleTimer) {
-      clearTimeout(this._checkinEntryStyleTimer);
-      this._checkinEntryStyleTimer = null;
-    }
-    if (this._mapGraphicsSyncTimer) {
-      clearTimeout(this._mapGraphicsSyncTimer);
-      this._mapGraphicsSyncTimer = null;
-    }
-    this._pendingMapGraphicsSync = null;
+    return cleanupUtils.onHide(this);
   },
 
   noop() { },
 
   onUomStatusChange(event = {}) {
-    const detail = event?.detail || {};
-    const updates = {};
-    if (Object.prototype.hasOwnProperty.call(detail, "uomStatus")) {
-      updates.uomStatus = detail.uomStatus;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "uomTone")) {
-      updates.uomTone = detail.uomTone;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "uomLoading")) {
-      updates.uomLoading = !!detail.uomLoading;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "uomTileWarningVisible")) {
-      updates.uomTileWarningVisible = detail.uomTileWarningVisible;
-    }
-    if (Object.prototype.hasOwnProperty.call(detail, "uomTileWarningDismissed")) {
-      updates.uomTileWarningDismissed = detail.uomTileWarningDismissed;
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
+    return miscActionsUtils.onUomStatusChange(this, event);
   },
 
   onUomTilesChanged(event = {}) {
-    const detail = event?.detail || {};
-    const markers = Array.isArray(detail.markers) ? detail.markers : [];
-    this._uom2Markers = markers;
-    this.updateDebugPanel({ uom2MarkerCount: `${markers.length}` });
-    this.syncAllMarkers();
+    return miscActionsUtils.onUomTilesChanged(this, event);
   },
 
   onCheckinGuideStart() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData) {
-      app.globalData.checkinGuide = { active: true, step: "map" };
-    }
-    this.showCheckinGuideOnMap();
+    return engagementUtils.onCheckinGuideStart(this);
   },
 
   buildDebugInfo(extra = {}) {
-    const base = this._debugInfoBase || {};
-    return Object.assign({}, base, this.data.debugInfo || {}, extra);
+    return debugUtils.buildDebugInfo(this, extra);
   },
 
   updateDebugPanel(extra = {}) {
-    if (!this.data.debugEnabled) return;
-    this.setData({ debugInfo: this.buildDebugInfo(extra) });
+    return debugUtils.updateDebugPanel(this, extra);
   },
 
   formatDebugCoord(point) {
-    const lat = Number(point?.latitude);
-    const lng = Number(point?.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
-    return `${lng.toFixed(6)}, ${lat.toFixed(6)}`;
+    return debugUtils.formatDebugCoord(point);
   },
 
   formatDebugRegion(region) {
-    const ne = region?.northeast;
-    const sw = region?.southwest;
-    if (!ne || !sw) return "";
-    const neLat = Number(ne.latitude);
-    const neLng = Number(ne.longitude);
-    const swLat = Number(sw.latitude);
-    const swLng = Number(sw.longitude);
-    if (![neLat, neLng, swLat, swLng].every(Number.isFinite)) return "";
-    return `${swLng.toFixed(4)},${swLat.toFixed(4)} -> ${neLng.toFixed(4)},${neLat.toFixed(4)}`;
+    return debugUtils.formatDebugRegion(region);
   },
 
   collectRuntimeDebugInfo(options = {}) {
-    let deviceInfo = {};
-    let systemInfo = {};
-    try {
-      if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
-        deviceInfo = wx.getDeviceInfo() || {};
-      }
-    } catch (err) {
-      deviceInfo = {};
-    }
-    try {
-      if (typeof wx !== "undefined" && typeof wx.getSystemInfoSync === "function") {
-        systemInfo = wx.getSystemInfoSync() || {};
-      }
-    } catch (err) {
-      systemInfo = {};
-    }
-    const appBase = options.appBase || {};
-    const toText = (val) => (val === undefined || val === null ? "" : `${val}`);
-    return {
-      appName: toText(appBase.appName || appBase.hostName || ""),
-      host: toText(appBase.host || appBase.hostName || ""),
-      hostName: toText(appBase.hostName || ""),
-      platform: toText(deviceInfo.platform || systemInfo.platform || appBase.platform || ""),
-      system: toText(systemInfo.system || ""),
-      model: toText(systemInfo.model || ""),
-      brand: toText(systemInfo.brand || ""),
-      runtimeIsWeChat: `${!!options.runtimeIsWeChat}`,
-      runtimeIsDesktop: `${!!options.runtimeIsDesktop}`,
-      isDevtools: `${!!options.isDevtools}`,
-      useWeChatUom: `${!!options.useWeChatUom}`,
-      hasWx: `${typeof wx !== "undefined"}`,
-      hasQq: `${typeof qq !== "undefined"}`
-    };
+    return debugUtils.collectRuntimeDebugInfo(options);
   },
 
   onInviteGuideStart() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData) {
-      app.globalData.inviteGuide = { active: true, step: "map" };
-    }
-    this.showInviteGuideOnMap();
+    return engagementUtils.onInviteGuideStart(this);
   },
 
   onGuideMaskTap() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData) {
-      if (app.globalData.checkinGuide?.active) {
-        app.globalData.checkinGuide = { active: false, step: "" };
-      }
-      if (app.globalData.inviteGuide?.active) {
-        app.globalData.inviteGuide = { active: false, step: "" };
-      }
-    }
-    if (this.data.showCheckinGuideMap || this.data.showInviteGuideMap) {
-      this.setData({
-        showCheckinGuideMap: false,
-        showInviteGuideMap: false,
-        checkinGuideOverlayStyle: "",
-        inviteGuideOverlayStyle: ""
-      });
-    }
+    return engagementUtils.onGuideMaskTap(this);
   },
 
   showCheckinGuideOnMap() {
-    if (this.data.showCheckinGuideMap) return;
-    this.measureCheckinGuideTarget()
-      .then((mask) => {
-        if (!mask) return;
-        const overlayStyle = this.buildGuideOverlayStyle(mask);
-        this.setData({ showCheckinGuideMap: true, checkinGuideMask: mask, checkinGuideOverlayStyle: overlayStyle });
-      })
-      .catch((err) => {
-        console.warn("measure checkin guide target failed", err);
-      });
+    return engagementUtils.showCheckinGuideOnMap(this);
   },
 
   showInviteGuideOnMap() {
-    if (this.data.showInviteGuideMap) return;
-    this.measureInviteGuideTarget()
-      .then((mask) => {
-        if (!mask) return;
-        const overlayStyle = this.buildGuideOverlayStyle(mask);
-        this.setData({ showInviteGuideMap: true, inviteGuideMask: mask, inviteGuideOverlayStyle: overlayStyle });
-      })
-      .catch((err) => {
-        console.warn("measure invite guide target failed", err);
-      });
+    return engagementUtils.showInviteGuideOnMap(this);
   },
 
   measureCheckinGuideTarget() {
-    return new Promise((resolve) => {
-      const query = wx.createSelectorQuery().in(this);
-      query.select("#map-checkin-entry-btn").boundingClientRect();
-      query.exec((res) => {
-        const rect = res && res[0];
-        if (!rect) {
-          resolve(null);
-          return;
-        }
-        const { windowWidth, windowHeight } = getWindowMetrics();
-        const padding = 10 + (20 * windowWidth / 750);
-        const size = Math.max(rect.width, rect.height) + padding * 2;
-        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
-        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(windowWidth, left + size);
-        const bottomTop = Math.min(windowHeight, top + size);
-        resolve({
-          top,
-          left,
-          size,
-          rightLeft,
-          bottomTop
-        });
-      });
-    });
+    return engagementUtils.measureCheckinGuideTarget(this);
   },
 
   measureInviteGuideTarget() {
-    return new Promise((resolve) => {
-      const query = wx.createSelectorQuery().in(this);
-      query.select("#menu-profile-btn").boundingClientRect();
-      query.exec((res) => {
-        const rect = res && res[0];
-        if (!rect) {
-          resolve(null);
-          return;
-        }
-        const { windowWidth, windowHeight } = getWindowMetrics();
-        const padding = 10;
-        const size = Math.max(rect.width, rect.height) + padding * 2;
-        const left = Math.max(0, rect.left + rect.width / 2 - size / 2);
-        const top = Math.max(0, rect.top + rect.height / 2 - size / 2);
-        const rightLeft = Math.min(windowWidth, left + size);
-        const bottomTop = Math.min(windowHeight, top + size);
-        resolve({
-          top,
-          left,
-          size,
-          rightLeft,
-          bottomTop
-        });
-      });
-    });
+    return engagementUtils.measureInviteGuideTarget(this);
   },
 
   updateMapCheckinEntryStyle() {
-    if (typeof wx === "undefined" || typeof wx.getMenuButtonBoundingClientRect !== "function") {
-      if (!this.data.checkinEntryStyle) {
-        this.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
-      }
-      return;
-    }
-    const menuRect = wx.getMenuButtonBoundingClientRect();
-    if (!menuRect || !menuRect.right) {
-      if (!this.data.checkinEntryStyle) {
-        this.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
-      }
-      return;
-    }
-    const { screenWidth } = getWindowMetrics();
-    if (!screenWidth) {
-      if (!this.data.checkinEntryStyle) {
-        this.setData({ checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE });
-      }
-      return;
-    }
-    const rpx = screenWidth / 750;
-    const buttonWidth = 150 * rpx;
-    const buttonHeight = 50 * rpx;
-    const gapY = 16 * rpx;
-    const top = menuRect.bottom + gapY;
-    const right = Math.max(12 * rpx, screenWidth - menuRect.right);
-    this.setData({
-      checkinEntryStyle: `top:${top.toFixed(2)}px;right:${right.toFixed(2)}px;width:${buttonWidth.toFixed(2)}px;height:${buttonHeight.toFixed(2)}px;`
-    });
+    return engagementUtils.updateMapCheckinEntryStyle(this);
   },
 
   updateSubscriptionBannerLayout(retry = 0) {
-    const { screenWidth } = getWindowMetrics();
-    const fallbackTopPx = screenWidth ? (90 * screenWidth) / 750 : 44;
-    const applyFallback = () => {
-      this.setData({
-        subscriptionBannerTopPx: fallbackTopPx
-      }, () => {
-        this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
-      });
-    };
-    if (!this.data.showSubscriptionBanner) {
-      return;
-    }
-    if (typeof wx === "undefined" || typeof wx.getMenuButtonBoundingClientRect !== "function") {
-      applyFallback();
-      return;
-    }
-    const menuRect = wx.getMenuButtonBoundingClientRect();
-    if (!menuRect || !Number.isFinite(Number(menuRect.top)) || !Number.isFinite(Number(menuRect.bottom))) {
-      applyFallback();
-      return;
-    }
-    const query =
-      typeof this.createSelectorQuery === "function"
-        ? this.createSelectorQuery()
-        : wx.createSelectorQuery();
-    query.select("#subscription-banner").boundingClientRect();
-    query.exec((result = []) => {
-      const rect = Array.isArray(result) ? result[0] : null;
-      const measuredHeight = Number(rect?.height);
-      if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {
-        if (retry < 6) {
-          this.scheduleSubscriptionBannerLayoutRefresh(32 * (retry + 1), retry + 1);
-          return;
-        }
-        applyFallback();
-        return;
-      }
-      const capsuleCenterY = (Number(menuRect.top) + Number(menuRect.bottom)) / 2;
-      const nextTopPx = capsuleCenterY - measuredHeight / 2;
-      const currentTopPx = Number(this.data.subscriptionBannerTopPx) || 0;
-      const currentHeightPx = Number(this.data.subscriptionBannerHeightPx) || 0;
-      if (Math.abs(currentTopPx - nextTopPx) < 0.5 && Math.abs(currentHeightPx - measuredHeight) < 0.5) {
-        return;
-      }
-      this.setData({
-        subscriptionBannerTopPx: nextTopPx,
-        subscriptionBannerHeightPx: measuredHeight
-      }, () => {
-        this.updatePreflightOverlayTop(this.data.showSubscriptionBanner);
-      });
-    });
+    return engagementUtils.updateSubscriptionBannerLayout(this, retry);
   },
 
   scheduleMapCheckinEntryStyleRefresh(delay = 180) {
-    if (this._checkinEntryStyleTimer) {
-      clearTimeout(this._checkinEntryStyleTimer);
-    }
-    this._checkinEntryStyleTimer = setTimeout(() => {
-      this._checkinEntryStyleTimer = null;
-      this.updateMapCheckinEntryStyle();
-      this.updateSubscriptionBannerLayout();
-    }, Math.max(0, Number(delay) || 0));
+    return engagementUtils.scheduleMapCheckinEntryStyleRefresh(this, delay);
   },
 
   scheduleSubscriptionBannerLayoutRefresh(delay = 32, retry = 0) {
-    if (this._subscriptionBannerLayoutTimer) {
-      clearTimeout(this._subscriptionBannerLayoutTimer);
-    }
-    this._subscriptionBannerLayoutTimer = setTimeout(() => {
-      this._subscriptionBannerLayoutTimer = null;
-      this.updateSubscriptionBannerLayout(retry);
-    }, Math.max(0, Number(delay) || 0));
+    return engagementUtils.scheduleSubscriptionBannerLayoutRefresh(this, delay, retry);
   },
 
   loadCheckinStatus() {
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) {
-      if (this.data.checkinTodaySigned) {
-        this.setData({ checkinTodaySigned: false });
-      }
-      return;
-    }
-    fetchCheckinDetail({ apiBase, token })
-      .then((detail = {}) => {
-        this.setData({ checkinTodaySigned: !!detail.todaySigned });
-      })
-      .catch((err) => {
-        if (err?.message === "missing-token") {
-          this.setData({ checkinTodaySigned: false });
-          return;
-        }
-        console.warn("map loadCheckinStatus failed", err);
-        this.setData({ checkinTodaySigned: false });
-      });
+    return engagementUtils.loadCheckinStatus(this);
   },
 
   buildGuideOverlayStyle(mask) {
-    if (!mask) return "";
-    const centerX = mask.left + mask.size / 2;
-    const centerY = mask.top + mask.size / 2;
-    const radius = Math.max(0, mask.size / 2 - 30);
-    const edge = Math.max(2, Math.round(radius * 0.04));
-    const clearRadius = radius + 1;
-    return `background: radial-gradient(circle at ${centerX}px ${centerY}px, rgba(0,0,0,0) 0, rgba(0,0,0,0) ${clearRadius}px, rgba(0,0,0,0.6) ${clearRadius + edge}px);`;
+    return engagementUtils.buildGuideOverlayStyle(mask);
   },
 
   onNewbieTaskStateChange(event) {
-    const detail = event?.detail || {};
-    this.setData({
-      showNewbieGiftEntry: !!detail.showGiftEntry,
-      newbieTaskBlockerVisible: !!detail.blockMap
-    }, () => {
-      this.updateMapBlockerVisible();
-    });
+    return engagementUtils.onNewbieTaskStateChange(this, event);
   },
 
   onCityReportStateChange(event) {
-    const detail = event?.detail || {};
-    this.setData({
-      cityReportBlockerVisible: !!detail.blockMap
-    }, () => {
-      this.updateMapBlockerVisible();
-    });
+    return cityReportUtils.onCityReportStateChange(this, event);
   },
 
   onCityReportDialogChange(event) {
-    const detail = event?.detail || {};
-    const visible = !!detail.visible;
-    const text = typeof detail.text === "string" ? detail.text : "";
-    this.setData({
-      cityReportDialogVisible: visible,
-      cityReportDialogText: text
-    });
+    return cityReportUtils.onCityReportDialogChange(this, event);
   },
 
   onCityReportDialogClose() {
-    const popup = this.selectComponent("#city-report-h5-entry");
-    if (popup && typeof popup.closeDialog === "function") {
-      popup.closeDialog();
-    }
-    if (this.data.cityReportDialogVisible) {
-      this.setData({ cityReportDialogVisible: false });
-    }
+    return cityReportUtils.onCityReportDialogClose(this);
   },
 
   onNewbieGiftTap() {
-    const popup = this.selectComponent("#newbie-task-popup");
-    if (popup && typeof popup.openFromEntry === "function") {
-      popup.openFromEntry();
-    }
+    return floatingControlsUtils.onNewbieGiftTap(this);
   },
 
   onAddMiniAppStateChange(event) {
-    const detail = event?.detail || {};
-    this.setData({
-      addMiniAppBlockerVisible: !!detail.blockMap
-    }, () => {
-      this.updateMapBlockerVisible();
-    });
+    return engagementUtils.onAddMiniAppStateChange(this, event);
   },
 
   updateMapBlockerVisible() {
-    const blocked = !!(
-      this.data.newbieTaskBlockerVisible ||
-      this.data.addMiniAppBlockerVisible ||
-      this.data.cityReportBlockerVisible ||
-      this.data.policyUpdateVisible
-    );
-    if (this.data.mapBlockerVisible !== blocked) {
-      this.setData({ mapBlockerVisible: blocked });
-    }
+    return engagementUtils.updateMapBlockerVisible(this);
   },
 
   scheduleAddMiniAppPopupCheck() {
-    if (this._addMiniAppPopupCheckTimer) {
-      clearTimeout(this._addMiniAppPopupCheckTimer);
-    }
-    this._addMiniAppPopupCheckTimer = setTimeout(() => {
-      this._addMiniAppPopupCheckTimer = null;
-      this.maybeShowAddMiniAppPopup();
-    }, ADD_MINI_APP_CHECK_DELAY_MS);
+    return engagementUtils.scheduleAddMiniAppPopupCheck(this);
   },
 
   shouldShowAddMiniAppPopup() {
-    if (!this._mapLayerSettingsLoaded) return false;
-    const lastClosedAt = Number(this._mapLayerSettings?.miniProgramAddedAt) || 0;
-    if (!lastClosedAt) return true;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (lastClosedAt > nowSec) return false;
-    return nowSec - lastClosedAt >= ADD_MINI_APP_SUPPRESS_SECONDS;
+    return engagementUtils.shouldShowAddMiniAppPopup(this);
   },
 
   canShowAddMiniAppPopup() {
-    const app = typeof getApp === "function" ? getApp() : null;
-    const guideActive = !!(app?.globalData?.checkinGuide?.active || app?.globalData?.inviteGuide?.active);
-    return !guideActive &&
-      !this._addMiniAppPopupVisible &&
-      !this.data.newbieTaskBlockerVisible &&
-      !this.data.showCheckinGuideMap &&
-      !this.data.showInviteGuideMap &&
-      !this.data.markerDetailVisible &&
-      !this.data.markerPageVisible &&
-      !this.data.layerPanelVisible &&
-      !this.data.callSheetVisible &&
-      !this.data.joinInvitePrompt &&
-      !this.data.dronePickerVisible &&
-      !this.data.showSubscribeWaitOverlay;
+    return engagementUtils.canShowAddMiniAppPopup(this);
   },
 
   maybeShowAddMiniAppPopup() {
-    if (this._addMiniAppPopupChecking || this._addMiniAppPopupVisible) return;
-    if (!this.canShowAddMiniAppPopup()) return;
-    if (!this.shouldShowAddMiniAppPopup()) return;
-    if (typeof wx === "undefined" || typeof wx.checkIsAddedToMyMiniProgram !== "function") return;
-    this._addMiniAppPopupChecking = true;
-    wx.checkIsAddedToMyMiniProgram({
-      success: (res = {}) => {
-        console.log("check is added to my mini program result", res);
-        const isAdded = !!(res.isAdded || res.isAddedToMyMiniProgram || res.added);
-        if (isAdded) {
-          this.persistMiniProgramAddedAt();
-          return;
-        }
-        if (!isAdded && this.canShowAddMiniAppPopup()) {
-          const popup = this.selectComponent("#add-mini-app-popup");
-          if (popup && typeof popup.open === "function") {
-            popup.open();
-            this._addMiniAppPopupVisible = true;
-          }
-        }
-      },
-      fail: (err) => {
-        console.warn("check is added to my mini program failed", err);
-      },
-      complete: () => {
-        this._addMiniAppPopupChecking = false;
-      }
-    });
+    return engagementUtils.maybeShowAddMiniAppPopup(this);
   },
 
-  handleAddMiniAppPopupClosed(reason = "") {
-    this._addMiniAppPopupVisible = false;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (!this._mapLayerSettings || typeof this._mapLayerSettings !== "object") {
-      this._mapLayerSettings = {};
-    }
-    this._mapLayerSettings.miniProgramAddedAt = nowSec;
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) return;
-    updateMapLayerSettings({ miniProgramAddedAt: nowSec }, { apiBase, token })
-      .catch((err) => {
-        console.warn("update mini program popup close time failed", err);
-      });
+  handleAddMiniAppPopupClosed() {
+    return engagementUtils.handleAddMiniAppPopupClosed(this);
   },
 
   onAddMiniAppPopupClose() {
-    this._addMiniAppPopupVisible = false;
-    this.persistMiniProgramAddedAt();
+    return engagementUtils.onAddMiniAppPopupClose(this);
   },
 
   persistMiniProgramAddedAt() {
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (!this._mapLayerSettings || typeof this._mapLayerSettings !== "object") {
-      this._mapLayerSettings = {};
-    }
-    this._mapLayerSettings.miniProgramAddedAt = nowSec;
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) return;
-    updateMapLayerSettings({ miniProgramAddedAt: nowSec }, { apiBase, token })
-      .catch((err) => {
-        console.warn("update mini program popup close time failed", err);
-      });
+    return engagementUtils.persistMiniProgramAddedAt(this);
   },
 
 
   onUnload() {
-    this.stopMyLocationDirectionTracking();
-    this.stopCenterPinLocationFollow({ toast: false });
-    this.unregisterWindowResizeListener();
-    if (this._mapGraphicsSyncTimer) clearTimeout(this._mapGraphicsSyncTimer);
-    this._mapGraphicsSyncTimer = null;
-    this._pendingMapGraphicsSync = null;
-    if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
-    if (this._pendingCenterActionShareTimer) clearTimeout(this._pendingCenterActionShareTimer);
-    if (this._centerShareLaunchLockTimer) clearTimeout(this._centerShareLaunchLockTimer);
-    if (this._subscribeWaitTimer) clearTimeout(this._subscribeWaitTimer);
-    setSubscribeWaitOverlay(false);
-    if (this._markerDetailCloseTimer) clearTimeout(this._markerDetailCloseTimer);
-    if (this._markerPageCloseTimer) clearTimeout(this._markerPageCloseTimer);
-    if (this._markerDetailExpandTimer) clearTimeout(this._markerDetailExpandTimer);
-    if (this._markerCertificationSheetCloseTimer) clearTimeout(this._markerCertificationSheetCloseTimer);
-    if (this._restoreMarkerDetailTimer) clearTimeout(this._restoreMarkerDetailTimer);
-    if (this._layerPanelCloseTimer) clearTimeout(this._layerPanelCloseTimer);
-    if (this._addMiniAppPopupCheckTimer) clearTimeout(this._addMiniAppPopupCheckTimer);
-    if (this._checkinEntryStyleTimer) clearTimeout(this._checkinEntryStyleTimer);
-    if (this._subscriptionBannerLayoutTimer) clearTimeout(this._subscriptionBannerLayoutTimer);
-    if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
-    if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
-    if (this._temporaryNoFlyLayerInitTimer) clearTimeout(this._temporaryNoFlyLayerInitTimer);
-    this._activeMarkersRequest = null;
-    if (this._uomPlugin && typeof this._uomPlugin.destroy === "function") {
-      this._uomPlugin.destroy();
-    }
-    if (this._djiLayer && typeof this._djiLayer.destroy === "function") {
-      this._djiLayer.destroy();
-    }
-    if (this._temporaryNoFlyLayer && typeof this._temporaryNoFlyLayer.destroy === "function") {
-      this._temporaryNoFlyLayer.destroy();
-    }
+    return cleanupUtils.onUnload(this);
   },
 
 
   handleWorkGroupInviteOptions(options = {}) {
-    const payload = extractWorkGroupInvite(options);
-    if (!payload) return;
-    const normalized = {
-      invitationCode: payload.invitationCode,
-      groupId: payload.groupId,
-      groupName: decodeMaybeURI(payload.groupName || payload.groupId || "")
-    };
-    if (this.isSelfWorkGroupInvite(normalized.invitationCode)) {
-      this.setData({ joinInvitePrompt: null, joinInviting: false, joinInviteLoginPending: false });
-      this.clearWorkGroupInviteParams();
-      this.navigateToWorkGroupCenter();
-      return;
-    }
-    this.setPendingWorkGroupInvite(normalized);
-    this.clearWorkGroupInviteParams();
-    this.navigateToWorkGroupCenter();
+    return workgroupUtils.handleWorkGroupInviteOptions(this, options);
   },
 
   clearWorkGroupInviteParams() {
-    try {
-      const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
-      const currentPage = Array.isArray(pages) && pages.length ? pages[pages.length - 1] : null;
-      if (currentPage && currentPage.options) {
-        ["invitationCode", "inviteCode", "groupId", "workGroupId", "groupName"].forEach((key) => {
-          if (key in currentPage.options) {
-            delete currentPage.options[key];
-          }
-        });
-      }
-    } catch (err) {
-      console.warn("clearWorkGroupInviteParams failed", err);
-    }
+    return workgroupUtils.clearWorkGroupInviteParams(this);
   },
 
   setPendingWorkGroupInvite(payload = null) {
-    try {
-      const app = typeof getApp === "function" ? getApp() : null;
-      if (app && app.globalData) {
-        app.globalData.pendingWorkGroupInvite = payload;
-      }
-    } catch (err) {
-      console.warn("setPendingWorkGroupInvite failed", err);
-    }
+    return workgroupUtils.setPendingWorkGroupInvite(this, payload);
   },
 
   isSelfWorkGroupInvite(invitationCode = "") {
-    const code = `${invitationCode || ""}`.trim();
-    if (!code) return false;
-    try {
-      const shareCode = this.getShareInviteCodeValue ? this.getShareInviteCodeValue() : "";
-      if (shareCode && `${shareCode}`.trim() === code) {
-        return true;
-      }
-    } catch (err) {
-      console.warn("compare invite code with share code failed", err);
-    }
-    try {
-      const stored = typeof loadStoredProfileUtil === "function" ? loadStoredProfileUtil() : null;
-      const storedCode = `${stored?.inviteCode || ""}`.trim();
-      if (storedCode && storedCode === code) {
-        return true;
-      }
-    } catch (err) {
-      console.warn("compare invite code with stored profile failed", err);
-    }
-    return false;
+    return workgroupUtils.isSelfWorkGroupInvite(this, invitationCode);
   },
 
   promptJoinWorkGroup(promptPayload) {
-    const prompt = promptPayload || this.data.joinInvitePrompt;
-    if (!prompt?.invitationCode || !prompt?.groupId) return;
-    const name = decodeMaybeURI(prompt.groupName || prompt.groupId || "");
-    this.setData({
-      joinInvitePrompt: { invitationCode: prompt.invitationCode, groupId: prompt.groupId, groupName: name },
-      joinInviting: false,
-      joinInviteLoginPending: false
-    });
+    return workgroupUtils.promptJoinWorkGroup(this, promptPayload);
   },
 
   confirmJoinWorkGroup(promptPayload) {
-    const evt = promptPayload && promptPayload.currentTarget ? promptPayload : null;
-    const ds = (evt && evt.currentTarget && evt.currentTarget.dataset) || {};
-    const prompt =
-      (ds.invitationCode && ds.groupId && {
-        invitationCode: ds.invitationCode,
-        groupId: ds.groupId,
-        groupName: ds.groupName
-      }) ||
-      this.data.joinInvitePrompt ||
-      {};
-    console.log("confirmJoinWorkGroup", prompt);
-    if (!prompt.invitationCode || !prompt.groupId || this.data.joinInviting) return;
-    const run = () => {
-      this.setData({ joinInviting: true });
-      joinWorkGroup(prompt.groupId, prompt.invitationCode, { apiBase: this.apiBase })
-        .then(() => {
-          wx.showToast({ title: "已加入工作组", icon: "success" });
-          this.clearWorkGroupInviteParams();
-          this.setData({ joinInvitePrompt: null });
-          this.navigateToWorkGroupCenter();
-        })
-        .catch((err) => {
-          console.error("加入工作组失败", err);
-          const message = err?.message || "";
-          if (/已加入/.test(message) || /already/i.test(message)) {
-            wx.showToast({ title: "已在工作组中", icon: "success" });
-            this.clearWorkGroupInviteParams();
-            this.setData({ joinInvitePrompt: null });
-            this.navigateToWorkGroupCenter();
-            return;
-          }
-          wx.showToast({ title: message || "加入失败", icon: "none" });
-        })
-        .finally(() => this.setData({ joinInviting: false }));
-    };
-    run();
+    return workgroupUtils.confirmJoinWorkGroup(this, promptPayload);
   },
 
   cancelJoinWorkGroup() {
-    this.clearWorkGroupInviteParams();
-    this.setData({ joinInvitePrompt: null, joinInviting: false, joinInviteLoginPending: false });
+    return workgroupUtils.cancelJoinWorkGroup(this);
   },
 
   navigateToWorkGroupCenter() {
-    const url = "/pages/markers/index";
-    try {
-      const app = typeof getApp === "function" ? getApp() : null;
-      if (app && app.globalData) {
-        app.globalData.targetMarkersCenterTab = "WORKGROUP";
-      }
-    } catch (err) {
-      console.warn("set targetMarkersCenterTab failed", err);
-    }
-    if (typeof wx?.switchTab === "function") {
-      wx.switchTab({
-        url,
-        success: () => {
-          console.log("switchTab to markers succeeded");
-        },
-        fail: (err) => {
-          console.warn("switchTab to markers failed, fallback to navigateTo", err);
-          if (typeof wx?.navigateTo === "function") {
-            wx.navigateTo({ url });
-          }
-        }
-      });
-      return;
-    }
-    if (typeof wx?.navigateTo === "function") {
-      wx.navigateTo({ url });
-    }
+    return workgroupUtils.navigateToWorkGroupCenter(this);
   },
 
   scheduleRestoreMarkerDetail(delay = 0) {
@@ -5813,1037 +1216,263 @@ Page({
   },
 
   onKeywordInput(e) {
-    const keyword = e.detail.value || "";
-    this.setData({ keyword }, () => {
-      if (!keyword.trim()) {
-        if (this._suggestTimer) {
-          clearTimeout(this._suggestTimer);
-          this._suggestTimer = null;
-        }
-        this.clearSearchSelectionVisuals();
-        this.setData({
-          searchSuggestions: [],
-          searchSuggestLoading: false,
-          searchSuggestError: ""
-        });
-        return;
-      }
-      this.setData({
-        searchSuggestLoading: true,
-        searchSuggestError: "",
-        searchSuggestions: []
-      });
-      this.scheduleSearchSuggest();
-    });
+    return preflightDashboardUtils.onKeywordInput(this, e);
   },
 
   onSearchConfirm() {
-    this.performSearch();
+    return preflightDashboardUtils.onSearchConfirm(this);
   },
 
   computeDronePickerLabel(state = {}) {
-    const loading =
-      Object.prototype.hasOwnProperty.call(state, "loadingDrones")
-        ? state.loadingDrones
-        : this.data.loadingDrones;
-    const available =
-      Object.prototype.hasOwnProperty.call(state, "droneListAvailable")
-        ? state.droneListAvailable
-        : this.data.droneListAvailable;
-    const name =
-      Object.prototype.hasOwnProperty.call(state, "selectedDroneName")
-        ? state.selectedDroneName
-        : this.data.selectedDroneName;
-    if (loading) return "加载中";
-    if (!available) return "未提供";
-    return name || "未提供";
+    return dronePickerUtils.computeDronePickerLabel(this, state);
   },
 
   normalizeAircraftModel(value) {
-    if (typeof value !== "string") return "";
-    return value.trim();
+    return dronePickerUtils.normalizeAircraftModel(this, value);
   },
 
   resolveDroneIndexByModel(model) {
-    const normalized = this.normalizeAircraftModel(model);
-    if (!normalized) return -1;
-    const list = this.getDroneList();
-    if (!Array.isArray(list) || !list.length) return -1;
-    let index = list.findIndex((item) => item.slug === normalized);
-    if (index >= 0) return index;
-    const lower = normalized.toLowerCase();
-    return list.findIndex((item) => (item.name || "").toLowerCase() === lower);
+    return dronePickerUtils.resolveDroneIndexByModel(this, model);
   },
 
   applyAircraftModelSetting(model, options = {}) {
-    const normalized = this.normalizeAircraftModel(model);
-    if (!normalized) return false;
-    const index = this.resolveDroneIndexByModel(normalized);
-    if (index < 0) return false;
-    this.applyDroneByIndex(index, { persist: options.persist !== false });
-    return true;
+    return dronePickerUtils.applyAircraftModelSetting(this, model, options);
   },
 
   getDroneList() {
-    if (Array.isArray(this._droneList) && this._droneList.length) {
-      return this._droneList;
-    }
-    return [];
+    return dronePickerUtils.getDroneList(this);
   },
 
   resolveDroneCategoryId(item = {}) {
-    const name = typeof item.name === "string" ? item.name.trim() : "";
-    const slug = typeof item.slug === "string" ? item.slug.trim() : "";
-    const nameLower = name.toLowerCase();
-    const slugLower = slug.toLowerCase();
-
-    const isTransport = slugLower.includes("flycart") || nameLower.includes("flycart");
-    const isAgriculture =
-      slugLower.startsWith("mg-") ||
-      slugLower.startsWith("mg1") ||
-      slugLower.startsWith("mg-new") ||
-      /^mg\d/.test(slugLower) ||
-      /^t\d/.test(slugLower) ||
-      /^t\d/i.test(name);
-    const isEnterprise =
-      slugLower.includes("matrice") ||
-      slugLower.startsWith("m-") ||
-      slugLower.startsWith("m100") ||
-      slugLower.startsWith("m200") ||
-      slugLower.startsWith("m300") ||
-      slugLower.startsWith("m350") ||
-      slugLower.startsWith("m600") ||
-      slugLower.startsWith("m30") ||
-      slugLower.startsWith("industry-") ||
-      nameLower.includes("enterprise");
-    const isProAerial = slugLower.includes("inspire") || nameLower.includes("inspire");
-    const isFpv = slugLower.includes("fpv") || nameLower.includes("fpv") ||
-      slugLower.includes("avata") || nameLower.includes("avata");
-    const isConsumerPortable =
-      slugLower.includes("mini") ||
-      nameLower.includes("mini") ||
-      slugLower.includes("neo") ||
-      nameLower.includes("neo") ||
-      slugLower.includes("flip") ||
-      nameLower.includes("flip") ||
-      slugLower.includes("spark") ||
-      nameLower.includes("spark");
-    const isConsumerImaging =
-      slugLower.includes("mavic") ||
-      nameLower.includes("mavic") ||
-      slugLower.includes("air") ||
-      nameLower.includes("air") ||
-      slugLower.includes("classic") ||
-      nameLower.includes("classic") ||
-      slugLower.includes("phantom") ||
-      nameLower.includes("phantom") ||
-      slugLower.includes("pro") ||
-      nameLower.includes("pro");
-
-    if (isTransport) return "transport";
-    if (isAgriculture) return "agri";
-    if (isEnterprise) return "enterprise";
-    if (isProAerial) return "pro";
-    if (isFpv) return "fpv";
-    if (isConsumerPortable) return "consumer-portable";
-    if (isConsumerImaging) return "consumer-imaging";
-    return "other";
+    return dronePickerUtils.resolveDroneCategoryId(this, item);
   },
 
   buildDroneCategories(list = []) {
-    if (!Array.isArray(list) || !list.length) return [];
-    const categories = [
-      { id: "consumer-portable", label: "消费级便携", items: [] },
-      { id: "consumer-imaging", label: "消费级影像", items: [] },
-      { id: "fpv", label: "FPV 沉浸", items: [] },
-      { id: "pro", label: "专业航拍", items: [] },
-      { id: "enterprise", label: "企业级行业", items: [] },
-      { id: "agri", label: "农业植保", items: [] },
-      { id: "transport", label: "物流运输", items: [] },
-      { id: "other", label: "其他", items: [] }
-    ];
-
-    const map = new Map(categories.map((category) => [category.id, category]));
-    list.forEach((item, index) => {
-      if (!item) return;
-      const id = this.resolveDroneCategoryId(item);
-      const target = map.get(id) || map.get("other");
-      if (target) {
-        target.items.push({
-          index,
-          name: item.name || "",
-          slug: item.slug || ""
-        });
-      }
-    });
-    categories.forEach((category) => {
-      if (!Array.isArray(category.items)) return;
-      category.items.sort((a, b) =>
-        `${a?.name || ""}`.toLowerCase().localeCompare(`${b?.name || ""}`.toLowerCase())
-      );
-    });
-    return categories.filter((category) => category.items.length);
+    return dronePickerUtils.buildDroneCategories(this, list);
   },
 
   applyDroneList(list = []) {
-    if (!Array.isArray(list) || !list.length) return;
-    this._droneList = list;
-    const currentSlug = this.data.selectedDrone;
-    let nextIndex = list.findIndex((item) => item.slug === currentSlug);
-    if (nextIndex < 0) {
-      nextIndex = 0;
-    }
-    const next = list[nextIndex];
-    if (!next) return;
-    const changed = next.slug !== currentSlug;
-    const dronePickerLabel = this.computeDronePickerLabel({
-      loadingDrones: false,
-      droneListAvailable: true,
-      selectedDroneName: next.name
-    });
-
-    const categories = this.buildDroneCategories(list);
-    let activeIndex = Number.isFinite(this.data.activeDroneCategoryIndex)
-      ? this.data.activeDroneCategoryIndex
-      : 0;
-    if (activeIndex < 0 || activeIndex >= categories.length) {
-      activeIndex = 0;
-    }
-    const matchedCategoryIndex = categories.findIndex((category) =>
-      Array.isArray(category.items) && category.items.some((item) => item.index === nextIndex)
-    );
-    if (matchedCategoryIndex >= 0) {
-      activeIndex = matchedCategoryIndex;
-    }
-    const activeCategory = categories[activeIndex] || categories[0] || { items: [] };
-
-    this.setData({
-      droneCategories: categories,
-      droneCategoryItems: activeCategory.items || [],
-      activeDroneCategoryIndex: activeIndex,
-      selectedDroneIndex: nextIndex,
-      selectedDrone: next.slug,
-      selectedDroneName: next.name,
-      loadingDrones: false,
-      droneListAvailable: true,
-      dronePickerLabel
-    });
-    if (changed) {
-      this.syncDjiLayerQuery({ force: true });
-    }
+    return dronePickerUtils.applyDroneList(this, list);
   },
 
   loadDronesFromApi() {
-    const dronePickerLabel = this.computeDronePickerLabel({
-      loadingDrones: true,
-      droneListAvailable: this.data.droneListAvailable
-    });
-    this.setData({ loadingDrones: true, dronePickerLabel });
-    return fetchDrones()
-      .then((list) => {
-        if (Array.isArray(list) && list.length) {
-          this.applyDroneList(list);
-          const pending = this._pendingAircraftModel;
-          if (pending) {
-            const applied = this.applyAircraftModelSetting(pending, { persist: false });
-            if (applied) {
-              this._pendingAircraftModel = "";
-            }
-          }
-          return;
-        }
-        this._droneList = [];
-        const fallbackLabel = this.computeDronePickerLabel({
-          loadingDrones: false,
-          droneListAvailable: false
-        });
-        this.setData({
-          droneNames: [],
-          droneCategories: [],
-          droneCategoryItems: [],
-          activeDroneCategoryIndex: 0,
-          loadingDrones: false,
-          droneListAvailable: false,
-          dronePickerLabel: fallbackLabel
-        });
-      })
-      .catch((err) => {
-        console.warn("Failed to fetch drone list", err);
-        this._droneList = [];
-        const fallbackLabel = this.computeDronePickerLabel({
-          loadingDrones: false,
-          droneListAvailable: false
-        });
-        this.setData({
-          droneNames: [],
-          droneCategories: [],
-          droneCategoryItems: [],
-          activeDroneCategoryIndex: 0,
-          loadingDrones: false,
-          droneListAvailable: false,
-          dronePickerLabel: fallbackLabel
-        });
-      });
+    return dronePickerUtils.loadDronesFromApi(this);
   },
 
   onSearchTap() {
-    this.performSearch();
+    return preflightDashboardUtils.onSearchTap(this);
   },
 
   onSearchCoordinateTipsTap() {
-    this.setData({ searchCoordinateTipsVisible: true });
+    return preflightDashboardUtils.onSearchCoordinateTipsTap(this);
   },
 
   onCloseSearchCoordinateTipsDialog() {
-    if (!this.data.searchCoordinateTipsVisible) return;
-    this.setData({ searchCoordinateTipsVisible: false });
+    return preflightDashboardUtils.onCloseSearchCoordinateTipsDialog(this);
   },
 
   onChatButtonTap() {
-    this.showPlaceholderToast("您暂未获得低空智能体（Agent）体验特权");
+    return floatingControlsUtils.onChatButtonTap(this);
   },
 
   onMapCheckinEntryTap() {
-    if (typeof wx.navigateTo !== "function") {
-      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
-      return;
-    }
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData && app.globalData.checkinGuide?.active) {
-      app.globalData.checkinGuide = { active: true, step: "checkin" };
-      if (this.data.showCheckinGuideMap) {
-        this.setData({ showCheckinGuideMap: false, checkinGuideOverlayStyle: "" });
-      }
-    }
-    wx.navigateTo({ url: "/pages/profile/checkin/index" });
-    this.ensureProfileAuthenticated()
-      .then(() =>
-        Promise.allSettled([
-          this.ensureCheckinSubscriptionOnEntry(),
-          this.requestProfileSubscriptions()
-        ])
-      )
-      .catch((err) => {
-        if (err?.message === "user-cancel") return;
-        console.warn("map checkin subscriptions failed", err);
-      });
+    return miscActionsUtils.onMapCheckinEntryTap(this);
   },
 
   onTemporaryZoneLinkTap(event) {
-    const info = this.data.temporaryNoFlyZoneInfo;
-    if (!info || !info.hasLink) {
-      this.showPlaceholderToast("链接不可用");
-      return;
-    }
-    const dataset = event?.currentTarget?.dataset || {};
-    const targetPath = dataset.path || info.linkPath || "";
-    if (targetPath && typeof wx.navigateTo === "function") {
-      wx.navigateTo({ url: targetPath });
-      return;
-    }
-    this.showPlaceholderToast("链接不可用");
+    return preflightDashboardUtils.onTemporaryZoneLinkTap(this, event);
   },
 
   onMenuHomeTap() {
-    const updates = {};
-    if (this.data.activeTab !== "home") {
-      updates.activeTab = "home";
-    }
-    const nextDashboardVisible = !!this.data.airBoardEnabled;
-    if (this.data.showDashboardPanel !== nextDashboardVisible) {
-      updates.showDashboardPanel = nextDashboardVisible;
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
+    return bottomNavUtils.onMenuHomeTap(this);
   },
 
   onMenuProfileTap() {
-    if (this.data.activeTab !== "profile") {
-      this.setData({ activeTab: "profile" });
-    }
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData && app.globalData.inviteGuide?.active) {
-      app.globalData.inviteGuide = { active: true, step: "profile" };
-      if (this.data.showInviteGuideMap) {
-        this.setData({ showInviteGuideMap: false });
-      }
-    }
-    const loadingShown = typeof wx !== "undefined" && typeof wx.showLoading === "function";
-    const hideLoading = typeof wx !== "undefined" && typeof wx.hideLoading === "function"
-      ? () => wx.hideLoading()
-      : () => { };
-    if (loadingShown) {
-      wx.showLoading({ title: "加载中...", mask: true });
-    }
-    this.ensureProfileAuthenticated()
-      .then(() => {
-        // Fire-and-forget subscription request so navigation is not blocked
-        this.requestProfileSubscriptions().catch((err) => {
-          console.warn("订阅模板流程失败", err);
-        });
-        if (typeof wx.navigateTo === "function") {
-          wx.navigateTo({
-            url: "/pages/profile/profile",
-            success: () => hideLoading(),
-            fail: (err) => {
-              hideLoading();
-              console.warn("navigate to profile failed", err);
-            }
-          });
-        } else {
-          hideLoading();
-        }
-      })
-      .catch((err) => {
-        hideLoading();
-        this.setData({ activeTab: "home" });
-        if (err && err.message === "user-cancel") {
-          return;
-        }
-        if (err && err.message === "login-unavailable") {
-          this.showPlaceholderToast("暂时无法打开我的页面");
-        }
-      });
+    return bottomNavUtils.onMenuProfileTap(this);
   },
 
   onLayerButtonTap() {
-    if (this._layerPanelCloseTimer) {
-      clearTimeout(this._layerPanelCloseTimer);
-      this._layerPanelCloseTimer = null;
-    }
-    this.setData({ layerPanelVisible: true, layerPanelClosing: false });
-    this.loadMapLayerSettings(false);
+    return layerPanelUtils.onLayerButtonTap(this);
   },
 
   onPanoramaDemoTap() {
-    if (typeof wx.chooseMessageFile !== "function") {
-      wx.showToast({ title: "当前版本不支持从聊天记录选图", icon: "none" });
-      return;
-    }
-    wx.chooseMessageFile({
-      count: 1,
-      type: "image",
-      success: (res) => {
-        const filePath = res?.tempFiles?.[0]?.path;
-        console.log("panorama file chosen", { filePath });
-        if (!filePath) {
-          wx.showToast({ title: "未选择图片", icon: "none" });
-          return;
-        }
-        const fs = typeof wx.getFileSystemManager === "function" ? wx.getFileSystemManager() : null;
-        const saveIfNeeded = fs && typeof fs.saveFile === "function"
-          ? new Promise((resolve) => {
-            fs.saveFile({
-              tempFilePath: filePath,
-              success: (saveRes) => {
-                const saved = saveRes?.savedFilePath;
-                if (saved) {
-                  console.log("panorama file saved", { savedFilePath: saved });
-                  resolve(saved);
-                  return;
-                }
-                resolve(filePath);
-              },
-              fail: (err) => {
-                console.warn("panorama save file failed", err);
-                resolve(filePath);
-              }
-            });
-          })
-          : Promise.resolve(filePath);
-        const getInfo = (path) => (typeof wx.getImageInfo === "function"
-          ? new Promise((resolve, reject) => {
-            wx.getImageInfo({
-              src: path,
-              success: (info) => resolve({ path, info }),
-              fail: (err) => reject(err || new Error("invalid-panorama-image"))
-            });
-          })
-          : Promise.resolve({ path, info: null }));
-        const buildPlanetSrc = (path, info) => {
-          const width = Number(info?.width || 0);
-          const height = Number(info?.height || 0);
-          const maxSide = Math.max(width, height);
-          if (!Number.isFinite(maxSide) || maxSide <= 8192 || typeof wx.compressImage !== "function") {
-            return Promise.resolve(path);
-          }
-          const scale = 8192 / maxSide;
-          const targetW = Math.max(1, Math.round(width * scale));
-          const targetH = Math.max(1, Math.round(height * scale));
-          return new Promise((resolve) => {
-            wx.compressImage({
-              src: path,
-              quality: 85,
-              compressedWidth: targetW,
-              compressedHeight: targetH,
-              success: (compressRes) => {
-                const temp = compressRes?.tempFilePath || path;
-                console.log("panorama compressed for planet", { temp, targetW, targetH });
-                resolve(temp);
-              },
-              fail: (err) => {
-                console.warn("panorama compress failed", err);
-                resolve(path);
-              }
-            });
-          });
-        };
-        saveIfNeeded
-          .then((path) => getInfo(path))
-          .then(({ path, info }) => buildPlanetSrc(path, info).then((planetPath) => ({
-            originalPath: path,
-            planetPath
-          })))
-          .then(({ originalPath, planetPath }) => {
-            const encoded = encodeURIComponent(originalPath);
-            const planetEncoded = encodeURIComponent(planetPath || originalPath);
-            wx.navigateTo({
-              url: `/pages/dji-360/index?src=${encoded}&planetSrc=${planetEncoded}`,
-              fail: (err) => {
-                console.warn("navigate to panorama failed", err);
-                wx.showToast({ title: "打开失败", icon: "none" });
-              }
-            });
-          })
-          .catch((err) => {
-            console.warn("panorama image invalid", err);
-            wx.showToast({ title: "图片不可用", icon: "none" });
-          });
-      },
-      fail: (err) => {
-        console.warn("panorama choose file failed", err);
-        wx.showToast({ title: "取消选择", icon: "none" });
-      }
-    });
+    return miscActionsUtils.onPanoramaDemoTap(this);
   },
 
   onLayerPanelMaskTap() {
-    this.closeLayerPanel();
+    return layerPanelUtils.onLayerPanelMaskTap(this);
   },
 
   onLayerPanelClose() {
-    this.closeLayerPanel();
+    return layerPanelUtils.onLayerPanelClose(this);
   },
 
   closeLayerPanel() {
-    if (!this.data.layerPanelVisible) {
-      return;
-    }
-    if (this._layerPanelCloseTimer) {
-      clearTimeout(this._layerPanelCloseTimer);
-      this._layerPanelCloseTimer = null;
-    }
-    this.setData({ layerPanelClosing: true });
-    this._layerPanelCloseTimer = setTimeout(() => {
-      this.setData({ layerPanelVisible: false, layerPanelClosing: false });
-      this._layerPanelCloseTimer = null;
-    }, 220);
+    return layerPanelUtils.closeLayerPanel(this);
   },
 
   onMapLayerSelect(event = {}) {
-    const type = event?.currentTarget?.dataset?.type || "";
-    const nextType = type === "satellite" ? "satellite" : "standard";
-    const enableSatellite = nextType === "satellite";
-    this.setData({
-      mapLayerType: nextType,
-      enableSatellite
-    }, () => {
-      this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
-      this.persistMapLayerSettings();
-    });
+    return layerPanelUtils.onMapLayerSelect(this, event);
   },
 
   onAirBoardSwitchChange(event = {}) {
-    const enabled = !!event?.detail?.value;
-    this.setData(
-      { airBoardEnabled: enabled, showDashboardPanel: enabled },
-      () => {
-        this.applyAirBoardToggle(enabled);
-        this.persistMapLayerSettings();
-      }
-    );
+    return layerPanelUtils.onAirBoardSwitchChange(this, event);
   },
 
   onUsePlanetCenterPointSwitchChange(event = {}) {
-    const enabled = !!event?.detail?.value;
-    this.setData({ usePlanetCenterPoint: enabled }, () => {
-      this.cacheUsePlanetMyLocationPreference(enabled);
-      const finish = () => {
-        this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
-        this.persistMapLayerSettings();
-      };
-      if (enabled) {
-        this.syncMyLocationPoint({ silent: true }).finally(finish);
-        return;
-      }
-      finish();
-    });
+    return layerPanelUtils.onUsePlanetCenterPointSwitchChange(this, event);
   },
 
   onCenterTargetLinkSwitchChange(event = {}) {
-    const enabled = !!event?.detail?.value;
-    this.setData({ centerTargetLinkEnabled: enabled }, () => {
-      this.updateCenterPinIndicator();
-      this.persistMapLayerSettings();
-    });
+    return layerPanelUtils.onCenterTargetLinkSwitchChange(this, event);
+  },
+
+  buildProvinceCityTreeViewData(treeNodes = null) {
+    return layerPanelUtils.buildProvinceCityTreeViewData(this, treeNodes);
+  },
+
+  updateProvinceCityTreeData(extra = {}) {
+    return layerPanelUtils.updateProvinceCityTreeData(this, extra);
+  },
+
+  scheduleLayerPanelLayoutMeasure(delay = 0) {
+    return layerPanelUtils.scheduleLayerPanelLayoutMeasure(this, delay);
+  },
+
+  measureLayerPanelLayout() {
+    return layerPanelUtils.measureLayerPanelLayout(this);
+  },
+
+  findProvinceCityTreeNodeById(nodeId, treeNodes = null) {
+    return layerPanelUtils.findProvinceCityTreeNodeById(this, nodeId, treeNodes);
+  },
+
+  setProvinceCityHighlightPolygons(polygons = []) {
+    return layerPanelUtils.setProvinceCityHighlightPolygons(this, polygons);
+  },
+
+  loadProvinceCityHighlightResource(options = {}) {
+    return layerPanelUtils.loadProvinceCityHighlightResource(this, options);
+  },
+
+  syncProvinceCityHighlightLayer(enabled, options = {}) {
+    return layerPanelUtils.syncProvinceCityHighlightLayer(this, enabled, options);
+  },
+
+  applyProvinceCityHighlightSelection(nodeId, options = {}) {
+    return layerPanelUtils.applyProvinceCityHighlightSelection(this, nodeId, options);
+  },
+
+  onProvinceCityHighlightSwitchChange(event = {}) {
+    return layerPanelUtils.onProvinceCityHighlightSwitchChange(this, event);
+  },
+
+  onProvinceCityTreeExpandTap(event = {}) {
+    return layerPanelUtils.onProvinceCityTreeExpandTap(this, event);
+  },
+
+  onProvinceCityTreeSelectTap(event = {}) {
+    return layerPanelUtils.onProvinceCityTreeSelectTap(this, event);
   },
 
   onMapElementToggle(event = {}) {
-    const id = event?.currentTarget?.dataset?.id;
-    if (!id) return;
-    const flagMap = {
-      uom: "uomDivisionEnabled",
-      dji: "djiNoFlyZoneEnabled",
-      tempNoFly: "temporaryNoFlyZoneEnabled",
-      service: "merchantMarkersEnabled",
-      private: "privateMarkersEnabled",
-      group: "groupSharingEnabled",
-      platform: "platformCoConstructionEnabled"
-    };
-    const flagKey = flagMap[id];
-    if (!flagKey) return;
-    const nextValue = !this.data[flagKey];
-    const pinToggle =
-      flagKey === "privateMarkersEnabled" ||
-      flagKey === "groupSharingEnabled" ||
-      flagKey === "platformCoConstructionEnabled";
-    const updates = { [flagKey]: nextValue };
-    updates.mapElementOptions = this.composeMapElementOptions({
-      uomDivisionEnabled: flagKey === "uomDivisionEnabled" ? nextValue : this.data.uomDivisionEnabled,
-      djiNoFlyZoneEnabled: flagKey === "djiNoFlyZoneEnabled" ? nextValue : this.data.djiNoFlyZoneEnabled,
-      temporaryNoFlyZoneEnabled:
-        flagKey === "temporaryNoFlyZoneEnabled" ? nextValue : this.data.temporaryNoFlyZoneEnabled,
-      merchantMarkersEnabled:
-        flagKey === "merchantMarkersEnabled" ? nextValue : this.data.merchantMarkersEnabled,
-      privateMarkersEnabled: flagKey === "privateMarkersEnabled" ? nextValue : this.data.privateMarkersEnabled,
-      groupSharingEnabled: flagKey === "groupSharingEnabled" ? nextValue : this.data.groupSharingEnabled,
-      platformCoConstructionEnabled:
-        flagKey === "platformCoConstructionEnabled" ? nextValue : this.data.platformCoConstructionEnabled
-    });
-    this.setData(updates, () => {
-      if (flagKey === "uomDivisionEnabled") {
-        if (this._uomPlugin && typeof this._uomPlugin.setEnabled === "function") {
-          this._uomPlugin.setEnabled(nextValue);
-        }
-      }
-      if (flagKey === "djiNoFlyZoneEnabled") {
-        this.applyNoFlyOverlayToggle({
-          djiEnabled: nextValue,
-          temporaryEnabled: this.data.temporaryNoFlyZoneEnabled
-        });
-      }
-      if (flagKey === "temporaryNoFlyZoneEnabled") {
-        this.applyNoFlyOverlayToggle({
-          djiEnabled: this.data.djiNoFlyZoneEnabled,
-          temporaryEnabled: nextValue
-        });
-      }
-      if (flagKey === "merchantMarkersEnabled") {
-        this.applyMerchantMarkersToggle(nextValue);
-      }
-      if (pinToggle) {
-        this.applyPinLayerToggle(nextValue);
-      }
-      this.persistMapLayerSettings();
-    });
+    return layerPanelUtils.onMapElementToggle(this, event);
   },
 
   composeMapElementOptions(flags = {}) {
-    const state = Object.assign(
-      {
-        uomDivisionEnabled: true,
-        djiNoFlyZoneEnabled: true,
-        temporaryNoFlyZoneEnabled: true,
-        merchantMarkersEnabled: true,
-        privateMarkersEnabled: false,
-        groupSharingEnabled: false,
-        platformCoConstructionEnabled: true
-      },
-      flags
-    );
-    const djiEnabled = !!state.djiNoFlyZoneEnabled;
-    const tempEnabled = !!state.temporaryNoFlyZoneEnabled;
-    return [
-      { id: "uom", label: "uom划分", enabled: !!state.uomDivisionEnabled },
-      { id: "dji", label: "大疆划分", enabled: djiEnabled },
-      { id: "tempNoFly", label: "临时禁飞区", enabled: tempEnabled },
-      { id: "service", label: "商户服务", enabled: !!state.merchantMarkersEnabled },
-      { id: "private", label: "私有标记", enabled: !!state.privateMarkersEnabled },
-      { id: "group", label: "小组共享", enabled: !!state.groupSharingEnabled },
-      { id: "platform", label: "平台共建", enabled: !!state.platformCoConstructionEnabled }
-    ];
+    return layerPanelUtils.composeMapElementOptions(flags);
   },
 
   applyAirBoardToggle(enabled) {
-    this.setData({ showDashboardPanel: !!enabled });
+    return preflightDashboardUtils.applyAirBoardToggle(this, enabled);
   },
 
   applyNoFlyOverlayToggle(options = {}) {
-    const djiEnabled = options.djiEnabled !== false;
-    const temporaryEnabled = options.temporaryEnabled !== false;
-    if (!djiEnabled) {
-      this._djiPolygons = [];
-      this._djiCircles = [];
-      this.setData({
-        djiStatus: "已禁用",
-        djiStatusExtra: "",
-        djiTone: "warn",
-        djiColor: ""
-      });
-    } else {
-      this.setData({
-        djiStatus: "评估中",
-        djiStatusExtra: "",
-        djiTone: "neutral",
-        djiColor: ""
-      });
-    }
-    this.setDjiLayerEnabled(djiEnabled, { force: djiEnabled });
-    if (!temporaryEnabled) {
-      this._nfzPolygons = [];
-      this._nfzCircles = [];
-      this.setData({
-        temporaryNoFlyZoneInfo: null,
-        temporaryNoFlyText: "已禁用",
-        temporaryNoFlyTone: "warn"
-      });
-    } else {
-      this.setData({
-        temporaryNoFlyZoneInfo: null,
-        temporaryNoFlyText: "评估中",
-        temporaryNoFlyTone: "neutral"
-      });
-    }
-    this.setTemporaryNoFlyLayerEnabled(temporaryEnabled, { force: temporaryEnabled });
-    this.updateOverlayGraphics();
+    return layerPanelUtils.applyNoFlyOverlayToggle(this, options);
   },
 
   applyMerchantMarkersToggle(enabled) {
-    if (enabled === false) {
-      this._nearbyMarkersRaw = [];
-      this._nearbyMarkers = [];
-      this._lastNearbyFetch = null;
-      this.syncAllMarkers();
-      return;
-    }
-    this.syncAllMarkers();
-    this.scheduleFetchMarkers(0, { force: true });
+    return layerPanelUtils.applyMerchantMarkersToggle(this, enabled);
   },
 
   applyPinLayerToggle(forceFetch = false) {
-    this.rebuildNearbyPinGraphics();
-    if (!this.isPinLayerEnabled()) {
-      if (this._pinsFetchTimer) {
-        clearTimeout(this._pinsFetchTimer);
-        this._pinsFetchTimer = null;
-      }
-      this._lastNearbyPinFetch = null;
-      return;
-    }
-    if (forceFetch && this.isPinLayerEnabled()) {
-      this.scheduleFetchPins(0, { force: true });
-    }
+    return layerPanelUtils.applyPinLayerToggle(this, forceFetch);
   },
 
   parseMapLayerExtraBoolean(value, fallback = false) {
-    if (typeof value === "boolean") return value;
-    if (typeof value === "number") return value !== 0;
-    if (typeof value === "string") {
-      const normalized = value.trim().toLowerCase();
-      if (!normalized) return fallback;
-      if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-        return true;
-      }
-      if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-        return false;
-      }
-    }
-    return fallback;
+    return layerPanelUtils.parseMapLayerExtraBoolean(value, fallback);
   },
 
   resolveCenterTargetLinkEnabled(settings = {}) {
-    const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
-    const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] : undefined;
-    if (raw === undefined || raw === null) {
-      return true;
-    }
-    const disabled = this.parseMapLayerExtraBoolean(raw, false);
-    return disabled !== true;
+    return layerPanelUtils.resolveCenterTargetLinkEnabled(this, settings);
+  },
+
+  resolveProvinceCityHighlightEnabled(settings = {}) {
+    return layerPanelUtils.resolveProvinceCityHighlightEnabled(this, settings);
+  },
+
+  resolveProvinceCityHighlightSelectionId(settings = {}) {
+    return layerPanelUtils.resolveProvinceCityHighlightSelectionId(this, settings);
   },
 
   buildMapLayerExtraConfigPayload() {
-    const existing =
-      this._mapLayerSettings && typeof this._mapLayerSettings.extraConfig === "object"
-        ? this._mapLayerSettings.extraConfig
-        : null;
-    const extraConfig = existing ? Object.assign({}, existing) : {};
-    extraConfig[MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY] =
-      this.data.centerTargetLinkEnabled === false ? "true" : "false";
-    return extraConfig;
+    return layerPanelUtils.buildMapLayerExtraConfigPayload(this);
   },
 
   buildMapLayerSettingsPayload() {
-    return {
-      mapType: this.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
-      airspaceBoardEnabled: !!this.data.airBoardEnabled,
-      uomDivisionEnabled: !!this.data.uomDivisionEnabled,
-      djiNoFlyZoneEnabled: !!this.data.djiNoFlyZoneEnabled,
-      temporaryNoFlyZoneEnabled: !!this.data.temporaryNoFlyZoneEnabled,
-      merchantMarkersEnabled: !!this.data.merchantMarkersEnabled,
-      privateMarkersEnabled: !!this.data.privateMarkersEnabled,
-      groupSharingEnabled: !!this.data.groupSharingEnabled,
-      platformCoConstructionEnabled: !!this.data.platformCoConstructionEnabled,
-      useDefaultCenterPoint: !this.data.usePlanetCenterPoint,
-      aircraftModel: this.data.selectedDrone || "",
-      extraConfig: this.buildMapLayerExtraConfigPayload()
-    };
+    return layerPanelUtils.buildMapLayerSettingsPayload(this);
+  },
+
+  normalizeCachedMapLocation(payload = null) {
+    return locationUtils.normalizeCachedMapLocation(payload);
+  },
+
+  loadCachedMapLocation() {
+    return locationUtils.loadCachedMapLocation(this);
+  },
+
+  cacheMapLocation(point = null) {
+    return locationUtils.cacheMapLocation(this, point);
+  },
+
+  resolveCachedMapLocationPoint() {
+    return locationUtils.resolveCachedMapLocationPoint(this);
+  },
+
+  applyCachedMapLocationFallback(options = {}) {
+    return locationUtils.applyCachedMapLocationFallback(this, options);
   },
 
   loadCachedUsePlanetMyLocationPreference() {
-    if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return null;
-    try {
-      const cached = wx.getStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY);
-      if (typeof cached === "boolean") return cached;
-    } catch (err) {
-      console.warn("load cached usePlanetMyLocation preference failed", err);
-    }
-    return null;
+    return layerPanelUtils.loadCachedUsePlanetMyLocationPreference(this);
   },
 
   cacheUsePlanetMyLocationPreference(enabled) {
-    if (typeof wx === "undefined" || typeof wx.setStorageSync !== "function") return;
-    try {
-      wx.setStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY, enabled === true);
-    } catch (err) {
-      console.warn("cache usePlanetMyLocation preference failed", err);
-    }
+    return layerPanelUtils.cacheUsePlanetMyLocationPreference(enabled);
   },
 
   syncMyLocationPoint(options = {}) {
-    const silent = options.silent === true;
-    return new Promise((resolve) => {
-      if (typeof wx === "undefined" || typeof wx.getLocation !== "function") {
-        resolve(false);
-        return;
-      }
-      wx.getLocation({
-        type: "gcj02",
-        isHighAccuracy: false,
-        highAccuracyExpireTime: 8000,
-        success: (res) => {
-          const latitude = Number(res?.latitude);
-          const longitude = Number(res?.longitude);
-          if (!hasValidCoordinate(latitude, longitude)) {
-            resolve(false);
-            return;
-          }
-          const point = { latitude, longitude };
-          this._lastKnownLocation = point;
-          this.setMyLocationControlPoint(point);
-          this.refreshMarkerPageDistance();
-          resolve(true);
-        },
-        fail: (err) => {
-          if (!silent) {
-            console.warn("sync my location point failed", err);
-          }
-          resolve(false);
-        }
-      });
-    });
+    return locationUtils.syncMyLocationPoint(this, options);
   },
 
   applyLayerSettings(settings = {}, options = {}) {
-    const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
-    const airspace = settings.airspaceBoardEnabled !== false;
-    const uom = settings.uomDivisionEnabled !== false;
-    const dji = settings.djiNoFlyZoneEnabled !== false;
-    const temporary = settings.temporaryNoFlyZoneEnabled !== undefined
-      ? settings.temporaryNoFlyZoneEnabled !== false
-      : dji;
-    const merchant = settings.merchantMarkersEnabled !== false;
-    const privateMarkers = settings.privateMarkersEnabled !== false;
-    const groupSharing = settings.groupSharingEnabled !== false;
-    const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
-    const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
-    const centerTargetLinkEnabled = this.resolveCenterTargetLinkEnabled(settings);
-    const mapElementOptions = this.composeMapElementOptions({
-      uomDivisionEnabled: uom,
-      djiNoFlyZoneEnabled: dji,
-      temporaryNoFlyZoneEnabled: temporary,
-      merchantMarkersEnabled: merchant,
-      privateMarkersEnabled: privateMarkers,
-      groupSharingEnabled: groupSharing,
-      platformCoConstructionEnabled: platformCoConstruction
-    });
-    this.setData(
-      {
-        mapLayerType: mapType,
-        enableSatellite: mapType === "satellite",
-        airBoardEnabled: airspace,
-        showDashboardPanel: airspace,
-        uomDivisionEnabled: uom,
-        djiNoFlyZoneEnabled: dji,
-        temporaryNoFlyZoneEnabled: temporary,
-        merchantMarkersEnabled: merchant,
-        privateMarkersEnabled: privateMarkers,
-        groupSharingEnabled: groupSharing,
-        platformCoConstructionEnabled: platformCoConstruction,
-        usePlanetCenterPoint,
-        centerTargetLinkEnabled,
-        myLocationModeResolved: true,
-        mapElementOptions
-      },
-      () => {
-        this.cacheUsePlanetMyLocationPreference(usePlanetCenterPoint);
-        const afterLocationReady = () => {
-          this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
-          this.applyAirBoardToggle(airspace);
-          if (this._uomPlugin && typeof this._uomPlugin.setEnabled === "function") {
-            this._uomPlugin.setEnabled(uom);
-          }
-          this.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
-          this.applyMerchantMarkersToggle(merchant);
-          this.applyPinLayerToggle(true);
-          if (typeof options.onApplied === "function") {
-            options.onApplied();
-          }
-        };
-        if (usePlanetCenterPoint) {
-          this.syncMyLocationPoint({ silent: true }).finally(afterLocationReady);
-          return;
-        }
-        afterLocationReady();
-      }
-    );
+    return layerPanelUtils.applyLayerSettings(this, settings, options);
   },
 
   loadMapLayerSettings(force = false) {
-    if (this.data.mapLayerSettingsLoading) return;
-    if (this._mapLayerSettingsLoaded && !force) return;
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) {
-      if (!this.data.myLocationModeResolved) {
-        this.setData({ myLocationModeResolved: true });
-      }
-      return;
-    }
-    this.setData({ mapLayerSettingsLoading: true });
-    fetchMapLayerSettings({
-      apiBase,
-      token
-    })
-      .then((settings) => {
-        if (settings) {
-          this._mapLayerSettings = settings;
-          this.applyLayerSettings(settings, {
-            onApplied: () => {
-              const aircraftModel = this.normalizeAircraftModel(settings.aircraftModel);
-              if (aircraftModel) {
-                const applied = this.applyAircraftModelSetting(aircraftModel, { persist: false });
-                if (!applied) {
-                  this._pendingAircraftModel = aircraftModel;
-                } else {
-                  this._pendingAircraftModel = "";
-                }
-              } else if (!this._mapLayerAircraftModelWritten) {
-                this._mapLayerAircraftModelWritten = true;
-                if (this.data.selectedDrone) {
-                  this.persistMapLayerSettings();
-                }
-              }
-            }
-          });
-          this._mapLayerSettingsLoaded = true;
-          this.scheduleAddMiniAppPopupCheck("map-layer-settings");
-        }
-      })
-      .catch((err) => {
-        console.warn("Failed to load map layer settings", err);
-      })
-      .finally(() => {
-        this.setData({
-          mapLayerSettingsLoading: false,
-          myLocationModeResolved: true
-        });
-      });
+    return layerPanelUtils.loadMapLayerSettings(this, force);
   },
 
   bootstrapMapLayerSettings(force = false) {
-    if (this._mapLayerSettingsInitPromise) return this._mapLayerSettingsInitPromise;
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (apiBase && token) {
-      this.loadMapLayerSettings(force);
-      return Promise.resolve();
-    }
-    const promise = this.ensureProfileAuthenticated();
-    if (!promise || typeof promise.then !== "function") {
-      return Promise.resolve();
-    }
-    this._mapLayerSettingsInitPromise = promise
-      .then(() => {
-        this.loadMapLayerSettings(force);
-      })
-      .catch((err) => {
-        console.warn("bootstrap map layer settings failed", err);
-      })
-      .finally(() => {
-        this._mapLayerSettingsInitPromise = null;
-      });
-    return this._mapLayerSettingsInitPromise;
+    return layerPanelUtils.bootstrapMapLayerSettings(this, force);
   },
 
   persistMapLayerSettings() {
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) return;
-    const payload = this.buildMapLayerSettingsPayload();
-    updateMapLayerSettings(payload, {
-      apiBase,
-      token
-    })
-      .then((settings) => {
-        if (settings && typeof settings === "object") {
-          this._mapLayerSettings = settings;
-          return;
-        }
-        const previous =
-          this._mapLayerSettings && typeof this._mapLayerSettings === "object"
-            ? this._mapLayerSettings
-            : {};
-        this._mapLayerSettings = Object.assign({}, previous, payload);
-      })
-      .catch((err) => {
-        console.warn("Failed to update map layer settings", err);
-      });
+    return layerPanelUtils.persistMapLayerSettings(this);
   },
 
   onMarkerButtonTap() {
-    if (this.hasAccessToken()) {
-      this.openMarkersPage();
-      return;
-    }
-    this.ensureProfileAuthenticated()
-      .then(() => {
-        this.openMarkersPage();
-      })
-      .catch((err) => {
-        if (err && err.message === "user-cancel") {
-          wx.showToast({ title: "已取消", icon: "none" });
-          return;
-        }
-        if (err && err.message === "login-unavailable") {
-          this.showPlaceholderToast("暂时无法打开标记页");
-          return;
-        }
-        console.warn("登录失败", err);
-        if (typeof wx.showToast === "function") {
-          wx.showToast({ title: "登录失败，请稍后再试", icon: "none" });
-        }
-      });
+    return floatingControlsUtils.onMarkerButtonTap(this);
   },
 
   onTopicButtonTap() {
@@ -6875,1443 +1504,275 @@ Page({
   },
 
   applyNearbyMarkers(list) {
-    this._nearbyMarkersRaw = Array.isArray(list) ? list.slice() : [];
-    this.rebuildNearbyMarkerGraphics();
+    return nearbyGraphicsUtils.applyNearbyMarkers(this, list);
   },
 
   buildNearbyMerchantMarker(item = {}, index = 0, scaleInMeters = null) {
-    const latValue = Number(
-      item?.location?.latitude ??
-      item?.location?.lat ??
-      item?.latitude ??
-      item?.lat
-    );
-    const lngValue = Number(
-      item?.location?.longitude ??
-      item?.location?.lng ??
-      item?.longitude ??
-      item?.lng
-    );
-    if (!Number.isFinite(latValue) || !Number.isFinite(lngValue)) return null;
-    const gcj = wgs84ToGcj02(lngValue, latValue);
-    const latitudeGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latValue;
-    const longitudeGcj = Number.isFinite(gcj?.lng) ? gcj.lng : lngValue;
-    const name =
-      (typeof item?.name === "string" && item.name) ||
-      (typeof item?.title === "string" && item.title) ||
-      (typeof item?.location?.text === "string" && item.location.text) ||
-      "";
-    const locationText =
-      (typeof item?.location?.text === "string" && item.location.text) ||
-      (typeof item?.address === "string" && item.address) ||
-      (typeof item?.locationText === "string" && item.locationText) ||
-      "";
-    const marker = {
-      id: item?.id || `nearby-${index}`,
-      latitude: latitudeGcj,
-      longitude: longitudeGcj,
-      title: name,
-      iconPath: "/assets/drone.png",
-      width: 40,
-      height: 40
-    };
-    const displayMode = this.resolveMarkerDisplayMode(item, scaleInMeters);
-    if (displayMode === DISPLAY_MODE_HIDDEN) {
-      return null;
-    }
-    const calloutContent = formatNearbyMarkerLabel(name);
-    if (calloutContent) {
-      marker.callout = buildMarkerNameCallout(calloutContent);
-    }
-    const detail = this.composeMarkerDetail(item, marker, {
-      source: "nearby",
-      name,
-      locationText,
-      latitude: latitudeGcj,
-      longitude: longitudeGcj,
-      id: item?.id || marker.id
-    });
-    marker.extData = Object.assign({}, marker.extData, {
-      source: "nearby",
-      raw: item,
-      detail: cloneMarkerDetail(detail)
-    });
-    return this.applyDisplayModeToMarker(marker, item, {
-      scaleInMeters,
-      baseSize: 40
-    });
+    return nearbyGraphicsUtils.buildNearbyMerchantMarker(this, item, index, scaleInMeters);
   },
 
   rebuildNearbyMarkerGraphics() {
-    const rawList = Array.isArray(this._nearbyMarkersRaw) ? this._nearbyMarkersRaw : [];
-    const scaleInMeters = this.getCurrentScaleInMeters(this.data.scale);
-    this._nearbyMarkers = rawList
-      .map((item, index) => this.buildNearbyMerchantMarker(item, index, scaleInMeters))
-      .filter(Boolean);
-    this.trackMarkerExposure(this._nearbyMarkers);
-    this.syncAllMarkers();
+    return nearbyGraphicsUtils.rebuildNearbyMarkerGraphics(this);
   },
 
   refreshNearbyDisplayModes() {
-    if (Array.isArray(this._nearbyMarkersRaw) && this._nearbyMarkersRaw.length) {
-      this.rebuildNearbyMarkerGraphics();
-    } else {
-      this.syncAllMarkers();
-    }
-    if (Array.isArray(this._nearbyPinsRaw) && this._nearbyPinsRaw.length) {
-      this.rebuildNearbyPinGraphics();
-    }
+    return nearbyGraphicsUtils.refreshNearbyDisplayModes(this);
   },
 
   applyNearbyPins(list) {
-    this._nearbyPinsRaw = Array.isArray(list) ? list : [];
-    this.rebuildNearbyPinGraphics();
-    this.updateCenterPinIndicator();
-    this.trackPinExposure(this._nearbyPinMarkers);
+    return nearbyGraphicsUtils.applyNearbyPins(this, list);
   },
 
   rebuildNearbyPinGraphics() {
-    if (!this.isPinLayerEnabled()) {
-      this._nearbyPinMarkers = [];
-      this._nearbyPinPolygons = [];
-      this._nearbyPinCircles = [];
-      this._lastNearbyPinFetch = null;
-      this.updateOverlayGraphics();
-      this.syncAllMarkers();
-      this.updateCenterPinIndicator();
-      return;
-    }
-    const previewId = this._previewPinId ? `${this._previewPinId}` : "";
-    const markers = [];
-    const polygons = [];
-    const circles = [];
-    const rawList = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
-    const scaleInMeters = this.getCurrentScaleInMeters(this.data.scale);
-    rawList.forEach((item, index) => {
-      const pin = this.normalizeNearbyPin(item);
-      if (!pin || !this.isPinVisibilityEnabled(pin.visibility)) return;
-      // Avoid duplicating the pin currently in preview
-      if (previewId && `${pin.id || ""}` === previewId) return;
-      if (pin.shape.type === "POINT") {
-        const marker = this.buildPinPreviewMarker({
-          id: pin.id || `pin-${index}`,
-          name: pin.name,
-          location: pin.location,
-          shape: pin.shape,
-          height: pin.height,
-          coordsAreGcj: true,
-          raw: item,
-          scaleInMeters
-        });
-        if (marker) {
-          marker.extData = Object.assign({}, marker.extData, {
-            source: "pin-nearby",
-            raw: item
-          });
-          markers.push(marker);
-        }
-        return;
-      }
-      const zone = this.buildPinPreviewZone(pin.shape);
-      if (!zone) return;
-      const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
-      if (Array.isArray(graphics.polygons)) {
-        polygons.push(...graphics.polygons);
-      }
-      if (Array.isArray(graphics.circles)) {
-        circles.push(...graphics.circles);
-      }
-    });
-    this._nearbyPinMarkers = markers;
-    this._nearbyPinPolygons = polygons;
-    this._nearbyPinCircles = circles;
-    this.updateOverlayGraphics();
-    this.syncAllMarkers();
-    this.updateCenterPinIndicator();
+    return nearbyGraphicsUtils.rebuildNearbyPinGraphics(this);
   },
 
   applySearchMarkers(markers) {
-    this._searchMarkers = Array.isArray(markers)
-      ? markers.map((marker) => {
-        if (marker && marker.extData && marker.extData.detail) {
-          marker.extData = Object.assign({}, marker.extData, {
-            detail: cloneMarkerDetail(marker.extData.detail)
-          });
-        }
-        return marker;
-      })
-      : [];
-    this.syncAllMarkers();
+    return targetLinkUtils.applySearchMarkers(this, markers);
   },
 
   formatCenterPinLinkDistance(distanceMeters) {
-    const meters = Number(distanceMeters);
-    if (!Number.isFinite(meters) || meters < 0) return "";
-    if (meters >= 1000) {
-      const km = meters / 1000;
-      const display = km >= 10 ? Math.round(km) : Math.round(km * 10) / 10;
-      return `${display}km`;
-    }
-    return `${Math.max(1, Math.round(meters))}m`;
+    return targetLinkUtils.formatCenterPinLinkDistance(distanceMeters);
   },
 
   buildCenterPinLinkState(center, options = {}) {
-    const target = options.target;
-    const owner = `${options.owner || ""}`.trim();
-    const visible = options.visible === true;
-    if (
-      this.data.centerTargetLinkEnabled === false ||
-      !visible ||
-      !owner ||
-      !hasValidCoordinate(center?.latitude, center?.longitude) ||
-      !hasValidCoordinate(target?.latitude, target?.longitude)
-    ) {
-      return {
-        centerPinLinkActive: false,
-        centerPinLinkTipText: ""
-      };
-    }
-    const distanceMeters = computeGreatCircleDistance(center, target);
-    if (!Number.isFinite(distanceMeters) || distanceMeters < 0.5) {
-      return {
-        centerPinLinkActive: false,
-        centerPinLinkTipText: ""
-      };
-    }
-    const distanceText = this.formatCenterPinLinkDistance(distanceMeters);
-    return {
-      centerPinLinkActive: true,
-      centerPinLinkTipText: `距离${distanceText}，长按解除`
-    };
+    return targetLinkUtils.buildCenterPinLinkState(this, center, options);
   },
 
   clearCenterPinLinkState() {
-    if (!this.data.centerPinLinkActive && !this.data.centerPinLinkTipText) {
-      return;
-    }
-    this.setData({
-      centerPinLinkActive: false,
-      centerPinLinkTipText: ""
-    });
+    return targetLinkUtils.clearCenterPinLinkState(this);
   },
 
   clearActiveCenterTargetLink() {
-    if (this._searchLinkOwner === SEARCH_LINK_OWNER_MAP_TAP) {
-      this.clearMapTapTargetPoint();
-      return true;
-    }
-    if (this._searchLinkOwner === SEARCH_LINK_OWNER_SEARCH) {
-      this.clearSearchSelectionVisuals();
-      return true;
-    }
-    return false;
+    return targetLinkUtils.clearActiveCenterTargetLink(this);
   },
 
   applySearchLinkTarget(target, options = {}) {
-    const owner = `${options.owner || ""}`.trim();
-    const latitude = Number(target?.latitude);
-    const longitude = Number(target?.longitude);
-    const hasTarget = Number.isFinite(latitude) && Number.isFinite(longitude);
-    const nextTarget = hasTarget ? { latitude, longitude } : null;
-    this._searchLinkOwner = owner;
-    const linkState = this.buildCenterPinLinkState(this.data.searchLinkCenter, {
-      target: nextTarget,
-      visible: hasTarget && options.visible !== false,
-      owner
-    });
-    this.setData({
-      searchLinkTarget: nextTarget,
-      searchLinkVisible: hasTarget && options.visible !== false,
-      ...linkState
-    });
+    return targetLinkUtils.applySearchLinkTarget(this, target, options);
   },
 
   clearSearchLinkOverlay(options = {}) {
-    const owner = `${options.owner || ""}`.trim();
-    if (
-      options.force !== true &&
-      owner &&
-      this._searchLinkOwner &&
-      this._searchLinkOwner !== owner
-    ) {
-      return false;
-    }
-    this._searchLinkMarkers = [];
-    this._searchLinkPolylines = [];
-    this.syncAllPolylines();
-    this.syncAllMarkers();
-    if (
-      this.data.searchLinkTarget ||
-      this.data.searchLinkVisible ||
-      this.data.centerPinLinkActive ||
-      this.data.centerPinLinkTipText ||
-      this._searchLinkOwner
-    ) {
-      this._searchLinkOwner = "";
-      this.setData({
-        searchLinkTarget: null,
-        searchLinkVisible: false,
-        centerPinLinkActive: false,
-        centerPinLinkTipText: ""
-      });
-      return true;
-    }
-    this._searchLinkOwner = "";
-    return true;
+    return targetLinkUtils.clearSearchLinkOverlay(this, options);
   },
 
   clearSearchSelectionVisuals() {
-    this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_SEARCH });
-    this.applySearchMarkers([]);
+    return preflightDashboardUtils.clearSearchSelectionVisuals(this);
   },
 
   rebuildMapTapTargetMarker() {
-    const marker = buildMapTapTargetMarker(this._mapTapTarget);
-    this._mapTapTargetMarkers = marker ? [marker] : [];
-    this.syncAllMarkers();
+    return targetLinkUtils.rebuildMapTapTargetMarker(this);
   },
 
   clearMapTapTargetPoint(options = {}) {
-    const hadTarget = !!this._mapTapTarget || (Array.isArray(this._mapTapTargetMarkers) && this._mapTapTargetMarkers.length > 0);
-    this._mapTapTarget = null;
-    this._mapTapTargetMarkers = [];
-    this._mapTapTargetResolveToken += 1;
-    if (hadTarget) {
-      this.syncAllMarkers();
-    }
-    if (options.preserveSearchLink !== true) {
-      this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_MAP_TAP });
-    }
+    return targetLinkUtils.clearMapTapTargetPoint(this, options);
   },
 
   applyMapTapTargetPoint(point, options = {}) {
-    const target = buildMapTapTargetState(point, options);
-    if (!target) return false;
-    const tappedAt = Number(options.tappedAt);
-    this._mapTapTargetTapAt = Number.isFinite(tappedAt) ? tappedAt : Date.now();
-    this._mapTapTargetResolveToken += 1;
-    const resolveToken = this._mapTapTargetResolveToken;
-    this._mapTapTarget = target;
-    this.rebuildMapTapTargetMarker();
-    this.applySearchLinkTarget(target, {
-      owner: SEARCH_LINK_OWNER_MAP_TAP,
-      visible: true
-    });
-    this.requestPinAddress(target.latitude, target.longitude)
-      .then((address) => {
-        if (resolveToken !== this._mapTapTargetResolveToken || !this._mapTapTarget) {
-          return;
-        }
-        this._mapTapTarget = updateMapTapTargetAddress(this._mapTapTarget, address);
-        this.rebuildMapTapTargetMarker();
-      })
-      .catch((err) => console.warn("resolve map tap target address failed", err));
-    return true;
+    return targetLinkUtils.applyMapTapTargetPoint(this, point, options);
   },
 
   onMapTap(event = {}) {
-    if (this.data.centerTargetLinkEnabled === false) {
-      return;
-    }
-    if (Date.now() < (Number(this._mapTapSuppressUntil) || 0)) {
-      return;
-    }
-    const point = normalizeMapTapPoint(event?.detail || event);
-    if (!point) return;
-    const now = Date.now();
-    if (!canReplaceMapTapTarget(this._mapTapTargetTapAt, now)) {
-      wx.showToast({ title: "请2秒后再选下一个目标点", icon: "none" });
-      return;
-    }
-    this.clearSearchSelectionVisuals();
-    this.applyMapTapTargetPoint(point, { tappedAt: now });
+    return targetLinkUtils.onMapTap(this, event);
   },
 
   onMapLongPress(event = {}) {
-    if (!this._mapTapTarget) return;
-    const point = normalizeMapTapPoint(event?.detail || event);
-    if (!point) return;
-    if (!shouldRemoveMapTapTarget(this._mapTapTarget, point)) {
-      return;
-    }
-    this._mapTapSuppressUntil = Date.now() + 800;
-    this.clearMapTapTargetPoint();
+    return targetLinkUtils.onMapLongPress(this, event);
   },
 
   onSearchLinkGraphicsChange(event = {}) {
-    const detail = event?.detail || {};
-    this._searchLinkMarkers = Array.isArray(detail.markers) ? detail.markers : [];
-    this._searchLinkPolylines = Array.isArray(detail.polylines) ? detail.polylines : [];
-    this.queueMapGraphicsSync({ markers: true, polylines: true });
+    return targetLinkUtils.onSearchLinkGraphicsChange(this, event);
+  },
+
+  isMapTapTargetMarker(marker = {}) {
+    return targetLinkUtils.isMapTapTargetMarker(marker);
   },
 
   isMyLocationCirclesChanged(prev = [], next = []) {
-    if (!Array.isArray(prev) || !Array.isArray(next)) return true;
-    if (prev.length !== next.length) return true;
-    for (let i = 0; i < prev.length; i += 1) {
-      const a = prev[i] || {};
-      const b = next[i] || {};
-      if (
-        Number(a.latitude) !== Number(b.latitude) ||
-        Number(a.longitude) !== Number(b.longitude) ||
-        Number(a.radius) !== Number(b.radius) ||
-        Number(a.strokeWidth) !== Number(b.strokeWidth) ||
-        `${a.color || ""}` !== `${b.color || ""}` ||
-        `${a.fillColor || ""}` !== `${b.fillColor || ""}`
-      ) {
-        return true;
-      }
-    }
-    return false;
+    return pinPreviewUtils.isMyLocationCirclesChanged(prev, next);
   },
 
   isMyLocationMarkersChanged(prev = [], next = []) {
-    if (!Array.isArray(prev) || !Array.isArray(next)) return true;
-    if (prev.length !== next.length) return true;
-    for (let i = 0; i < prev.length; i += 1) {
-      const a = prev[i] || {};
-      const b = next[i] || {};
-      if (
-        Number(a.id) !== Number(b.id) ||
-        Number(a.latitude) !== Number(b.latitude) ||
-        Number(a.longitude) !== Number(b.longitude) ||
-        Number(a.width) !== Number(b.width) ||
-        Number(a.height) !== Number(b.height) ||
-        Number(a.rotate) !== Number(b.rotate) ||
-        Number(a.zIndex) !== Number(b.zIndex) ||
-        `${a.iconPath || ""}` !== `${b.iconPath || ""}`
-      ) {
-        return true;
-      }
-    }
-    return false;
+    return pinPreviewUtils.isMyLocationMarkersChanged(prev, next);
   },
 
   queueMapGraphicsSync(options = {}) {
-    const next = this._pendingMapGraphicsSync || {
-      markers: false,
-      polylines: false,
-      overlay: false
-    };
-    if (options.markers) next.markers = true;
-    if (options.polylines) next.polylines = true;
-    if (options.overlay) next.overlay = true;
-    this._pendingMapGraphicsSync = next;
-    if (this._mapGraphicsSyncTimer) return;
-    this._mapGraphicsSyncTimer = setTimeout(() => {
-      this._mapGraphicsSyncTimer = null;
-      const pending = this._pendingMapGraphicsSync || {};
-      this._pendingMapGraphicsSync = null;
-      if (pending.markers) {
-        this.syncAllMarkers();
-      }
-      if (pending.polylines) {
-        this.syncAllPolylines();
-      }
-      if (pending.overlay) {
-        this.updateOverlayGraphics();
-      }
-    }, 0);
+    return mapGraphicsUtils.queueMapGraphicsSync(this, options);
   },
 
   syncAllPolylines() {
-    const polylines = Array.isArray(this._searchLinkPolylines) ? this._searchLinkPolylines : [];
-    this.setData({ polylines });
+    return mapGraphicsUtils.syncAllPolylines(this);
   },
 
   syncAllMarkers() {
-    const nearby =
-      this.data.merchantMarkersEnabled !== false && Array.isArray(this._nearbyMarkers)
-        ? this._nearbyMarkers
-        : [];
-    const pinMarkers = Array.isArray(this._nearbyPinMarkers) ? this._nearbyPinMarkers : [];
-    const search = Array.isArray(this._searchMarkers) ? this._searchMarkers : [];
-    const searchLink = Array.isArray(this._searchLinkMarkers) ? this._searchLinkMarkers : [];
-    const mapTapTarget = Array.isArray(this._mapTapTargetMarkers) ? this._mapTapTargetMarkers : [];
-    const manual = Array.isArray(this._manualMarkers) ? this._manualMarkers : [];
-    const preview = this._previewMarker ? [this._previewMarker] : [];
-    const myLocation = Array.isArray(this._myLocationMarkers) ? this._myLocationMarkers : [];
-    const uom2 = Array.isArray(this._uom2Markers) ? this._uom2Markers : [];
-    this.normalizeMapMarkerList(uom2);
-    this.normalizeMapMarkerList(nearby);
-    this.normalizeMapMarkerList(pinMarkers);
-    this.normalizeMapMarkerList(search);
-    this.normalizeMapMarkerList(searchLink);
-    this.normalizeMapMarkerList(mapTapTarget);
-    this.normalizeMapMarkerList(manual);
-    this.normalizeMapMarkerList(preview);
-    this.normalizeMapMarkerList(myLocation);
-    const combined = this.dedupeMapMarkers(
-      uom2.concat(manual, pinMarkers, nearby, search, searchLink, mapTapTarget, preview, myLocation)
-    );
-    this.setData({ markers: combined });
+    return mapGraphicsUtils.syncAllMarkers(this);
   },
 
   updateCenterPinIndicator(centerOverride) {
-    const center = centerOverride || this._centerOverride || this.data.center;
-    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-      this.setData({
-        centerPinTitle: "",
-        centerCoordinateLatText: "",
-        centerCoordinateLngText: "",
-        centerCoordinateLatValue: null,
-        centerCoordinateLngValue: null,
-        searchLinkCenter: null,
-        centerPinLinkActive: false,
-        centerPinLinkTipText: "",
-        cityReportCenter: null
-      });
-      return;
-    }
-    let displayLat = Number(center.latitude);
-    let displayLng = Number(center.longitude);
-    const converted = convertCoordinateFromGcj02(
-      Number(center.longitude),
-      Number(center.latitude),
-      this.data.coordinateSystem
-    );
-    if (converted && hasValidCoordinate(converted.lat, converted.lng)) {
-      displayLat = converted.lat;
-      displayLng = converted.lng;
-    }
-    const pin = this.findPinContainingPoint(center);
-    const coord = formatCoordinateDisplayParts(displayLat, displayLng);
-    const normalizedCenter = {
-      latitude: Number(center.latitude),
-      longitude: Number(center.longitude)
-    };
-    const linkState = this.buildCenterPinLinkState(normalizedCenter, {
-      target: this.data.searchLinkTarget,
-      visible: this.data.searchLinkVisible,
-      owner: this._searchLinkOwner
-    });
-    this.setData({
-      centerPinTitle: pin ? pin.name || "" : "",
-      centerCoordinateLngText: coord ? coord.lngText : "",
-      centerCoordinateLatText: coord ? coord.latText : "",
-      centerCoordinateLngValue: Number.isFinite(displayLng) ? displayLng : null,
-      centerCoordinateLatValue: Number.isFinite(displayLat) ? displayLat : null,
-      searchLinkCenter: normalizedCenter,
-      cityReportCenter: normalizedCenter,
-      ...linkState
-    });
+    return centerPinUiUtils.updateCenterPinIndicator(this, centerOverride);
   },
 
   onCenterCoordinateTap() {
-    const center = this._centerOverride || this.data.center;
-    const hasCenter = hasValidCoordinate(center?.latitude, center?.longitude);
-    let displayLat = hasCenter ? Number(center.latitude) : Number(this.data.centerCoordinateLatValue);
-    let displayLng = hasCenter ? Number(center.longitude) : Number(this.data.centerCoordinateLngValue);
-
-    if (hasCenter) {
-      const converted = convertCoordinateFromGcj02(
-        Number(center.longitude),
-        Number(center.latitude),
-        this.data.coordinateSystem
-      );
-      if (converted && hasValidCoordinate(converted.lat, converted.lng)) {
-        displayLat = converted.lat;
-        displayLng = converted.lng;
-      }
-    }
-
-    if (!Number.isFinite(displayLat) || !Number.isFinite(displayLng)) return;
-
-    const showCopyLoading = !this._isIOS;
-    if (showCopyLoading) {
-      wx.showLoading({ title: "经纬度解析中", mask: false });
-    }
-
-    const copyResolvedText = (address = "") => {
-      const text = buildCoordinateClipboardText({
-        lat: displayLat,
-        lng: displayLng,
-        coordinateSystem: this.data.coordinateSystem,
-        address
-      });
-      if (!text) {
-        if (showCopyLoading) {
-          wx.hideLoading();
-        }
-        wx.showToast({ title: "复制失败", icon: "none" });
-        return;
-      }
-      let copied = false;
-      wx.setClipboardData({
-        data: text,
-        success: () => {
-          copied = true;
-        },
-        fail: (err) => {
-          console.error("复制经纬度失败", err);
-          if (showCopyLoading) {
-            wx.hideLoading();
-          }
-          wx.showToast({ title: "复制失败", icon: "none" });
-        },
-        complete: () => {
-          if (showCopyLoading) {
-            wx.hideLoading();
-          }
-          if (copied && !this._isIOS) {
-            setTimeout(() => {
-              wx.showToast({ title: "经纬度已复制", icon: "success", duration: 1500 });
-            }, 120);
-          }
-        }
-      });
-    };
-
-    if (!hasCenter) {
-      copyResolvedText("");
-      return;
-    }
-
-    this.requestPinAddress(Number(center.latitude), Number(center.longitude))
-      .then((address) => copyResolvedText(address || ""))
-      .catch((err) => {
-        console.warn("center reverse geocode failed", err);
-        copyResolvedText("");
-      });
+    return centerPinUiUtils.onCenterCoordinateTap(this);
   },
 
   onCoordinateSystemToggle() {
-    if (this.data.coordinateSystemSheetVisible) return;
-    this.setData({ coordinateSystemSheetVisible: true });
-    if (this.getAuthToken()) {
-      this.loadMapGuideConfigs().catch((err) => {
-        console.warn("loadMapGuideConfigs onCoordinateSystemToggle failed", err);
-      });
-    }
+    return centerPinUiUtils.onCoordinateSystemToggle(this);
   },
 
-  onCoordinateSystemSheetTap() { },
+  onCoordinateSystemSheetTap() {
+    return centerPinUiUtils.onCoordinateSystemSheetTap();
+  },
 
   onCoordinateSystemSheetMaskTap() {
-    if (!this.data.coordinateSystemSheetVisible) return;
-    this.setData({ coordinateSystemSheetVisible: false });
+    return centerPinUiUtils.onCoordinateSystemSheetMaskTap(this);
   },
 
   onCoordinateSystemOptionTap(event) {
-    const next = normalizeCoordinateSystem(event?.currentTarget?.dataset?.value);
-    const changed = next !== this.data.coordinateSystem;
-    const updates = {
-      coordinateSystemSheetVisible: false
-    };
-    if (changed) {
-      updates.coordinateSystem = next;
-      updates.coordinateSystemLabel = resolveCoordinateSystemDisplayLabel(next);
-    }
-    this.setData(updates, () => {
-      if (changed) {
-        this.updateCenterPinIndicator();
-      }
-    });
+    return centerPinUiUtils.onCoordinateSystemOptionTap(this, event);
   },
 
   findPinContainingPoint(point = {}) {
-    if (!point || !hasValidCoordinate(point.latitude, point.longitude)) return null;
-    const pins = Array.isArray(this._nearbyPinsRaw) ? this._nearbyPinsRaw : [];
-    for (const raw of pins) {
-      const pin = this.normalizeNearbyPin(raw);
-      if (!pin) continue;
-      if (this.pinContainsPoint(pin, point)) return pin;
-    }
-    return null;
+    return centerHitUtils.findPinContainingPoint(this, point);
   },
 
   shouldDismissCenterPinWelcomeBubbleOnRegionChange(cause = "") {
-    const normalized = `${cause || ""}`.trim().toLowerCase();
-    if (!normalized) return false;
-    return (
-      normalized === "drag" ||
-      normalized === "gesture" ||
-      normalized === "scale" ||
-      normalized === "rotate" ||
-      normalized === "skew" ||
-      normalized === "overlook"
-    );
+    return centerPinUiUtils.shouldDismissCenterPinWelcomeBubbleOnRegionChange(cause);
   },
 
   dismissCenterPinWelcomeBubble() {
-    const nextToken = (Number(this.data.centerPinWelcomeBubbleDismissToken) || 0) + 1;
-    this.setData({ centerPinWelcomeBubbleDismissToken: nextToken });
+    return centerPinUiUtils.dismissCenterPinWelcomeBubble(this);
   },
 
-  suppressCenterPinOpenOnce(durationMs = CENTER_PIN_CLOSE_TAP_SUPPRESS_MS) {
-    const duration = Number(durationMs);
-    const windowMs = Number.isFinite(duration) && duration > 0 ? duration : CENTER_PIN_CLOSE_TAP_SUPPRESS_MS;
-    this._centerPinOpenSuppressUntil = Date.now() + windowMs;
+  suppressCenterPinOpenOnce(durationMs) {
+    return centerPinFollowUtils.suppressCenterPinOpenOnce(this, durationMs);
   },
 
   shouldSuppressCenterPinOpen() {
-    const until = Number(this._centerPinOpenSuppressUntil) || 0;
-    if (until <= 0) return false;
-    if (Date.now() > until) {
-      this._centerPinOpenSuppressUntil = 0;
-      return false;
-    }
-    return true;
+    return centerPinFollowUtils.shouldSuppressCenterPinOpen(this);
   },
 
   onCenterPinSheetClose() {
-    this.suppressCenterPinOpenOnce();
+    return centerPinFollowUtils.onCenterPinSheetClose(this);
   },
 
   buildStealthModeSnapshot() {
-    return {
-      layerPanelVisible: !!this.data.layerPanelVisible,
-      coordinateSystemSheetVisible: !!this.data.coordinateSystemSheetVisible
-    };
+    return centerPinUiUtils.buildStealthModeSnapshot(this);
   },
 
   enterStealthMode() {
-    if (this.data.stealthModeActive) return;
-    this._stealthModeSnapshot = this.buildStealthModeSnapshot();
-    if (this._layerPanelCloseTimer) {
-      clearTimeout(this._layerPanelCloseTimer);
-      this._layerPanelCloseTimer = null;
-    }
-    this.setData({
-      stealthModeActive: true,
-      layerPanelVisible: false,
-      layerPanelClosing: false,
-      coordinateSystemSheetVisible: false,
-      cityReportDialogVisible: false,
-      searchCoordinateTipsVisible: false
-    });
+    return centerPinUiUtils.enterStealthMode(this);
   },
 
   exitStealthMode() {
-    if (!this.data.stealthModeActive) return;
-    const snapshot = this._stealthModeSnapshot || {};
-    this._stealthModeSnapshot = null;
-    this.setData({
-      stealthModeActive: false,
-      layerPanelVisible: !!snapshot.layerPanelVisible,
-      layerPanelClosing: false,
-      coordinateSystemSheetVisible: !!snapshot.coordinateSystemSheetVisible
-    });
+    return centerPinUiUtils.exitStealthMode(this);
   },
 
   onCenterPinTap() {
-    if (this.shouldSuppressCenterPinOpen()) return;
-    this.openMarkerOrPinAtCenter();
+    return centerPinActionsUtils.onCenterPinTap(this);
   },
 
   startCenterPinLocationFollow() {
-    if (this._centerPinFollowActive) {
-      if (!this.data.centerPinFollowActive) {
-        this.setData({ centerPinFollowActive: true });
-      }
-      return Promise.resolve(true);
-    }
-    return this.ensureLocationPermission().then(() => {
-      this._centerPinFollowActive = true;
-      this._centerPinFollowPaused = false;
-      this._centerPinFollowLocating = false;
-      this._centerPinFollowLastErrorAt = 0;
-      if (this._centerPinFollowTimer) {
-        clearTimeout(this._centerPinFollowTimer);
-        this._centerPinFollowTimer = null;
-      }
-      this.setData({ centerPinFollowActive: true });
-      this.scheduleCenterPinLocationFollow(0);
-      return true;
-    });
+    return centerPinFollowUtils.startCenterPinLocationFollow(this);
   },
 
   stopCenterPinLocationFollow(options = {}) {
-    const shouldToast = options.toast !== false;
-    const wasActive = !!this._centerPinFollowActive || !!this.data.centerPinFollowActive;
-    this._centerPinFollowActive = false;
-    this._centerPinFollowPaused = false;
-    this._centerPinFollowLocating = false;
-    if (this._centerPinFollowTimer) {
-      clearTimeout(this._centerPinFollowTimer);
-      this._centerPinFollowTimer = null;
-    }
-    if (this.data.centerPinFollowActive) {
-      this.setData({ centerPinFollowActive: false });
-    }
-    if (shouldToast && wasActive && typeof wx?.showToast === "function") {
-      wx.showToast({ title: "已解除位置绑定", icon: "none" });
-    }
+    return centerPinFollowUtils.stopCenterPinLocationFollow(this, options);
   },
 
-  scheduleCenterPinLocationFollow(delay = CENTER_PIN_FOLLOW_INTERVAL_MS) {
-    if (!this._centerPinFollowActive || this._centerPinFollowPaused) return;
-    if (this._centerPinFollowTimer) {
-      clearTimeout(this._centerPinFollowTimer);
-      this._centerPinFollowTimer = null;
-    }
-    const wait = Math.max(0, Number(delay) || 0);
-    this._centerPinFollowTimer = setTimeout(() => {
-      this._centerPinFollowTimer = null;
-      this.runCenterPinLocationFollowTick();
-    }, wait);
+  scheduleCenterPinLocationFollow(delay) {
+    return centerPinFollowUtils.scheduleCenterPinLocationFollow(this, delay);
   },
 
   runCenterPinLocationFollowTick() {
-    if (!this._centerPinFollowActive || this._centerPinFollowPaused) return;
-    if (this._centerPinFollowLocating) {
-      this.scheduleCenterPinLocationFollow(200);
-      return;
-    }
-    this._centerPinFollowLocating = true;
-    wx.getLocation({
-      type: "gcj02",
-      isHighAccuracy: false,
-      highAccuracyExpireTime: 8000,
-      success: (res) => {
-        if (!this._centerPinFollowActive) return;
-        const latitude = Number(res?.latitude);
-        const longitude = Number(res?.longitude);
-        if (!hasValidCoordinate(latitude, longitude)) return;
-        const point = { latitude, longitude };
-        this._lastKnownLocation = point;
-        this.setMyLocationControlPoint(point);
-        this.refreshMarkerPageDistance();
-        this.centerOnPoint(point, this.data.scale, true);
-      },
-      fail: (err) => {
-        console.warn("center pin follow getLocation fail", err);
-        const now = Date.now();
-        if (
-          typeof wx?.showToast === "function" &&
-          (!Number.isFinite(this._centerPinFollowLastErrorAt) ||
-            now - this._centerPinFollowLastErrorAt >= CENTER_PIN_FOLLOW_ERROR_TOAST_INTERVAL_MS)
-        ) {
-          this._centerPinFollowLastErrorAt = now;
-          wx.showToast({ title: "位置读取失败", icon: "none" });
-        }
-      },
-      complete: () => {
-        this._centerPinFollowLocating = false;
-        if (this._centerPinFollowActive) {
-          this.scheduleCenterPinLocationFollow(CENTER_PIN_FOLLOW_INTERVAL_MS);
-        }
-      }
-    });
+    return centerPinFollowUtils.runCenterPinLocationFollowTick(this);
   },
 
   shouldIgnoreRegionSyncForCenterPinFollow(cause = "") {
-    if (!this._centerPinFollowActive) return false;
-    const normalized = `${cause || ""}`.trim().toLowerCase();
-    if (!normalized) return false;
-    return (
-      normalized === "drag" ||
-      normalized === "gesture" ||
-      normalized === "rotate" ||
-      normalized === "skew" ||
-      normalized === "overlook"
-    );
+    return centerPinFollowUtils.shouldIgnoreRegionSyncForCenterPinFollow(this, cause);
   },
 
   pauseCenterPinLocationFollow() {
-    if (!this._centerPinFollowActive) return;
-    this._centerPinFollowPaused = true;
-    this._centerPinFollowLocating = false;
-    if (this._centerPinFollowTimer) {
-      clearTimeout(this._centerPinFollowTimer);
-      this._centerPinFollowTimer = null;
-    }
+    return centerPinFollowUtils.pauseCenterPinLocationFollow(this);
   },
 
   resumeCenterPinLocationFollow() {
-    if (!this._centerPinFollowActive) return;
-    if (!this._centerPinFollowPaused && this._centerPinFollowTimer) return;
-    this._centerPinFollowPaused = false;
-    this.scheduleCenterPinLocationFollow(0);
+    return centerPinFollowUtils.resumeCenterPinLocationFollow(this);
   },
 
   onCenterPinLongPress(event = {}) {
-    if (event?.detail?.exitStealth || this.data.stealthModeActive) {
-      this.exitStealthMode();
-      return;
-    }
-    if (event?.detail?.clearLink || this.data.centerPinLinkActive) {
-      this.clearActiveCenterTargetLink();
-      return;
-    }
-    if (this._centerPinFollowActive) {
-      this.stopCenterPinLocationFollow({ toast: true });
-      return;
-    }
-    if (!this.getAuthToken()) return;
-    this.loadMapGuideConfigs().catch((err) => {
-      console.warn("loadMapGuideConfigs onCenterPinLongPress failed", err);
-    });
+    return centerPinActionsUtils.onCenterPinLongPress(this, event);
   },
 
   onCenterPinAction(event) {
-    const action = `${event?.detail?.action || ""}`.trim();
-    if (!action) return;
-    if (action === "stealthMode") {
-      this.enterStealthMode();
-      return;
-    }
-    if (action === "quickMark") {
-      this.openMyPinCreateAtCenter();
-      return;
-    }
-    if (action === "share") {
-      this.prepareCenterActionShare();
-      return;
-    }
-    if (action === "bindMyLocation") {
-      if (this._centerPinFollowActive) {
-        wx.showToast({ title: "长按可解除绑定", icon: "none" });
-        return;
-      }
-      this.startCenterPinLocationFollow()
-        .then(() => {
-          wx.showToast({ title: "已绑定当前位置", icon: "none" });
-        })
-        .catch(() => {
-          wx.showToast({ title: "未授权定位权限", icon: "none" });
-        });
-      return;
-    }
-    if (action === "navigate") {
-      const center = this._centerOverride || this.data.center;
-      if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-        wx.showToast({ title: "暂无定位信息", icon: "none" });
-        return;
-      }
-      const pinTitle = `${this.data.centerPinTitle || ""}`.trim();
-      this.openMarkerLocation(
-        {
-          latitude: center.latitude,
-          longitude: center.longitude,
-          name: pinTitle || "中心位置",
-          locationText: ""
-        }
-      );
-      return;
-    }
-    if (action === "afeiAdventure") {
-      this.openAfeiAdventure(event?.detail || {});
-      return;
-    }
-    if (action === "askAgent") {
-      this.openPlanetQaAtCenter();
-      return;
-    }
+    return centerPinActionsUtils.onCenterPinAction(this, event);
   },
 
   openPlanetQaAtCenter() {
-    wx.showToast({ title: "正在努力接入中~", icon: "none" });
-
-    /*
-    if (!this.getAuthToken()) {
-      wx.showToast({ title: "请先登录后再试", icon: "none" });
-      return;
-    }
-    const center = this._centerOverride || this.data.center;
-    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-      wx.showToast({ title: "暂无定位信息", icon: "none" });
-      return;
-    }
-    const latitude = Number(center.latitude);
-    const longitude = Number(center.longitude);
-    const fallbackAddress =
-      `${this.data.centerPinTitle || ""}`.trim() || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
-    const payload = {
-      latitude,
-      longitude,
-      address: fallbackAddress
-    };
-
-    let navigated = false;
-    const navigateOnce = () => {
-      if (navigated) return;
-      navigated = true;
-      const query = [
-        `address=${encodeURIComponent(payload.address || "")}`,
-        `lat=${encodeURIComponent(`${payload.latitude}`)}`,
-        `lng=${encodeURIComponent(`${payload.longitude}`)}`
-      ].join("&");
-      wx.navigateTo({
-        url: `/packages/map-center-pin/planet-qa/index?${query}`,
-        fail: (err) => {
-          console.warn("navigate to planet qa failed", err);
-          wx.showToast({ title: "暂时无法打开问答页面", icon: "none" });
-        }
-      });
-    };
-
-    const fallbackTimer = setTimeout(navigateOnce, 1200);
-    this.requestPinAddress(latitude, longitude)
-      .then((address) => {
-        const resolved = `${address || ""}`.trim();
-        if (resolved) {
-          payload.address = resolved;
-        }
-      })
-      .catch((err) => {
-        console.warn("resolve center address for planet qa failed", err);
-      })
-      .finally(() => {
-        clearTimeout(fallbackTimer);
-        navigateOnce();
-      });
-    */
+    return centerPinActionsUtils.openPlanetQaAtCenter(this);
   },
 
   openAfeiAdventure(detail = {}) {
-    const resourceDir = `${detail?.resourceDir || detail?.extractedPath || ""}`.trim();
-    const resourceVersion = `${detail?.resourceVersion || detail?.version || ""}`.trim();
-    if (!resourceDir) {
-      wx.showToast({ title: "资源准备中，请稍后再试", icon: "none" });
-      return;
-    }
-    const query = [
-      `resourceDir=${encodeURIComponent(resourceDir)}`,
-      `version=${encodeURIComponent(resourceVersion)}`
-    ].join("&");
-    wx.navigateTo({
-      url: `/packages/map-center-pin/afei-adventure/index?${query}`,
-      fail: (err) => {
-        console.warn("navigate to afei adventure failed", err);
-        wx.showToast({ title: "暂时无法打开阿飞历险记", icon: "none" });
-      }
-    });
+    return centerPinActionsUtils.openAfeiAdventure(this, detail);
   },
 
   openMyPinCreateAtCenter() {
-    const center = this._centerOverride || this.data.center;
-    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
-      wx.showToast({ title: "暂无定位信息", icon: "none" });
-      return;
-    }
-    const latitude = Number(center.latitude);
-    const longitude = Number(center.longitude);
-    const centerPinTitle = `${this.data.centerPinTitle || ""}`.trim();
-    const payload = {
-      latitude,
-      longitude,
-      coordinateText: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      addressMain: "",
-      addressDetail: centerPinTitle
-    };
-    let navigated = false;
-    const navigateOnce = () => {
-      if (navigated) return;
-      navigated = true;
-      this.navigateToMarkersPinCreate(payload);
-    };
-    const fallbackTimer = setTimeout(() => {
-      navigateOnce();
-    }, 520);
-    this.requestPinAddress(latitude, longitude)
-      .then((address) => {
-        const resolved = `${address || ""}`.trim();
-        if (resolved) {
-          payload.addressMain = resolved;
-          if (!payload.addressDetail || payload.addressDetail === resolved) {
-            payload.addressDetail = resolved;
-          }
-        }
-      })
-      .catch((err) => {
-        console.warn("resolve quick mark center address failed", err);
-      })
-      .finally(() => {
-        clearTimeout(fallbackTimer);
-        navigateOnce();
-      });
+    return centerPinActionsUtils.openMyPinCreateAtCenter(this);
   },
 
   navigateToMarkersPinCreate(payload = {}) {
-    const url = "/pages/markers/index";
-    try {
-      const app = typeof getApp === "function" ? getApp() : null;
-      if (app && app.globalData) {
-        app.globalData.targetMarkersCenterTab = "MY_MARKERS";
-        app.globalData.pendingMyPinCreate = payload;
-      }
-    } catch (err) {
-      console.warn("set pending my pin create failed", err);
-    }
-    if (typeof wx?.navigateTo === "function") {
-      wx.navigateTo({
-        url,
-        fail: (err) => {
-          console.warn("navigateTo markers failed, fallback to switchTab", err);
-          if (typeof wx?.switchTab === "function") {
-            wx.switchTab({ url });
-          }
-        }
-      });
-      return;
-    }
-    if (typeof wx?.switchTab === "function") {
-      wx.switchTab({ url });
-    }
+    return centerPinActionsUtils.navigateToMarkersPinCreate(payload);
   },
 
   onCenterPinIndicatorTap() {
-    if (this.shouldSuppressCenterPinOpen()) return;
-    const opened = this.openMarkerOrPinAtCenter();
-    if (!opened) {
-      wx.showToast({ title: "未找到标记", icon: "none" });
-    }
+    return preflightDashboardUtils.onCenterPinIndicatorTap(this);
   },
 
   openMarkerOrPinAtCenter() {
-    const center = this._centerOverride || this.data.center;
-    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) return false;
-    const pin = this.isPinLayerEnabled() ? this.findPinContainingPoint(center) : null;
-    if (pin) {
-      return this.openPinDetail(pin);
-    }
-    const marker = this.findClosestMarkerFromCenter(center);
-    if (!marker) return false;
-    this.openMarkerDetail(marker);
-    return true;
+    return centerHitUtils.openMarkerOrPinAtCenter(this);
   },
 
   openPinDetail(pin) {
-    if (!pin) return false;
-    const detail = this.buildPinDetailFromPin(pin);
-    if (!detail) return false;
-    const marker = {
-      id: detail.id || `pin-${Date.now()}`,
-      latitude: detail.latitude,
-      longitude: detail.longitude,
-      extData: {
-        source: "pin",
-        raw: pin,
-        detail: cloneMarkerDetail(detail)
-      }
-    };
-    this.openMarkerDetail(marker);
-    return true;
+    return centerHitUtils.openPinDetail(this, pin);
   },
 
   findClosestMarkerFromCenter(point = {}, maxDistanceMeters = 35) {
-    if (!point || !hasValidCoordinate(point.latitude, point.longitude)) return null;
-    const targetLat = Number(point.latitude);
-    const targetLng = Number(point.longitude);
-    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return null;
-
-    const candidates = Array.isArray(this.data.markers) ? this.data.markers : [];
-
-    let target = null;
-    let minDistance = Infinity;
-    for (const marker of candidates) {
-      if (!marker) continue;
-      const lat = Number(marker.latitude);
-      const lng = Number(marker.longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-
-      const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
-      if (src === "my-location-map") continue;
-      if (isMapTapTargetMarker(marker)) continue;
-      if (src.includes("pin")) {
-        const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
-        if (shapeType && shapeType !== "POINT") continue;
-      } else if (!this.resolveMarkerDetail(marker)) {
-        continue;
-      }
-
-      const distance = haversineMeters(targetLat, targetLng, lat, lng);
-      if (!Number.isFinite(distance) || distance > maxDistanceMeters) continue;
-      if (distance < minDistance) {
-        minDistance = distance;
-        target = marker;
-      }
-    }
-    return target;
+    return centerHitUtils.findClosestMarkerFromCenter(this, point, maxDistanceMeters);
   },
 
   pinContainsPoint(pin = {}, point = {}) {
-    if (!pin || !pin.shape || !Array.isArray(pin.shape.coordinates)) return false;
-    const type = `${pin.shape.type || ""}`.toUpperCase();
-    const coords = pin.shape.coordinates;
-    if (!coords.length) return false;
-    const targetLat = Number(point.latitude);
-    const targetLng = Number(point.longitude);
-    if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) return false;
-    if (type === "POINT") {
-      const dist = haversineMeters(targetLat, targetLng, coords[0].latitude, coords[0].longitude);
-      return Number.isFinite(dist) && dist <= 30;
-    }
-    if (type === "CIRCLE") {
-      const center = coords[0];
-      const radiusKm = Number(pin.shape.radius);
-      const radiusMeters = Number.isFinite(radiusKm) ? radiusKm * 1000 : 0;
-      const dist = haversineMeters(targetLat, targetLng, center.latitude, center.longitude);
-      const threshold = radiusMeters > 0 ? radiusMeters : 30;
-      return Number.isFinite(dist) && dist <= threshold;
-    }
-    if (type === "LINE" || type === "PATH") {
-      const widthMeters = Number(pin.shape.width);
-      const allowed = Number.isFinite(widthMeters) && widthMeters > 0 ? widthMeters : 30;
-      const distance = this.distanceToPolylineMeters({ latitude: targetLat, longitude: targetLng }, coords);
-      return Number.isFinite(distance) && distance <= allowed;
-    }
-    const ring = coords.map((c) => [c.longitude, c.latitude]);
-    return this.ringContains(ring, targetLng, targetLat);
+    return centerHitUtils.pinContainsPoint(this, pin, point);
   },
 
   distanceToPolylineMeters(point, coords = []) {
-    if (!Array.isArray(coords) || coords.length === 0) return Infinity;
-    const lat0 = Number(point.latitude);
-    const lng0 = Number(point.longitude);
-    if (!Number.isFinite(lat0) || !Number.isFinite(lng0)) return Infinity;
-    const factors = this._distanceFactors(lat0);
-    let min = Infinity;
-    for (let i = 0; i < coords.length - 1; i += 1) {
-      const a = coords[i];
-      const b = coords[i + 1];
-      const d = this.distancePointToSegmentMeters(lat0, lng0, a, b, factors);
-      if (d < min) min = d;
-    }
-    return min;
-  },
-
-  _distanceFactors(lat) {
-    const kLat = 111320;
-    const kLng = kLat * Math.max(Math.cos((Number(lat) * Math.PI) / 180), 0.0001);
-    return { kLat, kLng };
+    return centerHitUtils.distanceToPolylineMeters(point, coords);
   },
 
   distancePointToSegmentMeters(lat, lng, a = {}, b = {}, factors = null) {
-    const { kLat, kLng } = factors || this._distanceFactors(lat);
-    const ax = (Number(a.longitude) - lng) * kLng;
-    const ay = (Number(a.latitude) - lat) * kLat;
-    const bx = (Number(b.longitude) - lng) * kLng;
-    const by = (Number(b.latitude) - lat) * kLat;
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len2 = dx * dx + dy * dy;
-    if (len2 === 0) return Math.sqrt(ax * ax + ay * ay);
-    let t = -(ax * dx + ay * dy) / len2;
-    t = Math.max(0, Math.min(1, t));
-    const px = ax + t * dx;
-    const py = ay + t * dy;
-    return Math.sqrt(px * px + py * py);
-  },
-
-  resolveLikeTargetType(target = {}) {
-    const source = (target?.extData?.source || target?.source || "").toLowerCase();
-    const raw = target?.extData?.raw || target.raw || {};
-    if (source.includes("pin") || raw.shape || (target?.shape && target.shape.coordinates)) {
-      return "PIN";
-    }
-    return "MARKER";
+    return centerHitUtils.distancePointToSegmentMeters(lat, lng, a, b, factors);
   },
 
   resolveDeepRaw(raw = {}) {
-    let current = raw;
-    const seen = new Set();
-    while (
-      current &&
-      typeof current === "object" &&
-      current.raw &&
-      typeof current.raw === "object" &&
-      !seen.has(current.raw)
-    ) {
-      seen.add(current.raw);
-      current = current.raw;
-    }
-    return current && typeof current === "object" ? current : {};
+    return markerActionsUtils.resolveDeepRaw(raw);
   },
 
   resolveMarkerNewId(detail = {}, marker = {}) {
-    const rawSource = this.resolveDeepRaw(detail.raw || marker?.extData?.raw || marker?.raw || {});
-    const extDetail = marker?.extData?.detail || {};
-    const value =
-      rawSource.markIdNew ??
-      detail.markIdNew ??
-      marker.markIdNew ??
-      extDetail.markIdNew ??
-      "";
-    return value ? `${value}`.trim() : "";
-  },
-
-  resolveLikeTargetId(detail = {}, marker = {}, type = "") {
-    const rawSource = this.resolveDeepRaw(detail.raw || marker?.extData?.raw || marker?.raw || {});
-    const extDetail = marker?.extData?.detail || {};
-    const isPin = type === "PIN";
-    console.log("resolveLikeTargetId", { isPin, raw: rawSource, detail, marker, extDetail });
-    const preferred = isPin
-      ? (
-        rawSource.pinIdNew ??
-        detail.pinIdNew ??
-        marker.pinIdNew ??
-        extDetail.pinIdNew
-      )
-      : (
-        rawSource.markIdNew ??
-        detail.markIdNew ??
-        marker.markIdNew ??
-        extDetail.markIdNew
-      );
-    const chosen = preferred !== undefined && preferred !== null ? preferred : "";
-    return chosen ? `${chosen}`.trim() : "";
-  },
-
-  applyLikeState(prefix, payload = {}) {
-    // console.log("applyLikeState", { prefix, payload });
-    const count = Number(payload.count);
-    const liked = !!payload.liked;
-    const type = payload.type || "";
-    const id = payload.id || "";
-    const updates = {};
-    updates[`${prefix}LikeCount`] = Number.isFinite(count) && count >= 0 ? count : 0;
-    updates[`${prefix}Liked`] = liked;
-    updates[`${prefix}LikeTargetType`] = type;
-    updates[`${prefix}LikeTargetId`] = id;
-    updates[`${prefix}LikeCountDisplay`] = formatLikeCountDisplay(updates[`${prefix}LikeCount`]);
-    this.setData(updates);
+    return markerActionsUtils.resolveMarkerNewId(this, detail, marker);
   },
 
   loadMarkerLikeInfo(options = {}) {
-    const detail = options.detail || {};
-    const marker = options.target || {};
-    const forPage = !!options.forPage;
-    const prefix = forPage ? "markerPage" : "marker";
-    const type = this.resolveLikeTargetType(marker || detail);
-    const id = this.resolveLikeTargetId(detail, marker, type);
-    if (!type || !id) {
-      this.applyLikeState(prefix, { count: 0, liked: false, type: "", id: "" });
-      return;
-    }
-    this.applyLikeState(prefix, { count: 0, liked: false, type, id });
-    const apiBase = this.getApiBase();
-    fetchLikeCount(type, id, { apiBase })
-      .then((data) => {
-        this.applyLikeState(prefix, {
-          count: data.likeCount || 0,
-          liked: this.data[`${prefix}Liked`],
-          type,
-          id
-        });
-      })
-      .catch((err) => {
-        console.warn("fetchLikeCount failed", err);
-      });
-    fetchLikeStatus(type, id, { apiBase, token: this.getAuthToken() })
-      .then((data) => {
-        this.applyLikeState(prefix, {
-          count: this.data[`${prefix}LikeCount`],
-          liked: !!data.liked,
-          type,
-          id
-        });
-      })
-      .catch((err) => {
-        if (err?.message === "missing-token") {
-          this.applyLikeState(prefix, {
-            count: this.data[`${prefix}LikeCount`],
-            liked: false,
-            type,
-            id
-          });
-          return;
-        }
-        console.warn("fetchLikeStatus failed", err);
-      });
-  },
-
-  cancelLikeHold(prefix, resetAnim = true) {
-    if (this._likeHoldTimers && this._likeHoldTimers[prefix]) {
-      clearTimeout(this._likeHoldTimers[prefix]);
-      this._likeHoldTimers[prefix] = null;
-    }
-    if (this._likeHoldFired) {
-      this._likeHoldFired[prefix] = false;
-    }
-    if (resetAnim) {
-      const updates = {};
-      updates[`${prefix}LikeAnimating`] = false;
-      updates[`${prefix}LikeHoldLabel`] = "";
-      updates[`${prefix}LikeLabelType`] = "";
-      this.setData(updates);
-    }
+    return markerActionsUtils.loadMarkerLikeInfo(this, options);
   },
 
   onMarkerLikeTouchStart(e) {
-    const pageFlag = e?.currentTarget?.dataset?.page;
-    const forPage = pageFlag === true || pageFlag === "true";
-    const prefix = forPage ? "markerPage" : "marker";
-    const type = this.data[`${prefix}LikeTargetType`];
-    const id = this.data[`${prefix}LikeTargetId`];
-    console.log("onMarkerLikeTouchStart", { prefix, type, id });
-    if (!type || !id) {
-      wx.showToast({ title: "无法点赞", icon: "none" });
-      return;
-    }
-    this.cancelLikeHold(prefix, false);
-    this.setData({
-      [`${prefix}LikeAnimating`]: true,
-      // [`${prefix}LikeHintLabel`]: "长按点赞/取消赞",
-      [`${prefix}LikeResultLabel`]: ""
-    });
-    this._likeHoldFired[prefix] = false;
-    const liked = this.data[`${prefix}Liked`];
-    const currentCount = Number(this.data[`${prefix}LikeCount`]) || 0;
-    const apiBase = this.getApiBase();
-    const doToggle = () =>
-      liked
-        ? unlike(type, id, { apiBase, token: this.getAuthToken() })
-        : like(type, id, { apiBase, token: this.getAuthToken() });
-    this._likeHoldTimers[prefix] = setTimeout(() => {
-      this._likeHoldFired[prefix] = true;
-      doToggle()
-        .catch((err) => {
-          if (err?.message === "missing-token") {
-            return this.ensureAccessToken().then(() => doToggle());
-          }
-          throw err;
-        })
-        .then(() => {
-          const delta = liked ? -1 : 1;
-          const nextCount = Math.max(0, currentCount + delta);
-          this.applyLikeState(prefix, {
-            count: nextCount,
-            liked: !liked,
-            type,
-            id
-          });
-          const label = liked ? "取消赞" : "点赞+1";
-          this.setData({
-            [`${prefix}LikeResultLabel`]: label,
-            // [`${prefix}LikeHintLabel`]: ""
-          });
-          setTimeout(() => {
-            this.setData({
-              [`${prefix}LikeResultLabel`]: ""
-            });
-          }, 3000);
-        })
-        .catch((err) => {
-          console.warn("like toggle failed", err);
-        })
-        .finally(() => {
-          const done = {};
-          done[`${prefix}LikeAnimating`] = false;
-          this.setData(done);
-          this._likeHoldTimers[prefix] = null;
-        });
-    }, 10);
+    return markerActionsUtils.onMarkerLikeTouchStart(this, e);
   },
 
   onMarkerLikeTouchEnd(e) {
-    const pageFlag = e?.currentTarget?.dataset?.page;
-    const forPage = pageFlag === true || pageFlag === "true";
-    const prefix = forPage ? "markerPage" : "marker";
-    if (!this._likeHoldFired[prefix]) {
-      this.cancelLikeHold(prefix, true);
-    }
+    return markerActionsUtils.onMarkerLikeTouchEnd(this, e);
   },
 
   onLikeCountTap(e) {
-    const count = Number(e?.currentTarget?.dataset?.count);
-    if (!Number.isFinite(count)) return;
+    return markerActionsUtils.onLikeCountTap(this, e);
   },
 
 
@@ -8335,441 +1796,51 @@ Page({
   },
 
   normalizeNearbyPin(raw = {}) {
-    const shapeRaw = raw.shape || {};
-    const shapeType = `${shapeRaw.type || ""}`.toUpperCase() || "POINT";
-    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
-    const resolved = resolveShapeCoordinates(shape);
-    const normalizedCoords = this.normalizePreviewCoordinateList(resolved.coordinates);
-    if (!normalizedCoords.length) return null;
-    const name =
-      (typeof raw.name === "string" && raw.name) ||
-      (typeof raw.title === "string" && raw.title) ||
-      "";
-    const visibility = `${raw.visibility || raw.scope || ""}`.toUpperCase();
-    const heightCandidates = [
-      raw.height,
-      raw.altitude,
-      raw.shape?.height,
-      raw.shape?.altitude,
-      normalizedCoords[0]?.altitude
-    ];
-    let height = null;
-    for (const candidate of heightCandidates) {
-      const num = Number(candidate);
-      if (Number.isFinite(num)) {
-        height = num;
-        break;
-      }
-    }
-    const normalizedShape = {
-      type: resolved.resolvedType || shapeType,
-      coordinates: normalizedCoords,
-      radius: Number(shape.radius ?? shape.radiusKm ?? shape.radiusInKilometers),
-      width: Number(shape.width ?? shape.bufferWidth ?? shape.bufferWidthMeters ?? shape.pathDistanceMeters),
-      pointCategory: shape.pointCategory || shape.pointcategory,
-      style: shape.style
-    };
-    // console.log(raw)
-    return {
-      id: raw.pinId ? raw.pinId : raw.markId ? raw.markId : raw.id,
-      name,
-      visibility,
-      shape: normalizedShape,
-      location: normalizedCoords[0],
-      height,
-      raw
-    };
+    return pinPreviewUtils.normalizeNearbyPin(this, raw);
   },
 
   performSearch() {
-    const keyword = this.data.keyword.trim();
-    // When keyword is empty, clear search-only markers and suggestions
-    if (!keyword) {
-      this.clearSearchSelectionVisuals();
-      this.setData({
-        searchSuggestions: [],
-        searchSuggestLoading: false,
-        searchSuggestError: ""
-      });
-      return;
-    }
-    const coordinateResult = parseCoordinateSearchKeyword(keyword);
-    if (coordinateResult) {
-      const suggestion = buildCoordinateSuggestion(coordinateResult);
-      const marker = this.buildSearchSelectionMarker(suggestion, 0);
-      if (marker) {
-        this.applySearchSelectionFromMarker(marker, {
-          keyword: coordinateResult.title,
-          centerOnPoint: true,
-          centerScale: 15
-        });
-      }
-      return;
-    }
-    this.clearSearchLinkOverlay({ owner: SEARCH_LINK_OWNER_SEARCH });
-    wx.showLoading({ title: "Searching...", mask: true });
-    let locationArgs = null;
-    const center = this._centerOverride || this.data.center;
-    try {
-      const centerWgs = center
-        ? gcj02ToWgs84(center.longitude, center.latitude)
-        : null;
-      if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
-        locationArgs = {
-          latitude: centerWgs.lat,
-          longitude: centerWgs.lng
-        };
-      }
-    } catch (err) {
-      console.warn("Failed to convert center for search", err);
-    }
-    const markerPromise = settleWithValue(
-      searchMarkers(keyword, {
-        apiBase: this.getApiBase(),
-        limit: MAX_SEARCH_RESULTS
-      }),
-      {
-        defaultValue: [],
-        onError: (err) => console.warn("Marker search failed", err)
-      }
-    );
-    const pinPromise = settleWithValue(
-      searchPins(keyword, {
-        apiBase: this.getApiBase(),
-        limit: MAX_SEARCH_RESULTS
-      }),
-      {
-        defaultValue: [],
-        onError: (err) => console.warn("Pin search failed", err)
-      }
-    );
-    const placePromise = settleWithValue(
-      locationArgs
-        ? searchPlaces(keyword, locationArgs)
-        : searchPlaces(keyword),
-      {
-        defaultValue: [],
-        onError: (err) => console.warn("Search failed", err)
-      }
-    );
-    Promise.all([markerPromise, pinPromise, placePromise])
-      .then(([markerResult, pinResult, placeResult]) => {
-        const markerPayloads = (markerResult.value || [])
-          .map((item, index) =>
-            this.createMarkerSearchPayload(item, {
-              fallbackId: `marker-search-${index}`
-            })
-          )
-          .filter(Boolean);
-        const markerMarkers = markerPayloads
-          .map((payload) =>
-            this.buildMarkerFromSearchPayload(payload, {
-              source: "marker-search"
-            })
-          )
-          .filter(Boolean);
-        const pinPayloads = (pinResult.value || [])
-          .map((item, index) =>
-            this.createPinSearchPayload(item, {
-              fallbackId: `pin-search-${index}`
-            })
-          )
-          .filter(Boolean);
-        const pinMarkers = pinPayloads
-          .map((payload) =>
-            this.buildPinSearchMarker(payload, {
-              source: "pin-search"
-            })
-          )
-          .filter(Boolean);
-        const pinLimited = pinMarkers.slice(
-          0,
-          Math.max(0, MAX_SEARCH_RESULTS - markerMarkers.length)
-        );
-        const combined = markerMarkers.concat(pinLimited);
-        const remainingSlots = Math.max(
-          0,
-          MAX_SEARCH_RESULTS - combined.length
-        );
-        const qqMarkers = (placeResult.value || [])
-          .map((poi, index) => this.buildQqSearchMarker(poi, index))
-          .filter(Boolean)
-          .slice(0, remainingSlots);
-        const markers = combined.concat(qqMarkers);
-        if (markers.length) {
-          this.applySearchMarkers(markers);
-          const points = markers.map((m) => ({
-            latitude: m.latitude,
-            longitude: m.longitude
-          }));
-          this.mapCtx.includePoints({
-            points,
-            padding: [60, 60, 60, 60]
-          });
-        } else {
-          this.applySearchMarkers([]);
-          const message =
-            markerResult.ok && placeResult.ok
-              ? "没有匹配的地点"
-              : "搜索失败，请稍后重试";
-          wx.showToast({ title: message, icon: "none" });
-        }
-      })
-      .finally(() => {
-        wx.hideLoading();
-        this.setData({
-          searchSuggestions: [],
-          searchSuggestLoading: false,
-          searchSuggestError: ""
-        });
-      });
+    return preflightDashboardUtils.performSearch(this);
   },
 
   scheduleSearchSuggest() {
-    if (this._suggestTimer) clearTimeout(this._suggestTimer);
-    this._suggestTimer = setTimeout(() => {
-      this._suggestTimer = null;
-      this.fetchSearchSuggestions();
-    }, 250);
+    return preflightDashboardUtils.scheduleSearchSuggest(this);
   },
 
   fetchSearchSuggestions() {
-    const keyword = this.data.keyword.trim();
-    if (!keyword) {
-      this.setData({
-        searchSuggestions: [],
-        searchSuggestLoading: false,
-        searchSuggestError: ""
-      });
-      return;
-    }
-    const coordinateResult = parseCoordinateSearchKeyword(keyword);
-    if (coordinateResult) {
-      const suggestion = buildCoordinateSuggestion(coordinateResult);
-      this.setData({
-        searchSuggestions: suggestion ? [suggestion] : [],
-        searchSuggestLoading: false,
-        searchSuggestError: suggestion ? "" : "没有匹配的地点"
-      });
-      return;
-    }
-    const snapshot = keyword;
-    let locationArgs = null;
-    const center = this._centerOverride || this.data.center;
-    try {
-      const centerWgs = center
-        ? gcj02ToWgs84(center.longitude, center.latitude)
-        : null;
-      if (Number.isFinite(centerWgs?.lat) && Number.isFinite(centerWgs?.lng)) {
-        locationArgs = {
-          latitude: centerWgs.lat,
-          longitude: centerWgs.lng
-        };
-      }
-    } catch (err) {
-      console.warn("Failed to convert center for suggestions", err);
-    }
-    const markerPromise = settleWithValue(
-      searchMarkers(keyword, {
-        apiBase: this.getApiBase(),
-        limit: MAX_SEARCH_SUGGESTIONS
-      }),
-      {
-        defaultValue: [],
-        onError: (err) => console.warn("Marker suggest search failed", err)
-      }
-    );
-    const pinPromise = settleWithValue(
-      searchPins(keyword, {
-        apiBase: this.getApiBase(),
-        limit: MAX_SEARCH_SUGGESTIONS
-      }),
-      {
-        defaultValue: [],
-        onError: (err) => console.warn("Pin suggest search failed", err)
-      }
-    );
-    const placePromise = settleWithValue(
-      locationArgs
-        ? searchPlaces(keyword, locationArgs)
-        : searchPlaces(keyword),
-      {
-        defaultValue: [],
-        onError: (err) => console.warn("Suggest failed", err)
-      }
-    );
-    Promise.all([markerPromise, pinPromise, placePromise]).then(
-      ([markerResult, pinResult, placeResult]) => {
-        if (snapshot !== this.data.keyword.trim()) return;
-        const markerPayloads = (markerResult.value || [])
-          .map((item, index) =>
-            this.createMarkerSearchPayload(item, {
-              fallbackId: `marker-suggest-${index}`
-            })
-          )
-          .filter(Boolean);
-        const markerSuggestions = markerPayloads
-          .map((payload) => this.buildMarkerSuggestionFromPayload(payload))
-          .filter(Boolean)
-          .slice(0, MAX_SEARCH_SUGGESTIONS);
-        const pinPayloads = (pinResult.value || [])
-          .map((item, index) =>
-            this.createPinSearchPayload(item, {
-              fallbackId: `pin-suggest-${index}`
-            })
-          )
-          .filter(Boolean);
-        const pinSuggestions = pinPayloads
-          .map((payload) => this.buildPinSuggestionFromPayload(payload))
-          .filter(Boolean)
-          .slice(0, Math.max(0, MAX_SEARCH_SUGGESTIONS - markerSuggestions.length));
-        const remainingSlots = Math.max(
-          0,
-          MAX_SEARCH_SUGGESTIONS - markerSuggestions.length - pinSuggestions.length
-        );
-        const qqSuggestions = (placeResult.value || [])
-          .map((poi, index) => this.buildQqSuggestion(poi, index))
-          .filter(Boolean)
-          .slice(0, remainingSlots);
-        const suggestions = markerSuggestions.concat(pinSuggestions, qqSuggestions);
-        const noResults = !suggestions.length;
-        const nextError = noResults
-          ? markerResult.ok && placeResult.ok
-            ? "没有匹配的地点"
-            : "提示获取失败，请稍后重试"
-          : "";
-        this.setData({
-          searchSuggestions: suggestions,
-          searchSuggestLoading: false,
-          searchSuggestError: nextError
-        });
-        this.fillPinSuggestionAddresses(suggestions, snapshot);
-      }
-    );
+    return preflightDashboardUtils.fetchSearchSuggestions(this);
   },
 
   onSuggestionTap(e) {
-    const idx = Number(e.currentTarget.dataset.index);
-    const suggestion = this.data.searchSuggestions?.[idx];
-    if (!suggestion) return;
-    const marker = this.buildSearchSelectionMarker(suggestion, idx);
-    if (
-      !marker ||
-      !Number.isFinite(marker.latitude) ||
-      !Number.isFinite(marker.longitude)
-    ) {
-      return;
-    }
-    this.applySearchSelectionFromMarker(marker, {
-      keyword: suggestion.title || this.data.keyword,
-      centerOnPoint: true,
-      centerScale: 15
-    });
+    return preflightDashboardUtils.onSuggestionTap(this, e);
   },
 
   openDronePicker() {
-    if (this.data.loadingDrones) {
-      wx.showToast({ title: "机型加载中", icon: "none" });
-      return;
-    }
-    if (!this.data.droneListAvailable) {
-      wx.showToast({ title: "机型未提供", icon: "none" });
-      return;
-    }
-    this.setData({
-      dronePickerVisible: true,
-      pendingDroneIndex: this.data.selectedDroneIndex
-    });
+    return dronePickerUtils.openDronePicker(this);
   },
 
   closeDronePicker() {
-    this.setData({
-      dronePickerVisible: false,
-      pendingDroneIndex: null
-    });
+    return dronePickerUtils.closeDronePicker(this);
   },
 
   onSelectDroneCategory(e) {
-    const idx = Number(e.currentTarget.dataset.index);
-    if (!Number.isFinite(idx)) return;
-    const categories = Array.isArray(this.data.droneCategories) ? this.data.droneCategories : [];
-    const category = categories[idx];
-    if (!category) return;
-    this.setData({
-      activeDroneCategoryIndex: idx,
-      droneCategoryItems: category.items || []
-    });
+    return dronePickerUtils.onSelectDroneCategory(this, e);
   },
 
   onSelectDroneOption(e) {
-    const idx = Number(e.currentTarget.dataset.index);
-    if (!Number.isFinite(idx)) return;
-    this.setData({ pendingDroneIndex: idx });
+    return dronePickerUtils.onSelectDroneOption(this, e);
   },
 
   confirmDronePicker() {
-    const idx = this.data.pendingDroneIndex;
-    if (typeof idx === "number" && idx >= 0) {
-      this.applyDroneByIndex(idx);
-    }
-    this.closeDronePicker();
+    return dronePickerUtils.confirmDronePicker(this);
   },
 
   applyDroneByIndex(idx, options = {}) {
-    const list = this.getDroneList();
-    if (!Array.isArray(list) || !list.length) return;
-    const bounded = Math.max(0, Math.min(list.length - 1, idx));
-    const drone = list[bounded] || list[0];
-    const dronePickerLabel = this.computeDronePickerLabel({
-      loadingDrones: false,
-      droneListAvailable: true,
-      selectedDroneName: drone.name
-    });
-    const previousSlug = this.data.selectedDrone;
-    const changed = drone.slug !== previousSlug;
-    const shouldPersist = options.persist !== false;
-    const categories = Array.isArray(this.data.droneCategories) ? this.data.droneCategories : [];
-    let activeIndex = Number.isFinite(this.data.activeDroneCategoryIndex)
-      ? this.data.activeDroneCategoryIndex
-      : 0;
-    const matchedCategoryIndex = categories.findIndex((category) =>
-      Array.isArray(category.items) && category.items.some((item) => item.index === bounded)
-    );
-    if (matchedCategoryIndex >= 0) {
-      activeIndex = matchedCategoryIndex;
-    }
-    const activeCategory = categories[activeIndex] || categories[0] || { items: [] };
-
-    this.setData({
-      activeDroneCategoryIndex: activeIndex,
-      droneCategoryItems: activeCategory.items || [],
-      selectedDroneIndex: bounded,
-      selectedDrone: drone.slug,
-      selectedDroneName: drone.name,
-      dronePickerLabel
-    }, () => {
-      if (changed) {
-        this.syncDjiLayerQuery({ force: true });
-        if (shouldPersist) {
-          this.persistMapLayerSettings();
-        }
-      }
-    });
+    return dronePickerUtils.applyDroneByIndex(this, idx, options);
   },
 
   onLocateTap() {
-    this.resetCompassState();
-    this.ensureLocationPermission()
-      .then(() =>
-        this.pullAndCenterLocation({
-          scaleMeters: LOCATE_SCALE_METERS,
-          scale: 14,
-          resetView: true
-        })
-      )
-      .catch(() => {
-        wx.showToast({ title: "未授权定位权限", icon: "none" });
-      });
+    return floatingControlsUtils.onLocateTap(this);
   },
 
   onCompassTap() {
@@ -8777,1840 +1848,253 @@ Page({
   },
 
   requestInitialLocation() {
-    return this.ensureLocationPermission()
-      .then(() => this.pullAndCenterLocation({ silent: true }))
-      .catch(() => {
-        // 用户拒绝初始授权时不打扰，仍可手动定位
-        if (!this.isMapCenterReady()) {
-          this.centerOnPoint(DEFAULT_CENTER, this.data.scale, true);
-        }
-      })
-      .finally(() => {
-        this.markSharePermissionAttempted();
-      });
+    return locationUtils.requestInitialLocation(this);
   },
 
   pullAndCenterLocation(options = {}) {
-    wx.getLocation({
-      type: "gcj02",
-      isHighAccuracy: false,
-      highAccuracyExpireTime: 8000,
-      success: (res) => {
-        this._lastKnownLocation = {
-          latitude: res.latitude,
-          longitude: res.longitude
-        };
-        this.setMyLocationControlPoint(this._lastKnownLocation);
-        this.refreshMarkerPageDistance();
-        let targetScale = null;
-        if (typeof options.scaleMeters === "number" && options.scaleMeters > 0) {
-          const computed = this.scaleForMeters(options.scaleMeters, res.latitude);
-          if (Number.isFinite(computed)) {
-            targetScale = computed;
-          }
-        }
-        if (!Number.isFinite(targetScale)) {
-          const fallbackScale = Object.prototype.hasOwnProperty.call(options, "scale")
-            ? options.scale
-            : this.data.scale;
-          targetScale = clampMapScale(fallbackScale);
-        }
-        let extraUpdates = null;
-        if (options.resetView) {
-          extraUpdates = {
-            mapRotate: 0,
-            mapSkew: 0,
-            compassRotate: 0,
-            compassSkew: 0,
-            compassVisible: false
-          };
-          this._mapRotate = 0;
-          this._mapSkew = 0;
-          this._skipNextRotateRegion = true;
-        }
-        this.centerOnPoint(
-          { latitude: res.latitude, longitude: res.longitude },
-          targetScale,
-          !!options.silent,
-          extraUpdates
-        );
-      },
-      fail: (err) => {
-        console.warn("getLocation fail", err);
-        if (!this.isMapCenterReady()) {
-          this.centerOnPoint(DEFAULT_CENTER, this.data.scale, true);
-        }
-        wx.showToast({ title: "定位失败，请在设置中开启定位权限", icon: "none" });
-      }
-    });
+    return locationUtils.pullAndCenterLocation(this, options);
   },
 
   getApiBase() {
-    const app = getApp ? getApp() : null;
-    return (app && app.globalData && app.globalData.apiBase) || "";
+    return pageRuntimeUtils.getApiBase(this);
   },
 
   ensureCheckinSubscriptionOnEntry() {
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) return Promise.resolve();
-    const templateId = SUBSCRIPTION_TEMPLATE_IDS.checkinReminder;
-    return fetchSubscriptions({ apiBase, token })
-      .then((serverIds = []) => {
-        const normalized = normalizeTemplateIds(serverIds);
-        if (!normalized.includes(templateId)) return null;
-        return requestSubscribeMessageForTemplateIds([templateId]).catch(() => null);
-      })
-      .catch((err) => {
-        console.warn("map ensureCheckinSubscriptionOnEntry fetch failed", err);
-      });
+    return subscriptionUtils.ensureCheckinSubscriptionOnEntry(this);
   },
 
   normalizeMarkerDetail(raw = {}) {
-    return normalizeMarkerDetailUtil(raw, { apiBase: this.getApiBase() });
+    return markerDataUtils.normalizeMarkerDetail(this, raw);
   },
 
   composeMarkerDetail(raw = {}, marker = {}, overrides = {}) {
-    const normalized = this.normalizeMarkerDetail(raw || {});
-    const detail = { ...normalized };
-    const source = overrides.source || marker?.extData?.source || "";
-    const fallbackName =
-      overrides.name ||
-      normalized.name ||
-      marker?.title ||
-      marker?.name ||
-      "";
-    if (fallbackName && !detail.name) {
-      detail.name = fallbackName;
-    }
-    const fallbackLocation =
-      overrides.locationText ||
-      normalized.locationText ||
-      marker?.address ||
-      marker?.locationText ||
-      "";
-    if (fallbackLocation && !detail.locationText) {
-      detail.locationText = fallbackLocation;
-    }
-    const latitudeCandidates = [
-      overrides.latitude,
-      marker?.latitude,
-      raw?.location?.latitude,
-      raw?.location?.lat,
-      raw?.latitude,
-      raw?.lat,
-      normalized.latitude,
-      normalized.lat
-    ];
-    for (const candidate of latitudeCandidates) {
-      const value = Number(candidate);
-      if (Number.isFinite(value)) {
-        detail.latitude = value;
-        break;
-      }
-    }
-    const longitudeCandidates = [
-      overrides.longitude,
-      marker?.longitude,
-      raw?.location?.longitude,
-      raw?.location?.lng,
-      raw?.longitude,
-      raw?.lng,
-      normalized.longitude,
-      normalized.lng
-    ];
-    for (const candidate of longitudeCandidates) {
-      const value = Number(candidate);
-      if (Number.isFinite(value)) {
-        detail.longitude = value;
-        break;
-      }
-    }
-    const idCandidates = [
-      raw?.markIdNew,
-      raw?.markId,
-      overrides.id,
-      raw?.id,
-      raw?.markerId,
-      marker?.id,
-      normalized.id
-    ];
-    for (const candidate of idCandidates) {
-      if (candidate !== undefined && candidate !== null && `${candidate}` !== "") {
-        if (!detail.id) {
-          detail.id = candidate;
-        }
-        detail.markerId = `${candidate}`;
-        break;
-      }
-    }
-    if (!detail.markerId) {
-      detail.markerId = detail.id || "";
-    }
-    if (!detail.creatorName) {
-      detail.creatorName =
-        overrides.creatorName ||
-        raw?.creatorName ||
-        marker?.creatorName ||
-        normalized.creatorName ||
-        "";
-    }
-    if (source) {
-      detail.source = source;
-    }
-    if (!detail.raw) {
-      detail.raw = raw;
-    }
-    if (!detail.reviewStatus) {
-      const reviewStatus =
-        raw?.reviewStatus ??
-        raw?.raw?.reviewStatus ??
-        raw?.status ??
-        raw?.raw?.status;
-      if (reviewStatus !== undefined && reviewStatus !== null && `${reviewStatus}`.trim()) {
-        detail.reviewStatus = reviewStatus;
-      }
-    }
-    if (detail.shareDisabled === undefined) {
-      const shareDisabled = raw?.shareDisabled ?? raw?.raw?.shareDisabled;
-      if (shareDisabled !== undefined) {
-        detail.shareDisabled = shareDisabled;
-      }
-    }
-    return this.applyMarkerCertificationState(detail);
+    return markerDataUtils.composeMarkerDetail(this, raw, marker, overrides);
   },
 
   createMarkerSearchPayload(raw = {}, options = {}) {
-    if (!raw || typeof raw !== "object") {
-      return null;
-    }
-    const detail = this.composeMarkerDetail(raw, {}, {
-      source: options.source || "marker-search",
-      id: raw.id,
-      name: raw.name,
-      locationText: raw.location?.text
-    });
-    const latitude = Number(detail.latitude);
-    const longitude = Number(detail.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return null;
-    }
-    const gcj = wgs84ToGcj02(longitude, latitude);
-    const latGcj = Number.isFinite(gcj?.lat) ? gcj.lat : latitude;
-    const lngGcj = Number.isFinite(gcj?.lng) ? gcj.lng : longitude;
-    const markerId =
-      detail.markerId ||
-      detail.id ||
-      options.fallbackId ||
-      `marker-search-${Date.now()}`;
-    const title =
-      detail.name ||
-      detail.locationText ||
-      options.fallbackTitle ||
-      "低空星球标记";
-    const address = detail.locationText || "";
-    return {
-      markerId,
-      title,
-      address,
-      latitude: latGcj,
-      longitude: lngGcj,
-      detail,
-      raw
-    };
+    return markerDataUtils.createMarkerSearchPayload(this, raw, options);
   },
 
   buildMarkerSuggestionFromPayload(payload) {
-    if (!payload) return null;
-    if (
-      !Number.isFinite(payload.latitude) ||
-      !Number.isFinite(payload.longitude)
-    ) {
-      return null;
-    }
-    return {
-      id: payload.markerId || `marker-result-${Date.now()}`,
-      title: payload.title,
-      address: payload.address,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-      source: "marker",
-      markerId: payload.markerId,
-      markerPayload: payload
-    };
+    return markerDataUtils.buildMarkerSuggestionFromPayload(payload);
   },
 
   buildPinSuggestionFromPayload(payload) {
-    if (!payload) return null;
-    if (
-      !Number.isFinite(payload.latitude) ||
-      !Number.isFinite(payload.longitude)
-    ) {
-      return null;
-    }
-    const title = payload.name || payload.locationText || "低空星球标记";
-    return {
-      id: payload.id || `pin-result-${Date.now()}`,
-      title,
-      address: payload.locationText || "",
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-      source: "pin",
-      pinPayload: payload
-    };
+    return markerDataUtils.buildPinSuggestionFromPayload(payload);
   },
 
   buildMarkerFromSearchPayload(payload, options = {}) {
-    if (
-      !payload ||
-      !Number.isFinite(payload.latitude) ||
-      !Number.isFinite(payload.longitude)
-    ) {
-      return null;
-    }
-    const detail = payload.detail;
-    if (!detail) return null;
-    const markerTitle = payload.title || detail.name || "低空星球标记";
-    const markerId =
-      payload.markerId || options.fallbackId || `marker-search-${Date.now()}`;
-    const marker = {
-      id: markerId,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-      title: markerTitle,
-      iconPath: options.iconPath || "/assets/drone.png",
-      width: options.width || 44,
-      height: options.height || 44,
-      extData: {
-        source: options.source || detail.source || "marker-search",
-        raw: payload.raw || detail.raw || detail,
-        detail: cloneMarkerDetail(detail)
-      }
-    };
-    const calloutContent = formatNearbyMarkerLabel(markerTitle);
-    if (calloutContent) {
-      marker.callout = buildMarkerNameCallout(calloutContent);
-    }
-    return marker;
+    return markerDataUtils.buildMarkerFromSearchPayload(this, payload, options);
   },
 
   buildQqSuggestion(poi = {}, index = 0) {
-    if (!poi || typeof poi !== "object") {
-      return null;
-    }
-    const lat = Number(poi.location?.lat);
-    const lng = Number(poi.location?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return null;
-    }
-    const title = poi.title || "";
-    const address = poi.address || poi.category || "";
-    return {
-      id: poi.id || poi.adcode || index,
-      title,
-      address,
-      latitude: lat,
-      longitude: lng,
-      source: "qqmap",
-      rawPoi: poi
-    };
+    return markerDataUtils.buildQqSuggestion(poi, index);
   },
 
   buildQqSearchMarker(poi = {}, index = 0) {
-    const suggestion = this.buildQqSuggestion(poi, index);
-    if (!suggestion) return null;
-    const marker = {
-      id: suggestion.id || `qq-${index}`,
-      latitude: suggestion.latitude,
-      longitude: suggestion.longitude,
-      title: suggestion.title,
-      width: 24,
-      height: 24
-    };
-    if (suggestion.address) {
-      marker.callout = {
-        content: `${suggestion.title}\n${suggestion.address}`,
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
-    }
-    const rawDetail = {
-      id: marker.id,
-      name: suggestion.title,
-      title: suggestion.title,
-      address: suggestion.address,
-      location: { text: suggestion.address }
-    };
-    const detail = this.composeMarkerDetail(rawDetail, marker, {
-      source: "search",
-      name: suggestion.title,
-      locationText: suggestion.address,
-      id: marker.id
-    });
-    marker.extData = Object.assign({}, marker.extData, {
-      source: "search",
-      raw: rawDetail,
-      detail: cloneMarkerDetail(detail)
-    });
-    return marker;
+    return markerDataUtils.buildQqSearchMarker(this, poi, index);
   },
 
   buildCoordinateSearchMarker(payload = {}, options = {}) {
-    const displayLatitude = Number(payload.latitude);
-    const displayLongitude = Number(payload.longitude);
-    if (!Number.isFinite(displayLatitude) || !Number.isFinite(displayLongitude)) {
-      return null;
-    }
-    const gcj = convertParsedCoordinateToGcj02(payload, this.data.coordinateSystem);
-    const latitude = Number(gcj?.lat);
-    const longitude = Number(gcj?.lng);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-    const title = `${payload.title || "经纬度位置"}`.trim();
-    const address = `${payload.address || ""}`.trim();
-    const rawDetail = {
-      id: payload.id || `coordinate-search-${Date.now()}`,
-      name: title,
-      title,
-      address,
-      latitude,
-      longitude,
-      displayLatitude,
-      displayLongitude,
-      coordinateSystem: this.data.coordinateSystem,
-      location: { text: address }
-    };
-    const marker = {
-      id: rawDetail.id,
-      latitude,
-      longitude,
-      title
-    };
-    if (title || address) {
-      marker.callout = {
-        content: address ? `${title}\n${address}` : title,
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
-    }
-    const detail = this.composeMarkerDetail(rawDetail, marker, {
-      source: options.source || "coordinate-search",
-      name: title,
-      locationText: address,
-      id: rawDetail.id
-    });
-    marker.extData = {
-      source: options.source || "coordinate-search",
-      raw: rawDetail,
-      detail: cloneMarkerDetail(detail)
-    };
-    return marker;
+    return markerDataUtils.buildCoordinateSearchMarker(this, payload, options);
   },
 
   buildSearchSelectionMarker(suggestion = {}, index = 0) {
-    if (!suggestion || typeof suggestion !== "object") return null;
-    if (suggestion.source === "marker" && suggestion.markerPayload) {
-      return this.buildMarkerFromSearchPayload(suggestion.markerPayload, {
-        source: "marker-search-selected"
-      });
-    }
-    if (suggestion.source === "pin" && suggestion.pinPayload) {
-      return this.buildPinSearchMarker(suggestion.pinPayload, {
-        source: "pin-search-selected"
-      });
-    }
-    if (suggestion.source === "qqmap" && suggestion.rawPoi) {
-      return this.buildQqSearchMarker(suggestion.rawPoi, index);
-    }
-    if (suggestion.source === "coordinate" && suggestion.coordinatePayload) {
-      return this.buildCoordinateSearchMarker(suggestion.coordinatePayload, {
-        source: "coordinate-search-selected"
-      });
-    }
-    const latitude = Number(suggestion.latitude);
-    const longitude = Number(suggestion.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return null;
-    }
-    const marker = {
-      id: `search-selected-${Date.now()}`,
-      latitude,
-      longitude,
-      title: suggestion.title || "",
-      extData: {
-        source: "search-selected",
-        raw: suggestion
-      }
-    };
-    const title = `${suggestion.title || ""}`.trim();
-    const address = `${suggestion.address || ""}`.trim();
-    if (title || address) {
-      marker.callout = {
-        content: address ? `${title}\n${address}` : title,
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
-    }
-    return marker;
+    return preflightDashboardUtils.buildSearchSelectionMarker(this, suggestion, index);
   },
 
   isSearchMarkerSource(source = "") {
-    const src = `${source || ""}`.trim().toLowerCase();
-    if (!src || src.includes("search-link")) {
-      return false;
-    }
-    return (
-      src === "search" ||
-      src === "search-selected" ||
-      src === "marker-search" ||
-      src === "marker-search-selected" ||
-      src === "pin-search" ||
-      src === "pin-search-selected" ||
-      src === "coordinate-search" ||
-      src === "coordinate-search-selected"
-    );
+    return preflightDashboardUtils.isSearchMarkerSource(source);
   },
 
   isSearchSelectionMarker(marker = {}) {
-    const source = marker?.extData?.source || marker?.source || "";
-    return this.isSearchMarkerSource(source);
+    return preflightDashboardUtils.isSearchSelectionMarker(marker);
   },
 
   cloneSearchSelectionMarker(marker = {}) {
-    if (!marker || typeof marker !== "object") {
-      return null;
-    }
-    const next = Object.assign({}, marker);
-    if (marker.extData && typeof marker.extData === "object") {
-      next.extData = Object.assign({}, marker.extData);
-      if (marker.extData.detail && typeof marker.extData.detail === "object") {
-        next.extData.detail = cloneMarkerDetail(marker.extData.detail);
-      }
-    }
-    return next;
+    return preflightDashboardUtils.cloneSearchSelectionMarker(marker);
   },
 
   applySearchSelectionFromMarker(marker, options = {}) {
-    if (!marker || !this.isSearchSelectionMarker(marker)) {
-      return false;
-    }
-    const latitude = Number(marker.latitude);
-    const longitude = Number(marker.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return false;
-    }
-    this.clearMapTapTargetPoint({ preserveSearchLink: true });
-    const selectedMarker = this.cloneSearchSelectionMarker(marker) || marker;
-    const keyword = `${options.keyword || marker.title || marker.name || this.data.keyword || ""}`.trim();
-    const target = { latitude, longitude };
-    this.setData({
-      keyword: keyword || this.data.keyword,
-      searchSuggestions: [],
-      searchSuggestLoading: false,
-      searchSuggestError: ""
-    });
-    this.applySearchLinkTarget(target, {
-      owner: SEARCH_LINK_OWNER_SEARCH,
-      visible: true
-    });
-    this.applySearchMarkers([selectedMarker]);
-    if (options.centerOnPoint) {
-      const centerScale = Number.isFinite(Number(options.centerScale))
-        ? Number(options.centerScale)
-        : 15;
-      this.centerOnPoint(target, centerScale);
-    }
-    this.resolveSearchSelectionAddress(selectedMarker);
-    return true;
+    return preflightDashboardUtils.applySearchSelectionFromMarker(this, marker, options);
   },
 
   resolveSearchSelectionAddress(marker = {}) {
-    const source = `${marker?.extData?.source || marker?.source || ""}`.trim().toLowerCase();
-    if (!source.includes("coordinate")) return;
-    const latitude = Number(marker.latitude);
-    const longitude = Number(marker.longitude);
-    const markerId = marker.id;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !markerId) {
-      return;
-    }
-    this.requestPinAddress(latitude, longitude)
-      .then((address) => {
-        if (!address) return;
-        this.applySearchMarkerAddress(markerId, address);
-      })
-      .catch((err) => console.warn("resolve coordinate search address failed", err));
+    return preflightDashboardUtils.resolveSearchSelectionAddress(this, marker);
   },
 
   applySearchMarkerAddress(markerId, address) {
-    if (!markerId || !address || !Array.isArray(this._searchMarkers)) return;
-    let changed = false;
-    const nextMarkers = this._searchMarkers.map((marker) => {
-      if (`${marker?.id || ""}` !== `${markerId}`) {
-        return marker;
-      }
-      const next = Object.assign({}, marker);
-      const title = `${next.title || next.name || "经纬度位置"}`.trim();
-      next.callout = {
-        content: `${title}\n${address}`,
-        display: "ALWAYS",
-        borderRadius: 4,
-        padding: 4
-      };
-      if (next.extData && typeof next.extData === "object") {
-        const raw = Object.assign({}, next.extData.raw || {}, {
-          address,
-          location: { text: address }
-        });
-        const detail = Object.assign({}, next.extData.detail || {}, {
-          address,
-          locationText: address
-        });
-        next.extData = Object.assign({}, next.extData, { raw, detail });
-      }
-      changed = true;
-      return next;
-    });
-    if (!changed) return;
-    this.applySearchMarkers(nextMarkers);
+    return preflightDashboardUtils.applySearchMarkerAddress(this, markerId, address);
   },
 
   resolveMarkerDetail(marker) {
-    if (!marker) return null;
-    const extDetail = marker?.extData?.detail;
-    if (extDetail) {
-      return this.composeMarkerDetail(extDetail.raw || extDetail, marker, {
-        source: marker?.extData?.source,
-        name: extDetail.name,
-        locationText: extDetail.locationText,
-        id: extDetail.markerId || extDetail.id
-      });
-    }
-    const raw = (marker?.extData && marker.extData.raw) || marker;
-    return this.composeMarkerDetail(raw, marker, {
-      source: marker?.extData?.source
-    });
+    return markerDataUtils.resolveMarkerDetail(this, marker);
   },
 
   trackPinExposure(markers) {
-    if (!Array.isArray(markers) || !markers.length) {
-      return;
-    }
-    if (!this._pinExposureCache) {
-      this._pinExposureCache = new Map();
-    }
-    const now = Date.now();
-    this.prunePinExposureCache(now);
-    markers.forEach((marker) => {
-      const src = `${marker?.extData?.source || marker?.source || ""}`.toLowerCase();
-      if (!src.includes("pin")) return;
-      const shapeType = `${marker?.extData?.raw?.shape?.type || marker?.shape?.type || ""}`.toUpperCase();
-      if (shapeType && shapeType !== "POINT") return;
-      const candidateId =
-        marker?.extData?.raw?.id ||
-        marker?.id ||
-        marker?.markerId ||
-        marker?.markerID ||
-        "";
-      const pinId = typeof candidateId === "string" ? candidateId.trim() : `${candidateId || ""}`.trim();
-      if (!pinId) return;
-      if (pinId.startsWith("nearby-")) return;
-      const last = this._pinExposureCache.get(pinId);
-      if (Number.isFinite(last) && now - last < MARKER_EXPOSURE_CACHE_TTL) {
-        return;
-      }
-      this._pinExposureCache.set(pinId, now);
-      this.incrementPinExposureCount(pinId);
-    });
+    return markerActionsUtils.trackPinExposure(this, markers);
   },
 
   createPinSearchPayload(raw = {}, options = {}) {
-    if (!raw || typeof raw !== "object") {
-      return null;
-    }
-    const detail = this.composeMarkerDetail(raw, {}, {
-      source: options.source || "pin-search",
-      id: raw.id,
-      name: raw.name || raw.title,
-      locationText: raw.location?.text || raw.address
-    });
-    const shapeRaw = raw?.shape || {};
-    const shapeType = `${shapeRaw.type || ""}`.toUpperCase();
-    const shape = isKmlShapeType(shapeType) ? normalizeKmlShape(shapeRaw) : shapeRaw;
-    const resolved = resolveShapeCoordinates(shape);
-    const coords = this.normalizePreviewCoordinateList(resolved.coordinates);
-    const primary =
-      coords.find((coord) => hasValidCoordinate(coord?.latitude, coord?.longitude)) ||
-      detail ||
-      {};
-    const latitude = Number(primary.latitude);
-    const longitude = Number(primary.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return null;
-    }
-    const markerId =
-      detail.markerId ||
-      detail.id ||
-      options.fallbackId ||
-      `pin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    return {
-      id: markerId,
-      latitude,
-      longitude,
-      name: detail.name || "",
-      locationText: detail.locationText || "",
-      detail: detail,
-      raw
-    };
+    return markerDataUtils.createPinSearchPayload(this, raw, options);
   },
 
   buildPinSearchMarker(payload = {}, options = {}) {
-    if (!payload) return null;
-    const marker = {
-      id: payload.id || `pin-${Date.now()}`,
-      latitude: payload.latitude,
-      longitude: payload.longitude,
-      title: payload.name,
-      iconPath: "/assets/default.png",
-      width: 44,
-      height: 44
-    };
-    const calloutContent = formatNearbyMarkerLabel(payload.name || "");
-    if (calloutContent) {
-      marker.callout = buildMarkerNameCallout(calloutContent, {
-        color: "#14532d",
-        borderColor: "#14532d"
-      });
-    }
-    marker.extData = {
-      source: options.source || "pin-search",
-      raw: payload.raw || {},
-      detail: cloneMarkerDetail(payload.detail || {})
-    };
-    return marker;
+    return markerDataUtils.buildPinSearchMarker(payload, options);
+  },
+
+  isAreaPinSearchPayload(payload = {}) {
+    return markerDataUtils.isAreaPinSearchPayload(payload);
+  },
+
+  resolvePinSearchTarget(payload = {}) {
+    return markerDataUtils.resolvePinSearchTarget(payload);
+  },
+
+  applySearchSelectionFromPinPayload(payload = {}, options = {}) {
+    return preflightDashboardUtils.applySearchSelectionFromPinPayload(this, payload, options);
   },
 
   getAuthToken() {
-    const app = getApp ? getApp() : null;
-    return (app && app.globalData && app.globalData.token) || "";
+    return pageRuntimeUtils.getAuthToken(this);
   },
 
   requestProfileSubscriptions() {
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) return Promise.resolve();
-    const clearSubscribeWait = () => {
-      setSubscribeWaitOverlay(false);
-    };
-    const checkSubscriptionsNotFound = () =>
-      new Promise((resolve) => {
-        wx.request({
-          url: `${apiBase}/api/weapp/subscriptions`,
-          method: "GET",
-          header: {
-            "content-type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          success: (res) => {
-            if (res && res.statusCode === 404) {
-              setSubscribeWaitOverlay(true);
-            }
-            resolve();
-          },
-          fail: () => resolve()
-        });
-      });
-    return checkSubscriptionsNotFound()
-      .then(() => fetchTemplateSettings({ apiBase, token }))
-      .then(({ templateIds: availableTemplateIds = [] }) => {
-        const templateIds = this.setGlobalRequiredSubscriptionIds(
-          normalizeTemplateIds(REQUIRED_SUBSCRIPTION_TEMPLATE_IDS)
-            .filter((id) => normalizeTemplateIds(availableTemplateIds).includes(id))
-        );
-        if (!templateIds.length) return null;
-        return requestSubscribeMessageForTemplateIds(templateIds)
-          .then(({ acceptedIds }) => {
-            if (acceptedIds && acceptedIds.length) {
-              return updateSubscriptions(acceptedIds, { apiBase, token }).catch((err) => {
-                console.warn("updateSubscriptions after consent failed", err);
-                return null;
-              });
-            }
-            return null;
-          })
-      })
-      .catch((err) => {
-        console.warn("requestProfileSubscriptions failed", err);
-        return null;
-      })
-      .finally(() => {
-        clearSubscribeWait();
-        // this.evaluateSubscriptionBannerVisibility().catch(() => { });
-      });
+    return subscriptionUtils.requestProfileSubscriptions(this);
   },
 
   onSubscriptionBannerTap() {
-    if (this.data.subscriptionBannerLoading) return;
-    this.setData({ subscriptionBannerLoading: true });
-    this.ensureProfileAuthenticated()
-      .then(() => this.openSubscriptionSettingPicker())
-      .catch((err) => {
-        console.warn("subscription banner auth failed", err);
-        wx.showToast({ title: "请先登录后再试", icon: "none" });
-      })
-      .finally(() => {
-        this.setData({ subscriptionBannerLoading: false });
-      });
+    return subscriptionUtils.onSubscriptionBannerTap(this);
   },
 
   openSubscriptionSettingPicker(options = {}) {
-    const prefAccepted = Array.isArray(options.prefAccepted) ? options.prefAccepted : [];
-    return new Promise((resolve) => {
-      if (typeof wx.openSetting !== "function") {
-        resolve([]);
-        return;
-      }
-      wx.openSetting({
-        withSubscriptions: true,
-        success: (res = {}) => {
-          const mainSwitch = res?.subscriptionsSetting?.mainSwitch;
-          const enabled = mainSwitch !== false;
-          if (!enabled) {
-            this.setGlobalSubscriptionIds([], enabled);
-            this.setSubscriptionBannerVisibility(true);
-            wx.showToast({ title: "请先开启订阅消息总开关", icon: "none" });
-            resolve([]);
-            return;
-          }
-          console.log("res.subscriptionsSetting", res.subscriptionsSetting);
-          const ids = extractAcceptedTemplateIdsFromWxSetting(res.subscriptionsSetting) || [];
-          const merged = normalizeTemplateIds([...(prefAccepted || []), ...(ids || [])]);
-          console.log("openSubscriptionSettingPicker got ids", ids.length, "merged", merged.length);
-          const normalized = this.setGlobalSubscriptionIds(merged, enabled);
-          const apiBase = this.getApiBase();
-          const token = this.getAuthToken();
-          const syncPromise =
-            normalized.length && apiBase && token
-              ? updateSubscriptions(normalized, { apiBase, token }).catch((err) => {
-                console.warn("updateSubscriptions after openSetting failed", err);
-              })
-              : Promise.resolve();
-          const finalize = (requiredIds = []) => {
-            const shouldShow = requiredIds.length > 0 && (!enabled || !hasAllRequiredSubscriptions(normalized, requiredIds));
-            console.log("openSubscriptionSettingPicker accepted ids", normalized.length, "mainSwitch", enabled, "show", shouldShow);
-            this.setSubscriptionBannerVisibility(shouldShow);
-            if (normalized.length === 0) {
-              wx.showToast({ title: "请在设置中开启订阅消息", icon: "none" });
-            }
-            resolve(normalized);
-            // Double-check with backend/state to avoid偶发悬挂
-            // this.evaluateSubscriptionBannerVisibility().catch(() => { });
-          };
-          Promise.allSettled([syncPromise, this.resolveRequiredSubscriptionTemplateIds()])
-            .then((results) => {
-              const requiredIds = results[1]?.status === "fulfilled" ? results[1].value : [];
-              finalize(requiredIds);
-            })
-            .catch(() => finalize([]));
-        },
-        fail: (err) => {
-          console.warn("openSubscriptionSettingPicker failed", err);
-          wx.showToast({ title: "请在设置里开启订阅消息", icon: "none" });
-          this.setSubscriptionBannerVisibility(true);
-          resolve([]);
-        }
-      });
-    });
+    return subscriptionUtils.openSubscriptionSettingPicker(this, options);
   },
 
   prefetchSubscriptionLatest() {
-    const apiBase = this.getApiBase();
-    const token = this.getAuthToken();
-    if (!apiBase || !token) return;
-    fetchLatestSubscriptionPush({ apiBase, token })
-      .then((payload = {}) => {
-        const latestVersion = normalizeVersion(payload.version || "");
-        const app = typeof getApp === "function" ? getApp() : null;
-        if (app && app.globalData) {
-          app.globalData.subscriptionLatestVersion = latestVersion;
-        }
-        if (!latestVersion) return null;
-        return fetchLatestItemVersion({
-          apiBase,
-          token,
-          itemId: SUBSCRIPTION_TEMPLATE_ID,
-          version: latestVersion
-        }).then((result) => {
-          const serverVersion = normalizeVersion(result.version || "");
-          const hasUpdate = serverVersion !== latestVersion;
-          this.updateSubscriptionBadge(hasUpdate);
-          if (app && app.globalData) {
-            app.globalData.subscriptionFeedHasUpdate = hasUpdate;
-          }
-          return { latestVersion, serverVersion, hasUpdate };
-        });
-      })
-      .catch((err) => {
-        console.warn("prefetchSubscriptionLatest failed", err);
-      });
+    return subscriptionUtils.prefetchSubscriptionLatest(this);
   },
 
   updateSubscriptionBadge(show) {
-    if (typeof show !== "boolean") return;
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData) {
-      app.globalData.showProfileRedDot = show;
-      app.globalData.subscriptionFeedHasUpdate = show;
-    }
-    this.setData({ showProfileRedDot: show });
+    return subscriptionUtils.updateSubscriptionBadge(this, show);
   },
 
   ensureProfileAuthenticated() {
-    if (this.hasAccessToken()) {
-      return Promise.resolve(this.loadStoredProfile());
-    }
-    const showLoading = typeof wx.showLoading === "function";
-    const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
-    const profile = this.loadStoredProfile() || {};
-    if (showLoading) wx.showLoading({ title: "登录中...", mask: true });
-    return this.ensureAccessToken({ profileOverride: profile })
-      .then(() => {
-        hideLoading();
-        return profile;
-      })
-      .catch((err) => {
-        hideLoading();
-        throw err;
-      });
+    return pageRuntimeUtils.ensureProfileAuthenticated(this);
   },
 
   hasAccessToken() {
-    const app = getApp ? getApp() : null;
-    if (app && app.globalData && app.globalData.token) {
-      return true;
-    }
-    try {
-      const token = wx.getStorageSync(ACCESS_TOKEN_STORAGE_KEY);
-      if (token && typeof token === "string") {
-        if (app && app.globalData) app.globalData.token = token;
-        return true;
-      }
-    } catch (err) {
-      console.warn("读取 accessToken 失败", err);
-    }
-    return false;
+    return pageRuntimeUtils.hasAccessToken(this);
   },
 
   loadStoredProfile() {
-    return loadStoredProfileUtil();
+    return pageRuntimeUtils.loadStoredProfile(this);
   },
 
   initializeSystemInfo(force = false, inputMetrics = null) {
-    if (!force && this._pxPerRpx && this._pxPerRpx > 0) {
-      return;
-    }
-    const metrics =
-      inputMetrics && typeof inputMetrics === "object" ? inputMetrics : getWindowMetrics();
-    const width = metrics.windowWidth || 375;
-    this._pxPerRpx = width / 750;
-    const pxPerRpx = this._pxPerRpx || 1;
-    this._scaleBarBaseRpx = Math.max(30, Math.round(CSS_PIXELS_PER_CM / pxPerRpx));
-    if (metrics.platform) {
-      this._isIOS = metrics.platform === "ios";
-    }
-    const statusBarHeight = Number(metrics.statusBarHeight);
-    const centerPinOffsetPx = 0;
-    const updates = {};
-    if (
-      Number.isFinite(statusBarHeight)
-      && statusBarHeight > 0
-      && this.data.statusBarHeight !== statusBarHeight
-    ) {
-      updates.statusBarHeight = statusBarHeight;
-    }
-    if (this.data.centerPinOffsetPx !== centerPinOffsetPx) {
-      updates.centerPinOffsetPx = centerPinOffsetPx;
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
+    return pageRuntimeUtils.initializeSystemInfo(this, force, inputMetrics);
   },
 
   updateScaleBar(context = {}) {
-    const ctx = context && typeof context === "object" ? context : {};
-    if (!this._pxPerRpx || this._pxPerRpx <= 0) {
-      this.initializeSystemInfo();
-    }
-    const pxPerRpx = this._pxPerRpx || 1;
-    const baseRpx = this._scaleBarBaseRpx || DEFAULT_SCALE_BAR_BASE_RPX;
-    const pxWidth = baseRpx * pxPerRpx;
-    const latitude =
-      typeof ctx.latitude === "number"
-        ? ctx.latitude
-        : (this.data.center && typeof this.data.center.latitude === "number"
-          ? this.data.center.latitude
-          : DEFAULT_CENTER.latitude);
-    const zoomSource = Object.prototype.hasOwnProperty.call(ctx, "rawScale")
-      ? ctx.rawScale
-      : (Object.prototype.hasOwnProperty.call(ctx, "scale") ? ctx.scale : this.data.scale);
-    const zoom = clampMapScaleFloat(zoomSource);
-    const metersPerPixel = computeMetersPerPixel(latitude, zoom);
-    if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) {
-      return;
-    }
-    const rawMeters = metersPerPixel * pxWidth;
-    const display = resolveScaleBarDisplay({
-      rawMeters,
-      metersPerPixel,
-      pxPerRpx,
-      baseRpx
-    });
-    this._lastScaleBarMeters = display.meters;
-    this.setData({
-      scaleBarVisible: true,
-      scaleBarLabel: display.label,
-      scaleBarWidthRpx: display.widthRpx
-    });
+    return pageRuntimeUtils.updateScaleBar(this, context);
   },
 
   estimateScaleBarMeters(scale, latitude) {
-    if (!this._pxPerRpx || this._pxPerRpx <= 0) {
-      this.initializeSystemInfo();
-    }
-    const pxPerRpx = this._pxPerRpx || 1;
-    const baseRpx = this._scaleBarBaseRpx || DEFAULT_SCALE_BAR_BASE_RPX;
-    const pxWidth = pxPerRpx * baseRpx;
-    if (!Number.isFinite(pxWidth) || pxWidth <= 0) return null;
-    const latSource = typeof latitude === "number"
-      ? latitude
-      : (this.data.center && typeof this.data.center.latitude === "number"
-        ? this.data.center.latitude
-        : DEFAULT_CENTER.latitude);
-    const lat = Math.max(-85, Math.min(85, Number(latSource) || 0));
-    const metersPerPixel = computeMetersPerPixel(lat, clampMapScale(scale ?? this.data.scale));
-    if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
-    const rawMeters = metersPerPixel * pxWidth;
-    return resolveScaleBarDisplay({
-      rawMeters,
-      metersPerPixel,
-      pxPerRpx,
-      baseRpx
-    }).meters;
+    return pageRuntimeUtils.estimateScaleBarMeters(this, scale, latitude);
   },
 
   shouldFetchNearbyMarkers(scale, latitude) {
-    const approxMeters = this.estimateScaleBarMeters(scale, latitude);
-    if (Number.isFinite(approxMeters) && approxMeters >= MARKER_FETCH_SCALE_LIMIT_METERS) {
-      return false;
-    }
-    return true;
+    return pageRuntimeUtils.shouldFetchNearbyMarkers(this, scale, latitude);
   },
 
   queueRegionUpdateSkip(count = 1) {
-    const inc = Number.isFinite(count) ? Math.max(1, Math.round(count)) : 1;
-    const pending = Number.isFinite(this._pendingRegionUpdates) ? this._pendingRegionUpdates : 0;
-    this._pendingRegionUpdates = pending + inc;
+    return pageRuntimeUtils.queueRegionUpdateSkip(this, count);
   },
 
   updateMapGestureState(detail = {}) {
-    const now = Date.now();
-    const skew = Number(detail?.skew);
-    if (Number.isFinite(skew)) {
-      const prevSkew = this._mapSkew;
-      this._mapSkew = skew;
-      if ((Number.isFinite(prevSkew) && prevSkew !== skew) || skew > 0) {
-        this._overlookSyncAvoidUntil = now + 400;
-      }
-    }
-    const rotate = Number(detail?.rotate);
-    if (Number.isFinite(rotate)) {
-      const prevRotate = this._mapRotate;
-      this._mapRotate = rotate;
-      if (Number.isFinite(prevRotate) && prevRotate !== rotate) {
-        this._overlookSyncAvoidUntil = now + 400;
-      }
-    }
-    if (Number.isFinite(skew) || Number.isFinite(rotate)) {
-      this.syncCompassState({ rotate, skew });
-    }
+    return mapViewportUtils.updateMapGestureState(this, detail);
   },
 
   syncCompassState(detail = {}) {
-    const rotateValue = Object.prototype.hasOwnProperty.call(detail, "rotate")
-      ? detail.rotate
-      : this._mapRotate;
-    const normalized = normalizeMapRotate(rotateValue);
-    if (!Number.isFinite(normalized)) return;
-    const skewValue = Object.prototype.hasOwnProperty.call(detail, "skew")
-      ? detail.skew
-      : this._mapSkew;
-    const normalizedSkew = Number.isFinite(skewValue) ? Math.max(0, Math.min(60, skewValue)) : 0;
-    const distance = normalized > 180 ? 360 - normalized : normalized;
-    const shouldShow = distance >= MAP_COMPASS_ROTATE_THRESHOLD;
-    const updates = {};
-    if (shouldShow) {
-      if (
-        !Number.isFinite(this.data.mapRotate)
-        || Math.abs(this.data.mapRotate - normalized) >= MAP_COMPASS_ROTATE_SYNC_DELTA
-      ) {
-        updates.mapRotate = normalized;
-      }
-      if (
-        !Number.isFinite(this.data.compassRotate)
-        || Math.abs(this.data.compassRotate - normalized) >= MAP_COMPASS_ROTATE_SYNC_DELTA
-      ) {
-        updates.compassRotate = normalized;
-      }
-    } else {
-      if (this.data.mapRotate !== 0) {
-        updates.mapRotate = 0;
-      }
-      if (this.data.compassRotate !== 0) {
-        updates.compassRotate = 0;
-      }
-    }
-    if (
-      !Number.isFinite(this.data.compassSkew)
-      || Math.abs(this.data.compassSkew - normalizedSkew) >= MAP_COMPASS_SKEW_SYNC_DELTA
-    ) {
-      updates.compassSkew = normalizedSkew;
-    }
-    if (shouldShow !== this.data.compassVisible) {
-      updates.compassVisible = shouldShow;
-    }
-    if (Object.keys(updates).length) {
-      this.setData(updates);
-    }
+    return mapViewportUtils.syncCompassState(this, detail);
   },
 
   resetCompassState() {
-    this._mapRotate = 0;
-    this._mapSkew = 0;
-    const updates = {};
-    if (this.data.mapRotate !== 0) {
-      updates.mapRotate = 0;
-    }
-    if (this.data.mapSkew !== 0) {
-      updates.mapSkew = 0;
-    }
-    if (this.data.compassRotate !== 0) {
-      updates.compassRotate = 0;
-    }
-    if (this.data.compassSkew !== 0) {
-      updates.compassSkew = 0;
-    }
-    if (this.data.compassVisible) {
-      updates.compassVisible = false;
-    }
-    if (Object.keys(updates).length) {
-      this._skipNextRotateRegion = true;
-      this.setData(updates);
-    }
+    return mapViewportUtils.resetCompassState(this);
   },
 
   shouldAvoidCenterSync(options = {}) {
-    const cause = typeof options?.cause === "string" ? options.cause.toLowerCase() : "";
-    if (cause === "skew" || cause === "rotate" || cause === "overlook") {
-      return true;
-    }
-    if (cause === "drag" || cause === "scale" || cause === "gesture") {
-      return true;
-    }
-    if (
-      Number.isFinite(this._overlookSyncAvoidUntil) &&
-      this._overlookSyncAvoidUntil > Date.now()
-    ) {
-      return true;
-    }
-    // iOS map can snap back when syncing center/scale during overlooking or max-zoom gestures.
-    if (!this._isIOS) return false;
-    if (Number.isFinite(this._mapSkew) && this._mapSkew > 0) return true;
-    const rawScale = Number(options?.rawScale);
-    const scale = Number(options?.scale);
-    if (Number.isFinite(rawScale) && Math.round(rawScale) >= MAP_MAX_SCALE) return true;
-    if (Number.isFinite(scale) && Math.round(scale) >= MAP_MAX_SCALE) return true;
-    return false;
+    return mapViewportUtils.shouldAvoidCenterSync(this, options);
   },
 
   scaleForMeters(targetMeters, latitude) {
-    if (!Number.isFinite(targetMeters) || targetMeters <= 0) return null;
-    if (!this._pxPerRpx || this._pxPerRpx <= 0) {
-      this.initializeSystemInfo();
-    }
-    const pxPerRpx = this._pxPerRpx || 1;
-    const baseRpx = this._scaleBarBaseRpx || DEFAULT_SCALE_BAR_BASE_RPX;
-    const pxWidth = pxPerRpx * baseRpx;
-    if (!Number.isFinite(pxWidth) || pxWidth <= 0) return null;
-    const latSource = typeof latitude === "number"
-      ? latitude
-      : (this.data.center && typeof this.data.center.latitude === "number"
-        ? this.data.center.latitude
-        : DEFAULT_CENTER.latitude);
-    const lat = Math.max(-85, Math.min(85, Number(latSource) || 0));
-    const cosLat = Math.cos((lat * Math.PI) / 180);
-    const metersPerPixel = targetMeters / pxWidth;
-    if (!Number.isFinite(cosLat) || cosLat <= 0) return null;
-    if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return null;
-    const ratio = (METERS_PER_PIXEL_BASE * cosLat) / metersPerPixel;
-    if (!Number.isFinite(ratio) || ratio <= 0) return null;
-    const zoom = Math.log2 ? Math.log2(ratio) : Math.log(ratio) / Math.log(2);
-    if (!Number.isFinite(zoom)) return null;
-    return clampMapScale(zoom);
+    return mapViewportUtils.scaleForMeters(this, targetMeters, latitude);
   },
 
   centerOnPoint(point, scale = DEFAULT_MAP_SCALE, silent = false, extraUpdates = null) {
-    if (!point) return;
-    this.queueRegionUpdateSkip(3);
-    this._centerOverride = point;
-    const targetScale = clampMapScale(scale);
-    const updates = {
-      center: point,
-      mapCenterReady: true,
-      scale: targetScale
-    };
-    if (extraUpdates && typeof extraUpdates === "object") {
-      Object.assign(updates, extraUpdates);
-    }
-    this.setData(updates, () => {
-      this.ensureUomPluginReady();
-      this.ensureDjiLayerReady();
-      this.ensureTemporaryNoFlyLayerReady();
-      if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-        this._uomPlugin.handleRegionChange({
-          center: point,
-          centerPin: point,
-          scale: targetScale,
-          region: this._lastRegion
-        });
-      }
-      this.updateScaleBar({ scale: targetScale, latitude: point.latitude });
-      this.updateCenterPinIndicator();
-      if (this._markersFetchTimer) {
-        clearTimeout(this._markersFetchTimer);
-        this._markersFetchTimer = null;
-      }
-      const fetchOptions = {
-        center: point,
-        region: this._lastRegion,
-        scale: targetScale,
-        force: true
-      };
-      this.requestNearbyMarkers(fetchOptions);
-      this.syncTemporaryNoFlyLayerViewport(fetchOptions);
-      this.syncDjiLayerViewport({
-        center: point,
-        region: this._lastRegion,
-        scale: targetScale,
-        force: true
-      });
-    });
+    return mapViewportUtils.centerOnPoint(this, point, scale, silent, extraUpdates);
+  },
+
+  waitForLocationPermissionGrantedWithoutPrompt(options = {}) {
+    return locationUtils.waitForLocationPermissionGrantedWithoutPrompt(this, options);
+  },
+
+  pullAndCenterLocationWithRetry(options = {}) {
+    return locationUtils.pullAndCenterLocationWithRetry(this, options);
+  },
+
+  bootstrapInitialNativeLocationCenter() {
+    return locationUtils.bootstrapInitialNativeLocationCenter(this);
   },
 
   ensureLocationPermission() {
-    return new Promise((resolve, reject) => {
-      wx.getSetting({
-        success: (res) => {
-          const granted = !!(res.authSetting && res.authSetting["scope.userLocation"]);
-          if (granted) {
-            resolve();
-            return;
-          }
-          this.authorizeLocation().then(resolve).catch(reject);
-        },
-        fail: reject
-      });
-    });
+    return locationUtils.ensureLocationPermission(this);
   },
 
   authorizeLocation() {
-    return new Promise((resolve, reject) => {
-      wx.authorize({
-        scope: "scope.userLocation",
-        success: () => resolve(),
-        fail: () => {
-          wx.openSetting({
-            success: (st) => {
-              const granted = !!(st.authSetting && st.authSetting["scope.userLocation"]);
-              if (granted) resolve();
-              else reject(new Error("permission-denied"));
-            },
-            fail: (err) => reject(err)
-          });
-        }
-      });
-    });
+    return locationUtils.authorizeLocation(this);
   },
 
   ensureAccessToken(options = {}) {
-    if (this.hasAccessToken()) return Promise.resolve();
-    if (this._ensureLoginPromise) return this._ensureLoginPromise;
-    const app = getApp ? getApp() : null;
-    if (!app || typeof app.loginWithProfile !== "function") {
-      return Promise.reject(new Error("login-unavailable"));
-    }
-    const override = options && options.profileOverride;
-    const profile = override || this.loadStoredProfile() || {};
-    this._ensureLoginPromise = app.loginWithProfile(profile)
-      .catch((err) => {
-        throw err || new Error("login-failed");
-      })
-      .finally(() => {
-        this._ensureLoginPromise = null;
-      });
-    return this._ensureLoginPromise;
+    return pageRuntimeUtils.ensureAccessToken(this, options);
   },
 
   onRegionChange(e) {
-    if (!this.isMapCenterReady()) {
-      return;
-    }
-    const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
-    const detail = e?.detail || {};
-    if (e.type !== "end") {
-      this.updateMapGestureState(detail);
-      if (
-        !this._centerPinWelcomeBubbleDismissedInGesture &&
-        this.shouldDismissCenterPinWelcomeBubbleOnRegionChange(cause)
-      ) {
-        this._centerPinWelcomeBubbleDismissedInGesture = true;
-        this.dismissCenterPinWelcomeBubble();
-      }
-      if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
-      if (this._uomPlugin && typeof this._uomPlugin.startFollow === "function") {
-        this._uomPlugin.startFollow();
-      }
-      const cl = detail && (detail.centerLocation || null);
-      if (cl && this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-        const region = detail.region || {
-          northeast: detail.northeast,
-          southwest: detail.southwest
-        };
-        const scale = clampMapScale(detail.scale || this.data.scale);
-        const newCenter = { latitude: cl.latitude, longitude: cl.longitude };
-        this.updateDebugPanel({
-          scale: `${scale}`,
-          rawScale: `${detail.scale ?? ""}`,
-          center: this.formatDebugCoord(newCenter),
-          region: this.formatDebugRegion(region),
-          regionPhase: "move"
-        });
-        this._uomPlugin.handleRegionChange({
-          center: newCenter,
-          centerPin: newCenter,
-          scale,
-          rawScale: detail.scale,
-          region,
-          force: true
-        });
-      }
-      return;
-    }
-    this._centerPinWelcomeBubbleDismissedInGesture = false;
-    if (this._uomPlugin && typeof this._uomPlugin.stopFollow === "function") {
-      this._uomPlugin.stopFollow();
-    }
-    this.updateMapGestureState(detail);
-    if (this.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
-      return;
-    }
-    if (this._skipNextRotateRegion) {
-      const rotate = Number(detail?.rotate);
-      if (Number.isFinite(rotate)) {
-        const cl = detail && (detail.centerLocation || null);
-        const prevCenter = this.data.center;
-        const moveMeters = (cl && prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
-          ? haversineMeters(
-            prevCenter.latitude,
-            prevCenter.longitude,
-            cl.latitude,
-            cl.longitude
-          )
-          : 0;
-        if (!Number.isFinite(moveMeters) || moveMeters < MIN_CENTER_SYNC_METERS) {
-          this._skipNextRotateRegion = false;
-          return;
-        }
-      }
-      this._skipNextRotateRegion = false;
-    }
-    if (this._pendingRegionUpdates > 0 && (!cause || cause === "update")) {
-      this._pendingRegionUpdates = Math.max(0, this._pendingRegionUpdates - 1);
-      return;
-    }
-    // 使用事件内的中心与范围，仅用于刷新覆盖物，避免 setData 改 center 造成回环抖动
-    const rawScale = Number(detail.scale);
-    const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
-    const region = detail && (detail.region || {
-      northeast: detail.northeast,
-      southwest: detail.southwest
-    });
-    const cl = detail && (detail.centerLocation || null);
-    if (region && region.northeast && region.southwest) {
-      const newCenter = cl
-        ? { latitude: cl.latitude, longitude: cl.longitude }
-        : {
-          latitude: (region.northeast.latitude + region.southwest.latitude) / 2,
-          longitude: (region.northeast.longitude + region.southwest.longitude) / 2
-        };
-      if (this.shouldIgnoreCenterShareLaunchSync(newCenter, cause)) {
-        return;
-      }
-      this._centerOverride = newCenter;
-      const prevScale = this.data.scale;
-      const scale = clampMapScale(detail.scale || prevScale);
-      this.updateDebugPanel({
-        scale: `${scale}`,
-        rawScale: `${detail.scale ?? ""}`,
-        center: this.formatDebugCoord(newCenter),
-        region: this.formatDebugRegion(region),
-        regionPhase: "end"
-      });
-      const scaleChanged = scale !== prevScale;
-      // console.log("[map] regionchange scale", scale);
-      this._lastRegion = region;
-      const prevCenter = this.data.center;
-      const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
-        ? haversineMeters(
-          prevCenter.latitude,
-          prevCenter.longitude,
-          newCenter.latitude,
-          newCenter.longitude
-        )
-        : Number.POSITIVE_INFINITY;
-      const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
-      const shouldSync = centerMoved || scale !== this.data.scale;
-      const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
-      if (avoidCenterSync) {
-        this.data.center = newCenter;
-        this.data.scale = scale;
-      }
-      const run = (forceRefresh) => {
-        if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-          this._uomPlugin.handleRegionChange({
-            center: newCenter,
-            centerPin: newCenter,
-            scale,
-            rawScale: detail.scale,
-            region
-          });
-        }
-        this.syncDjiLayerViewport({
-          center: newCenter,
-          region,
-          scale,
-          force: !!forceRefresh
-        });
-        this.scheduleFetchMarkers(forceRefresh ? 0 : 200, {
-          center: newCenter,
-          region,
-          scale,
-          force: !!forceRefresh
-        });
-        this.scheduleFetchPins(forceRefresh ? 0 : 200, {
-          center: newCenter,
-          region,
-          scale,
-          force: !!forceRefresh
-        });
-        this.syncTemporaryNoFlyLayerViewport({
-          center: newCenter,
-          region,
-          scale,
-          force: !!forceRefresh
-        });
-      };
-      const afterSync = () => {
-        this.updateScaleBar({
-          scale,
-          rawScale: detail.scale,
-          latitude: newCenter.latitude
-        });
-        this.refreshNearbyDisplayModes();
-        run(scaleChanged);
-        this.updateCenterPinIndicator();
-      };
-      if (shouldSync || forceScaleSync) {
-        if (avoidCenterSync) {
-          afterSync();
-        } else {
-          this.queueRegionUpdateSkip(1);
-          this.setData({ center: newCenter, scale }, afterSync);
-        }
-      } else {
-        afterSync();
-      }
-      if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
-        this._uomPlugin.scheduleFinalRefresh();
-      }
-      return;
-    }
-    // 兜底：取中心再刷新（少量机型可能无 centerLocation）
-    this.updateCenterAndRadius(detail);
-    if (this._uomPlugin && typeof this._uomPlugin.scheduleFinalRefresh === "function") {
-      this._uomPlugin.scheduleFinalRefresh();
-    }
+    return mapViewportUtils.onRegionChange(this, e);
   },
 
   onMapUpdated() { },
 
   updateCenterAndRadius(detail) {
-    this.updateMapGestureState(detail);
-    const rawScale = Number(detail?.scale);
-    const cause = detail?.causedBy || detail?.cause || "";
-    const forceScaleSync = Number.isFinite(rawScale) && Math.round(rawScale) > MAP_MAX_SCALE;
-    this.mapCtx.getCenterLocation({
-      type: "gcj02",
-      success: (res) => {
-        const newCenter = {
-          latitude: res.latitude,
-          longitude: res.longitude
-        };
-        if (this.shouldIgnoreCenterShareLaunchSync(newCenter, cause)) {
-          return;
-        }
-        this._centerOverride = newCenter;
-        const scale = clampMapScale(detail?.scale || this.data.scale);
-        const avoidCenterSync = this.shouldAvoidCenterSync({ scale, rawScale, cause });
-        // cache region for WMS tiling
-        this._lastRegion = detail?.region || null;
-        const prevCenter = this.data.center;
-        const moveMeters = (prevCenter && hasValidCoordinate(prevCenter.latitude, prevCenter.longitude))
-          ? haversineMeters(
-            prevCenter.latitude,
-            prevCenter.longitude,
-            newCenter.latitude,
-            newCenter.longitude
-          )
-          : Number.POSITIVE_INFINITY;
-        const centerMoved = !Number.isFinite(moveMeters) || moveMeters >= MIN_CENTER_SYNC_METERS;
-        const needSync = centerMoved || scale !== this.data.scale;
-        if (avoidCenterSync) {
-          this.data.center = newCenter;
-          this.data.scale = scale;
-        }
-        const run = () => {
-          const region = detail?.region || null;
-          this.syncDjiLayerViewport({
-            center: newCenter,
-            region,
-            scale,
-            force: true
-          });
-          if (this._uomPlugin && typeof this._uomPlugin.handleRegionChange === "function") {
-            this._uomPlugin.handleRegionChange({
-              center: newCenter,
-              centerPin: newCenter,
-              scale,
-              region
-            });
-          }
-          this.scheduleFetchMarkers(0, {
-            center: newCenter,
-            region,
-            scale,
-            force: true
-          });
-          this.scheduleFetchPins(0, {
-            center: newCenter,
-            region,
-            scale,
-            force: true
-          });
-          this.syncTemporaryNoFlyLayerViewport({
-            center: newCenter,
-            region,
-            scale,
-            force: true
-          });
-        };
-        const afterUpdate = () => {
-          this.updateScaleBar({
-            scale,
-            rawScale: detail?.scale,
-            latitude: newCenter.latitude
-          });
-          this.refreshNearbyDisplayModes();
-          run();
-          this.updateCenterPinIndicator();
-        };
-        if (needSync || forceScaleSync) {
-          if (avoidCenterSync) {
-            afterUpdate();
-          } else {
-            this.queueRegionUpdateSkip(1);
-            this.setData({ center: newCenter, scale }, afterUpdate);
-          }
-        } else {
-          afterUpdate();
-        }
-      }
-    });
+    return mapViewportUtils.updateCenterAndRadius(this, detail);
   },
 
   computeMarkerRadiusKm(context = {}) {
-    const region = context?.region;
-    if (region?.northeast && region?.southwest) {
-      const { northeast, southwest } = region;
-      const diag = haversineMeters(
-        northeast.latitude,
-        northeast.longitude,
-        southwest.latitude,
-        southwest.longitude
-      );
-      if (Number.isFinite(diag) && diag > 0) {
-        const radiusKm = Math.max(0.1, diag / 2000);
-        return Math.min(radiusKm, 200);
-      }
-    }
-    const scale = clampMapScale(context?.scale || this.data.scale);
-    const zoomFactor = Math.pow(2, Math.max(0, (18 - scale) / 1.3));
-    return Math.max(0.1, Math.min(200, zoomFactor * 0.8));
+    return nearbyFetchUtils.computeMarkerRadiusKm(this, context);
   },
 
   scheduleFetchPins(delay = 0, options = {}) {
-    if (!this.isPinLayerEnabled()) {
-      return;
-    }
-    if (this._pinsFetchTimer) clearTimeout(this._pinsFetchTimer);
-    const ms = Math.max(0, Number(delay) || 0);
-    const merged = Object.assign({}, options, { force: options.force === true });
-    this._pinsFetchTimer = setTimeout(() => {
-      this._pinsFetchTimer = null;
-      this.requestNearbyPins(merged);
-    }, ms);
+    return nearbyFetchUtils.scheduleFetchPins(this, delay, options);
   },
 
   scheduleFetchMarkers(delay = 0, options = {}) {
-    if (this.data.merchantMarkersEnabled === false) return;
-    if (this._markersFetchTimer) clearTimeout(this._markersFetchTimer);
-    const ms = Math.max(0, Number(delay) || 0);
-    this._markersFetchTimer = setTimeout(() => {
-      this._markersFetchTimer = null;
-      this.requestNearbyMarkers(options);
-    }, ms);
+    return nearbyFetchUtils.scheduleFetchMarkers(this, delay, options);
   },
 
   requestNearbyPins(options = {}) {
-    if (!this.isPinLayerEnabled()) {
-      if (this._pinsFetchTimer) {
-        clearTimeout(this._pinsFetchTimer);
-        this._pinsFetchTimer = null;
-      }
-      this._nearbyPinsRaw = [];
-      this._nearbyPinMarkers = [];
-      this._nearbyPinPolygons = [];
-      this._nearbyPinCircles = [];
-      this._lastNearbyPinFetch = null;
-      this.updateOverlayGraphics();
-      this.syncAllMarkers();
-      this.updateCenterPinIndicator();
-      return;
-    }
-    const center = options?.center || this._centerOverride || this.data.center;
-    if (!center) return;
-    const scale = options?.scale || this.data.scale;
-    const region = options?.region || this._lastRegion;
-    const force = options.force === true;
-    if (!force && !this.shouldFetchNearbyMarkers(scale, center.latitude)) {
-      if (Array.isArray(this._nearbyPinsRaw) && this._nearbyPinsRaw.length) {
-        this._nearbyPinsRaw = [];
-        this._nearbyPinMarkers = [];
-        this._nearbyPinPolygons = [];
-        this._nearbyPinCircles = [];
-        this.updateOverlayGraphics();
-        this.syncAllMarkers();
-      }
-      this._lastNearbyPinFetch = null;
-      return;
-    }
-    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
-    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
-
-    const latitude = Number(center.latitude);
-    const longitude = Number(center.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-    const prev = this._lastNearbyPinFetch || {};
-    const moveMeters = haversineMeters(
-      center.latitude,
-      center.longitude,
-      prev.latitude || 0,
-      prev.longitude || 0
-    );
-    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
-    const now = Date.now();
-    const prevTimestamp = Number(prev.timestamp) || 0;
-    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
-      return;
-    }
-
-    const requestId = now;
-    this._activePinsRequest = requestId;
-
-    fetchNearbyPins(
-      {
-        latitude,
-        longitude,
-        radiusInKilometers: radiusKm,
-        scaleInMeters: this.getCurrentScaleInMeters(scale, latitude)
-      },
-      {
-        apiBase: this.getApiBase(),
-        token: this.getAuthToken()
-      }
-    )
-      .then((items = []) => {
-        if (this._activePinsRequest !== requestId) return;
-        this.applyNearbyPins(Array.isArray(items) ? items : []);
-        this._lastNearbyPinFetch = {
-          latitude: center.latitude,
-          longitude: center.longitude,
-          radiusKm,
-          scale: clampMapScale(scale),
-          timestamp: now
-        };
-      })
-      .catch((err) => {
-        console.warn("Fetch nearby pins failed", err);
-      })
-      .finally(() => {
-        if (this._activePinsRequest === requestId) {
-          this._activePinsRequest = null;
-        }
-      });
+    return nearbyFetchUtils.requestNearbyPins(this, options);
   },
 
   requestNearbyMarkers(options = {}) {
-    if (this.data.merchantMarkersEnabled === false) {
-      this._nearbyMarkersRaw = [];
-      this._nearbyMarkers = [];
-      this.syncAllMarkers();
-      return;
-    }
-    const center = options?.center || this._centerOverride || this.data.center;
-    if (!center) return;
-    const scale = options?.scale || this.data.scale;
-    const region = options?.region || this._lastRegion;
-    const force = options.force === true;
-    if (!this.shouldFetchNearbyMarkers(scale, center.latitude)) {
-      if (
-        (Array.isArray(this._nearbyMarkers) && this._nearbyMarkers.length) ||
-        (Array.isArray(this._nearbyMarkersRaw) && this._nearbyMarkersRaw.length)
-      ) {
-        this._nearbyMarkersRaw = [];
-        this._nearbyMarkers = [];
-        this.syncAllMarkers();
-      }
-      this._lastNearbyFetch = null;
-      return;
-    }
-    const radiusKm = this.computeMarkerRadiusKm({ region, scale });
-    if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
-
-    const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-    const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
-    const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-    const prev = this._lastNearbyFetch || {};
-    const moveMeters = haversineMeters(
-      center.latitude,
-      center.longitude,
-      prev.latitude || 0,
-      prev.longitude || 0
-    );
-    const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
-    const now = Date.now();
-    const prevTimestamp = Number(prev.timestamp) || 0;
-    const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-    if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
-      return;
-    }
-
-    const requestId = now;
-    this._activeMarkersRequest = requestId;
-
-    fetchNearbyMarkers(
-      {
-        latitude,
-        longitude,
-        radiusInKilometers: radiusKm,
-        scaleInMeters: this.getCurrentScaleInMeters(scale, center.latitude)
-      },
-      {
-        apiBase: this.getApiBase(),
-        token: this.getAuthToken()
-      }
-    )
-      .then((items = []) => {
-        if (this._activeMarkersRequest !== requestId) return;
-        this.applyNearbyMarkers(Array.isArray(items) ? items : []);
-        this._lastNearbyFetch = {
-          latitude: center.latitude,
-          longitude: center.longitude,
-          radiusKm,
-          scale: clampMapScale(scale),
-          timestamp: now
-        };
-      })
-      .catch((err) => {
-        console.warn("Fetch nearby markers failed", err);
-      })
-      .finally(() => {
-        if (this._activeMarkersRequest === requestId) {
-          this._activeMarkersRequest = null;
-        }
-      });
+    return nearbyFetchUtils.requestNearbyMarkers(this, options);
   },
 
   updateOverlayGraphics() {
-    const polygons = [];
-    const circles = [];
-    if (this.data.djiNoFlyZoneEnabled !== false && Array.isArray(this._djiPolygons)) {
-      polygons.push(...this._djiPolygons);
-    }
-    if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzPolygons)) {
-      polygons.push(...this._nfzPolygons);
-    }
-    if (this.data.djiNoFlyZoneEnabled !== false && Array.isArray(this._djiCircles)) {
-      circles.push(...this._djiCircles);
-    }
-    if (this.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(this._nfzCircles)) {
-      circles.push(...this._nfzCircles);
-    }
-    if (Array.isArray(this._nearbyPinPolygons)) {
-      polygons.push(...this._nearbyPinPolygons);
-    }
-    if (Array.isArray(this._nearbyPinCircles)) {
-      circles.push(...this._nearbyPinCircles);
-    }
-    if (Array.isArray(this._previewPolygons)) {
-      polygons.push(...this._previewPolygons);
-    }
-    if (Array.isArray(this._previewCircles)) {
-      circles.push(...this._previewCircles);
-    }
-    if (Array.isArray(this._myLocationCircles)) {
-      circles.push(...this._myLocationCircles);
-    }
-    this.setData({ polygons, circles });
+    return mapGraphicsUtils.updateOverlayGraphics(this);
   },
 
   ringContains(ring, lng, lat) {
-    if (!Array.isArray(ring) || ring.length === 0) return false;
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const xi = Number(ring[i][0]), yi = Number(ring[i][1]);
-      const xj = Number(ring[j][0]), yj = Number(ring[j][1]);
-      const intersect = ((yi > lat) !== (yj > lat)) &&
-        (lng < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
+    return mapGeometryUtils.ringContains(ring, lng, lat);
   },
 
 });
-
-

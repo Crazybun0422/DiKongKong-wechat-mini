@@ -1,0 +1,138 @@
+<view
+  class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}"
+  bindtap="onMaskTap"
+  catchtouchmove="onMaskTouchMove"
+></view>
+<view
+  class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
+  bindtouchstart="onTouchStart"
+  catchtouchmove="onTouchMove"
+  bindtouchend="onTouchEnd"
+  bindtouchcancel="onTouchCancel"
+>
+  <view
+    class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}"
+    bindtouchstart="onLikeTouchStart"
+    bindtouchend="onLikeTouchEnd"
+    bindtouchcancel="onLikeTouchEnd"
+  >
+    <view class="like-badge-label like-badge-label--hint" wx:if="{{markerLikeHintLabel}}">{{markerLikeHintLabel}}</view>
+    <view class="like-badge-label like-badge-label--result" wx:if="{{markerLikeResultLabel}}">{{markerLikeResultLabel}}</view>
+    <image
+      class="like-badge-icon"
+      src="{{markerLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
+      mode="widthFix"
+    />
+    <text
+      class="like-badge-count"
+      data-count="{{markerLikeCount}}"
+      bindtap="onLikeCountTap"
+    >
+      {{markerLikeCountDisplay}}
+    </text>
+  </view>
+  <view class="marker-detail-handle"></view>
+  <view class="marker-detail-header">
+    <view class="marker-detail-info">
+      <view class="marker-detail-title-row">
+        <block wx:if="{{detailCard.isCertified}}">
+          <text class="marker-detail-name">{{detailCard.titlePrefixText}}</text>
+          <view class="marker-title-badge-group marker-title-badge-group--detail">
+            <text class="marker-detail-name">{{detailCard.titleTailText}}</text>
+            <image
+              class="marker-certification-badge marker-certification-badge--detail"
+              src="{{markerSvipIconPath}}"
+              mode="aspectFit"
+            />
+          </view>
+        </block>
+        <text wx:else class="marker-detail-name">{{detailCard.titleDisplayText}}</text>
+      </view>
+      <text
+        class="marker-detail-location"
+        wx:if="{{detailCard.locationText}}"
+      >
+        {{detailCard.locationText}}
+      </text>
+    </view>
+  </view>
+  <view class="marker-detail-body">
+    <block wx:if="{{(detailCard.mediaItems && detailCard.mediaItems.length) || (detailCard.images && detailCard.images.length)}}">
+      <swiper
+        class="marker-detail-swiper"
+        autoplay="{{false}}"
+        circular="{{true}}"
+        bindchange="onSwiperChange"
+        current="{{markerDetailCurrentImage}}"
+      >
+        <block wx:for="{{detailCard.mediaItems && detailCard.mediaItems.length ? detailCard.mediaItems : detailCard.images}}" wx:key="id">
+          <swiper-item>
+            <image wx:if="{{item.type !== 'video'}}" class="marker-detail-swiper-image" src="{{item.url}}" mode="aspectFill" />
+            <video
+              wx:else
+              id="marker-detail-video-{{index}}"
+              class="marker-detail-swiper-video"
+              data-index="{{index}}"
+              src="{{item.url}}"
+              poster="{{item.poster}}"
+              object-fit="cover"
+              autoplay="{{true}}"
+              muted="{{true}}"
+              loop="{{true}}"
+              show-center-play-btn="{{false}}"
+              show-play-btn="{{false}}"
+              controls="{{false}}"
+              enable-progress-gesture="{{false}}"
+              bindwaiting="onVideoWaiting"
+              bindplay="onVideoReady"
+              bindloadeddata="onVideoReady"
+              bindloadedmetadata="onVideoReady"
+              bindcanplay="onVideoReady"
+              bindtimeupdate="onVideoReady"
+              bindpause="onVideoReady"
+              bindended="onVideoReady"
+            />
+            <view
+              wx:if="{{item.type === 'video'}}"
+              class="video-fullscreen-hit"
+              catchtap="onInlineVideoTap"
+              data-url="{{item.url}}"
+              data-poster="{{item.poster}}"
+              data-video-id="marker-detail-video-{{index}}"
+            ></view>
+            <view wx:if="{{index === markerDetailCurrentImage && markerDetailVideoLoading}}" class="video-loading-mask">
+              <text class="video-loading-text">加载中...</text>
+            </view>
+          </swiper-item>
+        </block>
+      </swiper>
+      <view class="marker-detail-swiper-dots" wx:if="{{(detailCard.mediaItems && detailCard.mediaItems.length > 1) || (detailCard.images && detailCard.images.length > 1)}}">
+        <block wx:for="{{detailCard.mediaItems && detailCard.mediaItems.length ? detailCard.mediaItems : detailCard.images}}" wx:key="id">
+          <view class="marker-detail-swiper-dot {{index === markerDetailCurrentImage ? 'is-active' : ''}}"></view>
+        </block>
+      </view>
+    </block>
+    <view class="marker-detail-cover marker-detail-cover--placeholder" wx:else>
+      <text class="marker-detail-cover-text">暂无图片</text>
+    </view>
+  </view>
+  <view class="marker-detail-gesture-hint" wx:if="{{markerDetailAllowExpand}}">
+    <text class="marker-detail-gesture-text">上滑查看详情</text>
+  </view>
+  <view
+    class="marker-detail-creator"
+    wx:if="{{detailCard.creatorName}}"
+    catchtouchstart="onMaskTouchMove"
+    catchtouchmove="onMaskTouchMove"
+    catchtouchend="onCreatorTap"
+    catchtouchcancel="onMaskTouchMove"
+  >
+    <view
+      class="marker-detail-creator-link marker-detail-creator-link--detail"
+      catchtouchstart="onMaskTouchMove"
+      catchtouchmove="onMaskTouchMove"
+      catchtouchend="onCreatorTap"
+      catchtouchcancel="onMaskTouchMove"
+    >@{{detailCard.creatorName}}</view>
+  </view>
+</view>

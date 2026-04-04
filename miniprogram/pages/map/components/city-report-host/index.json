@@ -1,0 +1,9 @@
+{
+  "component": true,
+  "usingComponents": {
+    "city-report-h5-entry": "/packages/city-report/components/city-report-h5-entry/index"
+  },
+  "componentPlaceholder": {
+    "city-report-h5-entry": "view"
+  }
+}

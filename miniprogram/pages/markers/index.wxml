@@ -749,6 +749,7 @@
                 <text>商户（门店）名称</text>
               </view>
               <input class="field-input form-input" placeholder="请输入" value="{{form.name}}" data-field="name" bindinput="onFormInput" />
+              <view class="field-tip">最多输入20个汉字或字符</view>
             </view>
 
             <view class="field-row">
@@ -1127,6 +1128,7 @@
               <text>名称</text>
             </view>
             <input class="field-input form-input" placeholder="请输入名称" value="{{myPinForm.name}}" bindinput="onPinNameInput" />
+            <view class="field-tip">最多输入20个汉字或字符</view>
           </view>
           <view class="field-row">
             <view class="field-label">

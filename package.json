@@ -1,0 +1,16 @@
+{
+  "name": "dikongkong-wechat-mini-tools",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:sdk": "node scripts/build-sdk.js",
+    "build:sdk:obfuscate": "node scripts/build-sdk.js --obfuscate"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1",
+    "terser": "^5.39.0"
+  },
+  "dependencies": {
+    "sse-kit": "^2.0.0"
+  }
+}

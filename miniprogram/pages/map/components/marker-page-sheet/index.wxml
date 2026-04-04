@@ -1,0 +1,250 @@
+<view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}" catchtouchmove="noop">
+  <view class="marker-page-mask" bindtap="onMaskTap" catchtouchmove="noop"></view>
+  <scroll-view
+    scroll-y
+    class="marker-page-scroll"
+    bindscroll="onScroll"
+    bindtouchstart="onTouchStart"
+    catchtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchCancel"
+  >
+    <view class="marker-page-hero">
+      <block wx:if="{{(markerPageDetail.mediaItems && markerPageDetail.mediaItems.length) || (markerPageDetail.images && markerPageDetail.images.length)}}">
+        <swiper
+          class="marker-page-swiper"
+          autoplay="{{false}}"
+          circular="{{true}}"
+          bindchange="onSwiperChange"
+          current="{{markerPageCurrentImage}}"
+        >
+          <block wx:for="{{markerPageDetail.mediaItems && markerPageDetail.mediaItems.length ? markerPageDetail.mediaItems : markerPageDetail.images}}" wx:key="id">
+            <swiper-item>
+              <image wx:if="{{item.type !== 'video'}}" class="marker-page-swiper-image" src="{{item.url}}" mode="aspectFill" />
+              <video
+                wx:else
+                id="marker-page-video-{{index}}"
+                class="marker-page-swiper-video"
+                data-index="{{index}}"
+                src="{{item.url}}"
+                poster="{{item.poster}}"
+                object-fit="cover"
+                autoplay="{{true}}"
+                muted="{{false}}"
+                loop="{{true}}"
+                show-center-play-btn="{{false}}"
+                show-play-btn="{{false}}"
+                controls="{{false}}"
+                enable-progress-gesture="{{false}}"
+                bindwaiting="onVideoWaiting"
+                bindplay="onVideoReady"
+                bindloadeddata="onVideoReady"
+                bindloadedmetadata="onVideoReady"
+                bindcanplay="onVideoReady"
+                bindtimeupdate="onVideoReady"
+                bindpause="onVideoReady"
+                bindended="onVideoReady"
+              />
+              <view
+                wx:if="{{item.type === 'video'}}"
+                class="video-fullscreen-hit"
+                catchtap="onInlineVideoTap"
+                data-url="{{item.url}}"
+                data-poster="{{item.poster}}"
+                data-video-id="marker-page-video-{{index}}"
+              ></view>
+              <view wx:if="{{index === markerPageCurrentImage && markerPageVideoLoading}}" class="video-loading-mask">
+                <text class="video-loading-text">加载中...</text>
+              </view>
+            </swiper-item>
+          </block>
+        </swiper>
+        <view class="marker-page-swiper-dots" wx:if="{{(markerPageDetail.mediaItems && markerPageDetail.mediaItems.length) || (markerPageDetail.images && markerPageDetail.images.length)}}">
+          <block wx:for="{{markerPageDetail.mediaItems && markerPageDetail.mediaItems.length ? markerPageDetail.mediaItems : markerPageDetail.images}}" wx:key="id">
+            <view class="marker-page-swiper-dot {{index === markerPageCurrentImage ? 'is-active' : ''}}"></view>
+          </block>
+        </view>
+      </block>
+      <view class="marker-page-hero-placeholder" wx:else>
+        <text class="marker-page-hero-placeholder-text">暂无商户图片</text>
+      </view>
+    </view>
+
+    <view class="marker-page-body">
+      <view class="marker-page-header">
+        <view class="marker-page-header-top">
+          <view class="marker-page-title-row" bindtap="onCertificationTap">
+            <block wx:if="{{markerPageDetail.isCertified}}">
+              <text class="marker-page-title">{{markerPageDetail.titlePrefixText}}</text>
+              <view class="marker-title-badge-group marker-title-badge-group--page">
+                <text class="marker-page-title">{{markerPageDetail.titleTailText}}</text>
+                <image
+                  class="marker-certification-badge marker-certification-badge--page"
+                  src="{{markerSvipIconPath}}"
+                  mode="aspectFit"
+                />
+              </view>
+            </block>
+            <text wx:else class="marker-page-title">{{markerPageDetail.titleDisplayText}}</text>
+          </view>
+          <view class="marker-page-header-actions">
+            <view
+              class="like-badge like-badge--page like-badge--inline {{markerPageLikeAnimating ? 'is-anim' : ''}}"
+              bindtouchstart="onLikeTouchStart"
+              bindtouchend="onLikeTouchEnd"
+              bindtouchcancel="onLikeTouchEnd"
+            >
+              <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
+              <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
+              <image
+                class="like-badge-icon"
+                src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
+                mode="widthFix"
+              />
+              <text
+                class="like-badge-count"
+                data-count="{{markerPageLikeCount}}"
+                bindtap="onLikeCountTap"
+              >
+                {{markerPageLikeCountDisplay}}
+              </text>
+            </view>
+            <block wx:if="{{markerPageShareEnabled}}">
+              <block wx:if="{{markerPageIsPin}}">
+                <button open-type="share" class="marker-page-share-header" hover-class="none">
+                  <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+                </button>
+              </block>
+              <block wx:else>
+                <button class="marker-page-share-header" bindtap="onPosterTap" hover-class="none">
+                  <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+                </button>
+              </block>
+            </block>
+            <block wx:else>
+              <button class="marker-page-share-header marker-page-share-header--disabled" bindtap="onShareDisabledTap" hover-class="none">
+                <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
+              </button>
+            </block>
+          </view>
+        </view>
+      </view>
+
+      <view
+        class="marker-page-honors"
+        wx:if="{{markerPageDetail.honors && markerPageDetail.honors.length}}"
+      >
+        <block wx:for="{{markerPageDetail.honors}}" wx:key="*this">
+          <view class="marker-page-honor-chip">{{item}}</view>
+        </block>
+      </view>
+
+      <view
+        class="marker-page-address"
+        wx:if="{{(markerPageDetail.locationText || markerPageDetail.phone) || (markerPageDetail.latitude && markerPageDetail.longitude)}}"
+      >
+        <view class="marker-page-address-info" wx:if="{{markerPageDetail.locationText}}">
+          <text class="marker-page-address-text">{{markerPageDetail.locationText}}</text>
+          <text
+            class="marker-page-address-distance"
+            wx:if="{{markerPageDistanceText}}"
+          >
+            {{markerPageDistanceText}}
+          </text>
+        </view>
+        <view class="marker-page-address-actions">
+          <view
+            class="marker-page-action"
+            wx:if="{{markerPageDetail.latitude && markerPageDetail.longitude}}"
+            data-latitude="{{markerPageDetail.latitude}}"
+            data-longitude="{{markerPageDetail.longitude}}"
+            data-name="{{markerPageDetail.name || '商户位置'}}"
+            data-address="{{markerPageDetail.locationText || ''}}"
+            bindtap="onNavigateTap"
+          >
+            <view class="marker-page-action-icon">
+              <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
+            </view>
+            <text class="marker-page-action-label">位置</text>
+          </view>
+          <view
+            class="marker-page-action"
+            wx:if="{{markerPageDetail.phone}}"
+            data-phone="{{markerPageDetail.phone}}"
+            data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
+            data-name="{{markerPageDetail.name || ''}}"
+            bindtap="onCallTap"
+          >
+            <view class="marker-page-action-icon">
+              <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
+            </view>
+            <text class="marker-page-action-label">电话</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="marker-page-section">
+        <text class="marker-page-section-title">简介</text>
+        <text class="marker-page-section-text" wx:if="{{markerPageDetail.description}}">{{markerPageDetail.description}}</text>
+        <text class="marker-page-section-text marker-page-section-text--placeholder" wx:else>暂无简介</text>
+      </view>
+
+      <view
+        class="marker-page-section"
+        wx:if="{{markerPageDetail.attachments && markerPageDetail.attachments.length}}"
+      >
+        <text class="marker-page-section-title">附件</text>
+        <view class="marker-page-link-list">
+          <view
+            class="marker-page-link-item"
+            data-url="{{markerPageDetail.attachments[0].url}}"
+            bindtap="onAttachmentTap"
+          >
+            <view class="marker-page-link-info">
+              <text class="marker-page-link-text">企业产品和业务介绍</text>
+            </view>
+            <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
+          </view>
+        </view>
+      </view>
+
+      <block wx:if="{{markerPageDetail.videoAccounts && markerPageDetail.videoAccounts.length}}">
+        <block wx:for="{{markerPageDetail.videoAccounts}}" wx:key="id">
+          <view
+            class="marker-page-link-item marker-page-link-item--video"
+            data-url="{{item.url || ''}}"
+            data-finder="{{item.finderUserName || ''}}"
+            data-activity="{{item.activityId || ''}}"
+            bindtap="onVideoTap"
+          >
+            <view class="marker-page-link-info">
+              <text class="marker-page-link-text">{{markerPageDetail.videoAccounts.length > 1 ? ('视频号内容 ' + (index + 1)) : '丰富的视频案例介绍'}}</text>
+              <text class="marker-page-link-arrow">></text>
+            </view>
+            <image class="marker-page-link-icon" src="/assets/v-account.png" mode="aspectFit" />
+          </view>
+        </block>
+      </block>
+
+      <view
+        class="marker-page-qrcode-wrapper"
+        wx:if="{{markerPageDetail.qrCodes && markerPageDetail.qrCodes.length}}"
+      >
+        <block wx:for="{{markerPageDetail.qrCodes}}" wx:key="index">
+          <image
+            class="marker-page-qrcode"
+            src="{{item.url}}"
+            mode="aspectFit"
+            show-menu-by-longpress="true"
+          />
+        </block>
+      </view>
+
+      <view class="marker-detail-creator marker-detail-creator--page" wx:if="{{markerPageDetail.creatorName}}">
+        <text class="marker-detail-creator-link marker-detail-creator-link--page" catchtap="onCreatorTap">@{{markerPageDetail.creatorName}}</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="marker-page-close-hint">下滑关闭详情</view>
+</view>

@@ -4,7 +4,6 @@
       id="main-map"
       class="map-canvas"
       style="height: calc(100vh + {{statusBarHeight}}px); margin-top: -{{statusBarHeight}}px;"
-      hidden="{{mapBlockerVisible || !mapCenterReady}}"
       longitude="{{center.longitude}}"
       latitude="{{center.latitude}}"
       scale="{{scale}}"
@@ -15,10 +14,10 @@
       subkey="{{mapSubKey}}"
       layer-style="1"
       enable-satellite="{{enableSatellite}}"
-      enable-scroll="{{!mapBlockerVisible && !centerPinFollowActive}}"
-      enable-zoom="{{!mapBlockerVisible}}"
-      enable-rotate="{{!mapBlockerVisible}}"
-      enable-overlooking="{{!mapBlockerVisible}}"
+      enable-scroll="{{!mapBlockerVisible && !centerPinFollowActive && !layerPanelVisible}}"
+      enable-zoom="{{!mapBlockerVisible && !layerPanelVisible}}"
+      enable-rotate="{{!mapBlockerVisible && !layerPanelVisible}}"
+      enable-overlooking="{{!mapBlockerVisible && !layerPanelVisible}}"
       show-location="{{myLocationModeResolved ? !usePlanetCenterPoint : false}}"
       markers="{{markers}}"
       polyline="{{polylines}}"
@@ -38,7 +37,7 @@
       bind:graphicschange="onSearchLinkGraphicsChange"
     />
     <map-center-pin
-      wx:if="{{mapCenterReady && !markerDetailVisible && !markerPageVisible}}"
+      wx:if="{{mapCenterReady}}"
       top-offset-px="{{centerPinOffsetPx}}"
       ui-scale="{{mapUiScale}}"
       satellite="{{mapLayerType === 'satellite'}}"
@@ -89,7 +88,7 @@
       id="subscription-banner"
       class="subscription-banner map-ui-scale-left"
       wx:if="{{activeTab === 'home' && showSubscriptionBanner && !stealthModeActive}}"
-      style="top: {{subscriptionBannerTopPx}}px; {{subscriptionBannerScaleStyle}}"
+      style="top: {{subscriptionBannerTopPx}}px; left: {{subscriptionBannerLeftPx}}px; {{subscriptionBannerScaleStyle}}"
     >
       <view class="subscription-banner-text">
         确保有新功能、空投福利时，您永远是第一批知道的~
@@ -106,7 +105,7 @@
     <view
       class="map-checkin-entry-wrap map-ui-scale-right"
       wx:if="{{activeTab === 'home' && !stealthModeActive}}"
-      style="{{checkinEntryStyle}} {{mapUiScaleStyle}}"
+      style="{{checkinEntryStyle}}"
     >
       <button
         id="map-checkin-entry-btn"
@@ -120,7 +119,11 @@
         />
       </button>
     </view>
-    <view class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}" wx:if="{{compassVisible}}" style="{{mapUiScaleStyle}}">
+    <view
+      class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}"
+      wx:if="{{compassVisible}}"
+      style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{compassBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+    >
       <map-compass
         rotate="{{compassRotate}}"
         skew="{{compassSkew}}"
@@ -128,7 +131,11 @@
         bind:compasstap="onCompassTap"
       />
     </view>
-    <view class="map-scale-container map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}" wx:if="{{scaleBarVisible}}" style="{{mapUiScaleStyle}}">
+    <view
+      class="map-scale-container map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}"
+      wx:if="{{scaleBarVisible}}"
+      style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{scaleControlsBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+    >
       <view class="map-scale">
         <text class="map-scale-label">{{scaleBarLabel}}</text>
         <view class="map-scale-track" style="width: {{scaleBarWidthRpx}}rpx;">
@@ -153,147 +160,66 @@
       </view>
     </view>
 
-    <block wx:if="{{coordinateSystemSheetVisible}}">
-      <view class="coordinate-system-sheet-mask" bindtap="onCoordinateSystemSheetMaskTap"></view>
-      <view class="coordinate-system-sheet" catchtap="onCoordinateSystemSheetTap">
-        <view class="coordinate-system-sheet-row">
-          <block wx:for="{{coordinateSystemOptions}}" wx:key="value">
-            <view
-              class="coordinate-system-sheet-option {{coordinateSystem === item.value ? 'is-active' : ''}}"
-              data-value="{{item.value}}"
-              bindtap="onCoordinateSystemOptionTap"
-            >
-              <view class="coordinate-system-sheet-radio"></view>
-              <text class="coordinate-system-sheet-option-text">{{item.label}}</text>
-            </view>
-          </block>
+    <coordinate-system-sheet
+      visible="{{coordinateSystemSheetVisible}}"
+      wide-layout="{{isWideLayout}}"
+      coordinate-system="{{coordinateSystem}}"
+      coordinate-system-options="{{coordinateSystemOptions}}"
+      coordinate-system-description-nodes="{{coordinateSystemDescriptionNodes}}"
+      bind:masktap="onCoordinateSystemSheetMaskTap"
+      bind:optiontap="onCoordinateSystemOptionTap"
+    />
+
+    <preflight-dashboard
+      wx:if="{{showDashboardPanel}}"
+      id="preflight-dashboard"
+      stealth-mode-active="{{stealthModeActive}}"
+      top-px="{{preflightTopPx}}"
+      left-px="{{preflightLeftPx}}"
+      ui-scale-style="{{mapUiScaleStyle}}"
+      drone-picker-label="{{dronePickerLabel}}"
+      temporary-no-fly-zone-info="{{temporaryNoFlyZoneInfo}}"
+      temporary-no-fly-tone="{{temporaryNoFlyTone}}"
+      temporary-no-fly-text="{{temporaryNoFlyText}}"
+      uom-loading="{{uomLoading}}"
+      uom-tone="{{uomTone}}"
+      uom-status="{{uomStatus}}"
+      dji-tone="{{djiTone}}"
+      dji-color="{{djiColor}}"
+      dji-status="{{djiStatus}}"
+      dji-status-extra="{{djiStatusExtra}}"
+      center-pin-title="{{centerPinTitle}}"
+      keyword="{{keyword}}"
+      search-suggestions="{{searchSuggestions}}"
+      search-suggest-loading="{{searchSuggestLoading}}"
+      search-suggest-error="{{searchSuggestError}}"
+      city-report-center="{{cityReportCenter}}"
+      city-report-active="{{showDashboardPanel && !stealthModeActive}}"
+      city-report-dialog-visible="{{cityReportDialogVisible}}"
+      city-report-dialog-text="{{cityReportDialogText}}"
+      bind:opendronepicker="openDronePicker"
+      bind:temporaryzonelinktap="onTemporaryZoneLinkTap"
+      bind:centerpinindicatortap="onCenterPinIndicatorTap"
+      bind:keywordinput="onKeywordInput"
+      bind:searchconfirm="onSearchConfirm"
+      bind:searchtap="onSearchTap"
+      bind:searchcoordinatetipstap="onSearchCoordinateTipsTap"
+      bind:suggestiontap="onSuggestionTap"
+      bind:cityreportstatechange="onCityReportStateChange"
+      bind:cityreportdialogchange="onCityReportDialogChange"
+      bind:cityreportdialogclose="onCityReportDialogClose"
+    />
+
+    <block wx:if="{{cityReportDialogVisible}}">
+      <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
+        <view class="city-report-dialog-container">
+          <view class="city-report-dialog-card">
+            <text class="city-report-dialog-text">{{cityReportDialogText}}</text>
+            <view class="city-report-dialog-btn" catchtap="onCityReportDialogClose">我知道了</view>
+          </view>
         </view>
-        <rich-text
-          wx:if="{{coordinateSystemDescriptionNodes}}"
-          class="coordinate-system-sheet-description"
-          nodes="{{coordinateSystemDescriptionNodes}}"
-          selectable="true"
-          space="nbsp"
-        />
       </view>
     </block>
-
-    <view class="preflight-overlay map-ui-scale-left {{stealthModeActive ? 'preflight-overlay--stealth' : ''}}" wx:if="{{showDashboardPanel}}" style="top: {{preflightTopPx}}px; {{mapUiScaleStyle}}">
-      <view class="preflight-card">
-        <view wx:if="{{!stealthModeActive}}" class="preflight-title">飞前安全准备</view>
-        <view class="drone-picker-block">
-          <!-- <view class="drone-description">
-            <text class="drone-description-title">此次执飞的无人机型号</text>
-            <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
-          </view> -->
-          <view class="drone-picker-display" bindtap="openDronePicker">
-            <text class="preflight-label">执飞机型：</text>
-            <text class="drone-picker-value picker-underline">{{dronePickerLabel}}</text>
-          </view>
-        </view>
-        <view class="preflight-row temporary-no-fly-row">
-          <view wx:if="{{temporaryNoFlyZoneInfo}}">
-            <view class="temporary-no-fly-content">
-              <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
-              <view
-                wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
-                class="temporary-no-fly-link"
-                hover-class="temporary-no-fly-link-hover"
-                bindtap="onTemporaryZoneLinkTap"
-                data-link="{{temporaryNoFlyZoneInfo.link}}"
-                data-path="{{temporaryNoFlyZoneInfo.linkPath}}"
-              >
-                {{temporaryNoFlyZoneInfo.displayName}}
-              </view>
-              <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
-            </view>
-          </view>
-          <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
-        </view>
-        <view class="preflight-row preflight-row--uom">
-          <view wx:if="{{uomLoading}}" class="preflight-inline-loading" aria-hidden="true">
-            <view class="preflight-inline-loading-trace"></view>
-            <view class="preflight-inline-loading-ring"></view>
-            <view class="preflight-inline-loading-core"></view>
-          </view>
-          <text class="preflight-label">位于UOM划分：</text>
-          <text class="preflight-value {{'tone-' + uomTone}}">{{uomStatus}}</text>
-        </view>
-        <view class="preflight-row">
-          <text class="preflight-label">位于大疆划分：</text>
-          <text class="preflight-value {{'tone-' + djiTone}}" style="color: {{djiColor || ''}};">{{djiStatus}}</text>
-        </view>
-        <text class="preflight-extra" wx:if="{{djiStatusExtra}}">{{djiStatusExtra}}</text>
-        <text
-          class="center-pin-indicator"
-          wx:if="{{centerPinTitle}}"
-          bindtap="onCenterPinIndicatorTap"
-        >
-          {{centerPinTitle}}
-        </text>
-
-        <view wx:if="{{!stealthModeActive}}" class="control-row">
-          <view class="search-stack">
-            <view class="search-pill">
-              <input
-                class="search-field"
-                type="text"
-                placeholder="地址或经纬度"
-                placeholder-style="color:#f1f1f1"
-                value="{{keyword}}"
-                bindinput="onKeywordInput"
-                confirm-type="search"
-                bindconfirm="onSearchConfirm"
-              />
-              <button
-                class="search-btn"
-                hover-class="search-btn-hover"
-                hover-start-time="10"
-                hover-stay-time="80"
-                bindtap="onSearchTap"
-              >
-                <image class="search-btn-icon" src="/assets/search.png" mode="aspectFit" />
-              </button>
-            </view>
-            <button
-              class="search-tips-btn search-tips-btn--outside"
-              hover-class="search-tips-btn-hover"
-              hover-start-time="10"
-              hover-stay-time="80"
-              bindtap="onSearchCoordinateTipsTap"
-            >
-              <image class="search-tips-btn-icon" src="/assets/tip-search.png" mode="aspectFit" />
-            </button>
-            <view class="search-suggest-panel" wx:if="{{searchSuggestions.length || searchSuggestLoading || searchSuggestError}}">
-              <view class="search-suggest-state" wx:if="{{searchSuggestLoading}}">搜索中...</view>
-              <view class="search-suggest-state" wx:elif="{{searchSuggestError}}">{{searchSuggestError}}</view>
-              <scroll-view scroll-y="true" class="search-suggest-scroll" wx:else>
-                <block wx:for="{{searchSuggestions}}" wx:key="id">
-                  <view
-                    class="search-suggest-item"
-                    data-index="{{index}}"
-                    bindtap="onSuggestionTap"
-                  >
-                    <text class="suggest-title {{item.source === 'marker' ? 'suggest-title-marker' : (item.source === 'pin' ? 'suggest-title-pin' : '')}}">
-                      {{item.title}}
-                    </text>
-                    <text class="suggest-address" wx:if="{{item.address}}">{{item.address}}</text>
-                  </view>
-                </block>
-              </scroll-view>
-            </view>
-          </view>
-        </view>
-      </view>
-    <city-report-h5-entry
-      wx:if="{{!stealthModeActive}}"
-      id="city-report-h5-entry"
-      center="{{cityReportCenter}}"
-      active="{{showDashboardPanel && !stealthModeActive}}"
-      bind:statechange="onCityReportStateChange"
-      bind:dialogchange="onCityReportDialogChange"
-    />
-    </view>
 
     <policy-update-modal
       visible="{{policyUpdateVisible}}"
@@ -307,499 +233,111 @@
       bind:privacy="onPolicyPrivacyTap"
     />
 
-    <view class="floating-controls map-ui-scale-right" wx:if="{{activeTab === 'home' && !stealthModeActive}}" style="{{mapUiScaleStyle}}">
-      <!-- <button
-        class="panorama-button"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onPanoramaDemoTap"
-      >
-        <text class="panorama-button-text">360</text>
-      </button> -->
-      <button
-        class="newbie-gift-entry"
-        wx:if="{{showNewbieGiftEntry}}"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onNewbieGiftTap"
-      >
-        <image class="newbie-gift-entry-icon" src="/assets/newbie-gift.png" mode="aspectFit" />
-      </button>
-      <button
-        class="layer-button"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onLayerButtonTap"
-      >
-        <image class="layer-button-icon" src="/assets/layer.png" mode="aspectFit" />
-      </button>
-      <!-- <button
-        class="dashboard-toggle topic-button"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onTopicButtonTap"
-      >
-        <image class="dashboard-toggle-icon" src="/assets/topic.png" mode="aspectFit" />
-      </button> -->
-      <button
-        class="dashboard-toggle"
-        hover-class="dashboard-toggle-hover"
-        bindtap="onMarkerButtonTap"
-      >
-        <image class="dashboard-toggle-icon" src="/assets/idea.png" mode="aspectFit" />
-      </button>
-      <button
-        class="marker-button"
-        hover-class="marker-button-hover"
-        bindtap="onLocateTap"
-      >
-        <image class="marker-button-icon" src="/assets/location.png" mode="aspectFit" />
-      </button>
-    </view>
+    <map-floating-controls
+      visible="{{activeTab === 'home' && !stealthModeActive}}"
+      container-style="right: {{floatingControlsRightPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{floatingControlsBottomPx}}px);"
+      ui-scale-style="{{mapUiScaleStyle}}"
+      show-newbie-gift-entry="{{showNewbieGiftEntry}}"
+      bind:newbiegifttap="onNewbieGiftTap"
+      bind:layerbuttontap="onLayerButtonTap"
+      bind:markerbuttontap="onMarkerButtonTap"
+      bind:locatetap="onLocateTap"
+    />
 
-    <view class="bottom-controls map-ui-scale-bottom" wx:if="{{!stealthModeActive}}" style="{{mapUiScaleStyle}}">
-      <view class="bottom-menu">
-        <button class="menu-btn {{activeTab === 'home' ? 'is-active' : ''}}" bindtap="onMenuHomeTap">
-          <image class="menu-icon" src="{{activeTab === 'home' ? '/assets/home-active.png' : '/assets/home.png'}}" mode="aspectFit" />
-        </button>
-        <button class="menu-btn {{activeTab === 'profile' ? 'is-active' : ''}}" bindtap="onMenuProfileTap" id="menu-profile-btn">
-          <image class="menu-icon" src="{{activeTab === 'profile' ? '/assets/profile-active.png' : '/assets/profile.png'}}" mode="aspectFit" />
-          <view wx:if="{{showProfileRedDot}}" class="menu-badge">
-            <image class="menu-badge-dot" src="/assets/red-point.png" mode="aspectFit" />
-          </view>
-        </button>
-      </view>
+    <map-bottom-nav
+      id="map-bottom-nav"
+      visible="{{!stealthModeActive}}"
+      container-style="bottom: calc(env(safe-area-inset-bottom) + {{bottomNavBottomPx}}px);"
+      wide-layout="{{isWideLayout}}"
+      ui-scale="{{mapUiScale}}"
+      active-tab="{{activeTab}}"
+      show-profile-red-dot="{{showProfileRedDot}}"
+      bind:menuhometap="onMenuHomeTap"
+      bind:menuprofiletap="onMenuProfileTap"
+      bind:chatbuttontap="onChatButtonTap"
+    />
+    <drone-picker-sheet
+      visible="{{dronePickerVisible}}"
+      wide-layout="{{isWideLayout}}"
+      drone-categories="{{droneCategories}}"
+      active-drone-category-index="{{activeDroneCategoryIndex}}"
+      drone-category-items="{{droneCategoryItems}}"
+      pending-drone-index="{{pendingDroneIndex}}"
+      bind:close="closeDronePicker"
+      bind:confirm="confirmDronePicker"
+      bind:selectcategory="onSelectDroneCategory"
+      bind:selectoption="onSelectDroneOption"
+    />
 
-      <button
-        class="chat-fab"
-        hover-class="chat-fab-hover"
-        bindtap="onChatButtonTap"
-      >
-        <image class="chat-fab-icon" src="/assets/ai-chat.png" mode="aspectFit" />
-      </button>
-    </view>
-    <block wx:if="{{dronePickerVisible}}">
-      <view class="drone-picker-mask" bindtap="closeDronePicker"></view>
-      <view class="drone-picker-sheet">
-        <view class="drone-picker-sheet-header">
-          <view class="drone-description">
-            <text class="drone-description-title">此次执飞的无人机型号</text>
-            <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
-          </view>
-          <text class="drone-picker-confirm" bindtap="confirmDronePicker">确定</text>
-        </view>
-        <view class="drone-picker-sheet-body">
-          <scroll-view class="drone-category-list" scroll-y="true">
-            <block wx:for="{{droneCategories}}" wx:key="index">
-              <view
-                class="drone-category-item {{activeDroneCategoryIndex === index ? 'is-active' : ''}}"
-                data-index="{{index}}"
-                bindtap="onSelectDroneCategory"
-              >
-                {{item.label}}
-              </view>
-            </block>
-          </scroll-view>
-          <scroll-view class="drone-model-list" scroll-y="true">
-            <block wx:for="{{droneCategoryItems}}" wx:key="index">
-              <view
-                class="drone-picker-option {{pendingDroneIndex === item.index ? 'is-active' : ''}}"
-                data-index="{{item.index}}"
-                bindtap="onSelectDroneOption"
-              >
-                {{item.name}}
-              </view>
-            </block>
-          </scroll-view>
-        </view>
-      </view>
-    </block>
+    <marker-detail-sheet
+      wx:if="{{markerDetailVisible}}"
+      detail-card="{{detailCard}}"
+      marker-detail-closing="{{markerDetailClosing}}"
+      marker-detail-expanding="{{markerDetailExpanding}}"
+      marker-detail-allow-expand="{{markerDetailAllowExpand}}"
+      marker-detail-current-image="{{markerDetailCurrentImage}}"
+      marker-detail-video-loading="{{markerDetailVideoLoading}}"
+      marker-like-animating="{{markerLikeAnimating}}"
+      marker-like-hint-label="{{markerLikeHintLabel}}"
+      marker-like-result-label="{{markerLikeResultLabel}}"
+      marker-liked="{{markerLiked}}"
+      marker-like-count="{{markerLikeCount}}"
+      marker-like-count-display="{{markerLikeCountDisplay}}"
+      marker-svip-icon-path="{{markerSvipIconPath}}"
+      bind:masktap="onMarkerDetailMaskTap"
+      bind:masktouchmove="onMarkerDetailMaskTouchMove"
+      bind:touchstart="onMarkerDetailTouchStart"
+      bind:touchmove="onMarkerDetailTouchMove"
+      bind:touchend="onMarkerDetailTouchEnd"
+      bind:touchcancel="onMarkerDetailTouchCancel"
+      bind:liketouchstart="onMarkerLikeTouchStart"
+      bind:liketouchend="onMarkerLikeTouchEnd"
+      bind:likecounttap="onLikeCountTap"
+      bind:swiperchange="onMarkerDetailSwiperChange"
+      bind:videowaiting="onMarkerDetailVideoWaiting"
+      bind:videoready="onMarkerDetailVideoReady"
+      bind:inlinevideotap="onMapInlineVideoTap"
+      bind:creatortap="onCreatorNameTap"
+    />
 
-    <block wx:if="{{markerDetailVisible}}">
-      <view
-        class="marker-detail-mask {{markerDetailClosing ? 'marker-detail-mask--closing' : ''}}"
-        bindtap="onMarkerDetailMaskTap"
-        catchtouchmove="onMarkerDetailMaskTouchMove"
-      ></view>
-      <view
-        class="marker-detail-sheet {{markerDetailClosing ? 'is-closing' : ''}} {{markerDetailExpanding ? 'is-expanding' : ''}}"
-        bindtouchstart="onMarkerDetailTouchStart"
-        bindtouchmove="onMarkerDetailTouchMove"
-        bindtouchend="onMarkerDetailTouchEnd"
-        bindtouchcancel="onMarkerDetailTouchCancel"
-      >
-        <view
-          class="like-badge {{markerLikeAnimating ? 'is-anim' : ''}}"
-          bindtouchstart="onMarkerLikeTouchStart"
-          bindtouchend="onMarkerLikeTouchEnd"
-          bindtouchcancel="onMarkerLikeTouchEnd"
-          data-page="{{false}}"
-        >
-          <view class="like-badge-label like-badge-label--hint" wx:if="{{markerLikeHintLabel}}">{{markerLikeHintLabel}}</view>
-          <view class="like-badge-label like-badge-label--result" wx:if="{{markerLikeResultLabel}}">{{markerLikeResultLabel}}</view>
-          <image
-            class="like-badge-icon"
-            src="{{markerLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
-            mode="widthFix"
-          />
-          <text
-            class="like-badge-count"
-            data-count="{{markerLikeCount}}"
-            bindtap="onLikeCountTap"
-          >
-            {{markerLikeCountDisplay}}
-          </text>
-        </view>
-        <view class="marker-detail-handle"></view>
-        <view class="marker-detail-header">
-          <view class="marker-detail-info">
-            <view class="marker-detail-title-row">
-              <block wx:if="{{detailCard.isCertified}}">
-                <text class="marker-detail-name">{{detailCard.titlePrefixText}}</text>
-                <view class="marker-title-badge-group marker-title-badge-group--detail">
-                  <text class="marker-detail-name">{{detailCard.titleTailText}}</text>
-                  <image
-                    class="marker-certification-badge marker-certification-badge--detail"
-                    src="{{markerSvipIconPath}}"
-                    mode="aspectFit"
-                  />
-                </view>
-              </block>
-              <text wx:else class="marker-detail-name">{{detailCard.titleDisplayText}}</text>
-            </view>
-            <text
-              class="marker-detail-location"
-              wx:if="{{detailCard.locationText}}"
-            >
-              {{detailCard.locationText}}
-            </text>
-          </view>
-        </view>
-        <view class="marker-detail-body">
-          <block wx:if="{{(detailCard.mediaItems && detailCard.mediaItems.length) || (detailCard.images && detailCard.images.length)}}">
-            <swiper
-              class="marker-detail-swiper"
-              autoplay="{{false}}"
-              circular="{{true}}"
-              bindchange="onMarkerDetailSwiperChange"
-              current="{{markerDetailCurrentImage}}"
-            >
-              <block wx:for="{{detailCard.mediaItems && detailCard.mediaItems.length ? detailCard.mediaItems : detailCard.images}}" wx:key="id">
-                <swiper-item>
-                  <image wx:if="{{item.type !== 'video'}}" class="marker-detail-swiper-image" src="{{item.url}}" mode="aspectFill" />
-                  <video
-                    wx:else
-                    id="marker-detail-video-{{index}}"
-                    class="marker-detail-swiper-video"
-                    src="{{item.url}}"
-                    poster="{{item.poster}}"
-                    object-fit="cover"
-                    autoplay="{{true}}"
-                    muted="{{true}}"
-                    loop="{{true}}"
-                    show-center-play-btn="{{false}}"
-                    show-play-btn="{{false}}"
-                    controls="{{false}}"
-                    enable-progress-gesture="{{false}}"
-                    bindwaiting="onMarkerDetailVideoWaiting"
-                    bindplay="onMarkerDetailVideoReady"
-                    bindloadeddata="onMarkerDetailVideoReady"
-                    bindcanplay="onMarkerDetailVideoReady"
-                    bindpause="onMarkerDetailVideoReady"
-                    bindended="onMarkerDetailVideoReady"
-                  />
-                  <view
-                    wx:if="{{item.type === 'video'}}"
-                    class="video-fullscreen-hit"
-                    catchtap="onMapInlineVideoTap"
-                    data-url="{{item.url}}"
-                    data-poster="{{item.poster}}"
-                    data-video-id="marker-detail-video-{{index}}"
-                  ></view>
-                  <view wx:if="{{index === markerDetailCurrentImage && markerDetailVideoLoading}}" class="video-loading-mask">
-                    <text class="video-loading-text">加载中...</text>
-                  </view>
-                </swiper-item>
-              </block>
-            </swiper>
-            <view class="marker-detail-swiper-dots" wx:if="{{(detailCard.mediaItems && detailCard.mediaItems.length > 1) || (detailCard.images && detailCard.images.length > 1)}}">
-              <block wx:for="{{detailCard.mediaItems && detailCard.mediaItems.length ? detailCard.mediaItems : detailCard.images}}" wx:key="id">
-                <view class="marker-detail-swiper-dot {{index === markerDetailCurrentImage ? 'is-active' : ''}}"></view>
-              </block>
-            </view>
-          </block>
-          <view class="marker-detail-cover marker-detail-cover--placeholder" wx:else>
-            <text class="marker-detail-cover-text">暂无图片</text>
-          </view>
-        </view>
-        <view class="marker-detail-gesture-hint" wx:if="{{markerDetailAllowExpand}}">
-          <text class="marker-detail-gesture-text">上滑查看详情</text>
-        </view>
-        <view
-          class="marker-detail-creator"
-          wx:if="{{detailCard.creatorName}}"
-          catchtouchstart="noop"
-          catchtouchmove="noop"
-          catchtouchend="onCreatorNameTap"
-          catchtouchcancel="noop"
-        >
-          <view
-            class="marker-detail-creator-link marker-detail-creator-link--detail"
-            catchtouchstart="noop"
-            catchtouchmove="noop"
-            catchtouchend="onCreatorNameTap"
-            catchtouchcancel="noop"
-          >@{{detailCard.creatorName}}</view>
-        </view>
-      </view>
-    </block>
-
-    <block wx:if="{{markerPageVisible}}">
-      <view class="marker-page {{markerPageClosing ? 'marker-page--closing' : 'marker-page--open'}}">
-        <view class="marker-page-mask" bindtap="onMarkerPageMaskTap"></view>
-        <scroll-view
-          scroll-y
-          class="marker-page-scroll"
-          bindscroll="onMarkerPageScroll"
-          bindtouchstart="onMarkerPageTouchStart"
-          bindtouchmove="onMarkerPageTouchMove"
-          bindtouchend="onMarkerPageTouchEnd"
-          bindtouchcancel="onMarkerPageTouchCancel"
-        >
-          <view class="marker-page-hero">
-            <block wx:if="{{(markerPageDetail.mediaItems && markerPageDetail.mediaItems.length) || (markerPageDetail.images && markerPageDetail.images.length)}}">
-              <swiper
-                class="marker-page-swiper"
-                autoplay="{{false}}"
-                circular="{{true}}"
-                bindchange="onMarkerPageSwiperChange"
-                current="{{markerPageCurrentImage}}"
-              >
-                <block wx:for="{{markerPageDetail.mediaItems && markerPageDetail.mediaItems.length ? markerPageDetail.mediaItems : markerPageDetail.images}}" wx:key="id">
-                  <swiper-item>
-                    <image wx:if="{{item.type !== 'video'}}" class="marker-page-swiper-image" src="{{item.url}}" mode="aspectFill" />
-                    <video
-                      wx:else
-                      id="marker-page-video-{{index}}"
-                      class="marker-page-swiper-video"
-                      src="{{item.url}}"
-                      poster="{{item.poster}}"
-                      object-fit="cover"
-                      autoplay="{{true}}"
-                      muted="{{false}}"
-                      loop="{{true}}"
-                      show-center-play-btn="{{false}}"
-                      show-play-btn="{{false}}"
-                      controls="{{false}}"
-                      enable-progress-gesture="{{false}}"
-                      bindwaiting="onMarkerPageVideoWaiting"
-                      bindplay="onMarkerPageVideoReady"
-                      bindloadeddata="onMarkerPageVideoReady"
-                      bindcanplay="onMarkerPageVideoReady"
-                      bindpause="onMarkerPageVideoReady"
-                      bindended="onMarkerPageVideoReady"
-                    />
-                    <view
-                      wx:if="{{item.type === 'video'}}"
-                      class="video-fullscreen-hit"
-                      catchtap="onMapInlineVideoTap"
-                      data-url="{{item.url}}"
-                      data-poster="{{item.poster}}"
-                      data-video-id="marker-page-video-{{index}}"
-                    ></view>
-                    <view wx:if="{{index === markerPageCurrentImage && markerPageVideoLoading}}" class="video-loading-mask">
-                      <text class="video-loading-text">加载中...</text>
-                    </view>
-                  </swiper-item>
-                </block>
-              </swiper>
-              <view class="marker-page-swiper-dots" wx:if="{{(markerPageDetail.mediaItems && markerPageDetail.mediaItems.length) || (markerPageDetail.images && markerPageDetail.images.length)}}">
-                <block wx:for="{{markerPageDetail.mediaItems && markerPageDetail.mediaItems.length ? markerPageDetail.mediaItems : markerPageDetail.images}}" wx:key="id">
-                  <view class="marker-page-swiper-dot {{index === markerPageCurrentImage ? 'is-active' : ''}}"></view>
-                </block>
-              </view>
-            </block>
-            <view class="marker-page-hero-placeholder" wx:else>
-              <text class="marker-page-hero-placeholder-text">暂无商户图片</text>
-            </view>
-          </view>
-
-          <view class="marker-page-body">
-            <view class="marker-page-header">
-              <view class="marker-page-header-top">
-                <view class="marker-page-title-row" bindtap="onMarkerCertificationBadgeTap">
-                  <block wx:if="{{markerPageDetail.isCertified}}">
-                    <text class="marker-page-title">{{markerPageDetail.titlePrefixText}}</text>
-                    <view class="marker-title-badge-group marker-title-badge-group--page">
-                      <text class="marker-page-title">{{markerPageDetail.titleTailText}}</text>
-                      <image
-                        class="marker-certification-badge marker-certification-badge--page"
-                        src="{{markerSvipIconPath}}"
-                        mode="aspectFit"
-                      />
-                    </view>
-                  </block>
-                  <text wx:else class="marker-page-title">{{markerPageDetail.titleDisplayText}}</text>
-                </view>
-                <view class="marker-page-header-actions">
-                  <view
-                    class="like-badge like-badge--page like-badge--inline {{markerPageLikeAnimating ? 'is-anim' : ''}}"
-                    bindtouchstart="onMarkerLikeTouchStart"
-                    bindtouchend="onMarkerLikeTouchEnd"
-                    bindtouchcancel="onMarkerLikeTouchEnd"
-                    data-page="{{true}}"
-                  >
-                    <view class="like-badge-label like-badge-label--hint" wx:if="{{markerPageLikeHintLabel}}">{{markerPageLikeHintLabel}}</view>
-                    <view class="like-badge-label like-badge-label--result" wx:if="{{markerPageLikeResultLabel}}">{{markerPageLikeResultLabel}}</view>
-                    <image
-                      class="like-badge-icon"
-                      src="{{markerPageLiked ? '/assets/like.png' : '/assets/unlike.png'}}"
-                      mode="widthFix"
-                    />
-                    <text
-                      class="like-badge-count"
-                      data-count="{{markerPageLikeCount}}"
-                      bindtap="onLikeCountTap"
-                    >
-                      {{markerPageLikeCountDisplay}}
-                    </text>
-                  </view>
-                  <block wx:if="{{markerPageShareEnabled}}">
-                    <block wx:if="{{markerPageIsPin}}">
-                      <button open-type="share" class="marker-page-share-header" hover-class="none">
-                        <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
-                      </button>
-                    </block>
-                    <block wx:else>
-                      <button class="marker-page-share-header" bindtap="onMarkerPosterTap" hover-class="none">
-                        <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
-                      </button>
-                    </block>
-                  </block>
-                  <block wx:else>
-                    <button class="marker-page-share-header marker-page-share-header--disabled" bindtap="onMarkerPageShareDisabledTap" hover-class="none">
-                      <image class="marker-page-share-header-icon" src="/assets/transmit.png" mode="aspectFit" />
-                    </button>
-                  </block>
-                </view>
-              </view>
-            </view>
-
-            <view
-              class="marker-page-honors"
-              wx:if="{{markerPageDetail.honors && markerPageDetail.honors.length}}"
-            >
-              <block wx:for="{{markerPageDetail.honors}}" wx:key="*this">
-                <view class="marker-page-honor-chip">{{item}}</view>
-              </block>
-            </view>
-
-            <view
-              class="marker-page-address"
-              wx:if="{{(markerPageDetail.locationText || markerPageDetail.phone) || (markerPageDetail.latitude && markerPageDetail.longitude)}}"
-            >
-              <view class="marker-page-address-info" wx:if="{{markerPageDetail.locationText}}">
-                <text class="marker-page-address-text">{{markerPageDetail.locationText}}</text>
-                <text
-                  class="marker-page-address-distance"
-                  wx:if="{{markerPageDistanceText}}"
-                >
-                  {{markerPageDistanceText}}
-                </text>
-              </view>
-              <view class="marker-page-address-actions">
-                <view
-                  class="marker-page-action"
-                  wx:if="{{markerPageDetail.latitude && markerPageDetail.longitude}}"
-                  data-latitude="{{markerPageDetail.latitude}}"
-                  data-longitude="{{markerPageDetail.longitude}}"
-                  data-name="{{markerPageDetail.name || '商户位置'}}"
-                  data-address="{{markerPageDetail.locationText || ''}}"
-                  bindtap="onMarkerPageNavigateTap"
-                >
-                  <view class="marker-page-action-icon">
-                    <image class="marker-page-action-image" src="/assets/m-target.png" mode="aspectFit" />
-                  </view>
-                  <text class="marker-page-action-label">位置</text>
-                </view>
-                <view
-                  class="marker-page-action"
-                  wx:if="{{markerPageDetail.phone}}"
-                  data-phone="{{markerPageDetail.phone}}"
-                  data-marker-id="{{markerPageDetail.markerId || markerPageDetail.id || ''}}"
-                  data-name="{{markerPageDetail.name || ''}}"
-                  bindtap="onMarkerPageCallTap"
-                >
-                  <view class="marker-page-action-icon">
-                    <image class="marker-page-action-image" src="/assets/m-telephone.png" mode="aspectFit" />
-                  </view>
-                  <text class="marker-page-action-label">电话</text>
-                </view>
-              </view>
-            </view>
-
-            <view class="marker-page-section">
-              <text class="marker-page-section-title">简介</text>
-              <text class="marker-page-section-text" wx:if="{{markerPageDetail.description}}">{{markerPageDetail.description}}</text>
-              <text class="marker-page-section-text marker-page-section-text--placeholder" wx:else>暂无简介</text>
-            </view>
-
-            <view
-              class="marker-page-section"
-              wx:if="{{markerPageDetail.attachments && markerPageDetail.attachments.length}}"
-            >
-              <text class="marker-page-section-title">附件</text>
-              <view class="marker-page-link-list">
-                <view
-                  class="marker-page-link-item"
-                  data-url="{{markerPageDetail.attachments[0].url}}"
-                  bindtap="onMarkerPageAttachmentTap"
-                >
-                  <view class="marker-page-link-info">
-                    <text class="marker-page-link-text">企业产品和业务介绍</text>
-                  </view>
-                  <image class="marker-page-link-icon" src="/assets/f-download.png" mode="aspectFit" />
-                </view>
-              </view>
-            </view>
-
-            <block wx:if="{{markerPageDetail.videoAccounts && markerPageDetail.videoAccounts.length}}">
-              <block wx:for="{{markerPageDetail.videoAccounts}}" wx:key="id">
-                <view
-                  class="marker-page-link-item marker-page-link-item--video"
-                  data-url="{{item.url || ''}}"
-                  data-finder="{{item.finderUserName || ''}}"
-                  data-activity="{{item.activityId || ''}}"
-                  bindtap="onMarkerPageVideoTap"
-                >
-                  <view class="marker-page-link-info">
-                    <text class="marker-page-link-text">{{markerPageDetail.videoAccounts.length > 1 ? ('视频号内容 ' + (index + 1)) : '丰富的视频案例介绍'}}</text>
-                    <text class="marker-page-link-arrow">></text>
-                  </view>
-                  <image class="marker-page-link-icon" src="/assets/v-account.png" mode="aspectFit" />
-                </view>
-              </block>
-            </block>
-
-            <view
-              class="marker-page-qrcode-wrapper"
-              wx:if="{{markerPageDetail.qrCodes && markerPageDetail.qrCodes.length}}"
-            >
-              <block wx:for="{{markerPageDetail.qrCodes}}" wx:key="index">
-                <image
-                  class="marker-page-qrcode"
-                  src="{{item.url}}"
-                  mode="aspectFit"
-                  show-menu-by-longpress="true"
-                />
-              </block>
-            </view>
-
-            <view class="marker-detail-creator marker-detail-creator--page" wx:if="{{markerPageDetail.creatorName}}">
-              <text class="marker-detail-creator-link marker-detail-creator-link--page" catchtap="onCreatorNameTap">@{{markerPageDetail.creatorName}}</text>
-            </view>
-          </view>
-        </scroll-view>
-
-        <view class="marker-page-close-hint">下滑关闭详情</view>
-      </view>
-    </block>
+    <marker-page-sheet
+      wx:if="{{markerPageVisible}}"
+      marker-page-closing="{{markerPageClosing}}"
+      marker-page-detail="{{markerPageDetail}}"
+      marker-page-current-image="{{markerPageCurrentImage}}"
+      marker-page-video-loading="{{markerPageVideoLoading}}"
+      marker-page-like-animating="{{markerPageLikeAnimating}}"
+      marker-page-like-hint-label="{{markerPageLikeHintLabel}}"
+      marker-page-like-result-label="{{markerPageLikeResultLabel}}"
+      marker-page-liked="{{markerPageLiked}}"
+      marker-page-like-count="{{markerPageLikeCount}}"
+      marker-page-like-count-display="{{markerPageLikeCountDisplay}}"
+      marker-page-share-enabled="{{markerPageShareEnabled}}"
+      marker-page-is-pin="{{markerPageIsPin}}"
+      marker-page-distance-text="{{markerPageDistanceText}}"
+      marker-svip-icon-path="{{markerSvipIconPath}}"
+      bind:masktap="onMarkerPageMaskTap"
+      bind:scroll="onMarkerPageScroll"
+      bind:touchstart="onMarkerPageTouchStart"
+      bind:touchmove="onMarkerPageTouchMove"
+      bind:touchend="onMarkerPageTouchEnd"
+      bind:touchcancel="onMarkerPageTouchCancel"
+      bind:swiperchange="onMarkerPageSwiperChange"
+      bind:videowaiting="onMarkerPageVideoWaiting"
+      bind:videoready="onMarkerPageVideoReady"
+      bind:inlinevideotap="onMapInlineVideoTap"
+      bind:certificationtap="onMarkerCertificationBadgeTap"
+      bind:liketouchstart="onMarkerLikeTouchStart"
+      bind:liketouchend="onMarkerLikeTouchEnd"
+      bind:likecounttap="onLikeCountTap"
+      bind:postertap="onMarkerPosterTap"
+      bind:sharedisabledtap="onMarkerPageShareDisabledTap"
+      bind:navigatetap="onMarkerPageNavigateTap"
+      bind:calltap="onMarkerPageCallTap"
+      bind:attachmenttap="onMarkerPageAttachmentTap"
+      bind:videotap="onMarkerPageVideoTap"
+      bind:creatortap="onCreatorNameTap"
+    />
 
     <block wx:if="{{markerCertificationSheetVisible}}">
       <view
@@ -828,92 +366,33 @@
       </view>
     </block>
 
-    <block wx:if="{{layerPanelVisible}}">
-      <view class="layer-panel-mask" bindtap="onLayerPanelMaskTap"></view>
-      <view class="layer-panel {{layerPanelClosing ? 'is-closing' : 'is-open'}}">
-        <view class="layer-panel-header">
-          <text class="layer-panel-title">图层</text>
-          <view class="layer-panel-close" bindtap="onLayerPanelClose">
-            <image class="layer-panel-close-icon" src="/assets/marker-detail-close.png" mode="aspectFit" />
-          </view>
-        </view>
-
-        <view class="layer-type-grid">
-          <view
-            class="layer-card {{mapLayerType === 'standard' ? 'is-active' : ''}}"
-            data-type="standard"
-            bindtap="onMapLayerSelect"
-          >
-            <view class="layer-card-thumb-wrap">
-              <image class="layer-card-thumb" src="/assets/map-standard.png" mode="aspectFill" />
-            </view>
-            <text class="layer-card-label">标准图层</text>
-          </view>
-          <view
-            class="layer-card {{mapLayerType === 'satellite' ? 'is-active' : ''}}"
-            data-type="satellite"
-            bindtap="onMapLayerSelect"
-          >
-            <view class="layer-card-thumb-wrap">
-              <image class="layer-card-thumb" src="/assets/map-satellite.png" mode="aspectFill" />
-            </view>
-            <text class="layer-card-label">卫星图</text>
-          </view>
-        </view>
-
-        <view class="layer-panel-section layer-panel-section--switch">
-          <view class="airboard-row">
-            <view class="airboard-icon"></view>
-            <text class="airboard-label">空域看板</text>
-            <switch
-              class="airboard-switch"
-              checked="{{airBoardEnabled}}"
-              color="#000000"
-              bindchange="onAirBoardSwitchChange"
-            />
-          </view>
-          <view class="airboard-row">
-            <image class="planet-center-icon" src="/assets/p-point.svg" mode="aspectFit" />
-            <text class="airboard-label">使用星球我的位置点</text>
-            <switch
-              class="airboard-switch"
-              checked="{{usePlanetCenterPoint}}"
-              color="#000000"
-              bindchange="onUsePlanetCenterPointSwitchChange"
-            />
-          </view>
-          <view class="airboard-row">
-            <image class="planet-center-icon" src="/assets/line.png" mode="aspectFit" />
-            <text class="airboard-label">开启中心点到目标连线/距离</text>
-            <switch
-              class="airboard-switch"
-              checked="{{centerTargetLinkEnabled}}"
-              color="#000000"
-              bindchange="onCenterTargetLinkSwitchChange"
-            />
-          </view>
-        </view>
-
-        <view class="layer-panel-section">
-          <text class="layer-panel-section-title">地图元素</text>
-          <view class="layer-element-grid">
-            <block wx:for="{{mapElementOptions}}" wx:key="id">
-              <view class="layer-element-item" data-id="{{item.id}}" bindtap="onMapElementToggle">
-                <image
-                  wx:if="{{item.enabled}}"
-                  class="layer-element-icon"
-                  src="/assets/check.png"
-                  mode="aspectFit"
-                />
-                <view wx:else class="layer-element-icon layer-element-icon--off"></view>
-                <text class="layer-element-label">{{item.label}}</text>
-              </view>
-            </block>
-          </view>
-          <text class="layer-panel-hint">更多图层配置将陆续上线</text>
-        </view>
-      </view>
-    </block>
+    <map-layer-panel
+      wx:if="{{layerPanelVisible}}"
+      id="map-layer-panel"
+      layer-panel-closing="{{layerPanelClosing}}"
+      layer-panel-max-height-px="{{layerPanelMaxHeightPx}}"
+      layer-panel-body-height-px="{{layerPanelBodyHeightPx}}"
+      layer-panel-body-max-height-px="{{layerPanelBodyMaxHeightPx}}"
+      map-layer-type="{{mapLayerType}}"
+      air-board-enabled="{{airBoardEnabled}}"
+      use-planet-center-point="{{usePlanetCenterPoint}}"
+      center-target-link-enabled="{{centerTargetLinkEnabled}}"
+      province-city-highlight-enabled="{{provinceCityHighlightEnabled}}"
+      province-city-tree="{{provinceCityTree}}"
+      province-city-highlight-loading="{{provinceCityHighlightLoading}}"
+      province-city-highlight-error="{{provinceCityHighlightError}}"
+      map-element-options="{{mapElementOptions}}"
+      bind:masktap="onLayerPanelMaskTap"
+      bind:close="onLayerPanelClose"
+      bind:maplayerselect="onMapLayerSelect"
+      bind:airboardswitchchange="onAirBoardSwitchChange"
+      bind:useplanetcenterpointswitchchange="onUsePlanetCenterPointSwitchChange"
+      bind:centertargetlinkswitchchange="onCenterTargetLinkSwitchChange"
+      bind:provincecityhighlightswitchchange="onProvinceCityHighlightSwitchChange"
+      bind:provincecitytreeexpandtap="onProvinceCityTreeExpandTap"
+      bind:provincecitytreeselecttap="onProvinceCityTreeSelectTap"
+      bind:mapelementtoggle="onMapElementToggle"
+    />
 
     <block wx:if="{{callSheetVisible}}">
       <view class="call-sheet-mask" bindtap="onCallSheetMaskTap"></view>
@@ -927,17 +406,6 @@
     </block>
 
   </view>
-
-  <block wx:if="{{cityReportDialogVisible}}">
-    <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">
-      <view class="city-report-dialog-container">
-        <view class="city-report-dialog-card">
-          <text class="city-report-dialog-text">{{cityReportDialogText}}</text>
-          <view class="city-report-dialog-btn" catchtap="onCityReportDialogClose">我知道了</view>
-        </view>
-      </view>
-    </view>
-  </block>
 
   <block wx:if="{{searchCoordinateTipsVisible}}">
     <view class="city-report-dialog-overlay" catchtouchmove="noop" catchtap="noop">

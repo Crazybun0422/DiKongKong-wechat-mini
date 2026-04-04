@@ -151,6 +151,7 @@ App({
     apiBase: API_BASE_URL,
     guideAssetBase: GUIDE_ASSET_BASE_URL,
     mapKey: "",
+    initialUsePlanetCenterPoint: null,
     pendingMarkerFocus: null,
     pendingPinPreview: null,
     pendingInviteCode: "",

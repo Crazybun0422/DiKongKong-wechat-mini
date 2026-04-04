@@ -1146,21 +1146,17 @@ const ensureEasterEggResourceExtracted = async (options = {}) => {
   if (!extractedPath) {
     throw new Error("missing-user-data-path");
   }
-  const extractedStat = await getPathStat(extractedPath);
-  if (extractedStat.exists && extractedStat.isDirectory) {
-    return {
-      fileName,
-      version,
-      zipPath,
-      extractedPath
-    };
-  }
-
   await removePathQuietly(extractedPath);
   await ensureDirectory(extractedPath);
-  await unzipArchiveToDirectory(zipPath, extractedPath);
+  try {
+    await unzipArchiveToDirectory(zipPath, extractedPath);
+  } catch (err) {
+    await removePathQuietly(extractedPath);
+    throw err;
+  }
   const extractedStatAfterUnzip = await getPathStat(extractedPath);
   if (!extractedStatAfterUnzip.exists || !extractedStatAfterUnzip.isDirectory) {
+    await removePathQuietly(extractedPath);
     throw new Error("unpacked-directory-missing");
   }
   return {

@@ -624,6 +624,121 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
 
+  /api/config/province-city-kml-zip:
+    get:
+      summary: 获取省市 KML zip 资源包信息
+      description: 管理员和普通用户均可调用，返回当前省市 KML zip 包文件名与版本号。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseProvinceCityKmlZipConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 上传省市 KML zip 资源包
+      description: 仅管理员可调用，上传 zip 资源包并保存版本号。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - version
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 省市 KML zip 文件。
+                version:
+                  type: string
+                  description: 资源包版本号。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseProvinceCityKmlZipConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/province-city-kml-zip/latest/download:
+    get:
+      summary: 下载最新省市 KML zip 资源包
+      description: 管理员和普通用户均可调用，下载当前最新版本 zip 文件（附件流）。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 返回完整文件流。
+          headers:
+            Content-Disposition:
+              description: 附件下载文件名。
+              schema:
+                type: string
+            Content-Length:
+              description: 完整文件大小（字节）。
+              schema:
+                type: integer
+                format: int64
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 文件不存在。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
   /api/config/invite-guide:
     get:
       summary: 获取邀请攻略文案
@@ -1257,6 +1372,99 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/watermark:
+    get:
+      summary: 获取当前用户水印配置
+      description: 仅普通用户可调用，返回当前登录用户自己保存在 MongoDB 中的水印位置与水印文案。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWatermarkConfigResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 创建或更新当前用户水印配置
+      description: 仅普通用户可调用，用于创建或更新当前登录用户自己保存在 MongoDB 中的水印配置记录。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatermarkConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWatermarkConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/watermark/all:
+    get:
+      summary: 分页获取全部用户水印配置
+      description: 仅管理员可调用，分页返回 MongoDB 中所有已保存的用户水印配置。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+          description: 每页条数，最小为 1。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWatermarkConfigPageResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/wechat-pay:
     get:
       summary: 获取微信支付配置
@@ -1641,6 +1849,26 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/EasterEggResourceConfigResponse'
+    ProvinceCityKmlZipConfigResponse:
+      type: object
+      properties:
+        fileName:
+          type: string
+          description: 省市 KML zip 资源包在存储中的对象名称。
+        version:
+          type: string
+          description: 省市 KML zip 资源包版本号。
+    ApiResponseProvinceCityKmlZipConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/ProvinceCityKmlZipConfigResponse'
     EasterEggResourceDownloadProgressMessage:
       type: object
       properties:
@@ -2040,6 +2268,80 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/PinVideoUploadFlpLimitResponse'
+    WatermarkConfigRequest:
+      type: object
+      required:
+        - position
+        - text
+      properties:
+        position:
+          type: string
+          description: "Watermark position. Allowed values: top-left, top-right, bottom-left, bottom-right, center, tiled."
+          enum:
+            - top-left
+            - top-right
+            - bottom-left
+            - bottom-right
+            - center
+            - tiled
+        text:
+          type: string
+          description: 水印文字内容。
+    WatermarkConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/WatermarkConfigRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置最后更新时间。
+    ApiResponseWatermarkConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WatermarkConfigResponse'
+    WatermarkConfigListItemResponse:
+      allOf:
+        - $ref: '#/components/schemas/WatermarkConfigResponse'
+        - type: object
+          properties:
+            featureCode:
+              type: string
+              description: 水印所属用户的 featureCode。
+    WatermarkConfigPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/WatermarkConfigListItemResponse'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    ApiResponseWatermarkConfigPageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/WatermarkConfigPageResponse'
     WechatPayConfigRequest:
       type: object
       required:
