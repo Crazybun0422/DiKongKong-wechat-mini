@@ -198,6 +198,7 @@
       city-report-dialog-visible="{{cityReportDialogVisible}}"
       city-report-dialog-text="{{cityReportDialogText}}"
       bind:opendronepicker="openDronePicker"
+      bind:temporarynoticeentrytap="onTemporaryNoticeEntryTap"
       bind:temporaryzonelinktap="onTemporaryZoneLinkTap"
       bind:centerpinindicatortap="onCenterPinIndicatorTap"
       bind:keywordinput="onKeywordInput"

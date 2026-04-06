@@ -35,8 +35,8 @@
   "packOptions": {
     "ignore": [
       {
-        "type": "folder",
-        "value": "miniprogram/map-meta-data"
+        "value": "miniprogram/map-meta-data",
+        "type": "folder"
       }
     ],
     "include": []

@@ -17,10 +17,53 @@ function getWindowMetrics() {
   }
 }
 
+function isAppleRuntime() {
+  try {
+    if (typeof wx.getDeviceInfo === "function") {
+      const deviceInfo = wx.getDeviceInfo() || {};
+      const platform = `${deviceInfo.platform || ""}`.toLowerCase();
+      const system = `${deviceInfo.system || ""}`.toLowerCase();
+      const model = `${deviceInfo.model || ""}`.toLowerCase();
+      if (
+        platform === "ios" ||
+        system.includes("ios") ||
+        model.includes("iphone") ||
+        model.includes("ipad")
+      ) {
+        return true;
+      }
+    }
+  } catch (error) {}
+  try {
+    const systemInfo = wx.getSystemInfoSync() || {};
+    const platform = `${systemInfo.platform || ""}`.toLowerCase();
+    const system = `${systemInfo.system || ""}`.toLowerCase();
+    const model = `${systemInfo.model || ""}`.toLowerCase();
+    return (
+      platform === "ios" ||
+      system.includes("ios") ||
+      model.includes("iphone") ||
+      model.includes("ipad")
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
 function rpxToPx(value) {
   const metrics = getWindowMetrics();
   const width = Number(metrics.windowWidth) || 375;
   return value * width / 750;
+}
+
+function resolveUiScale(styleValue = "") {
+  const text = `${styleValue || ""}`;
+  const match = text.match(/scale\(([-+]?\d*\.?\d+)\)/i);
+  const scale = Number(match && match[1]);
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return 1;
+  }
+  return scale;
 }
 
 function wrapPathLength(value, total) {
@@ -235,6 +278,13 @@ Component({
         return;
       }
       this.schedulePreflightGlowInit();
+    },
+
+    "uiScaleStyle, leftPx, topPx"() {
+      if (this.properties.stealthModeActive) {
+        return;
+      }
+      this.schedulePreflightGlowInit();
     }
   },
 
@@ -265,8 +315,12 @@ Component({
         this.stopPreflightGlow();
 
         const insetPx = rpxToPx(PREFLIGHT_ENTRY_CANVAS_INSET_RPX);
-        const cssWidth = Math.max(entryRect.width - insetPx * 2, 1);
-        const cssHeight = Math.max(entryRect.height - insetPx * 2, 1);
+        const uiScale = resolveUiScale(this.properties.uiScaleStyle);
+        const compensateScale = uiScale < 0.999 && !isAppleRuntime();
+        const localWidth = Math.max(compensateScale ? entryRect.width / uiScale : entryRect.width, 1);
+        const localHeight = Math.max(compensateScale ? entryRect.height / uiScale : entryRect.height, 1);
+        const cssWidth = Math.max(localWidth - insetPx * 2, 1);
+        const cssHeight = Math.max(localHeight - insetPx * 2, 1);
         const style = `left:${insetPx}px;top:${insetPx}px;width:${cssWidth}px;height:${cssHeight}px;`;
 
         this.setData({ preflightGlowCanvasStyle: style }, () => {
@@ -344,6 +398,10 @@ Component({
 
     onOpenDronePickerTap() {
       this.triggerEvent("opendronepicker");
+    },
+
+    onTemporaryNoticeEntryTap() {
+      this.triggerEvent("temporarynoticeentrytap");
     },
 
     onTemporaryZoneLinkTap(event = {}) {
