@@ -2,6 +2,7 @@
   "pages": [
     "pages/entry/index",
     "pages/map/map",
+    "pages/temporary-no-fly-announcement/index",
     "pages/topic/topic",
     "pages/webview/index"
   ],
