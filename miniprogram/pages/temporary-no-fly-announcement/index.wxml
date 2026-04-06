@@ -1,0 +1,6 @@
+<view class="temporary-no-fly-announcement-page">
+  <view class="temporary-no-fly-announcement-card">
+    <text class="temporary-no-fly-announcement-title">临时禁飞区公告页</text>
+    <text class="temporary-no-fly-announcement-desc">正在开发中</text>
+  </view>
+</view>
