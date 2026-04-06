@@ -285,6 +285,14 @@ function onTemporaryZoneLinkTap(page, event = {}) {
   page.showPlaceholderToast("链接不可用");
 }
 
+function onTemporaryNoticeEntryTap(page) {
+  if (typeof wx !== "undefined" && typeof wx.navigateTo === "function") {
+    wx.navigateTo({ url: "/pages/temporary-no-fly-announcement/index" });
+    return;
+  }
+  page.showPlaceholderToast("当前版本暂不支持打开公告页");
+}
+
 function onCenterPinIndicatorTap(page) {
   if (page.shouldSuppressCenterPinOpen()) return;
   const opened = page.openMarkerOrPinAtCenter();
@@ -687,6 +695,7 @@ module.exports = {
   onSearchTap,
   onSearchCoordinateTipsTap,
   onCloseSearchCoordinateTipsDialog,
+  onTemporaryNoticeEntryTap,
   onTemporaryZoneLinkTap,
   onCenterPinIndicatorTap,
   buildSearchSelectionMarker,

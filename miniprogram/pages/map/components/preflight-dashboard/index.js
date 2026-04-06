@@ -399,6 +399,10 @@ Component({
       this.triggerEvent("opendronepicker");
     },
 
+    onTemporaryNoticeEntryTap() {
+      this.triggerEvent("temporarynoticeentrytap");
+    },
+
     onTemporaryZoneLinkTap(event = {}) {
       const dataset = event.currentTarget?.dataset || {};
       this.triggerEvent("temporaryzonelinktap", {

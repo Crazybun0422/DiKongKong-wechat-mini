@@ -18,7 +18,7 @@
         style="{{preflightGlowCanvasStyle}}"
       ></canvas>
       <image class="preflight-entry-icon" src="/assets/preflight-save.png" mode="aspectFit" />
-      <text class="preflight-entry-text">飞行安全准备</text>
+      <text class="preflight-entry-text">飞前安全准备</text>
       <view class="preflight-entry-chevron-group" aria-hidden="true">
         <text class="preflight-entry-chevron preflight-entry-chevron--first">></text>
         <text class="preflight-entry-chevron preflight-entry-chevron--second">></text>
@@ -29,25 +29,6 @@
         <text class="preflight-label">执飞机型：</text>
         <text class="drone-picker-value picker-underline">{{dronePickerLabel}}</text>
       </view>
-    </view>
-    <view class="preflight-row temporary-no-fly-row">
-      <view wx:if="{{temporaryNoFlyZoneInfo}}">
-        <view class="temporary-no-fly-content">
-          <image class="temporary-no-fly-icon" src="/assets/alarm.png" mode="widthFix" />
-          <view
-            wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
-            class="temporary-no-fly-link"
-            hover-class="temporary-no-fly-link-hover"
-            bindtap="onTemporaryZoneLinkTap"
-            data-link="{{temporaryNoFlyZoneInfo.link}}"
-            data-path="{{temporaryNoFlyZoneInfo.linkPath}}"
-          >
-            {{temporaryNoFlyZoneInfo.displayName}}
-          </view>
-          <text wx:else class="temporary-no-fly-name">{{temporaryNoFlyZoneInfo.displayName}}</text>
-        </view>
-      </view>
-      <text class="preflight-value {{'tone-' + temporaryNoFlyTone}}" wx:else>{{temporaryNoFlyText}}</text>
     </view>
     <view class="preflight-row preflight-row--uom">
       <view wx:if="{{uomLoading}}" class="preflight-inline-loading" aria-hidden="true">
@@ -127,6 +108,36 @@
           </scroll-view>
         </view>
       </view>
+    </view>
+  </view>
+  <view class="temporary-notice-card">
+    <view
+      class="temporary-notice-entry"
+      hover-class="temporary-notice-entry-hover"
+      hover-start-time="10"
+      hover-stay-time="80"
+      bindtap="onTemporaryNoticeEntryTap"
+    >
+      <image class="temporary-notice-card-icon" src="/assets/speaker.png" mode="aspectFit" />
+      <view class="temporary-notice-card-body">
+        <text class="temporary-notice-card-title">查看临时禁飞区公告</text>
+      </view>
+      <text class="temporary-notice-card-arrow">></text>
+    </view>
+    <view wx:if="{{temporaryNoFlyZoneInfo}}" class="temporary-notice-zone-row">
+      <view
+        wx:if="{{temporaryNoFlyZoneInfo.hasLink}}"
+        class="temporary-notice-zone-link"
+        hover-class="temporary-notice-zone-link-hover"
+        hover-start-time="10"
+        hover-stay-time="80"
+        bindtap="onTemporaryZoneLinkTap"
+        data-link="{{temporaryNoFlyZoneInfo.link}}"
+        data-path="{{temporaryNoFlyZoneInfo.linkPath}}"
+      >
+        {{temporaryNoFlyZoneInfo.name || temporaryNoFlyZoneInfo.displayName}}
+      </view>
+      <text wx:else class="temporary-notice-zone-name">{{temporaryNoFlyZoneInfo.name || temporaryNoFlyZoneInfo.displayName}}</text>
     </view>
   </view>
   <city-report-host

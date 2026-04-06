@@ -1279,6 +1279,10 @@ Page({
     return miscActionsUtils.onMapCheckinEntryTap(this);
   },
 
+  onTemporaryNoticeEntryTap() {
+    return preflightDashboardUtils.onTemporaryNoticeEntryTap(this);
+  },
+
   onTemporaryZoneLinkTap(event) {
     return preflightDashboardUtils.onTemporaryZoneLinkTap(this, event);
   },
