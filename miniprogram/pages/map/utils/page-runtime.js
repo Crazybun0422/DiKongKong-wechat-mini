@@ -219,7 +219,7 @@ function ensureProfileAuthenticated(page) {
     return Promise.resolve(loadStoredProfile());
   }
   const showLoading = typeof wx.showLoading === "function";
-  const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+  const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
   const profile = loadStoredProfile() || {};
   if (showLoading) wx.showLoading({ title: "登录中...", mask: true });
   return ensureAccessToken(page, { profileOverride: profile })
@@ -423,11 +423,14 @@ function refreshResponsiveLayout(page, options = {}) {
   const subscriptionBannerLeftPx = roundAnchorPx(16);
   const preflightLeftPx = roundAnchorPx(16);
   const scaleControlsLeftPx = roundAnchorPx(32);
-  const scaleControlsBottomPx = roundAnchorPx(240);
-  const compassBottomPx = roundAnchorPx(490);
+  const scaleControlsBottomPx = roundAnchorPx(360);
+  const compassBottomPx = roundAnchorPx(610);
   const floatingControlsRightPx = roundAnchorPx(32);
   const floatingControlsBottomPx = roundAnchorPx(262);
   const bottomNavBottomPx = roundAnchorPx(42);
+  const weatherWidgetLeftPx = roundAnchorPx(32);
+  const weatherWidgetWidthPx = roundAnchorPx(252);
+  const weatherWidgetBottomPx = roundAnchorPx(234);
   if (page.data.subscriptionBannerLeftPx !== subscriptionBannerLeftPx) {
     updates.subscriptionBannerLeftPx = subscriptionBannerLeftPx;
   }
@@ -451,6 +454,15 @@ function refreshResponsiveLayout(page, options = {}) {
   }
   if (page.data.bottomNavBottomPx !== bottomNavBottomPx) {
     updates.bottomNavBottomPx = bottomNavBottomPx;
+  }
+  if (page.data.weatherWidgetLeftPx !== weatherWidgetLeftPx) {
+    updates.weatherWidgetLeftPx = weatherWidgetLeftPx;
+  }
+  if (page.data.weatherWidgetWidthPx !== weatherWidgetWidthPx) {
+    updates.weatherWidgetWidthPx = weatherWidgetWidthPx;
+  }
+  if (page.data.weatherWidgetBottomPx !== weatherWidgetBottomPx) {
+    updates.weatherWidgetBottomPx = weatherWidgetBottomPx;
   }
   const windowHeight = Number(metrics.windowHeight);
   if (Number.isFinite(windowHeight) && windowHeight > 0) {

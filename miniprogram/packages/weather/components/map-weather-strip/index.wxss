@@ -1,0 +1,97 @@
+.weather-strip {
+  position: absolute;
+  z-index: 37;
+  pointer-events: auto;
+}
+
+.weather-strip-shell {
+  border-radius: 24rpx;
+  padding: 14rpx 18rpx;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
+  box-shadow: 0 12rpx 26rpx rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12rpx);
+}
+
+.weather-strip--satellite .weather-strip-shell {
+  background: rgba(15, 23, 42, 0.34);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
+}
+
+.weather-strip-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.weather-strip-line--visibility,
+.weather-strip-line--secondary {
+  margin-top: 8rpx;
+}
+
+.weather-strip-text,
+.weather-strip-value,
+.weather-strip-state-text {
+  line-height: 1.2;
+  color: rgba(15, 23, 42, 0.84);
+  white-space: nowrap;
+}
+
+.weather-strip-text {
+  font-size: 20rpx;
+}
+
+.weather-strip-text--strong,
+.weather-strip-state-text {
+  font-weight: 700;
+}
+
+.weather-strip-value {
+  font-size: 20rpx;
+}
+
+.weather-strip-value--visibility {
+  font-size: 28rpx;
+  font-weight: 700;
+  letter-spacing: -0.2rpx;
+}
+
+.weather-strip--satellite .weather-strip-text,
+.weather-strip--satellite .weather-strip-value,
+.weather-strip--satellite .weather-strip-state-text {
+  color: #f8fafc;
+}
+
+.weather-strip-state {
+  min-height: 44rpx;
+  display: flex;
+  align-items: center;
+}
+
+.weather-strip-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.weather-strip-skeleton-line {
+  height: 14rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0.16)
+  );
+}
+
+.weather-strip-skeleton-line--sm {
+  width: 150rpx;
+}
+
+.weather-strip-skeleton-line--md {
+  width: 220rpx;
+}

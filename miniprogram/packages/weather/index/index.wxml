@@ -1,0 +1,90 @@
+<view class="weather-page {{satellite ? 'weather-page--satellite' : ''}}">
+  <view class="weather-scroll">
+    <view wx:if="{{!featureEnabled}}" class="weather-state-card">
+      <text class="weather-state-title">星球气象暂时隐藏</text>
+    </view>
+
+    <block wx:else>
+      <view class="weather-hero-card {{satellite ? 'weather-hero-card--satellite' : ''}}">
+        <view class="weather-hero-top">
+          <view class="weather-brand-pill">星球气象</view>
+          <text class="weather-updated-text">
+            {{loading ? '同步中...' : (updatedAtText ? '更新于 ' + updatedAtText : '地图中心点天气')}}
+          </text>
+        </view>
+
+        <view wx:if="{{currentWeather}}" class="weather-hero-main">
+          <image class="weather-hero-icon" src="{{currentWeather.iconPath}}" mode="aspectFit" />
+          <view class="weather-hero-copy">
+            <text class="weather-hero-title">{{currentWeather.weatherLabel}}</text>
+            <text class="weather-hero-subtitle">{{sourceLabel}}</text>
+            <text class="weather-hero-coords">{{centerText}}</text>
+          </view>
+        </view>
+
+        <view wx:elif="{{loading}}" class="weather-hero-loading">
+          <text class="weather-hero-loading-text">正在拉取中心点天气...</text>
+        </view>
+
+        <view wx:else class="weather-hero-loading">
+          <text class="weather-hero-loading-text">暂无可展示的天气数据</text>
+        </view>
+      </view>
+
+      <view wx:if="{{error && (!weatherCards || !weatherCards.length)}}" class="weather-state-card">
+        <text class="weather-state-title">{{error}}</text>
+        <button class="weather-retry-btn" bindtap="onRetryTap" loading="{{loading}}">重新获取</button>
+      </view>
+
+      <block wx:else>
+        <view class="weather-metric-row">
+          <block wx:for="{{currentMetricCards}}" wx:key="key">
+            <view class="weather-metric-card {{satellite ? 'weather-metric-card--satellite' : ''}}">
+              <view class="weather-metric-head">
+                <image wx:if="{{item.iconPath}}" class="weather-metric-icon" src="{{item.iconPath}}" mode="aspectFit" />
+                <text class="weather-metric-label">{{item.label}}</text>
+              </view>
+              <text class="weather-metric-value">{{item.value}}</text>
+            </view>
+          </block>
+        </view>
+
+        <view class="weather-section">
+          <view class="weather-forecast-grid">
+            <block wx:for="{{weatherCards}}" wx:key="key">
+              <view class="weather-forecast-card {{satellite ? 'weather-forecast-card--satellite' : ''}}">
+                <view class="weather-forecast-top">
+                  <text class="weather-forecast-title">{{item.label}}</text>
+                  <text class="weather-forecast-time">{{item.timeText}}</text>
+                </view>
+                <view class="weather-forecast-summary">
+                  <image class="weather-forecast-icon" src="{{item.iconPath}}" mode="aspectFit" />
+                  <text class="weather-forecast-label">{{item.weatherLabel}}</text>
+                </view>
+                <view class="weather-forecast-metrics">
+                  <view class="weather-forecast-metric">
+                    <text class="weather-forecast-metric-label">风速</text>
+                    <text class="weather-forecast-metric-value">{{item.windSpeedDisplay}}</text>
+                  </view>
+                  <view class="weather-forecast-metric">
+                    <text class="weather-forecast-metric-label">能见度</text>
+                    <text class="weather-forecast-metric-value">{{item.visibilityDisplay}}</text>
+                  </view>
+                  <view class="weather-forecast-metric">
+                    <text class="weather-forecast-metric-label">云底高度</text>
+                    <text class="weather-forecast-metric-value">{{item.cloudBaseDisplay}}</text>
+                  </view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </view>
+
+        <view class="weather-note-card {{satellite ? 'weather-note-card--satellite' : ''}}">
+          <text wx:if="{{error}}" class="weather-note-tip">{{error}}</text>
+          <button class="weather-retry-btn" bindtap="onRetryTap" loading="{{loading}}">刷新天气</button>
+        </view>
+      </block>
+    </block>
+  </view>
+</view>

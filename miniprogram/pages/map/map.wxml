@@ -244,6 +244,16 @@
       bind:markerbuttontap="onMarkerButtonTap"
       bind:locatetap="onLocateTap"
     />
+    <map-weather-strip
+      visible="{{weatherFeatureEnabled && activeTab === 'home' && !stealthModeActive}}"
+      container-style="left: {{weatherWidgetLeftPx}}px; width: {{weatherWidgetWidthPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{weatherWidgetBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+      satellite="{{mapLayerType === 'satellite'}}"
+      loading="{{weatherLoading}}"
+      error="{{weatherError}}"
+      updated-at-text="{{weatherUpdatedAtText}}"
+      items="{{weatherSummaryItems}}"
+      bind:weathertap="onWeatherWidgetTap"
+    />
 
     <map-bottom-nav
       id="map-bottom-nav"

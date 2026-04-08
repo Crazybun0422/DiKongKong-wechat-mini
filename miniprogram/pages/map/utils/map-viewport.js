@@ -207,6 +207,11 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
       force: true
     };
     page.requestNearbyMarkers(fetchOptions);
+    page.scheduleFetchWeather(200, {
+      center: point,
+      region: page._lastRegion,
+      scale: targetScale
+    });
     page.syncTemporaryNoFlyLayerViewport(fetchOptions);
     page.syncDjiLayerViewport({
       center: point,
@@ -367,6 +372,11 @@ function onRegionChange(page, e) {
         scale,
         force: !!forceRefresh
       });
+      page.scheduleFetchWeather(forceRefresh ? 200 : 600, {
+        center: newCenter,
+        region,
+        scale
+      });
       page.syncTemporaryNoFlyLayerViewport({
         center: newCenter,
         region,
@@ -470,6 +480,11 @@ function updateCenterAndRadius(page, detail) {
           region,
           scale,
           force: true
+        });
+        page.scheduleFetchWeather(200, {
+          center: newCenter,
+          region,
+          scale
         });
         page.syncTemporaryNoFlyLayerViewport({
           center: newCenter,

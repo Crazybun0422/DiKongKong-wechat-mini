@@ -91,6 +91,12 @@
       "pages": [
         "placeholder/index"
       ]
+    },
+    {
+      "root": "packages/weather",
+      "pages": [
+        "index/index"
+      ]
     }
   ],
   "window": {
@@ -103,7 +109,7 @@
   "lazyCodeLoading": "requiredComponents",
   "permission": {
     "scope.userLocation": {
-      "desc": "用于展示附近空域信息和服务"
+      "desc": "\u7528\u4e8e\u5c55\u793a\u9644\u8fd1\u7a7a\u57df\u4fe1\u606f\u548c\u670d\u52a1"
     }
   },
   "requiredPrivateInfos": [

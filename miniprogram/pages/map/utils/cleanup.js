@@ -13,6 +13,10 @@ function onHide(page) {
     clearTimeout(page._mapGraphicsSyncTimer);
     page._mapGraphicsSyncTimer = null;
   }
+  if (page._weatherFetchTimer) {
+    clearTimeout(page._weatherFetchTimer);
+    page._weatherFetchTimer = null;
+  }
   page._pendingMapGraphicsSync = null;
 }
 
@@ -24,6 +28,8 @@ function onUnload(page) {
   page._mapGraphicsSyncTimer = null;
   page._pendingMapGraphicsSync = null;
   if (page._markersFetchTimer) clearTimeout(page._markersFetchTimer);
+  if (page._pinsFetchTimer) clearTimeout(page._pinsFetchTimer);
+  if (page._weatherFetchTimer) clearTimeout(page._weatherFetchTimer);
   if (page._pendingCenterActionShareTimer) clearTimeout(page._pendingCenterActionShareTimer);
   if (page._centerShareLaunchLockTimer) clearTimeout(page._centerShareLaunchLockTimer);
   if (page._subscribeWaitTimer) clearTimeout(page._subscribeWaitTimer);
@@ -43,6 +49,8 @@ function onUnload(page) {
   if (page._djiLayerInitTimer) clearTimeout(page._djiLayerInitTimer);
   if (page._temporaryNoFlyLayerInitTimer) clearTimeout(page._temporaryNoFlyLayerInitTimer);
   page._activeMarkersRequest = null;
+  page._activePinsRequest = null;
+  page._activeWeatherRequest = null;
   if (page._uomPlugin && typeof page._uomPlugin.destroy === "function") {
     page._uomPlugin.destroy();
   }

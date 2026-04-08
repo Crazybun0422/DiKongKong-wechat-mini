@@ -1,0 +1,32 @@
+<view
+  wx:if="{{visible}}"
+  class="weather-strip {{satellite ? 'weather-strip--satellite' : ''}}"
+  style="{{containerStyle}}"
+  catchtap="onTap"
+>
+  <view class="weather-strip-shell">
+    <view wx:if="{{error && !currentItem}}" class="weather-strip-state">
+      <text class="weather-strip-state-text">{{error}}</text>
+    </view>
+
+    <block wx:elif="{{currentItem}}">
+      <view class="weather-strip-line">
+        <text class="weather-strip-text weather-strip-text--strong">{{currentItem.weatherLabel}}</text>
+        <text class="weather-strip-text">风速 {{currentItem.windSpeedDisplay}}</text>
+      </view>
+      <view class="weather-strip-line weather-strip-line--visibility">
+        <text class="weather-strip-text">能见度</text>
+        <text class="weather-strip-value weather-strip-value--visibility">{{currentItem.visibilityDisplay}}</text>
+      </view>
+      <view class="weather-strip-line weather-strip-line--secondary">
+        <text class="weather-strip-text">云底高度 {{currentItem.cloudBaseDisplay}}</text>
+      </view>
+    </block>
+
+    <view wx:else class="weather-strip-skeleton">
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--sm"></view>
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--md"></view>
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--sm"></view>
+    </view>
+  </view>
+</view>

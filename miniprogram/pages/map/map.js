@@ -28,6 +28,7 @@ const markerDataUtils = require("./utils/marker-data");
 const pageRuntimeUtils = require("./utils/page-runtime");
 const mapViewportUtils = require("./utils/map-viewport");
 const nearbyFetchUtils = require("./utils/nearby-fetch");
+const weatherUtils = require("./utils/weather");
 const mapGeometryUtils = require("./utils/map-geometry");
 const nearbyGraphicsUtils = require("./utils/nearby-graphics");
 const targetLinkUtils = require("./utils/target-link");
@@ -193,11 +194,19 @@ Page({
     preflightTopPx: 60,
     preflightLeftPx: 8,
     scaleControlsLeftPx: 16,
-    scaleControlsBottomPx: 120,
-    compassBottomPx: 245,
+    scaleControlsBottomPx: 170,
+    compassBottomPx: 305,
     floatingControlsRightPx: 16,
     floatingControlsBottomPx: 131,
     bottomNavBottomPx: 21,
+    weatherFeatureEnabled: weatherUtils.WEATHER_FEATURE_ENABLED === true,
+    weatherWidgetLeftPx: 8,
+    weatherWidgetWidthPx: 100,
+    weatherWidgetBottomPx: 117,
+    weatherLoading: false,
+    weatherError: "",
+    weatherUpdatedAtText: "",
+    weatherSummaryItems: [],
     policyUpdateVisible: false,
     policyUpdateType: "",
     policyUpdateTitle: "",
@@ -2091,6 +2100,26 @@ Page({
 
   requestNearbyMarkers(options = {}) {
     return nearbyFetchUtils.requestNearbyMarkers(this, options);
+  },
+
+  applyWeatherSnapshot(snapshot = null, options = {}) {
+    return weatherUtils.applyWeatherSnapshot(this, snapshot, options);
+  },
+
+  hydrateWeatherFromCache(options = {}) {
+    return weatherUtils.hydrateWeatherFromCache(this, options);
+  },
+
+  scheduleFetchWeather(delay = 0, options = {}) {
+    return weatherUtils.scheduleFetchWeather(this, delay, options);
+  },
+
+  requestWeatherSummary(options = {}) {
+    return weatherUtils.requestWeatherSummary(this, options);
+  },
+
+  onWeatherWidgetTap() {
+    return weatherUtils.onWeatherWidgetTap(this);
   },
 
   updateOverlayGraphics() {

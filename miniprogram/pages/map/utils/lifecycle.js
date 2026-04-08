@@ -23,6 +23,8 @@ function onShow(page) {
     page.promptJoinWorkGroup(page.data.joinInvitePrompt);
   }
   page.resumeCenterPinLocationFollow();
+  page.hydrateWeatherFromCache({ center: page._centerOverride || page.data.center });
+  page.scheduleFetchWeather(0, { center: page._centerOverride || page.data.center });
   if (page._skipPendingFocusOnShow) {
     page._skipPendingFocusOnShow = false;
   } else {
