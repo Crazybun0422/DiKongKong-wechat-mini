@@ -149,16 +149,19 @@ function resolveWindLayerIconPath(key = "") {
 
 function buildWindCards(slot = null) {
   const list = Array.isArray(slot?.windLevels) ? slot.windLevels : [];
-  return list.map((item = {}) => ({
-    key: item.key,
-    title: item.label || "",
-    heightLabel: item.heightLabel || "",
-    speedDisplay: item.speedDisplay || "暂无",
-    directionDisplay: item.directionDisplay || "暂无",
-    degreeText: item.directionDegreeText || "--",
-    rotation: Number.isFinite(Number(item.rotation)) ? Number(item.rotation) : 0,
-    iconPath: resolveWindLayerIconPath(item.key)
-  }));
+  return list
+    .slice()
+    .sort((left = {}, right = {}) => Number(right.heightMeters || 0) - Number(left.heightMeters || 0))
+    .map((item = {}) => ({
+      key: item.key,
+      title: item.label || "",
+      heightLabel: item.heightLabel || "",
+      speedDisplay: item.speedDisplay || "--",
+      directionDisplay: item.directionDisplay || "--",
+      degreeText: item.directionDegreeText || "--",
+      rotation: Number.isFinite(Number(item.rotation)) ? Number(item.rotation) : 0,
+      iconPath: resolveWindLayerIconPath(item.key)
+    }));
 }
 
 function buildSummaryCards(slot = null) {

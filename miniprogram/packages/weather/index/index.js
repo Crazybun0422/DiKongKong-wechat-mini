@@ -14,6 +14,10 @@ const {
 const { reverseGeocode } = require("../../../utils/geocoder");
 const { fetchElevationSnapshot } = require("../../../utils/elevation");
 const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery
+} = require("../../../utils/share");
+const {
   convertCoordinateFromGcj02,
   normalizeCoordinateSystem
 } = require("../../../pages/map/utils/coordinate-system");
@@ -21,6 +25,7 @@ const {
 const MAX_AUTO_RETRIES = 2;
 const AUTO_RETRY_DELAYS = [0, 450, 900];
 const DETAIL_ICON_LIGHT_THEME = true;
+const WEATHER_PAGE_PATH = "/packages/weather/index/index";
 const WEATHER_WIND_SLOT_STORAGE_KEY = "weather.wind.detail.slot";
 const WEATHER_ASSET_PATHS = {
   cloudCover: "/packages/weather/assets/cloud-cover.png",
@@ -152,13 +157,16 @@ function resolveWindLayerIconPath(key = "") {
 
 function buildWindLayers(current = null) {
   const list = Array.isArray(current?.windLevels) ? current.windLevels : [];
-  return list.map((item = {}) =>
-    Object.assign({}, item, {
-      title: `${item.label || ""} ${item.heightLabel || ""}`.trim(),
-      directionDisplay: item.directionDisplay || "暂无",
-      iconPath: resolveWindLayerIconPath(item.key)
-    })
-  );
+  return list
+    .slice()
+    .sort((left = {}, right = {}) => Number(right.heightMeters || 0) - Number(left.heightMeters || 0))
+    .map((item = {}) =>
+      Object.assign({}, item, {
+        title: `${item.label || ""} ${item.heightLabel || ""}`.trim(),
+        directionDisplay: item.directionDisplay || "--",
+        iconPath: resolveWindLayerIconPath(item.key)
+      })
+    );
 }
 
 function buildCalendarDays(snapshot = null) {
@@ -251,6 +259,47 @@ function resolveTheme(scene = "clear") {
   return { frontColor: "#ffffff", backgroundColor: "#cfdde8" };
 }
 
+function buildWeatherShareTitle(pageData = {}) {
+  const weatherLabel = `${pageData?.currentWeather?.weatherLabel || ""}`.trim();
+  const address = `${pageData?.centerAddressText || ""}`.trim();
+  if (address && weatherLabel) {
+    return `${address}天气：${weatherLabel}`;
+  }
+  if (weatherLabel) {
+    return `星球天气：${weatherLabel}`;
+  }
+  return "星球天气";
+}
+
+function buildWeatherSharePath(pageData = {}) {
+  const center = pageData?.center || {};
+  const coordinateSystem = pageData?.coordinateSystem || "wgs84";
+  const satellite = pageData?.satellite ? "1" : "0";
+  if (!hasValidCoordinate(center)) {
+    return appendInviteCodeToPath(WEATHER_PAGE_PATH);
+  }
+  const query =
+    `latitude=${encodeURIComponent(Number(center.latitude).toFixed(6))}` +
+    `&longitude=${encodeURIComponent(Number(center.longitude).toFixed(6))}` +
+    `&coordinateSystem=${encodeURIComponent(coordinateSystem)}` +
+    `&satellite=${encodeURIComponent(satellite)}`;
+  return appendInviteCodeToPath(`${WEATHER_PAGE_PATH}?${query}`);
+}
+
+function buildWeatherShareQuery(pageData = {}) {
+  const center = pageData?.center || {};
+  const coordinateSystem = pageData?.coordinateSystem || "wgs84";
+  const satellite = pageData?.satellite ? "1" : "0";
+  const queryParts = [];
+  if (hasValidCoordinate(center)) {
+    queryParts.push(`latitude=${encodeURIComponent(Number(center.latitude).toFixed(6))}`);
+    queryParts.push(`longitude=${encodeURIComponent(Number(center.longitude).toFixed(6))}`);
+  }
+  queryParts.push(`coordinateSystem=${encodeURIComponent(coordinateSystem)}`);
+  queryParts.push(`satellite=${encodeURIComponent(satellite)}`);
+  return appendInviteCodeToQuery(queryParts.join("&"));
+}
+
 Page({
   data: {
     featureEnabled: WEATHER_FEATURE_ENABLED === true,
@@ -289,6 +338,9 @@ Page({
       centerAddressText: "",
       centerText: formatCenterText(center, coordinateSystem)
     });
+    if (typeof wx !== "undefined" && typeof wx.showShareMenu === "function") {
+      wx.showShareMenu({ menus: ["shareAppMessage", "shareTimeline"] });
+    }
     this.applyNavigationTheme("clear");
     if (!featureEnabled) {
       this.setData({
@@ -424,8 +476,9 @@ Page({
       selectedCalendarTabId: selectedCalendarDay?.tabId || "",
       selectedCalendarDay,
       weatherScene
+    }, () => {
+      this.applyNavigationTheme(weatherScene);
     });
-    this.applyNavigationTheme(weatherScene);
   },
 
   fetchWeatherWithRetry(center, retries = MAX_AUTO_RETRIES, attempt = 0) {
@@ -517,5 +570,19 @@ Page({
       selectedCalendarTabId: selectedCalendarDay.tabId || "",
       selectedCalendarDay
     });
+  },
+
+  onShareAppMessage() {
+    return {
+      title: buildWeatherShareTitle(this.data),
+      path: buildWeatherSharePath(this.data)
+    };
+  },
+
+  onShareTimeline() {
+    return {
+      title: buildWeatherShareTitle(this.data),
+      query: buildWeatherShareQuery(this.data)
+    };
   }
 });

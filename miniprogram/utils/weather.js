@@ -46,6 +46,11 @@ const DWD_ENDPOINT = {
     "wind_speed_180m",
     "wind_direction_180m",
     "wind_gusts_10m",
+    "precipitation_probability",
+    "precipitation",
+    "rain",
+    "showers",
+    "snowfall",
     "visibility",
     "cloud_cover",
     "cloud_cover_low",
@@ -86,6 +91,11 @@ const FORECAST_ENDPOINT = {
     "wind_speed_180m",
     "wind_direction_180m",
     "wind_gusts_10m",
+    "precipitation_probability",
+    "precipitation",
+    "rain",
+    "showers",
+    "snowfall",
     "visibility",
     "temperature_2m",
     "dew_point_2m",
@@ -106,6 +116,11 @@ const FORECAST_ENDPOINT = {
     "wind_speed_180m",
     "wind_direction_180m",
     "wind_gusts_10m",
+    "precipitation_probability",
+    "precipitation",
+    "rain",
+    "showers",
+    "snowfall",
     "visibility",
     "temperature_2m",
     "dew_point_2m",
@@ -132,6 +147,8 @@ const CALENDAR_ENDPOINT = {
     "wind_speed_180m",
     "wind_direction_180m",
     "wind_gusts_10m",
+    "precipitation_probability",
+    "precipitation",
     "visibility",
     "temperature_2m",
     "dew_point_2m",
@@ -1075,6 +1092,11 @@ function buildCalendarSlot(primaryPayload, secondaryPayload, dateKey, hour, sour
   const surfaceWind = windLevels[0] || {};
   const windSpeed = normalizeNumber(surfaceWind.speedValue);
   const windDirection = resolveWindDirectionMeta(surfaceWind.directionValue);
+  const precipitationProbability = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "precipitation_probability");
+  const precipitation = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "precipitation");
+  const rain = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "rain");
+  const showers = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "showers");
+  const snowfall = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "snowfall");
   const visibility = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "visibility");
   const cloudCover = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "cloud_cover");
   const cloudCoverLow = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "cloud_cover_low");
@@ -1100,6 +1122,11 @@ function buildCalendarSlot(primaryPayload, secondaryPayload, dateKey, hour, sour
     windDirectionLabel: windDirection.directionLabel,
     windDirectionDegreeText: windDirection.degreeText,
     windDirectionDisplay: windDirection.value === null ? "暂无" : `${windDirection.directionLabel} ${windDirection.degreeText}`,
+    precipitationProbabilityValue: precipitationProbability,
+    precipitationValue: precipitation,
+    rainValue: rain,
+    showersValue: showers,
+    snowfallValue: snowfall,
     visibilityValue: visibility,
     visibilityDisplay: formatVisibility(visibility),
     cloudBaseValue: cloudBase,

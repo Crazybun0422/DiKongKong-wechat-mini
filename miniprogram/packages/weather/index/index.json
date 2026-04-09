@@ -1,4 +1,6 @@
 {
   "navigationBarTitleText": "星球气象",
-  "enablePullDownRefresh": true
+  "enablePullDownRefresh": true,
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true
 }
