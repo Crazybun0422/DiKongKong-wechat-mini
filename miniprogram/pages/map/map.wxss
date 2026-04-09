@@ -743,6 +743,28 @@ button.marker-page-share-header--disabled {
   gap: 6rpx;
 }
 
+.map-center-elevation {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10rpx;
+  padding: 2rpx 0;
+  pointer-events: none;
+}
+
+.map-center-elevation-label {
+  font-size: 20rpx;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.62);
+  line-height: 1.2;
+}
+
+.map-center-elevation-value {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #000;
+  line-height: 1.2;
+}
+
 .map-center-coords-text {
   font-size: 24rpx;
   font-weight: 600;
@@ -810,6 +832,16 @@ button.marker-page-share-header--disabled {
 
 .map-scale-container--satellite .map-center-coords {
   padding: 10rpx 0;
+}
+
+.map-scale-container--satellite .map-center-elevation-label {
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.85);
+}
+
+.map-scale-container--satellite .map-center-elevation-value {
+  color: #fff;
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.85);
 }
 
 .map-scale-container--satellite .map-center-coords-text {

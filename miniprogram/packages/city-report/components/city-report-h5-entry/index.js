@@ -313,7 +313,6 @@ Component({
           ? normalizeDialogText(dialogTextOverride)
           : normalizeDialogText(this._globalDialogText);
       const showGuide = isGuideAvailable(match?.guide);
-      console.log("matched entry", match, label, showGuide);
       this.setData({
         visible: !!label,
         jumpLabel: label || "",

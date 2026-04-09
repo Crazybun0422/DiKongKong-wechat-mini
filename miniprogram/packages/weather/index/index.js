@@ -3,11 +3,31 @@ const {
   WEATHER_SNAPSHOT_MATCH_METERS,
   hasValidCoordinate,
   fetchWeatherBundle,
+  fetchWeatherCalendarBundle,
   loadWeatherSnapshot,
+  loadWeatherCalendarSnapshot,
   resolveWeatherIconPath,
   saveWeatherSnapshot,
+  saveWeatherCalendarSnapshot,
   snapshotMatches
 } = require("../../../utils/weather");
+const { reverseGeocode } = require("../../../utils/geocoder");
+const {
+  convertCoordinateFromGcj02,
+  normalizeCoordinateSystem
+} = require("../../../pages/map/utils/coordinate-system");
+
+const MAX_AUTO_RETRIES = 2;
+const AUTO_RETRY_DELAYS = [0, 450, 900];
+const DETAIL_ICON_LIGHT_THEME = true;
+const WEATHER_WIND_SLOT_STORAGE_KEY = "weather.wind.detail.slot";
+const WEATHER_ASSET_PATHS = {
+  cloudCover: "/packages/weather/assets/cloud-cover.png",
+  ground: "/packages/weather/assets/ground.png",
+  lowAltitude: "/packages/weather/assets/low-altitude.png",
+  midAltitude: "/packages/weather/assets/mid-altitude.png",
+  highAltitude: "/packages/weather/assets/high-altitude.png"
+};
 
 function parseCenter(options = {}) {
   const latitude = Number(options.latitude);
@@ -18,60 +38,279 @@ function parseCenter(options = {}) {
   return { latitude, longitude };
 }
 
-function formatCenterText(center = null) {
+function parseCoordinateSystem(options = {}) {
+  return normalizeCoordinateSystem(options.coordinateSystem || "wgs84");
+}
+
+function formatCenterText(center = null, coordinateSystem = "wgs84") {
   if (!center) {
     return "地图中心点";
   }
-  return `${Number(center.longitude).toFixed(6)}, ${Number(center.latitude).toFixed(6)}`;
+  const converted = convertCoordinateFromGcj02(
+    Number(center.longitude),
+    Number(center.latitude),
+    coordinateSystem
+  );
+  const displayLongitude = Number(converted?.lng);
+  const displayLatitude = Number(converted?.lat);
+  if (!Number.isFinite(displayLongitude) || !Number.isFinite(displayLatitude)) {
+    return `${Number(center.longitude).toFixed(6)}, ${Number(center.latitude).toFixed(6)}`;
+  }
+  return `${displayLongitude.toFixed(6)}, ${displayLatitude.toFixed(6)}`;
+}
+
+function delay(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveWeatherScene(current = null) {
+  const iconName = `${current?.iconName || ""}`;
+  if (!iconName) {
+    return "clear";
+  }
+  if (iconName === "thunderstorm" || iconName === "hail") {
+    return "storm";
+  }
+  if (iconName.includes("rain") || iconName === "showers") {
+    return "rain";
+  }
+  if (iconName.includes("snow")) {
+    return "snow";
+  }
+  if (iconName === "fog") {
+    return "fog";
+  }
+  if (iconName === "overcast" || iconName === "partly-cloudy") {
+    return "overcast";
+  }
+  return "clear";
+}
+
+function extractAddressFromGeocode(result = {}) {
+  return `${result.recommend || result.formatted_addresses?.recommend || result.address || result.formatted_address || result.title || ""}`.trim();
+}
+
+function resolveCenterAddress(center = null) {
+  if (!hasValidCoordinate(center || {})) {
+    return Promise.resolve("");
+  }
+  const latitude = Number(center.latitude);
+  const longitude = Number(center.longitude);
+  return reverseGeocode(latitude, longitude)
+    .then((result = {}) => extractAddressFromGeocode(result))
+    .catch(() => "");
+}
+
+function buildMetricCards(current = null) {
+  if (!current) {
+    return [];
+  }
+  return [
+    {
+      key: "wind-direction",
+      kind: "compass",
+      label: "风向",
+      directionText: current.windDirectionLabel || "暂无",
+      degreeText: current.windDirectionDegreeText || "--",
+      rotation: Number.isFinite(Number(current.windDirectionRotation)) ? Number(current.windDirectionRotation) : 0,
+      hasDirection: Number.isFinite(Number(current.windDirectionValue))
+    },
+    { key: "cloud-cover", label: "云量", value: current.cloudCoverDisplay, iconPath: WEATHER_ASSET_PATHS.cloudCover },
+    { key: "visibility", label: "能见度", value: current.visibilityDisplay },
+    { key: "cloud-base", label: "云底高度", value: current.cloudBaseDisplay }
+  ];
+}
+
+function resolveWindLayerIconPath(key = "") {
+  if (key === "surface") {
+    return WEATHER_ASSET_PATHS.ground;
+  }
+  if (key === "low") {
+    return WEATHER_ASSET_PATHS.lowAltitude;
+  }
+  if (key === "mid") {
+    return WEATHER_ASSET_PATHS.midAltitude;
+  }
+  if (key === "high") {
+    return WEATHER_ASSET_PATHS.highAltitude;
+  }
+  return "";
+}
+
+function buildWindLayers(current = null) {
+  const list = Array.isArray(current?.windLevels) ? current.windLevels : [];
+  return list.map((item = {}) =>
+    Object.assign({}, item, {
+      title: `${item.label || ""} ${item.heightLabel || ""}`.trim(),
+      directionDisplay: item.directionDisplay || "暂无",
+      iconPath: resolveWindLayerIconPath(item.key)
+    })
+  );
+}
+
+function buildCalendarDays(snapshot = null) {
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  return days.map((day, index) =>
+    Object.assign({}, day, {
+      tabLabel:
+        day.relativeDay === -1
+          ? "昨天"
+          : day.relativeDay === 0
+            ? "今天"
+            : day.relativeDay === 1
+              ? "明天"
+              : day.relativeDay === 2
+                ? "后天"
+                : (day.weekdayLabel || ""),
+      tabId: `calendar-tab-${day.dateKey || index}`,
+      rows: Array.isArray(day.rows)
+        ? day.rows.map((item) =>
+          Object.assign({}, item, {
+            iconPath: resolveWeatherIconPath(item.iconName, DETAIL_ICON_LIGHT_THEME)
+          })
+        )
+        : []
+    })
+  );
+}
+
+function buildWindDetailUrl(pageData = {}, slot = {}) {
+  const center = pageData?.center || {};
+  const coordinateSystem = pageData?.coordinateSystem || "wgs84";
+  const satellite = pageData?.satellite ? "1" : "0";
+  return (
+    `/packages/weather/wind/index?latitude=${encodeURIComponent(Number(center.latitude).toFixed(6))}` +
+    `&longitude=${encodeURIComponent(Number(center.longitude).toFixed(6))}` +
+    `&coordinateSystem=${encodeURIComponent(coordinateSystem)}` +
+    `&satellite=${encodeURIComponent(satellite)}` +
+    `&dateKey=${encodeURIComponent(slot.dateKey || "")}` +
+    `&timeKey=${encodeURIComponent(slot.timeKey || "")}`
+  );
+}
+
+function buildCalendarSlotLookup(snapshot = null, dateKey = "", timeKey = "") {
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  const day = days.find((item) => item?.dateKey === dateKey);
+  if (!day) {
+    return null;
+  }
+  return Array.isArray(day.rows) ? day.rows.find((row) => row?.timeKey === timeKey) || null : null;
+}
+
+function cacheWindDetailSlot(slot = null) {
+  if (!slot || typeof wx === "undefined" || typeof wx.setStorageSync !== "function") {
+    return;
+  }
+  try {
+    wx.setStorageSync(WEATHER_WIND_SLOT_STORAGE_KEY, slot);
+  } catch (err) {
+    // ignore storage failure
+  }
+}
+
+function resolveTheme(scene = "clear") {
+  if (scene === "storm") {
+    return { frontColor: "#ffffff", backgroundColor: "#172033" };
+  }
+  if (scene === "rain") {
+    return { frontColor: "#ffffff", backgroundColor: "#223447" };
+  }
+  if (scene === "snow") {
+    return { frontColor: "#ffffff", backgroundColor: "#dfe9f4" };
+  }
+  if (scene === "fog") {
+    return { frontColor: "#ffffff", backgroundColor: "#d8e0e7" };
+  }
+  if (scene === "overcast") {
+    return { frontColor: "#ffffff", backgroundColor: "#4c6176" };
+  }
+  return { frontColor: "#ffffff", backgroundColor: "#d8ebff" };
 }
 
 Page({
   data: {
     featureEnabled: WEATHER_FEATURE_ENABLED === true,
     satellite: false,
+    coordinateSystem: "wgs84",
     center: null,
+    centerAddressText: "位置解析中",
     centerText: "地图中心点",
+    pageReady: false,
     loading: true,
+    weatherScrollRefreshing: false,
     error: "",
-    sourceLabel: "Open-Meteo",
     updatedAtText: "",
-    windIconPath: "",
     currentWeather: null,
-    weatherCards: [],
+    currentWindLayers: [],
     currentMetricCards: [],
-    cloudBaseSupported: true
+    calendarDays: [],
+    selectedCalendarDateKey: "",
+    selectedCalendarTabId: "",
+    selectedCalendarDay: null,
+    weatherScene: "clear"
   },
 
   onLoad(options = {}) {
     const satellite = `${options.satellite || ""}` === "1";
     const center = parseCenter(options);
+    const coordinateSystem = parseCoordinateSystem(options);
     const featureEnabled = WEATHER_FEATURE_ENABLED === true;
-    this.applyNavigationTheme(satellite);
     this.setData({
       featureEnabled,
       satellite,
+      coordinateSystem,
       center,
-      centerText: formatCenterText(center),
-      windIconPath: resolveWeatherIconPath("wind-speed", satellite)
+      centerAddressText: center ? "位置解析中" : "",
+      centerText: formatCenterText(center, coordinateSystem)
     });
+    this.applyNavigationTheme("clear");
     if (!featureEnabled) {
       this.setData({
+        pageReady: true,
         loading: false,
-        error: "",
-        sourceLabel: "",
-        updatedAtText: "",
-        currentWeather: null,
-        weatherCards: [],
-        currentMetricCards: [],
-        cloudBaseSupported: false
+        error: "气象功能暂未开放"
       });
       return;
     }
-    const cached = loadWeatherSnapshot();
-    if (cached && (!center || snapshotMatches(cached, center, WEATHER_SNAPSHOT_MATCH_METERS))) {
-      this.applyWeatherSnapshot(cached);
+    const cachedWeather = loadWeatherSnapshot();
+    const cachedCalendar = loadWeatherCalendarSnapshot();
+    if (
+      cachedWeather &&
+      cachedCalendar &&
+      (!center || (
+        snapshotMatches(cachedWeather, center, WEATHER_SNAPSHOT_MATCH_METERS) &&
+        snapshotMatches(cachedCalendar, center, WEATHER_SNAPSHOT_MATCH_METERS)
+      ))
+    ) {
+      this.applyWeatherData(cachedWeather, cachedCalendar);
     }
+    this.loadCenterAddress(center);
     this.refreshWeather({ stopPullDownRefresh: false });
+  },
+
+  loadCenterAddress(center = null) {
+    if (!hasValidCoordinate(center || {})) {
+      this.setData({ centerAddressText: "" });
+      return Promise.resolve("");
+    }
+    const token = `${Date.now()}-${Math.random()}`;
+    this._centerAddressToken = token;
+    this.setData({ centerAddressText: "位置解析中" });
+    return resolveCenterAddress(center)
+      .then((address) => {
+        if (this._centerAddressToken !== token) {
+          return "";
+        }
+        this.setData({ centerAddressText: address || "地图中心点" });
+        return address;
+      })
+      .catch(() => {
+        if (this._centerAddressToken !== token) {
+          return "";
+        }
+        this.setData({ centerAddressText: "地图中心点" });
+        return "";
+      });
   },
 
   onPullDownRefresh() {
@@ -81,70 +320,69 @@ Page({
       }
       return;
     }
-    this.refreshWeather({ stopPullDownRefresh: true });
+    this.refreshWeather({ stopPullDownRefresh: true, stopScrollRefresh: true });
   },
 
-  applyNavigationTheme(satellite = false) {
+  onScrollRefresh() {
+    if (this.data.featureEnabled !== true) {
+      this.setData({ weatherScrollRefreshing: false });
+      return;
+    }
+    this.setData({ weatherScrollRefreshing: true });
+    this.refreshWeather({ stopPullDownRefresh: false, stopScrollRefresh: true });
+  },
+
+  applyNavigationTheme(scene = "clear") {
     if (typeof wx === "undefined" || typeof wx.setNavigationBarColor !== "function") {
       return;
     }
+    const theme = resolveTheme(scene);
     wx.setNavigationBarColor({
-      frontColor: satellite ? "#ffffff" : "#000000",
-      backgroundColor: satellite ? "#0f172a" : "#f5f5f7",
-      animation: { duration: 0, timingFunc: "linear" }
+      frontColor: theme.frontColor,
+      backgroundColor: theme.backgroundColor,
+      animation: { duration: 160, timingFunc: "easeIn" }
     });
   },
 
-  buildMetricCards(current = null) {
-    if (!current) {
-      return [];
-    }
-    return [
-      {
-        key: "wind",
-        label: "风速",
-        value: current.windSpeedDisplay,
-        iconPath: this.data.windIconPath
-      },
-      {
-        key: "visibility",
-        label: "能见度",
-        value: current.visibilityDisplay,
-        iconPath: ""
-      },
-      {
-        key: "cloud-base",
-        label: "云底高度",
-        value: current.cloudBaseDisplay,
-        iconPath: ""
-      }
-    ];
-  },
-
-  applyWeatherSnapshot(snapshot = null) {
-    const satellite = this.data.satellite;
-    const cards = Array.isArray(snapshot?.items)
-      ? snapshot.items.map((item) =>
-        Object.assign({}, item, {
-          iconPath: resolveWeatherIconPath(item.iconName, satellite)
-        })
-      )
-      : [];
-    const current = snapshot?.current
-      ? Object.assign({}, snapshot.current, {
-        iconPath: resolveWeatherIconPath(snapshot.current.iconName, satellite)
+  applyWeatherData(weatherSnapshot = null, calendarSnapshot = null) {
+    this._calendarSnapshot = calendarSnapshot || null;
+    const calendarDays = buildCalendarDays(calendarSnapshot);
+    const previousSelectedDateKey = `${this.data.selectedCalendarDateKey || ""}`;
+    const selectedCalendarDay =
+      calendarDays.find((item) => item?.dateKey === previousSelectedDateKey) ||
+      calendarDays[0] ||
+      null;
+    const current = weatherSnapshot?.current
+      ? Object.assign({}, weatherSnapshot.current, {
+        iconPath: resolveWeatherIconPath(weatherSnapshot.current.iconName, DETAIL_ICON_LIGHT_THEME)
       })
       : null;
+    const weatherScene = resolveWeatherScene(current);
     this.setData({
+      pageReady: true,
       loading: false,
       error: "",
-      sourceLabel: snapshot?.sourceLabel || "Open-Meteo",
-      updatedAtText: snapshot?.updatedAtText || "",
-      centerText: snapshot?.coordinateText || formatCenterText(this.data.center),
-      weatherCards: cards,
+      updatedAtText: weatherSnapshot?.updatedAtText || calendarSnapshot?.updatedAtText || "",
+      centerText: formatCenterText(this.data.center, this.data.coordinateSystem),
       currentWeather: current,
-      currentMetricCards: this.buildMetricCards(current),
-      cloudBaseSupported: snapshot?.cloudBaseSupported !== false
+      currentWindLayers: buildWindLayers(current),
+      currentMetricCards: buildMetricCards(current),
+      calendarDays,
+      selectedCalendarDateKey: selectedCalendarDay?.dateKey || "",
+      selectedCalendarTabId: selectedCalendarDay?.tabId || "",
+      selectedCalendarDay,
+      weatherScene
+    });
+    this.applyNavigationTheme(weatherScene);
+  },
+
+  fetchWeatherWithRetry(center, retries = MAX_AUTO_RETRIES, attempt = 0) {
+    return Promise.all([fetchWeatherBundle(center), fetchWeatherCalendarBundle(center)]).catch((err) => {
+      if (attempt >= retries) {
+        throw err;
+      }
+      const delayMs = AUTO_RETRY_DELAYS[Math.min(attempt + 1, AUTO_RETRY_DELAYS.length - 1)];
+      return delay(delayMs).then(() => this.fetchWeatherWithRetry(center, retries, attempt + 1));
     });
   },
 
@@ -152,30 +390,37 @@ Page({
     const center = this.data.center;
     if (!hasValidCoordinate(center || {})) {
       this.setData({
+        pageReady: true,
         loading: false,
         error: "地图中心点不可用，暂时无法获取气象数据"
       });
       if (options.stopPullDownRefresh && typeof wx !== "undefined" && typeof wx.stopPullDownRefresh === "function") {
         wx.stopPullDownRefresh();
       }
+      if (options.stopScrollRefresh) {
+        this.setData({ weatherScrollRefreshing: false });
+      }
       return Promise.resolve(null);
     }
-    if (!this.data.currentWeather) {
-      this.setData({ loading: true, error: "" });
-    } else {
-      this.setData({ error: "" });
-    }
-    return fetchWeatherBundle(center)
-      .then((snapshot) => {
-        saveWeatherSnapshot(snapshot);
-        this.applyWeatherSnapshot(snapshot);
-        return snapshot;
+    const shouldGateDisplay = !this.data.currentWeather;
+    this.setData(
+      shouldGateDisplay
+        ? { loading: true, pageReady: false, error: "" }
+        : { loading: true, error: "" }
+    );
+    return this.fetchWeatherWithRetry(center)
+      .then(([weatherSnapshot, calendarSnapshot]) => {
+        saveWeatherSnapshot(weatherSnapshot);
+        saveWeatherCalendarSnapshot(calendarSnapshot);
+        this.applyWeatherData(weatherSnapshot, calendarSnapshot);
+        return { weatherSnapshot, calendarSnapshot };
       })
       .catch((err) => {
         console.warn("weather detail refresh failed", err);
         this.setData({
+          pageReady: true,
           loading: false,
-          error: "气象数据暂不可用，请下拉重试"
+          error: "气象数据暂不可用，请稍后再试"
         });
         return null;
       })
@@ -183,10 +428,42 @@ Page({
         if (options.stopPullDownRefresh && typeof wx !== "undefined" && typeof wx.stopPullDownRefresh === "function") {
           wx.stopPullDownRefresh();
         }
+        if (options.stopScrollRefresh) {
+          this.setData({ weatherScrollRefreshing: false });
+        }
       });
   },
 
-  onRetryTap() {
-    this.refreshWeather({ stopPullDownRefresh: false });
+  onOpenWindDetail(event) {
+    const dateKey = `${event?.currentTarget?.dataset?.dateKey || ""}`;
+    const timeKey = `${event?.currentTarget?.dataset?.timeKey || ""}`;
+    if (!dateKey || !timeKey || !hasValidCoordinate(this.data.center || {})) {
+      return;
+    }
+    const calendarSnapshot = this._calendarSnapshot || loadWeatherCalendarSnapshot();
+    const slot = buildCalendarSlotLookup(calendarSnapshot, dateKey, timeKey);
+    if (!slot) {
+      return;
+    }
+    cacheWindDetailSlot(slot);
+    wx.navigateTo({ url: buildWindDetailUrl(this.data, slot) });
+  },
+
+  onSelectCalendarDay(event) {
+    const dateKey = `${event?.currentTarget?.dataset?.dateKey || ""}`;
+    if (!dateKey || dateKey === this.data.selectedCalendarDateKey) {
+      return;
+    }
+    const selectedCalendarDay =
+      (Array.isArray(this.data.calendarDays) ? this.data.calendarDays : []).find((item) => item?.dateKey === dateKey) ||
+      null;
+    if (!selectedCalendarDay) {
+      return;
+    }
+    this.setData({
+      selectedCalendarDateKey: selectedCalendarDay.dateKey || "",
+      selectedCalendarTabId: selectedCalendarDay.tabId || "",
+      selectedCalendarDay
+    });
   }
 });

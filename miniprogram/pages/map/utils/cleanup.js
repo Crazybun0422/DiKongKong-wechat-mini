@@ -17,6 +17,10 @@ function onHide(page) {
     clearTimeout(page._weatherFetchTimer);
     page._weatherFetchTimer = null;
   }
+  if (page._elevationFetchTimer) {
+    clearTimeout(page._elevationFetchTimer);
+    page._elevationFetchTimer = null;
+  }
   page._pendingMapGraphicsSync = null;
 }
 
@@ -30,6 +34,7 @@ function onUnload(page) {
   if (page._markersFetchTimer) clearTimeout(page._markersFetchTimer);
   if (page._pinsFetchTimer) clearTimeout(page._pinsFetchTimer);
   if (page._weatherFetchTimer) clearTimeout(page._weatherFetchTimer);
+  if (page._elevationFetchTimer) clearTimeout(page._elevationFetchTimer);
   if (page._pendingCenterActionShareTimer) clearTimeout(page._pendingCenterActionShareTimer);
   if (page._centerShareLaunchLockTimer) clearTimeout(page._centerShareLaunchLockTimer);
   if (page._subscribeWaitTimer) clearTimeout(page._subscribeWaitTimer);
@@ -51,6 +56,10 @@ function onUnload(page) {
   page._activeMarkersRequest = null;
   page._activePinsRequest = null;
   page._activeWeatherRequest = null;
+  page._activeElevationRequest = null;
+  page._centerPinLinkElevationState = null;
+  page._centerPinLinkElevationRequestKey = "";
+  page._pointElevationCache = null;
   if (page._uomPlugin && typeof page._uomPlugin.destroy === "function") {
     page._uomPlugin.destroy();
   }

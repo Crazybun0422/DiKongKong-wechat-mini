@@ -121,6 +121,7 @@ function updateCenterPinIndicator(page, centerOverride) {
       centerCoordinateLngText: "",
       centerCoordinateLatValue: null,
       centerCoordinateLngValue: null,
+      centerElevationText: "",
       searchLinkCenter: null,
       centerPinLinkActive: false,
       centerPinLinkTipText: "",
@@ -159,6 +160,16 @@ function updateCenterPinIndicator(page, centerOverride) {
     searchLinkCenter: normalizedCenter,
     cityReportCenter: normalizedCenter,
     ...linkState
+  }, () => {
+    if (
+      page.data.searchLinkVisible === true &&
+      hasValidCoordinate(page.data.searchLinkTarget?.latitude, page.data.searchLinkTarget?.longitude) &&
+      typeof page.requestSearchLinkElevationDiff === "function"
+    ) {
+      page.requestSearchLinkElevationDiff(page.data.searchLinkTarget, {
+        center: normalizedCenter
+      });
+    }
   });
 }
 

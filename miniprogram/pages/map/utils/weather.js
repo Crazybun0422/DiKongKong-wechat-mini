@@ -20,6 +20,20 @@ function clearWeatherState(page) {
   });
 }
 
+function showWeatherLoadingState(page, options = {}) {
+  if (WEATHER_FEATURE_ENABLED !== true) {
+    return;
+  }
+  const updates = {
+    weatherLoading: true,
+    weatherError: ""
+  };
+  if (options.clearItems === true) {
+    updates.weatherSummaryItems = [];
+  }
+  page.setData(updates);
+}
+
 function applyWeatherSnapshot(page, snapshot = null, options = {}) {
   if (WEATHER_FEATURE_ENABLED !== true) {
     clearWeatherState(page);
@@ -64,6 +78,9 @@ function scheduleFetchWeather(page, delay = 0, options = {}) {
     return null;
   }
   const waitMs = Math.max(0, Number(delay) || 0);
+  if (waitMs > 0 && options.showLoading === true) {
+    showWeatherLoadingState(page);
+  }
   page._weatherFetchTimer = setTimeout(() => {
     page._weatherFetchTimer = null;
     requestWeatherSummary(page, options);
@@ -78,6 +95,7 @@ function requestWeatherSummary(page, options = {}) {
   }
   const center = options?.center || page._centerOverride || page.data.center;
   if (!hasValidCoordinate(center)) {
+    page.setData({ weatherLoading: false });
     return Promise.resolve(null);
   }
   const now = Date.now();
@@ -94,12 +112,18 @@ function requestWeatherSummary(page, options = {}) {
   const isStale = !previousTimestamp || now - previousTimestamp > WEATHER_REFRESH_INTERVAL_MS;
   const force = options.force === true;
   if (!force && movedMeters < WEATHER_MOVE_THRESHOLD_METERS && !isStale && page._weatherSnapshot) {
+    page.setData({ weatherLoading: false, weatherError: "" });
     return Promise.resolve(page._weatherSnapshot);
   }
   const requestId = `${now}-${Math.random()}`;
   page._activeWeatherRequest = requestId;
-  if (!page._weatherSnapshot || !Array.isArray(page.data.weatherSummaryItems) || !page.data.weatherSummaryItems.length) {
-    page.setData({ weatherLoading: true, weatherError: "" });
+  if (
+    options.showLoading === true ||
+    !page._weatherSnapshot ||
+    !Array.isArray(page.data.weatherSummaryItems) ||
+    !page.data.weatherSummaryItems.length
+  ) {
+    showWeatherLoadingState(page);
   } else {
     page.setData({ weatherError: "" });
   }
@@ -139,6 +163,10 @@ function onWeatherWidgetTap(page) {
   if (WEATHER_FEATURE_ENABLED !== true) {
     return;
   }
+  if (page._weatherFetchTimer) {
+    clearTimeout(page._weatherFetchTimer);
+    page._weatherFetchTimer = null;
+  }
   const center = page._centerOverride || page.data.center;
   if (!hasValidCoordinate(center)) {
     if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
@@ -147,10 +175,12 @@ function onWeatherWidgetTap(page) {
     return;
   }
   const satellite = page.data.mapLayerType === "satellite" ? 1 : 0;
+  const coordinateSystem = `${page.data.coordinateSystem || "wgs84"}`.toLowerCase();
   const url =
     `/packages/weather/index/index?latitude=${encodeURIComponent(Number(center.latitude).toFixed(6))}` +
     `&longitude=${encodeURIComponent(Number(center.longitude).toFixed(6))}` +
-    `&satellite=${satellite}`;
+    `&satellite=${satellite}` +
+    `&coordinateSystem=${encodeURIComponent(coordinateSystem)}`;
   wx.navigateTo({ url });
 }
 

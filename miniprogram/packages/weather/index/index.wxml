@@ -1,90 +1,265 @@
-<view class="weather-page {{satellite ? 'weather-page--satellite' : ''}}">
-  <view class="weather-scroll">
-    <view wx:if="{{!featureEnabled}}" class="weather-state-card">
-      <text class="weather-state-title">星球气象暂时隐藏</text>
-    </view>
+<view class="weather-page weather-page--{{weatherScene}}">
+  <view class="weather-background">
+    <view class="weather-background-grid"></view>
+    <view class="weather-background-orb weather-background-orb--a"></view>
+    <view class="weather-background-orb weather-background-orb--b"></view>
+    <view class="weather-background-noise"></view>
 
-    <block wx:else>
-      <view class="weather-hero-card {{satellite ? 'weather-hero-card--satellite' : ''}}">
-        <view class="weather-hero-top">
-          <view class="weather-brand-pill">星球气象</view>
-          <text class="weather-updated-text">
-            {{loading ? '同步中...' : (updatedAtText ? '更新于 ' + updatedAtText : '地图中心点天气')}}
-          </text>
+    <block wx:if="{{weatherScene === 'clear'}}">
+      <view class="weather-scene-sun"></view>
+    </block>
+
+    <block wx:elif="{{weatherScene === 'overcast'}}">
+      <view class="weather-scene-cloud weather-scene-cloud--a"></view>
+      <view class="weather-scene-cloud weather-scene-cloud--b"></view>
+      <view class="weather-scene-cloud weather-scene-cloud--c"></view>
+    </block>
+
+    <block wx:elif="{{weatherScene === 'rain'}}">
+      <view class="weather-rain-field">
+        <view class="weather-raindrop weather-raindrop--1"></view>
+        <view class="weather-raindrop weather-raindrop--2"></view>
+        <view class="weather-raindrop weather-raindrop--3"></view>
+        <view class="weather-raindrop weather-raindrop--4"></view>
+        <view class="weather-raindrop weather-raindrop--5"></view>
+        <view class="weather-raindrop weather-raindrop--6"></view>
+        <view class="weather-raindrop weather-raindrop--7"></view>
+        <view class="weather-raindrop weather-raindrop--8"></view>
+        <view class="weather-raindrop weather-raindrop--9"></view>
+        <view class="weather-raindrop weather-raindrop--10"></view>
+      </view>
+      <view class="weather-rain-field weather-rain-field--far">
+        <view class="weather-raindrop weather-raindrop--11"></view>
+        <view class="weather-raindrop weather-raindrop--12"></view>
+        <view class="weather-raindrop weather-raindrop--13"></view>
+        <view class="weather-raindrop weather-raindrop--14"></view>
+        <view class="weather-raindrop weather-raindrop--15"></view>
+        <view class="weather-raindrop weather-raindrop--16"></view>
+        <view class="weather-raindrop weather-raindrop--17"></view>
+        <view class="weather-raindrop weather-raindrop--18"></view>
+        <view class="weather-raindrop weather-raindrop--19"></view>
+        <view class="weather-raindrop weather-raindrop--20"></view>
+        <view class="weather-raindrop weather-raindrop--21"></view>
+        <view class="weather-raindrop weather-raindrop--22"></view>
+        <view class="weather-raindrop weather-raindrop--23"></view>
+        <view class="weather-raindrop weather-raindrop--24"></view>
+      </view>
+      <view class="weather-scene-rain-glow"></view>
+      <view class="weather-scene-ripple"></view>
+    </block>
+
+    <block wx:elif="{{weatherScene === 'snow'}}">
+      <view class="weather-scene-snow weather-scene-snow--a"></view>
+      <view class="weather-scene-snow weather-scene-snow--b"></view>
+    </block>
+
+    <block wx:elif="{{weatherScene === 'fog'}}">
+      <view class="weather-scene-fog weather-scene-fog--a"></view>
+      <view class="weather-scene-fog weather-scene-fog--b"></view>
+      <view class="weather-scene-fog weather-scene-fog--c"></view>
+    </block>
+
+    <block wx:elif="{{weatherScene === 'storm'}}">
+      <view class="weather-rain-field">
+        <view class="weather-raindrop weather-raindrop--1"></view>
+        <view class="weather-raindrop weather-raindrop--2"></view>
+        <view class="weather-raindrop weather-raindrop--3"></view>
+        <view class="weather-raindrop weather-raindrop--4"></view>
+        <view class="weather-raindrop weather-raindrop--5"></view>
+        <view class="weather-raindrop weather-raindrop--6"></view>
+        <view class="weather-raindrop weather-raindrop--7"></view>
+        <view class="weather-raindrop weather-raindrop--8"></view>
+        <view class="weather-raindrop weather-raindrop--9"></view>
+        <view class="weather-raindrop weather-raindrop--10"></view>
+      </view>
+      <view class="weather-rain-field weather-rain-field--far">
+        <view class="weather-raindrop weather-raindrop--11"></view>
+        <view class="weather-raindrop weather-raindrop--12"></view>
+        <view class="weather-raindrop weather-raindrop--13"></view>
+        <view class="weather-raindrop weather-raindrop--14"></view>
+        <view class="weather-raindrop weather-raindrop--15"></view>
+        <view class="weather-raindrop weather-raindrop--16"></view>
+        <view class="weather-raindrop weather-raindrop--17"></view>
+        <view class="weather-raindrop weather-raindrop--18"></view>
+        <view class="weather-raindrop weather-raindrop--19"></view>
+        <view class="weather-raindrop weather-raindrop--20"></view>
+        <view class="weather-raindrop weather-raindrop--21"></view>
+        <view class="weather-raindrop weather-raindrop--22"></view>
+        <view class="weather-raindrop weather-raindrop--23"></view>
+        <view class="weather-raindrop weather-raindrop--24"></view>
+      </view>
+      <view class="weather-scene-rain-glow"></view>
+      <view class="weather-scene-flash"></view>
+    </block>
+  </view>
+
+  <view class="weather-background-mask"></view>
+
+  <view wx:if="{{loading && !pageReady}}" class="weather-screen weather-screen--loading">
+    <view class="weather-screen-pulse"></view>
+    <text class="weather-screen-title">气象同步中</text>
+    <text class="weather-screen-copy">正在获取地图中心点天气，请稍候。</text>
+  </view>
+
+  <view wx:elif="{{!featureEnabled}}" class="weather-screen weather-screen--error">
+    <text class="weather-screen-title">气象功能暂未开放</text>
+  </view>
+
+  <view wx:elif="{{error && !currentWeather}}" class="weather-screen weather-screen--error">
+    <text class="weather-screen-title">气象同步失败</text>
+    <text class="weather-screen-copy">{{error}}</text>
+  </view>
+
+  <scroll-view
+    wx:else
+    class="weather-scroll"
+    scroll-y
+    enhanced="true"
+    refresher-enabled="true"
+    refresher-triggered="{{weatherScrollRefreshing}}"
+    refresher-background="transparent"
+    bindrefresherrefresh="onScrollRefresh"
+  >
+    <view class="weather-hero-card">
+      <view class="weather-hero-top">
+        <view class="weather-hero-head">
+          <text class="weather-hero-updated">{{updatedAtText ? '更新于 ' + updatedAtText : '地图中心点'}}</text>
         </view>
-
-        <view wx:if="{{currentWeather}}" class="weather-hero-main">
-          <image class="weather-hero-icon" src="{{currentWeather.iconPath}}" mode="aspectFit" />
-          <view class="weather-hero-copy">
-            <text class="weather-hero-title">{{currentWeather.weatherLabel}}</text>
-            <text class="weather-hero-subtitle">{{sourceLabel}}</text>
-            <text class="weather-hero-coords">{{centerText}}</text>
-          </view>
-        </view>
-
-        <view wx:elif="{{loading}}" class="weather-hero-loading">
-          <text class="weather-hero-loading-text">正在拉取中心点天气...</text>
-        </view>
-
-        <view wx:else class="weather-hero-loading">
-          <text class="weather-hero-loading-text">暂无可展示的天气数据</text>
+        <view class="weather-hero-location">
+          <text wx:if="{{centerAddressText}}" class="weather-hero-address">{{centerAddressText}}</text>
         </view>
       </view>
 
-      <view wx:if="{{error && (!weatherCards || !weatherCards.length)}}" class="weather-state-card">
-        <text class="weather-state-title">{{error}}</text>
-        <button class="weather-retry-btn" bindtap="onRetryTap" loading="{{loading}}">重新获取</button>
+      <view wx:if="{{currentWeather}}" class="weather-hero-main">
+        <image class="weather-hero-icon" src="{{currentWeather.iconPath}}" mode="aspectFit" />
+        <view class="weather-hero-copy">
+          <text class="weather-hero-title">{{currentWeather.weatherLabel}}</text>
+          <text class="weather-hero-subtitle">当前天气</text>
+        </view>
       </view>
 
-      <block wx:else>
-        <view class="weather-metric-row">
-          <block wx:for="{{currentMetricCards}}" wx:key="key">
-            <view class="weather-metric-card {{satellite ? 'weather-metric-card--satellite' : ''}}">
-              <view class="weather-metric-head">
-                <image wx:if="{{item.iconPath}}" class="weather-metric-icon" src="{{item.iconPath}}" mode="aspectFit" />
-                <text class="weather-metric-label">{{item.label}}</text>
+      <view wx:if="{{currentWindLayers.length}}" class="weather-layer-card">
+        <view class="weather-layer-list">
+          <block wx:for="{{currentWindLayers}}" wx:key="key">
+            <view class="weather-layer-row">
+              <view class="weather-layer-tag">
+                <image wx:if="{{item.iconPath}}" class="weather-layer-tag-icon" src="{{item.iconPath}}" mode="aspectFit" />
+                <text class="weather-layer-tag-text">{{item.title}}</text>
               </view>
-              <text class="weather-metric-value">{{item.value}}</text>
+              <text class="weather-layer-speed">{{item.speedDisplay}}</text>
+              <text class="weather-layer-direction">{{item.directionDisplay}}</text>
             </view>
           </block>
         </view>
+      </view>
 
-        <view class="weather-section">
-          <view class="weather-forecast-grid">
-            <block wx:for="{{weatherCards}}" wx:key="key">
-              <view class="weather-forecast-card {{satellite ? 'weather-forecast-card--satellite' : ''}}">
-                <view class="weather-forecast-top">
-                  <text class="weather-forecast-title">{{item.label}}</text>
-                  <text class="weather-forecast-time">{{item.timeText}}</text>
+      <view class="weather-metric-row">
+        <block wx:for="{{currentMetricCards}}" wx:key="key">
+          <view class="weather-metric-card {{item.kind === 'compass' ? 'weather-metric-card--compass' : ''}}">
+            <block wx:if="{{item.kind === 'compass'}}">
+              <view class="weather-metric-label-row">
+                <image wx:if="{{item.iconPath}}" class="weather-metric-label-icon" src="{{item.iconPath}}" mode="aspectFit" />
+                <text class="weather-metric-label">{{item.label}}</text>
+              </view>
+              <view class="weather-compass">
+                <view class="weather-compass-ring">
+                  <text class="weather-compass-mark weather-compass-mark--n">N</text>
+                  <text class="weather-compass-mark weather-compass-mark--e">E</text>
+                  <text class="weather-compass-mark weather-compass-mark--s">S</text>
+                  <text class="weather-compass-mark weather-compass-mark--w">W</text>
+                  <view wx:if="{{item.hasDirection}}" class="weather-compass-pointer" style="transform: translateX(-50%) rotate({{item.rotation}}deg);">
+                    <view class="weather-compass-pointer-line"></view>
+                    <view class="weather-compass-pointer-head"></view>
+                  </view>
+                  <view class="weather-compass-center-dot"></view>
                 </view>
-                <view class="weather-forecast-summary">
-                  <image class="weather-forecast-icon" src="{{item.iconPath}}" mode="aspectFit" />
-                  <text class="weather-forecast-label">{{item.weatherLabel}}</text>
-                </view>
-                <view class="weather-forecast-metrics">
-                  <view class="weather-forecast-metric">
-                    <text class="weather-forecast-metric-label">风速</text>
-                    <text class="weather-forecast-metric-value">{{item.windSpeedDisplay}}</text>
-                  </view>
-                  <view class="weather-forecast-metric">
-                    <text class="weather-forecast-metric-label">能见度</text>
-                    <text class="weather-forecast-metric-value">{{item.visibilityDisplay}}</text>
-                  </view>
-                  <view class="weather-forecast-metric">
-                    <text class="weather-forecast-metric-label">云底高度</text>
-                    <text class="weather-forecast-metric-value">{{item.cloudBaseDisplay}}</text>
-                  </view>
+                <view class="weather-compass-meta">
+                  <text class="weather-compass-direction">{{item.directionText}}</text>
+                  <text class="weather-compass-degree">{{item.degreeText}}</text>
                 </view>
               </view>
             </block>
+            <block wx:else>
+              <view class="weather-metric-label-row">
+                <image wx:if="{{item.iconPath}}" class="weather-metric-label-icon" src="{{item.iconPath}}" mode="aspectFit" />
+                <text class="weather-metric-label">{{item.label}}</text>
+              </view>
+              <text class="weather-metric-value">{{item.value}}</text>
+            </block>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view class="weather-calendar-section">
+      <scroll-view
+        class="weather-calendar-tab-scroll"
+        scroll-x
+        enhanced="true"
+        show-scrollbar="false"
+        scroll-into-view="{{selectedCalendarTabId}}"
+      >
+        <view class="weather-calendar-tab-track">
+          <block wx:for="{{calendarDays}}" wx:key="dateKey" wx:for-item="day">
+            <view
+              id="{{day.tabId}}"
+              class="weather-calendar-tab {{selectedCalendarDateKey === day.dateKey ? 'is-active' : ''}}"
+              data-date-key="{{day.dateKey}}"
+              bindtap="onSelectCalendarDay"
+            >
+              <text class="weather-calendar-tab-title">{{day.tabLabel}}</text>
+              <text class="weather-calendar-tab-date">{{day.dateLabel}}</text>
+            </view>
+          </block>
+        </view>
+      </scroll-view>
+
+      <view wx:if="{{selectedCalendarDay}}" class="weather-calendar-day weather-calendar-day--selected">
+        <view class="weather-calendar-day-top">
+          <view class="weather-calendar-day-copy">
+            <text class="weather-calendar-day-title">{{selectedCalendarDay.tabLabel}}</text>
+            <text class="weather-calendar-day-subtitle">{{selectedCalendarDay.dateLabel}} {{selectedCalendarDay.weekdayLabel}}</text>
           </view>
         </view>
 
-        <view class="weather-note-card {{satellite ? 'weather-note-card--satellite' : ''}}">
-          <text wx:if="{{error}}" class="weather-note-tip">{{error}}</text>
-          <button class="weather-retry-btn" bindtap="onRetryTap" loading="{{loading}}">刷新天气</button>
+        <view class="weather-calendar-header">
+          <text class="weather-calendar-heading weather-calendar-heading--time">时刻</text>
+          <text class="weather-calendar-heading weather-calendar-heading--wind">风速/风向（点击对应项查看详情）</text>
+          <text class="weather-calendar-heading">能见度</text>
+          <text class="weather-calendar-heading">云底</text>
+          <text class="weather-calendar-heading">云量</text>
         </view>
-      </block>
-    </block>
-  </view>
+
+        <block wx:for="{{selectedCalendarDay.rows}}" wx:key="key" wx:for-item="slot">
+          <view class="weather-calendar-row">
+            <view class="weather-calendar-cell weather-calendar-cell--time">
+              <text class="weather-calendar-time">{{slot.timeKey}}</text>
+              <view class="weather-calendar-weather">
+                <image class="weather-calendar-icon" src="{{slot.iconPath}}" mode="aspectFit" />
+                <text class="weather-calendar-weather-label">{{slot.weatherLabel}}</text>
+              </view>
+            </view>
+            <view
+              class="weather-calendar-cell weather-calendar-cell--wind weather-calendar-cell--interactive"
+              data-date-key="{{selectedCalendarDay.dateKey}}"
+              data-time-key="{{slot.timeKey}}"
+              bindtap="onOpenWindDetail"
+            >
+              <text class="weather-calendar-value">{{slot.windSpeedDisplay}}</text>
+              <text class="weather-calendar-meta">{{slot.windDirectionDisplay}}</text>
+            </view>
+            <view class="weather-calendar-cell">
+              <text class="weather-calendar-value">{{slot.visibilityDisplay}}</text>
+            </view>
+            <view class="weather-calendar-cell">
+              <text class="weather-calendar-value">{{slot.cloudBaseDisplay}}</text>
+            </view>
+            <view class="weather-calendar-cell">
+              <text class="weather-calendar-value">{{slot.cloudCoverDisplay}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+    </view>
+  </scroll-view>
 </view>

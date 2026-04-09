@@ -29,6 +29,7 @@ const pageRuntimeUtils = require("./utils/page-runtime");
 const mapViewportUtils = require("./utils/map-viewport");
 const nearbyFetchUtils = require("./utils/nearby-fetch");
 const weatherUtils = require("./utils/weather");
+const elevationUtils = require("./utils/elevation");
 const mapGeometryUtils = require("./utils/map-geometry");
 const nearbyGraphicsUtils = require("./utils/nearby-graphics");
 const targetLinkUtils = require("./utils/target-link");
@@ -133,6 +134,7 @@ Page({
     centerCoordinateLngText: "",
     centerCoordinateLatValue: null,
     centerCoordinateLngValue: null,
+    centerElevationText: "",
     coordinateSystem: "wgs84",
     coordinateSystemLabel: resolveCoordinateSystemDisplayLabel("wgs84"),
     coordinateSystemOptions: COORDINATE_SYSTEM_OPTIONS,
@@ -200,8 +202,8 @@ Page({
     floatingControlsBottomPx: 131,
     bottomNavBottomPx: 21,
     weatherFeatureEnabled: weatherUtils.WEATHER_FEATURE_ENABLED === true,
-    weatherWidgetLeftPx: 8,
-    weatherWidgetWidthPx: 100,
+    weatherWidgetLeftPx: 3,
+    weatherWidgetWidthPx: 105,
     weatherWidgetBottomPx: 117,
     weatherLoading: false,
     weatherError: "",
@@ -1288,6 +1290,10 @@ Page({
     return miscActionsUtils.onMapCheckinEntryTap(this);
   },
 
+  onPreflightEntryTap() {
+    return preflightDashboardUtils.onPreflightEntryTap(this);
+  },
+
   onTemporaryNoticeEntryTap() {
     return preflightDashboardUtils.onTemporaryNoticeEntryTap(this);
   },
@@ -1546,6 +1552,10 @@ Page({
 
   formatCenterPinLinkDistance(distanceMeters) {
     return targetLinkUtils.formatCenterPinLinkDistance(distanceMeters);
+  },
+
+  requestSearchLinkElevationDiff(target, options = {}) {
+    return targetLinkUtils.requestSearchLinkElevationDiff(this, target, options);
   },
 
   buildCenterPinLinkState(center, options = {}) {
@@ -2106,6 +2116,10 @@ Page({
     return weatherUtils.applyWeatherSnapshot(this, snapshot, options);
   },
 
+  applyElevationSnapshot(snapshot = null) {
+    return elevationUtils.applyElevationSnapshot(this, snapshot);
+  },
+
   hydrateWeatherFromCache(options = {}) {
     return weatherUtils.hydrateWeatherFromCache(this, options);
   },
@@ -2114,8 +2128,16 @@ Page({
     return weatherUtils.scheduleFetchWeather(this, delay, options);
   },
 
+  scheduleFetchElevation(delay = 0, options = {}) {
+    return elevationUtils.scheduleFetchElevation(this, delay, options);
+  },
+
   requestWeatherSummary(options = {}) {
     return weatherUtils.requestWeatherSummary(this, options);
+  },
+
+  requestCenterElevation(options = {}) {
+    return elevationUtils.requestCenterElevation(this, options);
   },
 
   onWeatherWidgetTap() {

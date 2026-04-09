@@ -95,7 +95,8 @@
     {
       "root": "packages/weather",
       "pages": [
-        "index/index"
+        "index/index",
+        "wind/index"
       ]
     }
   ],

@@ -269,6 +269,10 @@ function onCloseSearchCoordinateTipsDialog(page) {
   page.setData({ searchCoordinateTipsVisible: false });
 }
 
+function onPreflightEntryTap(page) {
+  page.showPlaceholderToast("小主莫急，在开发中了~");
+}
+
 function onTemporaryZoneLinkTap(page, event = {}) {
   const info = page.data.temporaryNoFlyZoneInfo;
   if (!info || !info.hasLink) {
@@ -695,6 +699,7 @@ module.exports = {
   onSearchTap,
   onSearchCoordinateTipsTap,
   onCloseSearchCoordinateTipsDialog,
+  onPreflightEntryTap,
   onTemporaryNoticeEntryTap,
   onTemporaryZoneLinkTap,
   onCenterPinIndicatorTap,

@@ -1,16 +1,25 @@
 .weather-strip {
   position: absolute;
+  display: inline-block;
   z-index: 37;
   pointer-events: auto;
 }
 
 .weather-strip-shell {
+  display: inline-block;
   border-radius: 24rpx;
   padding: 14rpx 18rpx;
   background: rgba(255, 255, 255, 0.16);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
   box-shadow: 0 12rpx 26rpx rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(12rpx);
+  text-align: left;
+}
+
+.weather-strip-shell--loading {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(18rpx);
 }
 
 .weather-strip--satellite .weather-strip-shell {
@@ -19,12 +28,22 @@
   box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
 }
 
+.weather-strip--satellite .weather-strip-shell--loading {
+  background: rgba(15, 23, 42, 0.28);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
 .weather-strip-line {
   display: flex;
   align-items: baseline;
   gap: 12rpx;
   min-width: 0;
   flex-wrap: nowrap;
+}
+
+.weather-strip-line--triple {
+  justify-content: flex-start;
+  gap: 10rpx;
 }
 
 .weather-strip-line--visibility,

@@ -105,6 +105,7 @@ function onLoad(page, options = {}) {
   page._markersFetchTimer = null;
   page._pinsFetchTimer = null;
   page._weatherFetchTimer = null;
+  page._elevationFetchTimer = null;
   page._pendingRegionUpdates = 0;
   page._mapSkew = 0;
   page._mapRotate = 0;
@@ -165,6 +166,9 @@ function onLoad(page, options = {}) {
   page._activeWeatherRequest = null;
   page._lastWeatherFetch = null;
   page._weatherSnapshot = null;
+  page._activeElevationRequest = null;
+  page._lastElevationFetch = null;
+  page._elevationSnapshot = null;
   page._nearbyMarkersRaw = [];
   page._nearbyMarkers = [];
   page._nearbyPinsRaw = [];
@@ -175,6 +179,9 @@ function onLoad(page, options = {}) {
   page._searchLinkMarkers = [];
   page._searchLinkPolylines = [];
   page._searchLinkOwner = "";
+  page._centerPinLinkElevationState = null;
+  page._centerPinLinkElevationRequestKey = "";
+  page._pointElevationCache = new Map();
   page._lastMarkerDetail = null;
   page._markerDetailCloseTimer = null;
   page._markerPageCloseTimer = null;
@@ -286,6 +293,11 @@ function onLoad(page, options = {}) {
     page.updateScaleBar();
     page.updateCenterPinIndicator();
     page.scheduleFetchWeather(0, {
+      center: initialViewportCenter,
+      scale: initialViewportScale,
+      force: true
+    });
+    page.scheduleFetchElevation(2000, {
       center: initialViewportCenter,
       scale: initialViewportScale,
       force: true

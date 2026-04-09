@@ -4,15 +4,22 @@
   style="{{containerStyle}}"
   catchtap="onTap"
 >
-  <view class="weather-strip-shell">
-    <view wx:if="{{error && !currentItem}}" class="weather-strip-state">
+  <view class="weather-strip-shell {{loading ? 'weather-strip-shell--loading' : ''}}">
+    <view wx:if="{{loading}}" class="weather-strip-skeleton">
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--sm"></view>
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--md"></view>
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--sm"></view>
+    </view>
+
+    <view wx:elif="{{error && !currentItem}}" class="weather-strip-state">
       <text class="weather-strip-state-text">{{error}}</text>
     </view>
 
     <block wx:elif="{{currentItem}}">
-      <view class="weather-strip-line">
+      <view class="weather-strip-line weather-strip-line--triple">
         <text class="weather-strip-text weather-strip-text--strong">{{currentItem.weatherLabel}}</text>
-        <text class="weather-strip-text">风速 {{currentItem.windSpeedDisplay}}</text>
+        <text class="weather-strip-text">{{currentItem.windSpeedDisplay}}</text>
+        <text class="weather-strip-text">{{currentItem.windDirectionLabel || '暂无'}}</text>
       </view>
       <view class="weather-strip-line weather-strip-line--visibility">
         <text class="weather-strip-text">能见度</text>

@@ -25,6 +25,7 @@ function onShow(page) {
   page.resumeCenterPinLocationFollow();
   page.hydrateWeatherFromCache({ center: page._centerOverride || page.data.center });
   page.scheduleFetchWeather(0, { center: page._centerOverride || page.data.center });
+  page.scheduleFetchElevation(2000, { center: page._centerOverride || page.data.center });
   if (page._skipPendingFocusOnShow) {
     page._skipPendingFocusOnShow = false;
   } else {

@@ -144,6 +144,10 @@
           <view class="map-scale-tick map-scale-tick-end"></view>
         </view>
       </view>
+      <view class="map-center-elevation" wx:if="{{centerElevationText}}">
+        <text class="map-center-elevation-label">海拔</text>
+        <text class="map-center-elevation-value">{{centerElevationText}}</text>
+      </view>
       <view
         class="map-center-coords"
         wx:if="{{centerCoordinateLatText && centerCoordinateLngText}}"
@@ -198,6 +202,7 @@
       city-report-dialog-visible="{{cityReportDialogVisible}}"
       city-report-dialog-text="{{cityReportDialogText}}"
       bind:opendronepicker="openDronePicker"
+      bind:preflightentrytap="onPreflightEntryTap"
       bind:temporarynoticeentrytap="onTemporaryNoticeEntryTap"
       bind:temporaryzonelinktap="onTemporaryZoneLinkTap"
       bind:centerpinindicatortap="onCenterPinIndicatorTap"
@@ -246,7 +251,7 @@
     />
     <map-weather-strip
       visible="{{weatherFeatureEnabled && activeTab === 'home' && !stealthModeActive}}"
-      container-style="left: {{weatherWidgetLeftPx}}px; width: {{weatherWidgetWidthPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{weatherWidgetBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+      container-style="left: {{weatherWidgetLeftPx}}px; min-width: {{weatherWidgetWidthPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{weatherWidgetBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
       satellite="{{mapLayerType === 'satellite'}}"
       loading="{{weatherLoading}}"
       error="{{weatherError}}"

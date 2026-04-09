@@ -428,8 +428,8 @@ function refreshResponsiveLayout(page, options = {}) {
   const floatingControlsRightPx = roundAnchorPx(32);
   const floatingControlsBottomPx = roundAnchorPx(262);
   const bottomNavBottomPx = roundAnchorPx(42);
-  const weatherWidgetLeftPx = roundAnchorPx(32);
-  const weatherWidgetWidthPx = roundAnchorPx(252);
+  const weatherWidgetLeftPx = roundAnchorPx(22);
+  const weatherWidgetWidthPx = roundAnchorPx(262);
   const weatherWidgetBottomPx = roundAnchorPx(234);
   if (page.data.subscriptionBannerLeftPx !== subscriptionBannerLeftPx) {
     updates.subscriptionBannerLeftPx = subscriptionBannerLeftPx;
