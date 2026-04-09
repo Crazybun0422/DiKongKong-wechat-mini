@@ -127,6 +127,11 @@
         </view>
         <view class="weather-hero-location">
           <text wx:if="{{centerAddressText}}" class="weather-hero-address">{{centerAddressText}}</text>
+          <view wx:if="{{elevationText}}" class="weather-hero-elevation">
+            <image class="weather-hero-elevation-icon" src="{{elevationIconPath}}" mode="aspectFit" />
+            <text class="weather-hero-elevation-label">海拔</text>
+            <text class="weather-hero-elevation-value">{{elevationText}}</text>
+          </view>
         </view>
       </view>
 
@@ -219,6 +224,53 @@
           <view class="weather-calendar-day-copy">
             <text class="weather-calendar-day-title">{{selectedCalendarDay.tabLabel}}</text>
             <text class="weather-calendar-day-subtitle">{{selectedCalendarDay.dateLabel}} {{selectedCalendarDay.weekdayLabel}}</text>
+          </view>
+          <view class="weather-calendar-solar weather-calendar-solar--compact">
+            <view class="weather-calendar-solar-item">
+              <view class="weather-calendar-solar-head">
+                <image class="weather-calendar-solar-icon" src="{{selectedCalendarDay.sunriseGlow.iconPath}}" mode="aspectFit" />
+                <text class="weather-calendar-solar-label weather-calendar-solar-label--dynamic">{{selectedCalendarDay.sunriseGlow.label}}</text>
+                <text class="weather-calendar-solar-label">日出</text>
+              </view>
+              <text class="weather-calendar-solar-time">{{selectedCalendarDay.sunriseGlow.windowDisplay}}</text>
+              <view class="weather-calendar-solar-metrics">
+                <text class="weather-calendar-solar-metric">AOD {{selectedCalendarDay.sunriseGlow.aodDisplay}}</text>
+                <text class="weather-calendar-solar-metric">火烧云 {{selectedCalendarDay.sunriseGlow.fireCloudDisplay}}</text>
+              </view>
+              <text class="weather-calendar-solar-status">{{selectedCalendarDay.sunriseGlow.statusText}}</text>
+            </view>
+            <view class="weather-calendar-solar-item">
+              <view class="weather-calendar-solar-head">
+                <image class="weather-calendar-solar-icon" src="{{selectedCalendarDay.sunsetGlow.iconPath}}" mode="aspectFit" />
+                <text class="weather-calendar-solar-label weather-calendar-solar-label--dynamic">{{selectedCalendarDay.sunsetGlow.label}}</text>
+                <text class="weather-calendar-solar-label">日落</text>
+              </view>
+              <text class="weather-calendar-solar-time">{{selectedCalendarDay.sunsetGlow.windowDisplay}}</text>
+              <view class="weather-calendar-solar-metrics">
+                <text class="weather-calendar-solar-metric">AOD {{selectedCalendarDay.sunsetGlow.aodDisplay}}</text>
+                <text class="weather-calendar-solar-metric">火烧云 {{selectedCalendarDay.sunsetGlow.fireCloudDisplay}}</text>
+              </view>
+              <text class="weather-calendar-solar-status">{{selectedCalendarDay.sunsetGlow.statusText}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="weather-calendar-solar weather-calendar-solar--legacy">
+          <view class="weather-calendar-solar-item">
+            <view class="weather-calendar-solar-head">
+              <image class="weather-calendar-solar-icon" src="{{selectedCalendarDay.sunriseIconPath}}" mode="aspectFit" />
+              <text class="weather-calendar-solar-label">日出</text>
+            </view>
+            <text class="weather-calendar-solar-time">{{selectedCalendarDay.sunriseDisplay}}</text>
+            <text class="weather-calendar-solar-status">{{selectedCalendarDay.sunriseStatusText}}</text>
+          </view>
+          <view class="weather-calendar-solar-item">
+            <view class="weather-calendar-solar-head">
+              <image class="weather-calendar-solar-icon" src="{{selectedCalendarDay.sunsetIconPath}}" mode="aspectFit" />
+              <text class="weather-calendar-solar-label">日落</text>
+            </view>
+            <text class="weather-calendar-solar-time">{{selectedCalendarDay.sunsetDisplay}}</text>
+            <text class="weather-calendar-solar-status">{{selectedCalendarDay.sunsetStatusText}}</text>
           </view>
         </view>
 

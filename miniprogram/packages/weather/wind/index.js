@@ -69,7 +69,7 @@ function resolveWeatherScene(slot = null) {
   if (!iconName) {
     return "clear";
   }
-  if (iconName === "thunderstorm" || iconName === "hail") {
+  if (iconName === "thunderstorm" || iconName === "hail" || iconName === "strong-convective") {
     return "storm";
   }
   if (iconName.includes("rain") || iconName === "showers") {

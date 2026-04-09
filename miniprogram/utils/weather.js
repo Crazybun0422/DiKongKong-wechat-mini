@@ -9,10 +9,12 @@ const WEATHER_MOVE_THRESHOLD_METERS = 300;
 const WEATHER_SNAPSHOT_MATCH_METERS = 1500;
 const WEATHER_API_BASE = "https://api.open-meteo.com/v1";
 const WEATHER_HISTORY_API_BASE = "https://historical-forecast-api.open-meteo.com/v1";
+const AIR_QUALITY_API_BASE = "https://air-quality-api.open-meteo.com/v1";
 const CLOUD_BASE_LOW_COVER_THRESHOLD = 15;
 const WEATHER_CALENDAR_PAST_DAYS = 1;
 const WEATHER_CALENDAR_DAYS = 15;
-const WEATHER_CALENDAR_SLOT_HOURS = [0, 4, 8, 12, 16, 20];
+const WEATHER_CALENDAR_SLOT_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+const AIR_QUALITY_FORECAST_DAYS = 7;
 
 const FORECAST_POINTS = [
   { key: "current", label: "当前", offsetHours: 0, useCurrent: true },
@@ -118,6 +120,7 @@ const FORECAST_ENDPOINT = {
 const CALENDAR_ENDPOINT = {
   id: "calendar-forecast",
   path: "forecast",
+  dailyFields: ["sunrise", "sunset"],
   hourlyFields: [
     "weather_code",
     "wind_speed_10m",
@@ -137,6 +140,11 @@ const CALENDAR_ENDPOINT = {
     "cloud_cover_mid",
     "cloud_cover_high"
   ]
+};
+
+const AIR_QUALITY_ENDPOINT = {
+  path: "air-quality",
+  hourlyFields: ["aerosol_optical_depth"]
 };
 
 function hasValidCoordinate(center = {}) {
@@ -232,6 +240,7 @@ function buildCalendarEndpointUrl(baseUrl, centerWgs84 = {}, startDate = "", end
   const query = buildQuery({
     latitude: formatQueryNumber(centerWgs84.latitude),
     longitude: formatQueryNumber(centerWgs84.longitude),
+    daily: CALENDAR_ENDPOINT.dailyFields.join(","),
     hourly: CALENDAR_ENDPOINT.hourlyFields.join(","),
     start_date: startDate,
     end_date: endDate,
@@ -239,6 +248,18 @@ function buildCalendarEndpointUrl(baseUrl, centerWgs84 = {}, startDate = "", end
     wind_speed_unit: "ms"
   });
   return `${baseUrl}/${CALENDAR_ENDPOINT.path}?${query}`;
+}
+
+function buildAirQualityEndpointUrl(centerWgs84 = {}) {
+  const query = buildQuery({
+    latitude: formatQueryNumber(centerWgs84.latitude),
+    longitude: formatQueryNumber(centerWgs84.longitude),
+    hourly: AIR_QUALITY_ENDPOINT.hourlyFields.join(","),
+    past_days: WEATHER_CALENDAR_PAST_DAYS,
+    forecast_days: AIR_QUALITY_FORECAST_DAYS,
+    timezone: "Asia/Shanghai"
+  });
+  return `${AIR_QUALITY_API_BASE}/${AIR_QUALITY_ENDPOINT.path}?${query}`;
 }
 
 function normalizeNumber(value) {
@@ -284,6 +305,156 @@ function formatClockText(value = "") {
     return value.slice(11, 16);
   }
   return "--:--";
+}
+
+function formatClockTextWithSeconds(value = "") {
+  if (typeof value === "string" && value.length >= 16) {
+    return `${value.slice(11, 16)}:00`;
+  }
+  return "--:--:--";
+}
+
+function formatTimeMsToClockWithSeconds(timeMs = null) {
+  if (!Number.isFinite(timeMs)) {
+    return "--:--:--";
+  }
+  const date = new Date(timeMs);
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+}
+
+function clamp(value, min, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function clamp01(value) {
+  return clamp(value, 0, 1);
+}
+
+function triangularFactor(value, min, peak, max) {
+  const numeric = normalizeNumber(value);
+  if (numeric === null || max <= min || peak < min || peak > max) {
+    return null;
+  }
+  if (numeric <= min || numeric >= max) {
+    return 0;
+  }
+  if (numeric === peak) {
+    return 1;
+  }
+  if (numeric < peak) {
+    return clamp01((numeric - min) / Math.max(peak - min, 0.0001));
+  }
+  return clamp01((max - numeric) / Math.max(max - peak, 0.0001));
+}
+
+function formatRelativeDurationWithSeconds(diffMs = 0) {
+  const totalSeconds = Math.max(0, Math.ceil(Number(diffMs) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts = [];
+  if (hours > 0) {
+    parts.push(`${hours}小时`);
+  }
+  if (minutes > 0 || hours > 0) {
+    parts.push(`${minutes}分`);
+  }
+  parts.push(`${seconds}秒`);
+  return parts.join("");
+}
+
+function buildGlowWindowDisplay(timeValue = "", offsetMinutes = 11) {
+  const centerMs = parseTimeMs(timeValue);
+  if (!Number.isFinite(centerMs)) {
+    return "--:--:-- - --:--:--";
+  }
+  const deltaMs = Number(offsetMinutes) * 60 * 1000;
+  return `${formatTimeMsToClockWithSeconds(centerMs - deltaMs)} - ${formatTimeMsToClockWithSeconds(centerMs + deltaMs)}`;
+}
+
+function resolveGlowStatusText(kind = "sunrise", timeValue = "", referenceTimeMs = Date.now(), offsetMinutes = 11) {
+  const centerMs = parseTimeMs(timeValue);
+  const deltaMs = Number(offsetMinutes) * 60 * 1000;
+  if (!Number.isFinite(centerMs)) {
+    return "暂无";
+  }
+  const startMs = centerMs - deltaMs;
+  const endMs = centerMs + deltaMs;
+  if (referenceTimeMs < startMs) {
+    return `距开始 ${formatRelativeDurationWithSeconds(startMs - referenceTimeMs)}`;
+  }
+  if (referenceTimeMs <= endMs) {
+    return `进行中 ${formatRelativeDurationWithSeconds(endMs - referenceTimeMs)}`;
+  }
+  return kind === "sunrise" ? "已日出" : "已日落";
+}
+
+function resolveDailyValue(payload = {}, dateKey = "", field = "") {
+  const timeList = Array.isArray(payload?.daily?.time) ? payload.daily.time : [];
+  const valueList = Array.isArray(payload?.daily?.[field]) ? payload.daily[field] : [];
+  if (!timeList.length || !valueList.length) {
+    return "";
+  }
+  const index = timeList.findIndex((item) => `${item || ""}` === `${dateKey || ""}`);
+  if (index < 0 || index >= valueList.length) {
+    return "";
+  }
+  const value = valueList[index];
+  return typeof value === "string" && value ? value : "";
+}
+
+function resolveCalendarDailyMetric(primaryPayload, secondaryPayload, dateKey = "", field = "") {
+  return (
+    resolveDailyValue(primaryPayload, dateKey, field) ||
+    resolveDailyValue(secondaryPayload, dateKey, field) ||
+    ""
+  );
+}
+
+function formatRelativeDuration(diffMs = 0) {
+  const totalMinutes = Math.max(0, Math.ceil(Number(diffMs) / 60000));
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days > 0) {
+    parts.push(`${days}天`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours}小时`);
+  }
+  if (parts.length < 2 && (minutes > 0 || parts.length === 0)) {
+    parts.push(`${minutes}分钟`);
+  }
+  return parts.slice(0, 2).join("");
+}
+
+function buildSolarEventInfo(kind = "sunrise", timeValue = "", referenceTimeMs = Date.now()) {
+  const parsedMs = parseTimeMs(timeValue);
+  const isSunrise = kind === "sunrise";
+  if (!Number.isFinite(parsedMs)) {
+    return {
+      timeValue: "",
+      timeDisplay: "--:--",
+      statusText: "暂无"
+    };
+  }
+  if (referenceTimeMs >= parsedMs) {
+    return {
+      timeValue,
+      timeDisplay: formatClockText(timeValue),
+      statusText: isSunrise ? "已日出" : "已日落"
+    };
+  }
+  return {
+    timeValue,
+    timeDisplay: formatClockText(timeValue),
+    statusText: `${isSunrise ? "距日出 " : "距日落 "}${formatRelativeDuration(parsedMs - referenceTimeMs)}`
+  };
 }
 
 function formatUpdatedAt(timestamp) {
@@ -439,6 +610,9 @@ function resolveWeatherMeta(code) {
 }
 
 function resolveWeatherIconPath(iconName = "overcast", satellite = false) {
+  if (iconName === "strong-convective") {
+    return "/packages/weather/assets/strong-convective.png";
+  }
   const folder = satellite ? "weather-white" : "weather-black";
   return `/packages/weather/assets/${folder}/${iconName}.png`;
 }
@@ -515,6 +689,178 @@ function resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, fiel
     resolveTimeMetric(primaryPayload, timeValue, field),
     resolveTimeMetric(secondaryPayload, timeValue, field)
   ]);
+}
+
+function interpolateHourlyMetric(payload = {}, field = "", targetMs = null) {
+  const timeList = Array.isArray(payload?.hourly?.time) ? payload.hourly.time : [];
+  const valueList = Array.isArray(payload?.hourly?.[field]) ? payload.hourly[field] : [];
+  if (!timeList.length || !valueList.length || !Number.isFinite(targetMs)) {
+    return null;
+  }
+  let prevIndex = -1;
+  let nextIndex = -1;
+  for (let i = 0; i < timeList.length; i += 1) {
+    const currentMs = parseTimeMs(timeList[i]);
+    if (!Number.isFinite(currentMs)) {
+      continue;
+    }
+    if (currentMs === targetMs) {
+      return normalizeNumber(valueList[i]);
+    }
+    if (currentMs < targetMs) {
+      prevIndex = i;
+      continue;
+    }
+    nextIndex = i;
+    break;
+  }
+  const prevValue = prevIndex >= 0 ? normalizeNumber(valueList[prevIndex]) : null;
+  const nextValue = nextIndex >= 0 ? normalizeNumber(valueList[nextIndex]) : null;
+  const prevMs = prevIndex >= 0 ? parseTimeMs(timeList[prevIndex]) : null;
+  const nextMs = nextIndex >= 0 ? parseTimeMs(timeList[nextIndex]) : null;
+  if (prevValue !== null && nextValue !== null && Number.isFinite(prevMs) && Number.isFinite(nextMs) && nextMs > prevMs) {
+    const progress = (targetMs - prevMs) / (nextMs - prevMs);
+    return prevValue + (nextValue - prevValue) * progress;
+  }
+  if (prevValue !== null) {
+    return prevValue;
+  }
+  if (nextValue !== null) {
+    return nextValue;
+  }
+  return null;
+}
+
+function resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, field) {
+  return firstFiniteValue([
+    interpolateHourlyMetric(primaryPayload, field, targetMs),
+    interpolateHourlyMetric(secondaryPayload, field, targetMs)
+  ]);
+}
+
+function resolveNearestDiscreteHourlyMetric(payload = {}, field = "", targetMs = null) {
+  const timeList = Array.isArray(payload?.hourly?.time) ? payload.hourly.time : [];
+  const valueList = Array.isArray(payload?.hourly?.[field]) ? payload.hourly[field] : [];
+  if (!timeList.length || !valueList.length || !Number.isFinite(targetMs)) {
+    return null;
+  }
+  const index = findNearestHourIndex(timeList, targetMs, 0);
+  return normalizeNumber(valueList[index]);
+}
+
+function resolveNearestCalendarMetric(primaryPayload, secondaryPayload, targetMs, field) {
+  return firstFiniteValue([
+    resolveNearestDiscreteHourlyMetric(primaryPayload, field, targetMs),
+    resolveNearestDiscreteHourlyMetric(secondaryPayload, field, targetMs)
+  ]);
+}
+
+function formatAod(value) {
+  const numeric = normalizeNumber(value);
+  if (numeric === null) {
+    return "--";
+  }
+  return numeric.toFixed(2);
+}
+
+function resolveFireCloudLevel(score = null) {
+  const numeric = normalizeNumber(score);
+  if (numeric === null || numeric < 20) {
+    return "无";
+  }
+  if (numeric < 45) {
+    return "轻微";
+  }
+  if (numeric < 70) {
+    return "明显";
+  }
+  return "浓烈";
+}
+
+function resolveGlowWeatherPenalty(weatherCode = null) {
+  const code = normalizeNumber(weatherCode);
+  if (code === null) {
+    return 1;
+  }
+  if ([0, 1, 2].includes(code)) {
+    return 1;
+  }
+  if (code === 3) {
+    return 0.82;
+  }
+  if (code === 45 || code === 48) {
+    return 0.55;
+  }
+  if (code >= 95) {
+    return 0.22;
+  }
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+    return 0.34;
+  }
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return 0.3;
+  }
+  return 0.72;
+}
+
+function buildFireCloudScore(input = {}) {
+  const visibilityKm = normalizeNumber(input.visibilityMeters) === null ? null : Number(input.visibilityMeters) / 1000;
+  const components = [
+    { factor: triangularFactor(input.aod, 0.06, 0.55, 1.4), weight: 0.34 },
+    { factor: triangularFactor(input.highCloudCover, 6, 38, 86), weight: 0.26 },
+    { factor: triangularFactor(input.midCloudCover, 0, 20, 58), weight: 0.12 },
+    { factor: normalizeNumber(input.lowCloudCover) === null ? null : (1 - clamp01(Number(input.lowCloudCover) / 80)), weight: 0.18 },
+    { factor: visibilityKm === null ? null : clamp01((visibilityKm - 5) / 18), weight: 0.10 }
+  ];
+  let total = 0;
+  let weightSum = 0;
+  components.forEach((item) => {
+    if (item.factor === null || !Number.isFinite(item.factor)) {
+      return;
+    }
+    total += item.factor * item.weight;
+    weightSum += item.weight;
+  });
+  if (weightSum <= 0) {
+    return { score: null, level: "无" };
+  }
+  const weatherPenalty = resolveGlowWeatherPenalty(input.weatherCode);
+  const score = Math.round(clamp01(total / weightSum) * 100 * weatherPenalty);
+  return {
+    score,
+    level: resolveFireCloudLevel(score)
+  };
+}
+
+function buildGlowEventInfo(kind = "sunrise", timeValue = "", primaryPayload = null, secondaryPayload = null, airQualityPayload = null, referenceTimeMs = Date.now()) {
+  const targetMs = parseTimeMs(timeValue);
+  const aod = interpolateHourlyMetric(airQualityPayload, "aerosol_optical_depth", targetMs);
+  const visibility = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "visibility");
+  const lowCloudCover = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "cloud_cover_low");
+  const midCloudCover = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "cloud_cover_mid");
+  const highCloudCover = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "cloud_cover_high");
+  const weatherCode = resolveNearestCalendarMetric(primaryPayload, secondaryPayload, targetMs, "weather_code");
+  const fireCloud = buildFireCloudScore({
+    aod,
+    visibilityMeters: visibility,
+    lowCloudCover,
+    midCloudCover,
+    highCloudCover,
+    weatherCode
+  });
+  return {
+    kind,
+    label: kind === "sunrise" ? "朝霞" : "晚霞",
+    eventTime: timeValue,
+    eventTimeDisplay: formatClockTextWithSeconds(timeValue),
+    windowDisplay: buildGlowWindowDisplay(timeValue, 11),
+    statusText: resolveGlowStatusText(kind, timeValue, referenceTimeMs, 11),
+    aodValue: aod,
+    aodDisplay: formatAod(aod),
+    fireCloudScore: fireCloud.score,
+    fireCloudLevel: fireCloud.level,
+    fireCloudDisplay: `${fireCloud.score === null ? "--" : fireCloud.score}${fireCloud.level ? ` ${fireCloud.level}` : ""}`
+  };
 }
 
 function estimateCloudBaseAtTime(primaryPayload, secondaryPayload, timeValue) {
@@ -638,7 +984,10 @@ function buildWeatherPoint(dwdPayload, forecastPayload, point = {}, currentTimeM
   const cloudBase = normalizeCloudBaseValue(
     estimateCloudBaseMeters(forecastPayload, point, forecastIndex)
   );
-  const meta = resolveWeatherMeta(weatherCode);
+  const meta =
+    weatherCode === 95 || weatherCode === 96 || weatherCode === 99
+      ? { label: "强对流", iconName: "strong-convective" }
+      : resolveWeatherMeta(weatherCode);
   const windDirectionMeta = resolveWindDirectionMeta(windDirection);
   const item = {
     key: point.key,
@@ -716,7 +1065,10 @@ function buildWeatherSnapshot(dwdPayload, forecastPayload, centerGcj = {}, cente
 function buildCalendarSlot(primaryPayload, secondaryPayload, dateKey, hour, sourceTag = "forecast") {
   const timeValue = `${dateKey}T${pad2(hour)}:00`;
   const weatherCode = resolveCalendarMetric(primaryPayload, secondaryPayload, timeValue, "weather_code");
-  const weatherMeta = resolveWeatherMeta(weatherCode);
+  const weatherMeta =
+    weatherCode === 95 || weatherCode === 96 || weatherCode === 99
+      ? { label: "强对流", iconName: "strong-convective" }
+      : resolveWeatherMeta(weatherCode);
   const windLevels = WIND_LEVELS.map((level) =>
     buildTimedWindLayer(primaryPayload, secondaryPayload, timeValue, level)
   );
@@ -763,8 +1115,9 @@ function buildCalendarSlot(primaryPayload, secondaryPayload, dateKey, hour, sour
   };
 }
 
-function buildCalendarSnapshot(forecastPayload, historyPayload, centerGcj = {}, centerWgs84 = {}) {
+function buildCalendarSnapshot(forecastPayload, historyPayload, airQualityPayload = null, centerGcj = {}, centerWgs84 = {}) {
   const now = new Date();
+  const nowMs = now.getTime();
   const todayKey = buildDateKey(now);
   const startDate = addDays(new Date(`${todayKey}T00:00:00`), -WEATHER_CALENDAR_PAST_DAYS);
   const days = [];
@@ -773,6 +1126,14 @@ function buildCalendarSnapshot(forecastPayload, historyPayload, centerGcj = {}, 
     const dateKey = buildDateKey(date);
     const relativeDay = dayOffset - WEATHER_CALENDAR_PAST_DAYS;
     const isToday = dateKey === todayKey;
+    const solarPrimaryPayload = relativeDay < 0 ? historyPayload : forecastPayload;
+    const solarSecondaryPayload = relativeDay < 0 ? forecastPayload : historyPayload;
+    const sunriseTime = resolveCalendarDailyMetric(solarPrimaryPayload, solarSecondaryPayload, dateKey, "sunrise");
+    const sunsetTime = resolveCalendarDailyMetric(solarPrimaryPayload, solarSecondaryPayload, dateKey, "sunset");
+    const sunrise = buildSolarEventInfo("sunrise", sunriseTime, nowMs);
+    const sunset = buildSolarEventInfo("sunset", sunsetTime, nowMs);
+    const sunriseGlow = buildGlowEventInfo("sunrise", sunriseTime, solarPrimaryPayload, solarSecondaryPayload, airQualityPayload, nowMs);
+    const sunsetGlow = buildGlowEventInfo("sunset", sunsetTime, solarPrimaryPayload, solarSecondaryPayload, airQualityPayload, nowMs);
     const rows = WEATHER_CALENDAR_SLOT_HOURS.map((hour) => {
       const slotDate = buildLocalDateFromKey(dateKey, hour);
       const useHistory =
@@ -797,6 +1158,14 @@ function buildCalendarSnapshot(forecastPayload, historyPayload, centerGcj = {}, 
       dateLabel: formatCalendarDateLabel(dateKey),
       weekdayLabel: formatCalendarWeekday(dateKey),
       isToday,
+      sunriseTime: sunrise.timeValue,
+      sunriseDisplay: sunrise.timeDisplay,
+      sunriseStatusText: sunrise.statusText,
+      sunsetTime: sunset.timeValue,
+      sunsetDisplay: sunset.timeDisplay,
+      sunsetStatusText: sunset.statusText,
+      sunriseGlow,
+      sunsetGlow,
       rows
     });
   }
@@ -890,6 +1259,10 @@ function fetchCalendarHistoryPayload(centerWgs84 = {}, startDate = "", endDate =
   return requestJson(buildCalendarEndpointUrl(WEATHER_HISTORY_API_BASE, centerWgs84, startDate, endDate || startDate));
 }
 
+function fetchAirQualityPayload(centerWgs84 = {}) {
+  return requestJson(buildAirQualityEndpointUrl(centerWgs84));
+}
+
 function fetchWeatherBundle(centerGcj = {}) {
   if (!hasValidCoordinate(centerGcj)) {
     return Promise.reject(new Error("invalid-center"));
@@ -926,14 +1299,16 @@ function fetchWeatherCalendarBundle(centerGcj = {}) {
   const endDate = buildDateKey(addDays(today, WEATHER_CALENDAR_DAYS - WEATHER_CALENDAR_PAST_DAYS - 1));
   return Promise.allSettled([
     fetchCalendarForecastPayload(centerWgs84, startDate, endDate),
-    fetchCalendarHistoryPayload(centerWgs84, startDate, buildDateKey(today))
+    fetchCalendarHistoryPayload(centerWgs84, startDate, buildDateKey(today)),
+    fetchAirQualityPayload(centerWgs84)
   ]).then((results) => {
     const forecastPayload = results[0]?.status === "fulfilled" ? results[0].value : null;
     const historyPayload = results[1]?.status === "fulfilled" ? results[1].value : null;
+    const airQualityPayload = results[2]?.status === "fulfilled" ? results[2].value : null;
     if (!forecastPayload && !historyPayload) {
       throw new Error("weather-calendar-unavailable");
     }
-    return buildCalendarSnapshot(forecastPayload, historyPayload, centerGcj, centerWgs84);
+    return buildCalendarSnapshot(forecastPayload, historyPayload, airQualityPayload, centerGcj, centerWgs84);
   });
 }
 
