@@ -191,6 +191,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseNoFlyZoneList'
+  /api/no-fly-zones/temporary:
+    get:
+      summary: 分页查询生效的临时禁飞区域
+      description: 向所有用户分页返回当前生效、且存在生效时段限制的临时禁飞区域。
+      security: []
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+          description: 每页数量。
+        - in: query
+          name: sortOrder
+          required: false
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+          description: 按创建时间排序方向。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZonePageResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/no-fly-zones/nearby:
     get:
       summary: 查询附近禁飞区域

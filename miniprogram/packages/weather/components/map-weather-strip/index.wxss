@@ -6,88 +6,149 @@
 }
 
 .weather-strip-shell {
-  display: inline-block;
-  border-radius: 24rpx;
-  padding: 14rpx 18rpx;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1rpx solid rgba(255, 255, 255, 0.32);
-  box-shadow: 0 12rpx 26rpx rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(12rpx);
-  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 18rpx;
+  padding: 10rpx 12rpx;
+  background: transparent;
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  backdrop-filter: blur(2rpx);
 }
 
 .weather-strip-shell--loading {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.24);
-  backdrop-filter: blur(18rpx);
+  background: transparent;
 }
 
 .weather-strip--satellite .weather-strip-shell {
-  background: rgba(15, 23, 42, 0.34);
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.2);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
 }
 
 .weather-strip--satellite .weather-strip-shell--loading {
-  background: rgba(15, 23, 42, 0.28);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: transparent;
 }
 
-.weather-strip-line {
+.weather-strip-main {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12rpx;
   min-width: 0;
-  flex-wrap: nowrap;
 }
 
-.weather-strip-line--triple {
-  justify-content: flex-start;
-  gap: 10rpx;
+.weather-strip-icon {
+  width: 64rpx;
+  height: 64rpx;
+  flex-shrink: 0;
 }
 
-.weather-strip-line--visibility,
-.weather-strip-line--secondary {
-  margin-top: 8rpx;
+.weather-strip-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3rpx;
 }
 
-.weather-strip-text,
-.weather-strip-value,
+.weather-strip-weather,
+.weather-strip-speed,
+.weather-strip-force,
 .weather-strip-state-text {
-  line-height: 1.2;
-  color: rgba(15, 23, 42, 0.84);
+  line-height: 1.15;
   white-space: nowrap;
 }
 
-.weather-strip-text {
-  font-size: 20rpx;
-}
-
-.weather-strip-text--strong,
-.weather-strip-state-text {
-  font-weight: 700;
-}
-
-.weather-strip-value {
-  font-size: 20rpx;
-}
-
-.weather-strip-value--visibility {
+.weather-strip-weather {
   font-size: 28rpx;
   font-weight: 700;
-  letter-spacing: -0.2rpx;
+  color: rgba(15, 23, 42, 0.92);
 }
 
-.weather-strip--satellite .weather-strip-text,
-.weather-strip--satellite .weather-strip-value,
+.weather-strip-speed {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.86);
+  text-decoration: underline;
+  text-decoration-thickness: 1rpx;
+  text-underline-offset: 3rpx;
+}
+
+.weather-strip-force {
+  font-size: 22rpx;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.86);
+}
+
+.weather-strip--satellite .weather-strip-weather,
+.weather-strip--satellite .weather-strip-speed,
+.weather-strip--satellite .weather-strip-force,
 .weather-strip--satellite .weather-strip-state-text {
   color: #f8fafc;
+}
+
+.weather-strip-meta {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.weather-strip-pointer {
+  position: relative;
+  width: 38rpx;
+  height: 38rpx;
+  flex-shrink: 0;
+  transform-origin: center;
+  margin-top: -6rpx;
+}
+
+.weather-strip-pointer-line {
+  position: absolute;
+  left: 50%;
+  top: 6rpx;
+  width: 3rpx;
+  height: 24rpx;
+  transform: translateX(-50%);
+  border-radius: 999rpx;
+}
+
+.weather-strip-pointer-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 7rpx solid transparent;
+  border-right: 7rpx solid transparent;
+}
+
+.weather-strip-pointer--dark .weather-strip-pointer-line {
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.weather-strip-pointer--dark .weather-strip-pointer-head {
+  border-bottom: 14rpx solid rgba(15, 23, 42, 0.92);
+}
+
+.weather-strip-pointer--light .weather-strip-pointer-line {
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.weather-strip-pointer--light .weather-strip-pointer-head {
+  border-bottom: 14rpx solid rgba(248, 250, 252, 0.96);
 }
 
 .weather-strip-state {
   min-height: 44rpx;
   display: flex;
   align-items: center;
+}
+
+.weather-strip-state-text {
+  font-size: 20rpx;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.86);
 }
 
 .weather-strip-skeleton {
@@ -101,16 +162,25 @@
   border-radius: 999rpx;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.16),
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0.16)
+    rgba(15, 23, 42, 0.08),
+    rgba(15, 23, 42, 0.16),
+    rgba(15, 23, 42, 0.08)
+  );
+}
+
+.weather-strip--satellite .weather-strip-skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.24),
+    rgba(255, 255, 255, 0.14)
   );
 }
 
 .weather-strip-skeleton-line--sm {
-  width: 150rpx;
+  width: 90rpx;
 }
 
-.weather-strip-skeleton-line--md {
-  width: 220rpx;
+.weather-strip-skeleton-line--lg {
+  width: 170rpx;
 }

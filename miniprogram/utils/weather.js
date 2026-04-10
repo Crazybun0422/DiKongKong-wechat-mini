@@ -513,6 +513,39 @@ function formatWindSpeed(value) {
   return `${numeric.toFixed(1)} m/s`;
 }
 
+function resolveWindForceLevel(value) {
+  const numeric = normalizeNumber(value);
+  if (numeric === null || numeric < 0) {
+    return null;
+  }
+  const thresholds = [
+    0.2, 1.5, 3.3, 5.4, 7.9, 10.7, 13.8, 17.1, 20.7,
+    24.4, 28.4, 32.6, 36.9, 41.4, 46.1, 50.9, 56.0, 61.2
+  ];
+  for (let i = 0; i < thresholds.length; i += 1) {
+    if (numeric <= thresholds[i]) {
+      return i;
+    }
+  }
+  return 18;
+}
+
+function formatWindForceLevel(value) {
+  const level = resolveWindForceLevel(value);
+  if (level === null) {
+    return "--";
+  }
+  return `${level}\u7ea7`;
+}
+
+function formatWindSpeedWithLevel(value) {
+  const numeric = normalizeNumber(value);
+  if (numeric === null) {
+    return "\u6682\u65e0";
+  }
+  return `${numeric.toFixed(1)}m/s ${formatWindForceLevel(numeric)}`;
+}
+
 function normalizeDegrees(value) {
   const numeric = normalizeNumber(value);
   if (numeric === null) {
@@ -627,9 +660,6 @@ function resolveWeatherMeta(code) {
 }
 
 function resolveWeatherIconPath(iconName = "overcast", satellite = false) {
-  if (iconName === "strong-convective") {
-    return "/packages/weather/assets/strong-convective.png";
-  }
   const folder = satellite ? "weather-white" : "weather-black";
   return `/packages/weather/assets/${folder}/${iconName}.png`;
 }
@@ -925,7 +955,9 @@ function buildWindLayer(dwdPayload, forecastPayload, point, dwdIndex, forecastIn
     heightMeters,
     heightLabel: `${heightMeters}m`,
     speedValue: speed,
-    speedDisplay: formatWindSpeed(speed),
+    speedDisplay: formatWindSpeedWithLevel(speed),
+    windForceLevel: resolveWindForceLevel(speed),
+    windForceLevelText: formatWindForceLevel(speed),
     directionValue: meta.value,
     directionLabel: meta.directionLabel,
     directionDegreeText: meta.degreeText,
@@ -948,7 +980,9 @@ function buildTimedWindLayer(primaryPayload, secondaryPayload, timeValue, level 
     heightMeters,
     heightLabel: `${heightMeters}m`,
     speedValue: speed,
-    speedDisplay: formatWindSpeed(speed),
+    speedDisplay: formatWindSpeedWithLevel(speed),
+    windForceLevel: resolveWindForceLevel(speed),
+    windForceLevelText: formatWindForceLevel(speed),
     directionValue: meta.value,
     directionLabel: meta.directionLabel,
     directionDegreeText: meta.degreeText,
@@ -1024,7 +1058,9 @@ function buildWeatherPoint(dwdPayload, forecastPayload, point = {}, currentTimeM
     windDirectionDegreeText: windDirectionMeta.degreeText,
     windDirectionRotation: windDirectionMeta.rotation,
     windGustValue: windGust,
-    windSpeedDisplay: formatWindSpeedBounds(windSpeed, firstFiniteValue([windGust, windSpeed])),
+    windSpeedDisplay: formatWindSpeedWithLevel(windSpeed),
+    windForceLevel: resolveWindForceLevel(windSpeed),
+    windForceLevelText: formatWindForceLevel(windSpeed),
     visibilityValue: visibility,
     visibilityDisplay: formatVisibility(visibility),
     cloudCoverValue: cloudCover,
@@ -1117,7 +1153,9 @@ function buildCalendarSlot(primaryPayload, secondaryPayload, dateKey, hour, sour
     iconName: weatherMeta.iconName,
     windLevels,
     windSpeedValue: windSpeed,
-    windSpeedDisplay: formatWindSpeed(windSpeed),
+    windSpeedDisplay: formatWindSpeedWithLevel(windSpeed),
+    windForceLevel: resolveWindForceLevel(windSpeed),
+    windForceLevelText: formatWindForceLevel(windSpeed),
     windDirectionValue: windDirection.value,
     windDirectionLabel: windDirection.directionLabel,
     windDirectionDegreeText: windDirection.degreeText,
@@ -1348,6 +1386,9 @@ module.exports = {
   formatUpdatedAt,
   formatWindSpeedBounds,
   formatWindSpeed,
+  resolveWindForceLevel,
+  formatWindForceLevel,
+  formatWindSpeedWithLevel,
   formatVisibility,
   formatCloudCover,
   resolveWeatherMeta,
