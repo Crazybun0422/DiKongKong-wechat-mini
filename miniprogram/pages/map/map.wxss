@@ -668,7 +668,7 @@ button.marker-page-share-header--disabled {
 .map-scale-container {
   position: absolute;
   left: 32rpx;
-  bottom: calc(env(safe-area-inset-bottom) + 240rpx);
+  bottom: calc(env(safe-area-inset-bottom) + 224rpx);
   display: flex;
   flex-direction: column;
   gap: 12rpx;
@@ -679,7 +679,7 @@ button.marker-page-share-header--disabled {
 .map-compass-anchor {
   position: absolute;
   left: 32rpx;
-  bottom: calc(env(safe-area-inset-bottom) + 240rpx + 250rpx);
+  bottom: calc(env(safe-area-inset-bottom) + 506rpx);
   z-index: 36;
   pointer-events: auto;
 }

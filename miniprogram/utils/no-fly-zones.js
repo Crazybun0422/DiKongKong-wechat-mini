@@ -272,6 +272,98 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
   return { polygons, circles, shapes };
 }
 
+function requestNoFlyZoneApi(path, options = {}) {
+  const base = resolveApiBase(options.apiBase);
+  if (!base) {
+    return Promise.reject(new Error("missing-api-base"));
+  }
+  const url = `${base}${path}`;
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url,
+      method: "GET",
+      header: { "content-type": "application/json" },
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(res.data?.data);
+          return;
+        }
+        const reason = res.data?.message || res.errMsg || `status-${res.statusCode}`;
+        reject(new Error(typeof reason === "string" ? reason : JSON.stringify(reason)));
+      },
+      fail: (err) => reject(err)
+    });
+  });
+}
+
+function fetchTemporaryNoFlyZonesPage(params = {}, options = {}) {
+  const page = Math.max(0, Number(params.page) || 0);
+  const size = Math.max(1, Number(params.size) || 20);
+  const sortOrder = `${params.sortOrder || "DESC"}`.trim().toUpperCase() === "ASC" ? "ASC" : "DESC";
+  const query = [
+    `page=${encodeURIComponent(page)}`,
+    `size=${encodeURIComponent(size)}`,
+    `sortOrder=${encodeURIComponent(sortOrder)}`
+  ];
+  return requestNoFlyZoneApi(`/api/no-fly-zones/temporary?${query.join("&")}`, options)
+    .then((data) => (data && typeof data === "object" ? data : { content: [] }));
+}
+
+function searchTemporaryNoFlyZones(keyword = "", options = {}) {
+  const text = `${keyword || ""}`.trim();
+  if (!text) return Promise.resolve([]);
+  return requestNoFlyZoneApi(
+    `/api/no-fly-zones/temporary/search?keyword=${encodeURIComponent(text)}`,
+    options
+  ).then((data) => (Array.isArray(data) ? data : []));
+}
+
+function collectZoneCoordinates(zone = {}) {
+  const type = String(zone?.type || "").toUpperCase();
+  if (type === "CIRCLE" && zone?.circle) {
+    const center = extractCoordinate(zone.circle);
+    return center ? [center] : [];
+  }
+  if (type === "PATH") {
+    const ring = buildPathRing(zone?.coordinates, zone?.pathDistanceMeters);
+    if (Array.isArray(ring) && ring.length) {
+      return ring
+        .map((point) => ({ lng: Number(point[0]), lat: Number(point[1]) }))
+        .filter((point) => Number.isFinite(point.lng) && Number.isFinite(point.lat));
+    }
+  }
+  const rings = buildPolygonRings(zone?.coordinates);
+  if (!rings.length) return [];
+  return rings
+    .flat()
+    .map((point) => ({ lng: Number(point[0]), lat: Number(point[1]) }))
+    .filter((point) => Number.isFinite(point.lng) && Number.isFinite(point.lat));
+}
+
+function computeNoFlyZoneCenter(zone = {}) {
+  const points = collectZoneCoordinates(zone);
+  if (!points.length) {
+    return null;
+  }
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  points.forEach((point) => {
+    if (point.lat < minLat) minLat = point.lat;
+    if (point.lat > maxLat) maxLat = point.lat;
+    if (point.lng < minLng) minLng = point.lng;
+    if (point.lng > maxLng) maxLng = point.lng;
+  });
+  if (![minLat, maxLat, minLng, maxLng].every(Number.isFinite)) {
+    return null;
+  }
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2
+  };
+}
+
 function fetchNearbyNoFlyZones(params = {}, options = {}) {
   const base = resolveApiBase(options.apiBase);
   if (!base) {
@@ -312,7 +404,10 @@ function fetchNearbyNoFlyZones(params = {}, options = {}) {
 
 module.exports = {
   fetchNearbyNoFlyZones,
+  fetchTemporaryNoFlyZonesPage,
+  searchTemporaryNoFlyZones,
   buildNoFlyZoneGraphics,
+  computeNoFlyZoneCenter,
   isNoFlyZoneEffective,
   filterEffectiveNoFlyZones
 };

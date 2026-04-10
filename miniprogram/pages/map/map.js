@@ -196,8 +196,8 @@ Page({
     preflightTopPx: 60,
     preflightLeftPx: 8,
     scaleControlsLeftPx: 16,
-    scaleControlsBottomPx: 170,
-    compassBottomPx: 305,
+    scaleControlsBottomPx: 160,
+    compassBottomPx: 330,
     floatingControlsRightPx: 16,
     floatingControlsBottomPx: 131,
     bottomNavBottomPx: 21,
@@ -511,6 +511,10 @@ Page({
 
   normalizePreviewCoordinateList(raw = []) {
     return pinPreviewUtils.normalizePreviewCoordinateList(raw);
+  },
+
+  syncPreviewTemporaryNoFlyState(centerOverride) {
+    return pinPreviewUtils.syncPreviewTemporaryNoFlyState(this, centerOverride);
   },
 
   lookupPinAddress(detail) {

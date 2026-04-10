@@ -146,6 +146,9 @@ function updateCenterPinIndicator(page, centerOverride) {
     latitude: Number(center.latitude),
     longitude: Number(center.longitude)
   };
+  if (typeof page.syncPreviewTemporaryNoFlyState === "function") {
+    page.syncPreviewTemporaryNoFlyState(normalizedCenter);
+  }
   const linkState = page.buildCenterPinLinkState(normalizedCenter, {
     target: page.data.searchLinkTarget,
     visible: page.data.searchLinkVisible,

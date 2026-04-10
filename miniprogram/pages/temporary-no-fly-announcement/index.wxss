@@ -1,29 +1,122 @@
 .temporary-no-fly-announcement-page {
   min-height: 100vh;
-  padding: 48rpx 32rpx;
   box-sizing: border-box;
-  background: #f5f5f5;
+  padding: 24rpx 24rpx 32rpx;
+  background: #ffffff;
 }
 
-.temporary-no-fly-announcement-card {
-  padding: 48rpx 36rpx;
-  border-radius: 28rpx;
+.temporary-no-fly-announcement-search-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.temporary-no-fly-announcement-search {
+  width: 62%;
+  min-width: 420rpx;
+  max-width: 480rpx;
+  height: 76rpx;
+  padding: 0 24rpx;
+  border-radius: 38rpx;
   background: #ffffff;
-  box-shadow: 0 16rpx 40rpx rgba(15, 23, 42, 0.08);
+  border: 1rpx solid #d8d8d8;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.temporary-no-fly-announcement-search-icon {
+  width: 42rpx;
+  height: 42rpx;
+  flex: 0 0 42rpx;
+  opacity: 0.72;
+}
+
+.temporary-no-fly-announcement-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 28rpx;
+  color: #111111;
+}
+
+.temporary-no-fly-announcement-search-placeholder {
+  color: #b0b0b0;
+}
+
+.temporary-no-fly-announcement-state,
+.temporary-no-fly-announcement-footer {
+  padding: 40rpx 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: #8b8b8b;
+  background: #ffffff;
+}
+
+.temporary-no-fly-announcement-list {
+  margin-top: 20rpx;
+}
+
+.temporary-no-fly-announcement-item {
+  margin-bottom: 18rpx;
+  padding: 22rpx 20rpx;
+  border-radius: 20rpx;
+  background: #f2f2f2;
+  display: flex;
+  align-items: flex-start;
+  gap: 18rpx;
+}
+
+.temporary-no-fly-announcement-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.temporary-no-fly-announcement-item-title {
+  font-size: 32rpx;
+  line-height: 1.35;
+  color: #000000;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.temporary-no-fly-announcement-period-row {
+  margin-top: 10rpx;
+  display: flex;
+  align-items: flex-start;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.temporary-no-fly-announcement-period-label {
+  color: #555555;
+  flex: 0 0 auto;
+}
+
+.temporary-no-fly-announcement-period-value {
+  color: #8a8a8a;
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.temporary-no-fly-announcement-map-entry {
+  width: 116rpx;
+  padding-top: 4rpx;
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 116rpx;
 }
 
-.temporary-no-fly-announcement-title {
-  font-size: 34rpx;
-  line-height: 1.4;
-  color: #111827;
-  font-weight: 700;
+.temporary-no-fly-announcement-map-icon {
+  width: 72rpx;
+  height: 72rpx;
 }
 
-.temporary-no-fly-announcement-desc {
-  font-size: 28rpx;
-  line-height: 1.6;
-  color: #6b7280;
+.temporary-no-fly-announcement-map-text {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  line-height: 1.2;
+  color: #2b2b2b;
 }

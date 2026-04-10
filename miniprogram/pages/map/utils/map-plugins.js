@@ -219,6 +219,23 @@ function onTemporaryNoFlyGraphicsChange(page, event = {}) {
 
 function onTemporaryNoFlyStatusChange(page, event = {}) {
   const detail = event?.detail || {};
+  page._liveTemporaryNoFlyStatus = {
+    temporaryNoFlyZoneInfo: Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyZoneInfo")
+      ? (detail.temporaryNoFlyZoneInfo || null)
+      : (page.data.temporaryNoFlyZoneInfo || null),
+    temporaryNoFlyText: Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyText")
+      ? (detail.temporaryNoFlyText || "")
+      : (page.data.temporaryNoFlyText || ""),
+    temporaryNoFlyTone: Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyTone")
+      ? (detail.temporaryNoFlyTone || "neutral")
+      : (page.data.temporaryNoFlyTone || "neutral")
+  };
+  if (page._previewTemporaryNoFlyOverride) {
+    const keepPreview = typeof page.syncPreviewTemporaryNoFlyState === "function"
+      ? page.syncPreviewTemporaryNoFlyState()
+      : true;
+    if (keepPreview) return;
+  }
   const updates = {};
   if (Object.prototype.hasOwnProperty.call(detail, "temporaryNoFlyZoneInfo")) {
     updates.temporaryNoFlyZoneInfo = detail.temporaryNoFlyZoneInfo || null;

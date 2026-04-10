@@ -125,7 +125,7 @@
     >
       <image class="temporary-notice-card-icon" src="/assets/speaker.png" mode="aspectFit" />
       <view class="temporary-notice-card-body">
-        <text class="temporary-notice-card-title">查看临时禁飞区公告</text>
+        <text class="temporary-notice-card-title">查临时禁飞区公告</text>
       </view>
       <text class="temporary-notice-card-arrow">></text>
     </view>

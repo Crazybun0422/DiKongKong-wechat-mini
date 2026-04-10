@@ -234,6 +234,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/no-fly-zones/temporary/search:
+    get:
+      summary: 搜索生效的临时禁飞区域
+      description: 按标题关键字模糊匹配，返回当前生效且存在生效时段限制的临时禁飞区域列表。
+      security: []
+      parameters:
+        - in: query
+          name: keyword
+          required: true
+          schema:
+            type: string
+          description: 标题关键字，支持模糊匹配。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneList'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/no-fly-zones/nearby:
     get:
       summary: 查询附近禁飞区域
