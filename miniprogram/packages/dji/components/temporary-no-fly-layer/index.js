@@ -1,9 +1,12 @@
 const {
   fetchNearbyNoFlyZones,
   buildNoFlyZoneGraphics,
-  filterEffectiveNoFlyZones
+  filterEffectiveNoFlyZones,
+  filterUnexpiredNoFlyZones,
+  isNoFlyZoneEffective,
+  expandNoFlyZoneAreas
 } = require("../../../../utils/no-fly-zones");
-const { haversineMeters, gcj02ToWgs84 } = require("../../../../utils/coords");
+const { haversineMeters } = require("../../../../utils/coords");
 
 const DEFAULT_CENTER = {
   latitude: 39.908823,
@@ -11,7 +14,9 @@ const DEFAULT_CENTER = {
 };
 
 const DEFAULT_SCALE = 11;
-
+const UPCOMING_ZONE_COLOR = "#8A6E72";
+const MIN_FETCH_RADIUS_KM = 2;
+const FETCH_RADIUS_BUFFER_KM = 1;
 const formatTemporaryZoneLabel = (value, maxLength = 9) => {
   if (typeof value !== "string") {
     return "";
@@ -45,7 +50,12 @@ Component({
       this._scale = DEFAULT_SCALE;
       this._polygons = [];
       this._circles = [];
+      this._polylines = [];
       this._shapes = [];
+      this._activeAreas = [];
+      this._upcomingAreas = [];
+      this._activeShapes = [];
+      this._upcomingShapes = [];
       this._ready = false;
       this._activeRequestId = 0;
       this._requestSeq = 0;
@@ -93,7 +103,12 @@ Component({
         this._lastFetch = null;
         this._polygons = [];
         this._circles = [];
+        this._polylines = [];
         this._shapes = [];
+        this._activeAreas = [];
+        this._upcomingAreas = [];
+        this._activeShapes = [];
+        this._upcomingShapes = [];
         this.emitGraphicsChange();
         this.emitStatusChange({
           temporaryNoFlyZoneInfo: null,
@@ -138,9 +153,8 @@ Component({
       const radiusKm = this.computeRadiusKm(region, scale);
       if (!Number.isFinite(radiusKm) || radiusKm <= 0) return;
 
-      const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-      const latitude = Number.isFinite(wgs?.lat) ? wgs.lat : Number(center.latitude);
-      const longitude = Number.isFinite(wgs?.lng) ? wgs.lng : Number(center.longitude);
+      const latitude = Number(center.latitude);
+      const longitude = Number(center.longitude);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
 
       const prev = this._lastFetch || {};
@@ -151,10 +165,12 @@ Component({
         prev.longitude || 0
       );
       const radiusDiff = Math.abs((prev.radiusKm || 0) - radiusKm);
+      const scaleDiff = Math.abs((prev.scale || 0) - scale);
       const now = Date.now();
       const prevTimestamp = Number(prev.timestamp) || 0;
       const isStale = !prevTimestamp || now - prevTimestamp > 60000;
-      if (!force && moveMeters < 50 && radiusDiff < 0.2 && !isStale) {
+      if (!force && moveMeters < 50 && radiusDiff < 0.2 && scaleDiff < 1 && !isStale) {
+        this.emitStatusChange(this.describeTemporaryStatus());
         return;
       }
 
@@ -173,11 +189,33 @@ Component({
       )
         .then((zones = []) => {
           if (this._activeRequestId !== requestId) return;
-          const items = filterEffectiveNoFlyZones(Array.isArray(zones) ? zones : []);
-          const graphics = buildNoFlyZoneGraphics(items);
-          this._polygons = graphics.polygons || [];
-          this._circles = graphics.circles || [];
-          this._shapes = graphics.shapes || [];
+          const allZones = filterUnexpiredNoFlyZones(Array.isArray(zones) ? zones : []);
+          const activeItems = filterEffectiveNoFlyZones(allZones);
+          const upcomingItems = allZones.filter((zone) => !isNoFlyZoneEffective(zone));
+          this._activeAreas = expandNoFlyZoneAreas(activeItems);
+          this._upcomingAreas = expandNoFlyZoneAreas(upcomingItems);
+          const activeGraphics = buildNoFlyZoneGraphics(this._activeAreas);
+          const upcomingGraphics = buildNoFlyZoneGraphics(this._upcomingAreas, {
+            color: UPCOMING_ZONE_COLOR,
+            fillOpacity: 0.18,
+            strokeOpacity: 0.72
+          });
+          this._polygons = []
+            .concat(upcomingGraphics.polygons || [], activeGraphics.polygons || []);
+          this._circles = []
+            .concat(upcomingGraphics.circles || [], activeGraphics.circles || []);
+          this._polylines = []
+            .concat(upcomingGraphics.polylines || [], activeGraphics.polylines || []);
+          this._activeShapes = Array.isArray(activeGraphics.shapes) ? activeGraphics.shapes : [];
+          this._upcomingShapes = Array.isArray(upcomingGraphics.shapes) ? upcomingGraphics.shapes : [];
+          this._shapes = this._activeShapes.concat(this._upcomingShapes);
+          console.log("[temporary-no-fly-shapes]", {
+            activeShapeCount: this._activeShapes.length,
+            upcomingShapeCount: this._upcomingShapes.length,
+            activeCircleCount: this._activeShapes.filter((item) => item && item.type === "circle").length,
+            upcomingCircleCount: this._upcomingShapes.filter((item) => item && item.type === "circle").length,
+            scale
+          });
           this._ready = true;
           this.emitGraphicsChange();
           this.emitStatusChange(this.describeTemporaryStatus());
@@ -194,7 +232,12 @@ Component({
           if (!this._ready) {
             this._polygons = [];
             this._circles = [];
+            this._polylines = [];
             this._shapes = [];
+            this._activeAreas = [];
+            this._upcomingAreas = [];
+            this._activeShapes = [];
+            this._upcomingShapes = [];
             this.emitGraphicsChange();
           }
           this._ready = true;
@@ -252,25 +295,49 @@ Component({
         displayName,
         hasLink: !!validLink,
         link: validLink,
-        linkPath
+        linkPath,
+        effective: hit.effective === true
       };
       return {
         temporaryNoFlyZoneInfo: zoneInfo,
         temporaryNoFlyText: displayName,
-        temporaryNoFlyTone: "alert"
+        temporaryNoFlyTone: hit.effective === true ? "alert" : "warn"
       };
     },
 
     findNoFlyZoneAtPoint(lng, lat) {
-      if (!Array.isArray(this._shapes) || !this._shapes.length) {
+      const activeHit = this.findHitInShapes(this._activeShapes, lng, lat);
+      if (activeHit) {
+        return Object.assign({ effective: true }, activeHit);
+      }
+      const upcomingHit = this.findHitInShapes(this._upcomingShapes, lng, lat);
+      if (upcomingHit) {
+        return Object.assign({ effective: false }, upcomingHit);
+      }
+      return null;
+    },
+
+    findHitInShapes(shapes, lng, lat) {
+      if (!Array.isArray(shapes) || !shapes.length) {
         return null;
       }
-      for (const entry of this._shapes) {
+      for (const entry of shapes) {
         if (!entry) continue;
         if (entry.type === "circle" && entry.center) {
           const radius = Number(entry.radius);
           if (!Number.isFinite(radius) || radius <= 0) continue;
-          const dist = haversineMeters(lat, lng, Number(entry.center.lat), Number(entry.center.lng));
+          const centerLat = Number(entry.center.lat);
+          const centerLng = Number(entry.center.lng);
+          const dist = haversineMeters(lat, lng, centerLat, centerLng);
+          console.log("[temporary-no-fly-circle-distance]", {
+            zoneId: entry.zone?.id || "",
+            zoneName: entry.zone?.name || "",
+            point: { lat, lng },
+            center: { lat: centerLat, lng: centerLng },
+            radius,
+            distance: dist,
+            hit: Number.isFinite(dist) && dist <= radius
+          });
           if (Number.isFinite(dist) && dist <= radius) {
             return { zone: entry.zone, shape: entry };
           }
@@ -312,13 +379,13 @@ Component({
           southwest.longitude
         );
         if (Number.isFinite(diag) && diag > 0) {
-          const radiusKm = Math.max(0.1, diag / 2000);
+          const radiusKm = Math.max(MIN_FETCH_RADIUS_KM, diag / 2000 + FETCH_RADIUS_BUFFER_KM);
           return Math.min(radiusKm, 200);
         }
       }
       const zoom = clampScale(scale);
       const zoomFactor = Math.pow(2, Math.max(0, (18 - zoom) / 1.3));
-      return Math.max(0.1, Math.min(200, zoomFactor * 0.8));
+      return Math.max(MIN_FETCH_RADIUS_KM, Math.min(200, zoomFactor * 0.8 + FETCH_RADIUS_BUFFER_KM));
     },
 
     normalizeCenter(center = null) {
@@ -349,7 +416,8 @@ Component({
     emitGraphicsChange() {
       this.triggerEvent("graphicschange", {
         polygons: Array.isArray(this._polygons) ? this._polygons : [],
-        circles: Array.isArray(this._circles) ? this._circles : []
+        circles: Array.isArray(this._circles) ? this._circles : [],
+        polylines: Array.isArray(this._polylines) ? this._polylines : []
       });
     },
 

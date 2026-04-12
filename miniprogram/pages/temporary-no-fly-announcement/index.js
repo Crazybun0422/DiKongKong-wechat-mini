@@ -4,12 +4,17 @@ const {
   computeNoFlyZoneCenter,
   isNoFlyZoneEffective
 } = require("../../utils/no-fly-zones");
+const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../utils/share");
 
 const PAGE_SIZE = 20;
 const DEFAULT_MAP_SCALE = 13;
 const SEARCH_DEBOUNCE_MS = 260;
 const NAVIGATION_LOCK_MS = 1500;
 const MAP_PAGE_ROUTE = "pages/map/map";
+const SHARE_PAGE_PATH = "/pages/temporary-no-fly-announcement/index";
+const SHARE_TITLE = "临时禁飞通告";
+const ACTIVE_PREVIEW_COLOR = "#DE4329";
+const UPCOMING_PREVIEW_COLOR = "#8A6E72";
 
 const normalizeUnixSeconds = (value) => {
   const numeric = Number(value);
@@ -78,9 +83,10 @@ const resolvePeriodRows = (zone = {}, nowSeconds = normalizeUnixSeconds(Date.now
       (to === null || nowSeconds <= to);
     const isUpcoming = from !== null && nowSeconds < from;
     return {
-      label: isActive ? "生效中" : isUpcoming ? "即将生效" : "已失效",
+      label: isActive ? "禁飞区生效中" : isUpcoming ? "禁飞区待生效" : "已失效",
       value: formatPeriodRange(from, to) || "时间待定",
-      priority: isActive ? 0 : isUpcoming ? 1 : 2
+      priority: isActive ? 0 : isUpcoming ? 1 : 2,
+      tone: isActive ? "active" : isUpcoming ? "upcoming" : "expired"
     };
   });
 
@@ -118,7 +124,12 @@ const buildTemporaryPreviewShape = (zone = {}) => {
     return {
       type: "CIRCLE",
       coordinates: [{ latitude, longitude }],
-      radius: radiusMeters / 1000
+      radius: radiusMeters / 1000,
+      circle: {
+        latitude,
+        longitude,
+        radiusMeters
+      }
     };
   }
   if (type === "PATH") {
@@ -134,13 +145,40 @@ const buildTemporaryPreviewShape = (zone = {}) => {
   };
 };
 
-const buildTemporaryPreviewPayload = (zone = {}) => {
-  const center = computeNoFlyZoneCenter(zone);
-  const shape = buildTemporaryPreviewShape(zone);
+const buildTemporaryPreviewShapes = (zone = {}) => {
+  const baseShape = buildTemporaryPreviewShape(zone);
+  const extraShapes = Array.isArray(zone?.extra)
+    ? zone.extra.map((item) => buildTemporaryPreviewShape(item)).filter(Boolean)
+    : [];
+  return [baseShape].concat(extraShapes).filter(Boolean);
+};
+
+const buildMapTargets = (zone = {}) => {
+  const shapes = buildTemporaryPreviewShapes(zone);
+  const multiple = shapes.length > 1;
+  return shapes
+    .map((shape, index) => {
+      const center = computeNoFlyZoneCenter(shape);
+      if (!center) return null;
+      return {
+        id: `${zone?.id || zone?.name || "zone"}-${index + 1}`,
+        index,
+        center,
+        label: multiple ? `查看位置${index + 1}` : "地图查看"
+      };
+    })
+    .filter(Boolean);
+};
+
+const buildTemporaryPreviewPayload = (zone = {}, targetIndex = 0) => {
+  const shapes = buildTemporaryPreviewShapes(zone);
+  const shape = shapes[targetIndex] || shapes[0] || null;
+  const center = computeNoFlyZoneCenter(shape || zone);
   if (!center || !shape) return null;
   const title = `${zone?.name || "临时禁飞区"}`.trim();
   const rawLink = typeof zone?.wechatLink === "string" ? zone.wechatLink.trim() : "";
   const validLink = /^https?:\/\/mp\.weixin\.qq\.com\//.test(rawLink) ? rawLink : "";
+  const active = isNoFlyZoneEffective(zone);
   return {
     id: `${zone?.id || zone?.name || Date.now()}`,
     name: title,
@@ -149,25 +187,18 @@ const buildTemporaryPreviewPayload = (zone = {}) => {
       longitude: Number(center.longitude)
     },
     shape,
+    shapes,
     suppressCenterMarker: true,
-    previewColor: "#DE4329",
-    temporaryNoFlyZoneInfo: validLink
-      ? {
-          id: `${zone?.id || ""}`,
-          name: title,
-          displayName: title,
-          hasLink: true,
-          link: validLink,
-          linkPath: `/packages/city-report/h5/index?url=${encodeURIComponent(validLink)}`
-        }
-      : {
-          id: `${zone?.id || ""}`,
-          name: title,
-          displayName: title,
-          hasLink: false,
-          link: "",
-          linkPath: ""
-        },
+    previewColor: active ? ACTIVE_PREVIEW_COLOR : UPCOMING_PREVIEW_COLOR,
+    temporaryNoFlyZoneInfo: {
+      id: `${zone?.id || ""}`,
+      name: title,
+      displayName: title,
+      hasLink: !!validLink,
+      link: validLink,
+      linkPath: validLink ? `/packages/city-report/h5/index?url=${encodeURIComponent(validLink)}` : "",
+      effective: active
+    },
     raw: zone,
     zoom: DEFAULT_MAP_SCALE
   };
@@ -202,7 +233,8 @@ const normalizeZoneItem = (zone = {}) => {
     raw: zone,
     wechatLink: validWechatLink,
     canOpenArticle: !!validWechatLink,
-    periodRows: resolvePeriodRows(zone)
+    periodRows: resolvePeriodRows(zone),
+    mapTargets: buildMapTargets(zone)
   };
 };
 
@@ -272,6 +304,20 @@ Page({
       this._searchTimer = null;
     }
     this.loadZoneList({ reset: true });
+  },
+
+  onShareAppMessage() {
+    return {
+      title: SHARE_TITLE,
+      path: appendInviteCodeToPath(SHARE_PAGE_PATH)
+    };
+  },
+
+  onShareTimeline() {
+    return {
+      title: SHARE_TITLE,
+      query: appendInviteCodeToQuery("")
+    };
   },
 
   loadZoneList(options = {}) {
@@ -366,16 +412,23 @@ Page({
 
   onMapTap(event) {
     const item = this.resolveZoneFromEvent(event);
-    const center = item?.center;
+    const targetIndex = Math.max(0, Number(event?.currentTarget?.dataset?.targetIndex) || 0);
+    const mapTargets = Array.isArray(item?.mapTargets) ? item.mapTargets : [];
+    const mapTarget = mapTargets[targetIndex] || mapTargets[0] || null;
+    const center = mapTarget?.center || item?.center;
     if (!center || !Number.isFinite(Number(center.latitude)) || !Number.isFinite(Number(center.longitude))) {
       wx.showToast({ title: "禁飞区中心点不可用", icon: "none" });
       return;
     }
     if (this._navigationLocked) return;
     this.lockNavigation();
+    const previewPayload = buildTemporaryPreviewPayload(item?.raw, targetIndex);
     const existingMap = findLatestMapPage();
     if (existingMap?.page) {
       try {
+        if (previewPayload && typeof existingMap.page.applyPinPreview === "function") {
+          existingMap.page.applyPinPreview(previewPayload);
+        }
         if (typeof existingMap.page.centerOnPoint === "function") {
           existingMap.page.centerOnPoint({
             latitude: Number(center.latitude),
@@ -397,6 +450,10 @@ Page({
 
     const latitude = Number(center.latitude).toFixed(6);
     const longitude = Number(center.longitude).toFixed(6);
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (app?.globalData) {
+      app.globalData.pendingPinPreview = previewPayload || null;
+    }
     const targetUrl = `/pages/map/map?cs=1&clat=${encodeURIComponent(latitude)}&clng=${encodeURIComponent(longitude)}&cscale=${DEFAULT_MAP_SCALE}`;
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     const navigate = Array.isArray(pages) && pages.length >= 9 ? wx.redirectTo : wx.navigateTo;

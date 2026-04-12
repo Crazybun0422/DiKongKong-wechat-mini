@@ -15,18 +15,24 @@
     </view>
 
     <view wx:elif="{{currentItem}}" class="weather-strip-main">
-      <image class="weather-strip-icon" src="{{currentItem.iconPath}}" mode="aspectFit" />
+      <view class="weather-strip-icon-shell">
+        <image class="weather-strip-icon" src="{{currentItem.iconPath}}" mode="aspectFit" />
+      </view>
       <view class="weather-strip-copy">
         <text class="weather-strip-weather">{{currentItem.weatherLabel}}</text>
         <view class="weather-strip-meta">
-          <text class="weather-strip-speed">{{currentItem.windSpeedValueText}}</text>
-          <text class="weather-strip-force">{{currentItem.windForceText}}</text>
-          <view
-            class="weather-strip-pointer {{satellite ? 'weather-strip-pointer--light' : 'weather-strip-pointer--dark'}}"
-            style="transform: rotate({{currentItem.directionRotation}}deg);"
-          >
-            <view class="weather-strip-pointer-line"></view>
-            <view class="weather-strip-pointer-head"></view>
+          <view class="weather-strip-speed-stack">
+            <text class="weather-strip-speed">{{currentItem.windSpeedValueText}}</text>
+            <text class="weather-strip-force">{{currentItem.windForceText}}</text>
+          </view>
+          <view class="weather-strip-pointer-badge">
+            <view
+              class="weather-strip-pointer {{satellite ? 'weather-strip-pointer--light' : 'weather-strip-pointer--dark'}}"
+              style="transform: rotate({{currentItem.directionRotation}}deg);"
+            >
+              <view class="weather-strip-pointer-line"></view>
+              <view class="weather-strip-pointer-head"></view>
+            </view>
           </view>
         </view>
       </view>

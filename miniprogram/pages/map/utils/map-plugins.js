@@ -214,7 +214,8 @@ function onTemporaryNoFlyGraphicsChange(page, event = {}) {
   const detail = event?.detail || {};
   page._nfzPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
   page._nfzCircles = Array.isArray(detail.circles) ? detail.circles : [];
-  page.updateOverlayGraphics();
+  page._nfzPolylines = Array.isArray(detail.polylines) ? detail.polylines : [];
+  page.queueMapGraphicsSync({ overlay: true, polylines: true });
 }
 
 function onTemporaryNoFlyStatusChange(page, event = {}) {

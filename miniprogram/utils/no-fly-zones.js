@@ -1,5 +1,4 @@
 const { resolveApiBase } = require("./profile");
-const { lonLatToMercator, mercatorToLonLat } = require("./coords");
 
 const DEFAULT_COLOR = "#DE4329";
 const FILL_OPACITY = 0.3;
@@ -41,6 +40,36 @@ function isNoFlyZoneEffective(zone = {}, currentSeconds = null) {
     return true;
   }
   return false;
+}
+
+function isPeriodExpired(period = {}, currentSeconds = null) {
+  const nowSeconds = normalizeUnixSeconds(currentSeconds ?? Date.now());
+  if (!Number.isFinite(nowSeconds)) return false;
+  const to = normalizeUnixSeconds(period?.effectiveTo);
+  if (to === null) return false;
+  return nowSeconds > to;
+}
+
+function isNoFlyZoneExpired(zone = {}, currentSeconds = null) {
+  if (isNoFlyZoneEffective(zone, currentSeconds)) {
+    return false;
+  }
+  const periods = Array.isArray(zone?.effectivePeriods) ? zone.effectivePeriods : [];
+  const hasLegacyPeriod =
+    normalizeUnixSeconds(zone?.effectiveFrom) !== null ||
+    normalizeUnixSeconds(zone?.effectiveTo) !== null;
+  if (!periods.length && !hasLegacyPeriod) {
+    return false;
+  }
+  if (periods.length) {
+    return periods.every((period) => isPeriodExpired(period, currentSeconds));
+  }
+  return isPeriodExpired(zone, currentSeconds);
+}
+
+function filterUnexpiredNoFlyZones(zones = [], currentSeconds = null) {
+  if (!Array.isArray(zones)) return [];
+  return zones.filter((zone) => !isNoFlyZoneExpired(zone, currentSeconds));
 }
 
 function filterEffectiveNoFlyZones(zones = [], currentSeconds = null) {
@@ -117,60 +146,64 @@ function buildPolygonRings(rawCoordinates) {
   return single ? [single] : [];
 }
 
-function buildPathRing(rawCoordinates, offsetMeters) {
-  const distance = Number(offsetMeters);
+function buildPathRing(rawCoordinates, widthMeters) {
+  const edgeDistance = Number(widthMeters);
   if (!Array.isArray(rawCoordinates) || rawCoordinates.length < 2) return null;
-  if (!Number.isFinite(distance) || distance <= 0) return null;
+  if (!Number.isFinite(edgeDistance) || edgeDistance <= 0) return null;
   const points = rawCoordinates
     .map((pt) => extractCoordinate(pt))
     .filter((pt) => pt && Number.isFinite(pt.lng) && Number.isFinite(pt.lat));
   if (points.length < 2) return null;
 
-  const mercatorPoints = points
-    .map((pt) => {
-      const m = lonLatToMercator(pt.lng, pt.lat);
-      if (!m || !Number.isFinite(m.x) || !Number.isFinite(m.y)) return null;
-      return m;
-    })
-    .filter(Boolean);
-  if (mercatorPoints.length < 2) return null;
-
-  const left = [];
-  const right = [];
-  for (let i = 0; i < mercatorPoints.length - 1; i += 1) {
-    const start = mercatorPoints[i];
-    const end = mercatorPoints[i + 1];
+  const baseLat = points[0].lat;
+  const baseLng = points[0].lng;
+  const kLat = 111320;
+  const kLng = kLat * Math.max(Math.cos((baseLat * Math.PI) / 180), 0.0001);
+  const project = (pt) => ({
+    x: (pt.lng - baseLng) * kLng,
+    y: (pt.lat - baseLat) * kLat
+  });
+  const unproject = (pt) => ({
+    lng: pt.x / kLng + baseLng,
+    lat: pt.y / kLat + baseLat
+  });
+  const projected = points.map(project);
+  const segmentNormals = [];
+  for (let i = 0; i < projected.length - 1; i += 1) {
+    const start = projected[i];
+    const end = projected[i + 1];
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const len = Math.sqrt(dx * dx + dy * dy);
-    if (!len) continue;
-    const nx = -dy / len;
-    const ny = dx / len;
-    const offsetX = nx * distance;
-    const offsetY = ny * distance;
-    const leftStart = { x: start.x + offsetX, y: start.y + offsetY };
-    const leftEnd = { x: end.x + offsetX, y: end.y + offsetY };
-    const rightStart = { x: start.x - offsetX, y: start.y - offsetY };
-    const rightEnd = { x: end.x - offsetX, y: end.y - offsetY };
-    if (!left.length) left.push(leftStart);
-    left.push(leftEnd);
-    if (!right.length) right.push(rightStart);
-    right.push(rightEnd);
+    if (!len) {
+      segmentNormals.push({ x: 0, y: 0 });
+      continue;
+    }
+    segmentNormals.push({ x: -dy / len, y: dx / len });
   }
-  if (left.length < 2 || right.length < 2) return null;
-  const merged = [...left, ...right.reverse()];
-  if (!merged.length) return null;
-  const first = merged[0];
-  const last = merged[merged.length - 1];
-  if (Math.abs(first.x - last.x) > 1e-8 || Math.abs(first.y - last.y) > 1e-8) {
-    merged.push({ x: first.x, y: first.y });
+  const normals = projected.map((point, index) => {
+    if (!segmentNormals.length) return { x: 0, y: 0 };
+    if (index === 0) return segmentNormals[0];
+    if (index === projected.length - 1) return segmentNormals[segmentNormals.length - 1];
+    const prev = segmentNormals[index - 1] || { x: 0, y: 0 };
+    const next = segmentNormals[index] || { x: 0, y: 0 };
+    const nx = prev.x + next.x;
+    const ny = prev.y + next.y;
+    const len = Math.sqrt(nx * nx + ny * ny) || 1;
+    return { x: nx / len, y: ny / len };
+  });
+  const left = [];
+  const right = [];
+  for (let i = 0; i < projected.length; i += 1) {
+    const normal = normals[i] || { x: 0, y: 0 };
+    const offsetX = normal.x * edgeDistance;
+    const offsetY = normal.y * edgeDistance;
+    left.push({ x: projected[i].x + offsetX, y: projected[i].y + offsetY });
+    right.push({ x: projected[i].x - offsetX, y: projected[i].y - offsetY });
   }
-  const ring = merged
-    .map((pt) => mercatorToLonLat(pt.x, pt.y))
-    .filter((pt) => pt && Number.isFinite(pt.lng) && Number.isFinite(pt.lat))
-    .map((pt) => [pt.lng, pt.lat]);
-  if (ring.length < 3) return null;
-  return ensureClosedRing(ring);
+  const polygon = left.concat(right.reverse()).map(unproject).map((pt) => [pt.lng, pt.lat]);
+  if (polygon.length < 3) return null;
+  return ensureClosedRing(polygon);
 }
 
 function toGcjPoint(lng, lat) {
@@ -180,13 +213,33 @@ function toGcjPoint(lng, lat) {
   return { latitude, longitude };
 }
 
+function expandNoFlyZoneAreas(zones = []) {
+  if (!Array.isArray(zones)) return [];
+  const areas = [];
+  zones.forEach((zone) => {
+    if (!zone || typeof zone !== "object") return;
+    areas.push(zone);
+    const extra = Array.isArray(zone.extra) ? zone.extra : [];
+    extra.forEach((item, index) => {
+      if (!item || typeof item !== "object") return;
+      areas.push(Object.assign({}, zone, item, {
+        id: `${zone.id || zone.name || "zone"}-extra-${index + 1}`,
+        extra: []
+      }));
+    });
+  });
+  return areas;
+}
+
 function buildNoFlyZoneGraphics(zones = [], options = {}) {
   const polygons = [];
   const circles = [];
+  const polylines = [];
   const shapes = [];
   if (!Array.isArray(zones)) {
-    return { polygons, circles, shapes };
+    return { polygons, circles, polylines, shapes };
   }
+  const areaList = expandNoFlyZoneAreas(zones);
   const baseColor = normalizeHex(options.color || DEFAULT_COLOR);
   const fillOpacity = Object.prototype.hasOwnProperty.call(options, "fillOpacity")
     ? clampColorOpacity(options.fillOpacity)
@@ -196,7 +249,7 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
     : STROKE_OPACITY;
   const strokeWidth = Number.isFinite(options.strokeWidth) ? options.strokeWidth : STROKE_WIDTH;
 
-  zones.forEach((zone) => {
+  areaList.forEach((zone) => {
     const type = String(zone?.type || "").toUpperCase();
     if (type === "CIRCLE" && zone?.circle) {
       const center = extractCoordinate(zone.circle);
@@ -225,6 +278,21 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
 
     if (type === "PATH") {
       const ring = buildPathRing(zone?.coordinates, zone?.pathDistanceMeters);
+      const pathPoints = Array.isArray(zone?.coordinates)
+        ? zone.coordinates.map((pt) => extractCoordinate(pt)).filter(Boolean)
+        : [];
+      const gcjPolylinePoints = pathPoints
+        .map((pt) => toGcjPoint(pt.lng, pt.lat))
+        .filter(Boolean);
+      if (gcjPolylinePoints.length >= 2) {
+        polylines.push({
+          points: gcjPolylinePoints,
+          color: colorWithAlpha(baseColor, strokeOpacity),
+          width: Math.max(3, strokeWidth * 2),
+          dottedLine: false,
+          arrowLine: false
+        });
+      }
       if (ring && ring.length >= 3) {
         const gcjPoints = ring
           .map((pt) => toGcjPoint(pt[0], pt[1]))
@@ -232,16 +300,16 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
         if (gcjPoints.length >= 3) {
           polygons.push({
             points: gcjPoints,
-            strokeColor: colorWithAlpha(baseColor, strokeOpacity),
-            fillColor: colorWithAlpha(baseColor, fillOpacity),
-            strokeWidth
-          });
-          shapes.push({
-            type: "polygon",
-            rings: [ring],
-            zone
+            strokeColor: colorWithAlpha(baseColor, 0),
+            fillColor: colorWithAlpha(baseColor, Math.min(Math.max(fillOpacity * 0.45, 0.08), 0.16)),
+            strokeWidth: 0
           });
         }
+        shapes.push({
+          type: "polygon",
+          rings: [ring],
+          zone
+        });
       }
       return;
     }
@@ -269,7 +337,7 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
     }
   });
 
-  return { polygons, circles, shapes };
+  return { polygons, circles, polylines, shapes };
 }
 
 function requestNoFlyZoneApi(path, options = {}) {
@@ -341,7 +409,7 @@ function collectZoneCoordinates(zone = {}) {
 }
 
 function computeNoFlyZoneCenter(zone = {}) {
-  const points = collectZoneCoordinates(zone);
+  const points = expandNoFlyZoneAreas([zone]).flatMap((item) => collectZoneCoordinates(item));
   if (!points.length) {
     return null;
   }
@@ -409,5 +477,8 @@ module.exports = {
   buildNoFlyZoneGraphics,
   computeNoFlyZoneCenter,
   isNoFlyZoneEffective,
-  filterEffectiveNoFlyZones
+  isNoFlyZoneExpired,
+  filterEffectiveNoFlyZones,
+  filterUnexpiredNoFlyZones,
+  expandNoFlyZoneAreas
 };

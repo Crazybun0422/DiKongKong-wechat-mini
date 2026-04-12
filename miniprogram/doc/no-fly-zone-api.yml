@@ -181,8 +181,8 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
   /api/no-fly-zones:
     get:
-      summary: 查询所有生效禁飞区域
-      description: 向所有用户返回当前生效的禁飞区域。
+      summary: 查询未过期的临时禁飞区域
+      description: 向所有用户返回当前生效或未来生效、且存在生效时段限制的临时禁飞区域（已过期的数据会被过滤）。
       security: []
       responses:
         '200':
@@ -193,8 +193,8 @@ paths:
                 $ref: '#/components/schemas/ApiResponseNoFlyZoneList'
   /api/no-fly-zones/temporary:
     get:
-      summary: 分页查询生效的临时禁飞区域
-      description: 向所有用户分页返回当前生效、且存在生效时段限制的临时禁飞区域。
+      summary: 分页查询未过期的临时禁飞区域
+      description: 向所有用户分页返回当前生效或未来生效、且存在生效时段限制的临时禁飞区域（已过期的数据会被过滤）。
       security: []
       parameters:
         - in: query
@@ -236,8 +236,8 @@ paths:
                 $ref: '#/components/schemas/ApiResponseObject'
   /api/no-fly-zones/temporary/search:
     get:
-      summary: 搜索生效的临时禁飞区域
-      description: 按标题关键字模糊匹配，返回当前生效且存在生效时段限制的临时禁飞区域列表。
+      summary: 搜索未过期的临时禁飞区域
+      description: 按标题关键字模糊匹配，返回当前生效或未来生效、且存在生效时段限制的临时禁飞区域列表（已过期的数据会被过滤）。
       security: []
       parameters:
         - in: query
@@ -395,6 +395,11 @@ components:
         circle:
           $ref: '#/components/schemas/NoFlyZoneCircle'
           description: 圆形区域数据，仅在 type 为 CIRCLE 时填写。
+        extra:
+          type: array
+          description: 额外位置区域列表；可用于同一条禁飞信息挂载多个区域定义。
+          items:
+            $ref: '#/components/schemas/NoFlyZoneExtraArea'
         effectiveFrom:
           type: integer
           format: int64
@@ -430,6 +435,10 @@ components:
           format: double
         circle:
           $ref: '#/components/schemas/NoFlyZoneCircle'
+        extra:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoFlyZoneExtraArea'
         effectiveFrom:
           type: integer
           format: int64
@@ -481,4 +490,25 @@ components:
         radiusMeters:
           type: number
           format: double
+    NoFlyZoneExtraArea:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [POLYGON, RECTANGLE, CIRCLE, PATH]
+          description: 额外区域类型。
+        coordinates:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoFlyZoneCoordinate'
+          description: 多边形、矩形或路径的坐标数组。
+        pathDistanceMeters:
+          type: number
+          format: double
+          description: PATH 类型的沿边距离（米），仅在 type 为 PATH 时填写。
+        circle:
+          $ref: '#/components/schemas/NoFlyZoneCircle'
+          description: 圆形区域数据，仅在 type 为 CIRCLE 时填写。
     

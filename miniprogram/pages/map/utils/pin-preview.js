@@ -373,6 +373,15 @@ function buildPinPreviewZone(page, shape = {}) {
   return { type: "POLYGON", coordinates };
 }
 
+function buildPinPreviewZones(page, payload = {}) {
+  const shapes = Array.isArray(payload?.shapes) && payload.shapes.length
+    ? payload.shapes
+    : (payload?.shape ? [payload.shape] : []);
+  return shapes
+    .map((shape) => buildPinPreviewZone(page, shape))
+    .filter(Boolean);
+}
+
 function buildPinPreviewMarker(page, payload = {}) {
   const location = payload.location || {};
   const lat = Number(location.latitude);
@@ -444,7 +453,7 @@ function buildPreviewTemporaryNoFlyOverride(info = null) {
   return {
     temporaryNoFlyZoneInfo: info,
     temporaryNoFlyText: info.displayName || info.name || "",
-    temporaryNoFlyTone: "alert"
+    temporaryNoFlyTone: info.effective === false ? "warn" : "alert"
   };
 }
 
@@ -453,9 +462,9 @@ function shouldShowPreviewTemporaryNoFly(page, centerOverride) {
   if (!payload || !payload.temporaryNoFlyZoneInfo) return false;
   const center = centerOverride || page._centerOverride || page.data.center;
   if (!center || !hasValidCoordinate(center.latitude, center.longitude)) return false;
-  const zone = buildPinPreviewZone(page, payload.shape);
-  if (!zone) return false;
-  return pinContainsPoint(page, { shape: zone }, center);
+  const zones = buildPinPreviewZones(page, payload);
+  if (!zones.length) return false;
+  return zones.some((zone) => pinContainsPoint(page, { shape: zone }, center));
 }
 
 function syncPreviewTemporaryNoFlyState(page, centerOverride) {
@@ -500,13 +509,13 @@ function shouldBuildPreviewMarker(payload = {}) {
 }
 
 function applyPinPreview(page, payload = {}) {
-  if (!payload || !payload.shape) return;
+  if (!payload || (!payload.shape && !(Array.isArray(payload.shapes) && payload.shapes.length))) return;
   clearPinPreview(page);
   page._previewPinId = payload.id || "";
   const center = computePinPreviewCenter(page, payload.shape, payload);
-  const zone = buildPinPreviewZone(page, payload.shape);
-  if (zone) {
-    const graphics = buildNoFlyZoneGraphics([zone], { color: payload.previewColor || "#D3A05B" });
+  const zones = buildPinPreviewZones(page, payload);
+  if (zones.length) {
+    const graphics = buildNoFlyZoneGraphics(zones, { color: payload.previewColor || "#D3A05B" });
     page._previewPolygons = Array.isArray(graphics.polygons) ? graphics.polygons : [];
     page._previewCircles = Array.isArray(graphics.circles) ? graphics.circles : [];
   }
@@ -790,6 +799,7 @@ module.exports = {
   ensurePinAddress,
   clearPinPreview,
   buildPinPreviewZone,
+  buildPinPreviewZones,
   buildPinPreviewMarker,
   computePinPreviewCenter,
   normalizePreviewCoordinate,

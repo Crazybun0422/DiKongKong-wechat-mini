@@ -26,7 +26,13 @@ function queueMapGraphicsSync(page, options = {}) {
 }
 
 function syncAllPolylines(page) {
-  const polylines = Array.isArray(page._searchLinkPolylines) ? page._searchLinkPolylines : [];
+  const polylines = [];
+  if (Array.isArray(page._searchLinkPolylines)) {
+    polylines.push(...page._searchLinkPolylines);
+  }
+  if (page.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(page._nfzPolylines)) {
+    polylines.push(...page._nfzPolylines);
+  }
   page.setData({ polylines });
 }
 

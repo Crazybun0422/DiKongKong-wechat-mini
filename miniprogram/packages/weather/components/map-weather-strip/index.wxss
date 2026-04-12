@@ -10,11 +10,13 @@
   align-items: center;
   min-width: 0;
   border-radius: 9px;
-  padding: 5px 6px;
-  background: transparent;
-  border: 2px solid rgba(15, 23, 42, 0.72);
-  box-shadow: none;
-  backdrop-filter: blur(2rpx);
+  padding: 4px 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+  border: 1.5px solid rgba(15, 23, 42, 0.44);
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(4px);
 }
 
 .weather-strip-shell--loading {
@@ -22,9 +24,11 @@
 }
 
 .weather-strip--satellite .weather-strip-shell {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: none;
+  background: linear-gradient(180deg, rgba(8, 12, 18, 0.36), rgba(8, 12, 18, 0.18));
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .weather-strip--satellite .weather-strip-shell--loading {
@@ -34,13 +38,30 @@
 .weather-strip-main {
   display: flex;
   align-items: center;
-  gap: 12rpx;
+  gap: 5px;
   min-width: 0;
 }
 
+.weather-strip-icon-shell {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  flex-shrink: 0;
+}
+
+.weather-strip--satellite .weather-strip-icon-shell {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
 .weather-strip-icon {
-  width: 64rpx;
-  height: 64rpx;
+  width: 21px;
+  height: 21px;
   flex-shrink: 0;
 }
 
@@ -48,7 +69,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3rpx;
+  gap: 1px;
 }
 
 .weather-strip-weather,
@@ -60,24 +81,35 @@
 }
 
 .weather-strip-weather {
-  font-size: 28rpx;
+  font-size: 13px;
   font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
+  color: rgba(15, 23, 42, 0.94);
+  letter-spacing: 0.2px;
+}
+
+.weather-strip-speed-stack {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
 }
 
 .weather-strip-speed {
-  font-size: 22rpx;
+  font-size: 11px;
   font-weight: 700;
-  color: rgba(15, 23, 42, 0.86);
+  color: rgba(15, 23, 42, 0.9);
   text-decoration: underline;
-  text-decoration-thickness: 1rpx;
-  text-underline-offset: 3rpx;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .weather-strip-force {
-  font-size: 22rpx;
+  font-size: 10px;
   font-weight: 700;
-  color: rgba(15, 23, 42, 0.86);
+  color: rgba(15, 23, 42, 0.72);
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .weather-strip--satellite .weather-strip-weather,
@@ -90,26 +122,46 @@
 .weather-strip-meta {
   display: flex;
   align-items: center;
-  gap: 12rpx;
+  gap: 5px;
+}
+
+.weather-strip-pointer-badge {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  flex-shrink: 0;
+}
+
+.weather-strip--satellite .weather-strip-pointer-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.weather-strip--satellite .weather-strip-force {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .weather-strip-pointer {
   position: relative;
-  width: 38rpx;
-  height: 38rpx;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
   transform-origin: center;
-  margin-top: -6rpx;
 }
 
 .weather-strip-pointer-line {
   position: absolute;
   left: 50%;
-  top: 6rpx;
-  width: 3rpx;
-  height: 24rpx;
+  top: 2px;
+  width: 1.5px;
+  height: 7px;
   transform: translateX(-50%);
-  border-radius: 999rpx;
+  border-radius: 999px;
 }
 
 .weather-strip-pointer-head {
@@ -119,8 +171,8 @@
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 7rpx solid transparent;
-  border-right: 7rpx solid transparent;
+  border-left: 2.5px solid transparent;
+  border-right: 2.5px solid transparent;
 }
 
 .weather-strip-pointer--dark .weather-strip-pointer-line {
@@ -128,7 +180,7 @@
 }
 
 .weather-strip-pointer--dark .weather-strip-pointer-head {
-  border-bottom: 14rpx solid rgba(15, 23, 42, 0.92);
+  border-bottom: 5px solid rgba(15, 23, 42, 0.92);
 }
 
 .weather-strip-pointer--light .weather-strip-pointer-line {
@@ -136,17 +188,17 @@
 }
 
 .weather-strip-pointer--light .weather-strip-pointer-head {
-  border-bottom: 14rpx solid rgba(248, 250, 252, 0.96);
+  border-bottom: 5px solid rgba(248, 250, 252, 0.96);
 }
 
 .weather-strip-state {
-  min-height: 44rpx;
+  min-height: 22px;
   display: flex;
   align-items: center;
 }
 
 .weather-strip-state-text {
-  font-size: 20rpx;
+  font-size: 12px;
   font-weight: 700;
   color: rgba(15, 23, 42, 0.86);
 }

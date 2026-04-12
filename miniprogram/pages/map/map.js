@@ -204,7 +204,7 @@ Page({
     weatherFeatureEnabled: weatherUtils.WEATHER_FEATURE_ENABLED === true,
     weatherWidgetLeftPx: 3,
     weatherWidgetWidthPx: 105,
-    weatherWidgetBottomPx: 117,
+    weatherWidgetBottomPx: 110,
     weatherLoading: false,
     weatherError: "",
     weatherUpdatedAtText: "",

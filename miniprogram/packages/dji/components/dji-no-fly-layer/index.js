@@ -211,6 +211,13 @@ Component({
         )
         : true;
       if (!force && !moved && !radiusDiff && !rectChanged) {
+        const status = this.describeDjiStatus(this._lastAreas);
+        this.emitStatusChange(Object.assign({}, status, {
+          djiMsg: this._status?.djiMsg || "",
+          loadingDji: false,
+          djiReady: Array.isArray(this._lastAreas),
+          djiEnabled: true
+        }));
         return;
       }
 

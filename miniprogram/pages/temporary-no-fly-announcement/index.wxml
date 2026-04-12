@@ -17,6 +17,17 @@
         mode="aspectFit"
       />
     </view>
+    <button
+      class="marker-page-share-header temporary-no-fly-announcement-share-btn"
+      open-type="share"
+      hover-class="none"
+    >
+      <image
+        class="marker-page-share-header-icon"
+        src="/assets/transmit.png"
+        mode="aspectFit"
+      />
+    </button>
   </view>
 
   <view wx:if="{{loading}}" class="temporary-no-fly-announcement-state">加载中...</view>
@@ -36,23 +47,32 @@
           </view>
           <block wx:for="{{zone.periodRows}}" wx:key="index" wx:for-item="period">
             <view class="temporary-no-fly-announcement-period-row">
-              <text class="temporary-no-fly-announcement-period-label">{{period.label}}：</text>
-              <text class="temporary-no-fly-announcement-period-value">{{period.value}}</text>
+              <text class="temporary-no-fly-announcement-period-label {{period.tone === 'active' ? 'temporary-no-fly-announcement-period-label--active' : ''}}">
+                {{period.label}}：
+              </text>
+              <text class="temporary-no-fly-announcement-period-value {{period.tone === 'active' ? 'temporary-no-fly-announcement-period-value--active' : ''}}">
+                {{period.value}}
+              </text>
             </view>
           </block>
         </view>
 
-        <view
-          class="temporary-no-fly-announcement-map-entry"
-          data-id="{{zone.id}}"
-          catchtap="onMapTap"
-        >
-          <image
-            class="temporary-no-fly-announcement-map-icon"
-            src="./assets/map-view.png"
-            mode="aspectFit"
-          />
-          <text class="temporary-no-fly-announcement-map-text">地图查看</text>
+        <view class="temporary-no-fly-announcement-map-entry-list">
+          <block wx:for="{{zone.mapTargets}}" wx:key="id" wx:for-item="target">
+            <view
+              class="temporary-no-fly-announcement-map-entry"
+              data-id="{{zone.id}}"
+              data-target-index="{{target.index}}"
+              catchtap="onMapTap"
+            >
+              <image
+                class="temporary-no-fly-announcement-map-icon"
+                src="./assets/map-view.png"
+                mode="aspectFit"
+              />
+              <text class="temporary-no-fly-announcement-map-text">{{target.label}}</text>
+            </view>
+          </block>
         </view>
       </view>
     </block>
