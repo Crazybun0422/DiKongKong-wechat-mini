@@ -283,9 +283,12 @@
         </view>
 
         <block wx:for="{{selectedCalendarDay.rows}}" wx:key="key" wx:for-item="slot">
-          <view class="weather-calendar-row">
+          <view class="weather-calendar-row {{slot.isCurrentTime ? 'is-current' : ''}}">
             <view class="weather-calendar-cell weather-calendar-cell--time">
-              <text class="weather-calendar-time">{{slot.timeKey}}</text>
+              <view class="weather-calendar-time-row">
+                <text wx:if="{{slot.isCurrentTime}}" class="weather-calendar-now-badge">当前</text>
+                <text class="weather-calendar-time">{{slot.timeKey}}</text>
+              </view>
               <view class="weather-calendar-weather">
                 <image class="weather-calendar-icon" src="{{slot.iconPath}}" mode="aspectFit" />
                 <text class="weather-calendar-weather-label">{{slot.weatherLabel}}</text>

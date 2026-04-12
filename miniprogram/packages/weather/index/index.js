@@ -170,6 +170,13 @@ function buildWindLayers(current = null) {
 }
 
 function buildCalendarDays(snapshot = null) {
+  const now = new Date();
+  const currentDateKey = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-");
+  const currentTimeKey = `${String(now.getHours()).padStart(2, "0")}:00`;
   const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
   return days.map((day, index) =>
     Object.assign({}, day, {
@@ -191,7 +198,8 @@ function buildCalendarDays(snapshot = null) {
       rows: Array.isArray(day.rows)
         ? day.rows.map((item) =>
           Object.assign({}, item, {
-            iconPath: resolveWeatherIconPath(item.iconName, DETAIL_ICON_LIGHT_THEME)
+            iconPath: resolveWeatherIconPath(item.iconName, DETAIL_ICON_LIGHT_THEME),
+            isCurrentTime: day.dateKey === currentDateKey && item.timeKey === currentTimeKey
           })
         )
         : []

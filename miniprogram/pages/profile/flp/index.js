@@ -18,7 +18,7 @@ const RIGHTS_ITEMS = [
     id: "ad-free",
     icon: "/pages/profile/assets/advertise.png",
     title: "免开屏广告",
-    description: "FLP>2"
+    description: "FLP>2\n次日生效"
   },
   {
     id: "merchant",

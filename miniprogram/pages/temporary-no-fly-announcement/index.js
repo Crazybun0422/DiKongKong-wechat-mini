@@ -376,19 +376,11 @@ Page({
     const existingMap = findLatestMapPage();
     if (existingMap?.page) {
       try {
-        const previewPayload = item.active ? null : buildTemporaryPreviewPayload(item.raw);
-        if (previewPayload && typeof existingMap.page.applyPinPreview === "function") {
-          existingMap.page.applyPinPreview(previewPayload);
-        } else {
-          if (typeof existingMap.page.clearPinPreview === "function") {
-            existingMap.page.clearPinPreview();
-          }
-          if (typeof existingMap.page.centerOnPoint === "function") {
-            existingMap.page.centerOnPoint({
-              latitude: Number(center.latitude),
-              longitude: Number(center.longitude)
-            }, DEFAULT_MAP_SCALE);
-          }
+        if (typeof existingMap.page.centerOnPoint === "function") {
+          existingMap.page.centerOnPoint({
+            latitude: Number(center.latitude),
+            longitude: Number(center.longitude)
+          }, DEFAULT_MAP_SCALE);
         }
         wx.navigateBack({
           delta: existingMap.delta,
@@ -403,10 +395,6 @@ Page({
       }
     }
 
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app && app.globalData) {
-      app.globalData.pendingPinPreview = item.active ? null : buildTemporaryPreviewPayload(item.raw);
-    }
     const latitude = Number(center.latitude).toFixed(6);
     const longitude = Number(center.longitude).toFixed(6);
     const targetUrl = `/pages/map/map?cs=1&clat=${encodeURIComponent(latitude)}&clng=${encodeURIComponent(longitude)}&cscale=${DEFAULT_MAP_SCALE}`;
@@ -416,9 +404,6 @@ Page({
       url: targetUrl,
       fail: (err) => {
         console.warn("temporary no-fly map navigate failed", err);
-        if (app && app.globalData) {
-          app.globalData.pendingPinPreview = null;
-        }
         this.releaseNavigationLock();
       }
     });
