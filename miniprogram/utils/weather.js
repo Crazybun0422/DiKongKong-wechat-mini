@@ -879,6 +879,143 @@ function buildFireCloudScore(input = {}) {
   };
 }
 
+function isGlowWeatherEligibleAdvanced(weatherCode = null) {
+  const code = normalizeNumber(weatherCode);
+  if (code === null) {
+    return false;
+  }
+  return [0, 1, 2, 3].includes(code);
+}
+
+function resolveGlowWeatherPenaltyAdvanced(weatherCode = null) {
+  const code = normalizeNumber(weatherCode);
+  if (code === null) return 0.52;
+  if (code === 0) return 1;
+  if (code === 1) return 0.96;
+  if (code === 2) return 0.88;
+  if (code === 3) return 0.68;
+  if (code === 45 || code === 48) return 0.08;
+  if (code >= 95) return 0.04;
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 0.05;
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 0.04;
+  return 0.2;
+}
+
+function resolveFireCloudTierAdvanced(score = null, eligible = true) {
+  const numeric = normalizeNumber(score);
+  if (!eligible || numeric === null || numeric < 10) {
+    return { label: "无效", stars: 0, display: "无效" };
+  }
+  if (numeric < 20) return { label: "微微烧", stars: 1, display: "微微烧 1星" };
+  if (numeric < 34) return { label: "微烧", stars: 2, display: "微烧 2星" };
+  if (numeric < 50) return { label: "小烧", stars: 3, display: "小烧 3星" };
+  if (numeric < 66) return { label: "中烧", stars: 4, display: "中烧 4星" };
+  if (numeric < 80) return { label: "大烧", stars: 5, display: "大烧 5星" };
+  if (numeric < 92) return { label: "史诗级", stars: 6, display: "史诗级 6星" };
+  return { label: "世纪晚霞", stars: 7, display: "世纪晚霞 7星" };
+}
+
+function buildFireCloudStarItems(score = null) {
+  const numeric = normalizeNumber(score);
+  const starValue = numeric === null
+    ? 0
+    : clamp(Math.round(clamp01(numeric / 100) * 14) / 2, 0, 7);
+  return Array.from({ length: 7 }, (_, index) => {
+    const offset = index + 1;
+    let fill = 0;
+    if (starValue >= offset) {
+      fill = 1;
+    } else if (starValue >= offset - 0.5) {
+      fill = 0.5;
+    }
+    return {
+      key: `star-${index}`,
+      fill
+    };
+  });
+}
+
+function buildLayerStructureFactorAdvanced(highCloudCover, midCloudCover, lowCloudCover) {
+  const high = normalizeNumber(highCloudCover);
+  const mid = normalizeNumber(midCloudCover);
+  const low = normalizeNumber(lowCloudCover);
+  if (high === null && mid === null && low === null) {
+    return null;
+  }
+  const highValue = high === null ? 0 : high;
+  const midValue = mid === null ? 0 : mid;
+  const lowValue = low === null ? 0 : low;
+  const upperBias = clamp01((highValue - lowValue + 30) / 90);
+  const midBias = clamp01((midValue - lowValue + 24) / 72);
+  return clamp01(upperBias * 0.68 + midBias * 0.32);
+}
+
+function buildCloudBaseFactorAdvanced(cloudBaseMeters = null) {
+  return triangularFactor(cloudBaseMeters, 800, 2400, 5200);
+}
+
+function buildDewSpreadFactorAdvanced(temperature2m = null, dewPoint2m = null) {
+  const temperature = normalizeNumber(temperature2m);
+  const dewPoint = normalizeNumber(dewPoint2m);
+  if (temperature === null || dewPoint === null) {
+    return null;
+  }
+  return triangularFactor(temperature - dewPoint, 1.5, 6.5, 15);
+}
+
+function buildPrecipitationPenaltyFactorAdvanced(probability = null, amount = null) {
+  const probabilityValue = normalizeNumber(probability);
+  const amountValue = normalizeNumber(amount);
+  const probabilityFactor = probabilityValue === null ? null : (1 - clamp01(probabilityValue / 22));
+  const amountFactor = amountValue === null ? null : (1 - clamp01(amountValue / 0.35));
+  if (probabilityFactor === null && amountFactor === null) {
+    return null;
+  }
+  if (probabilityFactor === null) return amountFactor;
+  if (amountFactor === null) return probabilityFactor;
+  return clamp01(probabilityFactor * 0.6 + amountFactor * 0.4);
+}
+
+function buildFireCloudScoreAdvanced(input = {}) {
+  const visibilityKm = normalizeNumber(input.visibilityMeters) === null ? null : Number(input.visibilityMeters) / 1000;
+  const eligible = isGlowWeatherEligibleAdvanced(input.weatherCode);
+  const components = [
+    { factor: triangularFactor(input.aod, 0.08, 0.34, 0.92), weight: 0.16 },
+    { factor: triangularFactor(input.highCloudCover, 10, 30, 64), weight: 0.24 },
+    { factor: triangularFactor(input.midCloudCover, 0, 16, 42), weight: 0.10 },
+    { factor: normalizeNumber(input.lowCloudCover) === null ? null : (1 - clamp01(Number(input.lowCloudCover) / 58)), weight: 0.18 },
+    { factor: visibilityKm === null ? null : clamp01((visibilityKm - 8) / 16), weight: 0.07 },
+    { factor: buildPrecipitationPenaltyFactorAdvanced(input.precipitationProbability, input.precipitation), weight: 0.08 },
+    { factor: buildCloudBaseFactorAdvanced(input.cloudBaseMeters), weight: 0.07 },
+    { factor: buildDewSpreadFactorAdvanced(input.temperature2m, input.dewPoint2m), weight: 0.04 },
+    { factor: buildLayerStructureFactorAdvanced(input.highCloudCover, input.midCloudCover, input.lowCloudCover), weight: 0.06 }
+  ];
+  let total = 0;
+  let weightSum = 0;
+  components.forEach((item) => {
+    if (item.factor === null || !Number.isFinite(item.factor)) {
+      return;
+    }
+    total += item.factor * item.weight;
+    weightSum += item.weight;
+  });
+  if (weightSum <= 0) {
+    return { score: null, level: "无效", stars: 0, display: "--", eligible: false };
+  }
+  const weatherPenalty = resolveGlowWeatherPenaltyAdvanced(input.weatherCode);
+  const normalizedScore = clamp01(total / weightSum);
+  const compressedScore = Math.pow(normalizedScore, 1.75);
+  const score = Math.round(compressedScore * 100 * weatherPenalty);
+  const tier = resolveFireCloudTierAdvanced(score, eligible);
+  return {
+    score,
+    level: tier.label,
+    stars: tier.stars,
+    display: `${score}% ${tier.label}`,
+    eligible
+  };
+}
+
 function buildGlowEventInfo(kind = "sunrise", timeValue = "", primaryPayload = null, secondaryPayload = null, airQualityPayload = null, referenceTimeMs = Date.now()) {
   const targetMs = parseTimeMs(timeValue);
   const aod = interpolateHourlyMetric(airQualityPayload, "aerosol_optical_depth", targetMs);
@@ -887,13 +1024,23 @@ function buildGlowEventInfo(kind = "sunrise", timeValue = "", primaryPayload = n
   const midCloudCover = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "cloud_cover_mid");
   const highCloudCover = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "cloud_cover_high");
   const weatherCode = resolveNearestCalendarMetric(primaryPayload, secondaryPayload, targetMs, "weather_code");
-  const fireCloud = buildFireCloudScore({
+  const precipitationProbability = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "precipitation_probability");
+  const precipitation = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "precipitation");
+  const temperature2m = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "temperature_2m");
+  const dewPoint2m = resolveInterpolatedCalendarMetric(primaryPayload, secondaryPayload, targetMs, "dew_point_2m");
+  const cloudBaseMeters = estimateCloudBaseAtTime(primaryPayload, secondaryPayload, timeValue);
+  const fireCloud = buildFireCloudScoreAdvanced({
     aod,
     visibilityMeters: visibility,
     lowCloudCover,
     midCloudCover,
     highCloudCover,
-    weatherCode
+    weatherCode,
+    precipitationProbability,
+    precipitation,
+    temperature2m,
+    dewPoint2m,
+    cloudBaseMeters
   });
   return {
     kind,
@@ -906,7 +1053,10 @@ function buildGlowEventInfo(kind = "sunrise", timeValue = "", primaryPayload = n
     aodDisplay: formatAod(aod),
     fireCloudScore: fireCloud.score,
     fireCloudLevel: fireCloud.level,
-    fireCloudDisplay: `${fireCloud.score === null ? "--" : fireCloud.score}${fireCloud.level ? ` ${fireCloud.level}` : ""}`
+    fireCloudStars: fireCloud.stars,
+    fireCloudStarItems: buildFireCloudStarItems(fireCloud.score),
+    fireCloudEligible: fireCloud.eligible,
+    fireCloudDisplay: fireCloud.display || "--"
   };
 }
 

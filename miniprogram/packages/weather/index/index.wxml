@@ -237,6 +237,16 @@
                 <text class="weather-calendar-solar-metric">AOD {{selectedCalendarDay.sunriseGlow.aodDisplay}}</text>
                 <text class="weather-calendar-solar-metric">火烧云 {{selectedCalendarDay.sunriseGlow.fireCloudDisplay}}</text>
               </view>
+              <view class="weather-calendar-solar-stars">
+                <block wx:for="{{selectedCalendarDay.sunriseGlow.fireCloudStarItems}}" wx:key="key" wx:for-item="star">
+                  <view class="weather-calendar-star">
+                    <text class="weather-calendar-star-base">★</text>
+                    <view wx:if="{{star.fill > 0}}" class="weather-calendar-star-fill" style="width: {{star.fill * 100}}%;">
+                      <text class="weather-calendar-star-fill-icon">★</text>
+                    </view>
+                  </view>
+                </block>
+              </view>
               <text class="weather-calendar-solar-status">{{selectedCalendarDay.sunriseGlow.statusText}}</text>
             </view>
             <view class="weather-calendar-solar-item">
@@ -249,6 +259,16 @@
               <view class="weather-calendar-solar-metrics">
                 <text class="weather-calendar-solar-metric">AOD {{selectedCalendarDay.sunsetGlow.aodDisplay}}</text>
                 <text class="weather-calendar-solar-metric">火烧云 {{selectedCalendarDay.sunsetGlow.fireCloudDisplay}}</text>
+              </view>
+              <view class="weather-calendar-solar-stars">
+                <block wx:for="{{selectedCalendarDay.sunsetGlow.fireCloudStarItems}}" wx:key="key" wx:for-item="star">
+                  <view class="weather-calendar-star">
+                    <text class="weather-calendar-star-base">★</text>
+                    <view wx:if="{{star.fill > 0}}" class="weather-calendar-star-fill" style="width: {{star.fill * 100}}%;">
+                      <text class="weather-calendar-star-fill-icon">★</text>
+                    </view>
+                  </view>
+                </block>
               </view>
               <text class="weather-calendar-solar-status">{{selectedCalendarDay.sunsetGlow.statusText}}</text>
             </view>

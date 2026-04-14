@@ -35,7 +35,7 @@ const formatPeriodDateTime = (value) => {
   if (!Number.isFinite(seconds)) return "";
   const date = new Date(seconds * 1000);
   if (Number.isNaN(date.getTime())) return "";
-  return `${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}`;
 };
 
 const formatPeriodRange = (from, to) => {
@@ -186,6 +186,7 @@ const buildTemporaryPreviewShapes = (zone = {}) => {
     : [];
   return [baseShape].concat(extraShapes).filter(Boolean);
 };
+
 
 const buildMapTargets = (zone = {}) => {
   const shapes = buildTemporaryPreviewShapes(zone);
@@ -512,10 +513,6 @@ Page({
 
     const latitude = Number(center.latitude).toFixed(6);
     const longitude = Number(center.longitude).toFixed(6);
-    const app = typeof getApp === "function" ? getApp() : null;
-    if (app?.globalData) {
-      app.globalData.pendingPinPreview = null;
-    }
     const targetUrl = `/pages/map/map?cs=1&clat=${encodeURIComponent(latitude)}&clng=${encodeURIComponent(longitude)}&cscale=${DEFAULT_MAP_SCALE}`;
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     const navigate = Array.isArray(pages) && pages.length >= 9 ? wx.redirectTo : wx.navigateTo;

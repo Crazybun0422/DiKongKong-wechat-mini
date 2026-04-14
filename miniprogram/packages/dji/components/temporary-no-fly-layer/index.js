@@ -14,7 +14,7 @@ const DEFAULT_CENTER = {
 };
 
 const DEFAULT_SCALE = 11;
-const UPCOMING_ZONE_FILL_COLOR = "#7A8087";
+const UPCOMING_ZONE_FILL_COLOR = "#8A6E72";
 const UPCOMING_ZONE_STROKE_COLOR = "#D7A33A";
 const ACTIVE_ZONE_FILL_COLOR = "#DE4329";
 const ACTIVE_ZONE_STROKE_COLOR = "#D7A33A";
@@ -206,7 +206,7 @@ Component({
             color: UPCOMING_ZONE_STROKE_COLOR,
             strokeColor: UPCOMING_ZONE_STROKE_COLOR,
             fillColor: UPCOMING_ZONE_FILL_COLOR,
-            fillOpacity: 0.1,
+            fillOpacity: 0.3,
             strokeOpacity: 0.95
           });
           this._polygons = []
