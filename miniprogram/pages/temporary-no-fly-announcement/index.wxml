@@ -1,83 +1,111 @@
 <view class="temporary-no-fly-announcement-page">
-  <view class="temporary-no-fly-announcement-search-row">
-    <view class="temporary-no-fly-announcement-search">
-      <input
-        class="temporary-no-fly-announcement-search-input"
-        type="text"
-        value="{{keyword}}"
-        placeholder="输入城市名称"
-        placeholder-class="temporary-no-fly-announcement-search-placeholder"
-        confirm-type="search"
-        bindinput="onKeywordInput"
-        bindconfirm="onSearchConfirm"
-      />
-      <image
-        class="temporary-no-fly-announcement-search-icon"
-        src="./assets/search-entry.png"
-        mode="aspectFit"
-      />
+  <view class="temporary-no-fly-announcement-fixed-top">
+    <view class="temporary-no-fly-announcement-search-row">
+      <view class="temporary-no-fly-announcement-search">
+        <input
+          class="temporary-no-fly-announcement-search-input"
+          type="text"
+          value="{{keyword}}"
+          placeholder="输入城市名称"
+          placeholder-class="temporary-no-fly-announcement-search-placeholder"
+          confirm-type="search"
+          bindinput="onKeywordInput"
+          bindconfirm="onSearchConfirm"
+        />
+        <image
+          class="temporary-no-fly-announcement-search-icon"
+          src="./assets/search-entry.png"
+          mode="aspectFit"
+        />
+      </view>
+      <button
+        class="marker-page-share-header temporary-no-fly-announcement-share-btn"
+        open-type="share"
+        hover-class="none"
+      >
+        <image
+          class="marker-page-share-header-icon"
+          src="/assets/transmit.png"
+          mode="aspectFit"
+        />
+      </button>
     </view>
-    <button
-      class="marker-page-share-header temporary-no-fly-announcement-share-btn"
-      open-type="share"
-      hover-class="none"
-    >
+
+    <view wx:if="{{noticeVisible}}" class="temporary-no-fly-announcement-notice">
       <image
-        class="marker-page-share-header-icon"
-        src="/assets/transmit.png"
+        class="temporary-no-fly-announcement-notice-icon"
+        src="/assets/preflight-save.png"
         mode="aspectFit"
       />
-    </button>
+      <view class="temporary-no-fly-announcement-notice-content">
+        <rich-text nodes="{{noticeNodes}}"></rich-text>
+      </view>
+    </view>
   </view>
 
-  <view wx:if="{{loading}}" class="temporary-no-fly-announcement-state">加载中...</view>
-  <view wx:elif="{{errorText && !zones.length}}" class="temporary-no-fly-announcement-state">{{errorText}}</view>
-  <view wx:elif="{{!zones.length}}" class="temporary-no-fly-announcement-state">{{emptyText}}</view>
+  <scroll-view
+    class="temporary-no-fly-announcement-scroll"
+    scroll-y="true"
+    enhanced="true"
+    show-scrollbar="false"
+    enable-back-to-top="true"
+    bindscrolltolower="onListScrollToLower"
+  >
+    <view wx:if="{{loading}}" class="temporary-no-fly-announcement-state">加载中...</view>
+    <view wx:elif="{{errorText && !zones.length}}" class="temporary-no-fly-announcement-state">{{errorText}}</view>
+    <view wx:elif="{{!zones.length}}" class="temporary-no-fly-announcement-state">{{emptyText}}</view>
 
-  <view wx:else class="temporary-no-fly-announcement-list">
-    <block wx:for="{{zones}}" wx:key="id" wx:for-item="zone">
-      <view class="temporary-no-fly-announcement-item">
-        <view class="temporary-no-fly-announcement-item-main">
-          <view
-            class="temporary-no-fly-announcement-item-title"
-            data-id="{{zone.id}}"
-            bindtap="onTitleTap"
-          >
-            {{zone.title}}>
-          </view>
-          <block wx:for="{{zone.periodRows}}" wx:key="index" wx:for-item="period">
-            <view class="temporary-no-fly-announcement-period-row">
-              <text class="temporary-no-fly-announcement-period-label {{period.tone === 'active' ? 'temporary-no-fly-announcement-period-label--active' : ''}}">
-                {{period.label}}：
-              </text>
-              <text class="temporary-no-fly-announcement-period-value {{period.tone === 'active' ? 'temporary-no-fly-announcement-period-value--active' : ''}}">
-                {{period.value}}
-              </text>
-            </view>
-          </block>
-        </view>
-
-        <view class="temporary-no-fly-announcement-map-entry-list">
-          <block wx:for="{{zone.mapTargets}}" wx:key="id" wx:for-item="target">
+    <view wx:else class="temporary-no-fly-announcement-list">
+      <block wx:for="{{zones}}" wx:key="id" wx:for-item="zone">
+        <view class="temporary-no-fly-announcement-item">
+          <view class="temporary-no-fly-announcement-item-main">
             <view
-              class="temporary-no-fly-announcement-map-entry"
+              class="temporary-no-fly-announcement-item-title"
               data-id="{{zone.id}}"
-              data-target-index="{{target.index}}"
-              catchtap="onMapTap"
+              bindtap="onTitleTap"
             >
-              <image
-                class="temporary-no-fly-announcement-map-icon"
-                src="./assets/map-view.png"
-                mode="aspectFit"
-              />
-              <text class="temporary-no-fly-announcement-map-text">{{target.label}}</text>
+              {{zone.title}}>
             </view>
-          </block>
-        </view>
-      </view>
-    </block>
+            <block wx:for="{{zone.periodRows}}" wx:key="index" wx:for-item="period">
+              <view class="temporary-no-fly-announcement-period-row">
+                <text class="temporary-no-fly-announcement-period-label {{period.tone === 'active' ? 'temporary-no-fly-announcement-period-label--active' : ''}}">
+                  {{period.label}}：
+                </text>
+                <text class="temporary-no-fly-announcement-period-value {{period.tone === 'active' ? 'temporary-no-fly-announcement-period-value--active' : ''}}">
+                  {{period.value}}
+                </text>
+              </view>
+            </block>
+          </view>
 
-    <view wx:if="{{loadingMore}}" class="temporary-no-fly-announcement-footer">加载中...</view>
-    <view wx:elif="{{!hasMore && zones.length}}" class="temporary-no-fly-announcement-footer">没有更多了</view>
+          <view class="temporary-no-fly-announcement-map-entry-list">
+            <block wx:for="{{zone.mapTargets}}" wx:key="id" wx:for-item="target">
+              <view
+                class="temporary-no-fly-announcement-map-entry"
+                data-id="{{zone.id}}"
+                data-target-index="{{target.index}}"
+                catchtap="onMapTap"
+              >
+                <image
+                  class="temporary-no-fly-announcement-map-icon"
+                  src="./assets/map-view.png"
+                  mode="aspectFit"
+                />
+                <text class="temporary-no-fly-announcement-map-text">查看位置{{zone.mapTargets.length > 1 ? target.index + 1 : ''}}</text>
+              </view>
+            </block>
+          </view>
+        </view>
+      </block>
+
+      <view wx:if="{{loadingMore}}" class="temporary-no-fly-announcement-footer">加载中...</view>
+      <view wx:elif="{{!hasMore && zones.length}}" class="temporary-no-fly-announcement-footer">没有更多了</view>
+    </view>
+  </scroll-view>
+
+  <view class="temporary-no-fly-announcement-fixed-bottom">
+    <view class="temporary-no-fly-announcement-disclaimer">
+      本页面禁飞信息为公开通告整合及地图可视化展示，内容仅供参考，不作为飞行依据。请以最新通告及现场管控为准，飞行责任由行为人自行承担。
+    </view>
   </view>
 </view>

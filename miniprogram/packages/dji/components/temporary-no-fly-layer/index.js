@@ -14,7 +14,10 @@ const DEFAULT_CENTER = {
 };
 
 const DEFAULT_SCALE = 11;
-const UPCOMING_ZONE_COLOR = "#8A6E72";
+const UPCOMING_ZONE_FILL_COLOR = "#7A8087";
+const UPCOMING_ZONE_STROKE_COLOR = "#D7A33A";
+const ACTIVE_ZONE_FILL_COLOR = "#DE4329";
+const ACTIVE_ZONE_STROKE_COLOR = "#D7A33A";
 const MIN_FETCH_RADIUS_KM = 2;
 const FETCH_RADIUS_BUFFER_KM = 1;
 const formatTemporaryZoneLabel = (value, maxLength = 9) => {
@@ -194,11 +197,17 @@ Component({
           const upcomingItems = allZones.filter((zone) => !isNoFlyZoneEffective(zone));
           this._activeAreas = expandNoFlyZoneAreas(activeItems);
           this._upcomingAreas = expandNoFlyZoneAreas(upcomingItems);
-          const activeGraphics = buildNoFlyZoneGraphics(this._activeAreas);
+          const activeGraphics = buildNoFlyZoneGraphics(this._activeAreas, {
+            color: ACTIVE_ZONE_STROKE_COLOR,
+            strokeColor: ACTIVE_ZONE_STROKE_COLOR,
+            fillColor: ACTIVE_ZONE_FILL_COLOR
+          });
           const upcomingGraphics = buildNoFlyZoneGraphics(this._upcomingAreas, {
-            color: UPCOMING_ZONE_COLOR,
-            fillOpacity: 0.18,
-            strokeOpacity: 0.72
+            color: UPCOMING_ZONE_STROKE_COLOR,
+            strokeColor: UPCOMING_ZONE_STROKE_COLOR,
+            fillColor: UPCOMING_ZONE_FILL_COLOR,
+            fillOpacity: 0.1,
+            strokeOpacity: 0.95
           });
           this._polygons = []
             .concat(upcomingGraphics.polygons || [], activeGraphics.polygons || []);

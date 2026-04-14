@@ -1,7 +1,15 @@
 .temporary-no-fly-announcement-page {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
-  padding: 24rpx 24rpx 32rpx;
+  padding: 24rpx 24rpx 0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.temporary-no-fly-announcement-fixed-top {
+  flex: 0 0 auto;
   background: #ffffff;
 }
 
@@ -78,6 +86,41 @@ button.marker-page-share-header::after {
   color: #b0b0b0;
 }
 
+.temporary-no-fly-announcement-notice {
+  margin-top: 18rpx;
+  padding: 20rpx 22rpx;
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  border-radius: 18rpx;
+  background: #FFF7E8;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #D7A33A;
+}
+
+.temporary-no-fly-announcement-notice-icon {
+  width: 54rpx;
+  height: 54rpx;
+  flex: 0 0 54rpx;
+  margin-top: 0;
+  opacity: 0.92;
+}
+
+.temporary-no-fly-announcement-notice-content {
+  flex: 1;
+  min-width: 0;
+  color: #D7A33A;
+}
+
+.temporary-no-fly-announcement-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 20rpx;
+  padding-bottom: 20rpx;
+  box-sizing: border-box;
+}
+
 .temporary-no-fly-announcement-state,
 .temporary-no-fly-announcement-footer {
   padding: 40rpx 0;
@@ -88,17 +131,17 @@ button.marker-page-share-header::after {
 }
 
 .temporary-no-fly-announcement-list {
-  margin-top: 20rpx;
+  padding-bottom: 12rpx;
 }
 
 .temporary-no-fly-announcement-item {
   margin-bottom: 18rpx;
-  padding: 22rpx 20rpx;
+  padding: 18rpx 18rpx;
   border-radius: 20rpx;
   background: #f2f2f2;
   display: flex;
   align-items: flex-start;
-  gap: 18rpx;
+  gap: 10rpx;
 }
 
 .temporary-no-fly-announcement-item-main {
@@ -108,38 +151,42 @@ button.marker-page-share-header::after {
 
 .temporary-no-fly-announcement-item-title {
   font-size: 32rpx;
-  line-height: 1.35;
+  line-height: 1.28;
   color: #000000;
   font-weight: 700;
   word-break: break-all;
 }
 
 .temporary-no-fly-announcement-period-row {
-  margin-top: 10rpx;
+  margin-top: 0;
   display: flex;
-  align-items: flex-start;
-  font-size: 24rpx;
-  line-height: 1.4;
+  align-items: center;
+  font-size: 22rpx;
+  line-height: 0.9;
+  gap: 4rpx;
 }
 
 .temporary-no-fly-announcement-period-label {
   color: #555555;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .temporary-no-fly-announcement-period-label--active {
-  color: #c69214;
+  color: #D7A33A;
 }
 
 .temporary-no-fly-announcement-period-value {
   color: #8a8a8a;
   flex: 1;
   min-width: 0;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .temporary-no-fly-announcement-period-value--active {
-  color: #c69214;
+  color: #D7A33A;
 }
 
 .temporary-no-fly-announcement-map-entry {
@@ -147,27 +194,40 @@ button.marker-page-share-header::after {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  width: 116rpx;
-  flex: 0 0 116rpx;
+  width: 96rpx;
+  flex: 0 0 96rpx;
 }
 
 .temporary-no-fly-announcement-map-entry-list {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18rpx;
-  flex: 0 0 116rpx;
-  padding-top: 4rpx;
+  gap: 12rpx;
+  flex: 0 0 96rpx;
+  padding-top: 2rpx;
 }
 
 .temporary-no-fly-announcement-map-icon {
-  width: 72rpx;
-  height: 72rpx;
+  width: 64rpx;
+  height: 64rpx;
 }
 
 .temporary-no-fly-announcement-map-text {
-  margin-top: 6rpx;
+  margin-top: 4rpx;
   font-size: 22rpx;
-  line-height: 1.2;
+  line-height: 1.1;
   color: #2b2b2b;
+  white-space: nowrap;
+}
+
+.temporary-no-fly-announcement-fixed-bottom {
+  flex: 0 0 auto;
+  background: #ffffff;
+  padding: 8rpx 0 12rpx;
+}
+
+.temporary-no-fly-announcement-disclaimer {
+  font-size: 20rpx;
+  line-height: 1.6;
+  color: #8b8b8b;
 }

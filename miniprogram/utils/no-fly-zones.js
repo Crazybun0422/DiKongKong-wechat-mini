@@ -4,6 +4,10 @@ const DEFAULT_COLOR = "#DE4329";
 const FILL_OPACITY = 0.3;
 const STROKE_OPACITY = 0.95;
 const STROKE_WIDTH = 1;
+const DEFAULT_GRID_OPACITY = 0.42;
+const DEFAULT_GRID_WIDTH = 1;
+const MIN_GRID_SPACING_METERS = 35;
+const MAX_GRID_SPACING_METERS = 280;
 
 function normalizeUnixSeconds(value) {
   const numeric = Number(value);
@@ -206,6 +210,191 @@ function buildPathRing(rawCoordinates, widthMeters) {
   return ensureClosedRing(polygon);
 }
 
+function createProjector(points = []) {
+  const first = Array.isArray(points) ? points[0] : null;
+  const baseLat = Number(first?.[1]);
+  const baseLng = Number(first?.[0]);
+  if (!Number.isFinite(baseLat) || !Number.isFinite(baseLng)) {
+    return null;
+  }
+  const kLat = 111320;
+  const kLng = kLat * Math.max(Math.cos((baseLat * Math.PI) / 180), 0.0001);
+  return {
+    project(point) {
+      return {
+        x: (Number(point[0]) - baseLng) * kLng,
+        y: (Number(point[1]) - baseLat) * kLat
+      };
+    },
+    unproject(point) {
+      return {
+        lng: point.x / kLng + baseLng,
+        lat: point.y / kLat + baseLat
+      };
+    }
+  };
+}
+
+function buildPolyline(points = [], color, width) {
+  const gcjPoints = points
+    .map((point) => toGcjPoint(point.lng, point.lat))
+    .filter(Boolean);
+  if (gcjPoints.length < 2) return null;
+  return {
+    points: gcjPoints,
+    color,
+    width,
+    dottedLine: false,
+    arrowLine: false
+  };
+}
+
+function clampGridSpacing(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return MIN_GRID_SPACING_METERS;
+  }
+  return Math.max(MIN_GRID_SPACING_METERS, Math.min(MAX_GRID_SPACING_METERS, numeric));
+}
+
+function computeProjectedRingArea(projectedRing = []) {
+  if (!Array.isArray(projectedRing) || projectedRing.length < 4) return 0;
+  let area = 0;
+  for (let i = 0; i < projectedRing.length - 1; i += 1) {
+    const current = projectedRing[i];
+    const next = projectedRing[i + 1];
+    area += current.x * next.y - next.x * current.y;
+  }
+  return Math.abs(area) / 2;
+}
+
+function resolveGridSpacingByArea(areaSquareMeters) {
+  const area = Number(areaSquareMeters);
+  if (!Number.isFinite(area) || area <= 0) {
+    return MIN_GRID_SPACING_METERS;
+  }
+  return clampGridSpacing(Math.sqrt(area) / 2.5);
+}
+
+function collectAxisIntersections(projectedRing = [], axisValue, axis = "x") {
+  const intersections = [];
+  if (!Array.isArray(projectedRing) || projectedRing.length < 4) {
+    return intersections;
+  }
+  for (let i = 0; i < projectedRing.length - 1; i += 1) {
+    const start = projectedRing[i];
+    const end = projectedRing[i + 1];
+    const startAxis = axis === "x" ? start.x : start.y;
+    const endAxis = axis === "x" ? end.x : end.y;
+    if (startAxis === endAxis) continue;
+    const minAxis = Math.min(startAxis, endAxis);
+    const maxAxis = Math.max(startAxis, endAxis);
+    if (axisValue < minAxis || axisValue >= maxAxis) continue;
+    const ratio = (axisValue - startAxis) / (endAxis - startAxis);
+    const other = axis === "x"
+      ? start.y + (end.y - start.y) * ratio
+      : start.x + (end.x - start.x) * ratio;
+    intersections.push(other);
+  }
+  intersections.sort((a, b) => a - b);
+  return intersections;
+}
+
+function buildPolygonGridPolylines(rings = [], options = {}) {
+  const allPoints = Array.isArray(rings) ? rings.flat() : [];
+  const projector = createProjector(allPoints);
+  if (!projector) return [];
+  const width = Number.isFinite(options.gridWidth) ? options.gridWidth : DEFAULT_GRID_WIDTH;
+  const color = colorWithAlpha(options.gridColor || options.strokeColor || options.color || DEFAULT_COLOR, options.gridOpacity);
+  const polylines = [];
+  rings.forEach((ring) => {
+    if (!Array.isArray(ring) || ring.length < 4) return;
+    const projectedRing = ring.map((point) => projector.project(point));
+    const spacing = clampGridSpacing(
+      Number.isFinite(options.spacingMeters)
+        ? options.spacingMeters
+        : resolveGridSpacingByArea(computeProjectedRingArea(projectedRing))
+    );
+    const xs = projectedRing.map((point) => point.x);
+    const ys = projectedRing.map((point) => point.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    for (let x = minX + spacing; x < maxX; x += spacing) {
+      const intersections = collectAxisIntersections(projectedRing, x, "x");
+      for (let i = 0; i + 1 < intersections.length; i += 2) {
+        const startY = intersections[i];
+        const endY = intersections[i + 1];
+        if (!Number.isFinite(startY) || !Number.isFinite(endY) || endY - startY < spacing * 0.25) continue;
+        const line = buildPolyline([
+          projector.unproject({ x, y: startY }),
+          projector.unproject({ x, y: endY })
+        ], color, width);
+        if (line) polylines.push(line);
+      }
+    }
+
+    for (let y = minY + spacing; y < maxY; y += spacing) {
+      const intersections = collectAxisIntersections(projectedRing, y, "y");
+      for (let i = 0; i + 1 < intersections.length; i += 2) {
+        const startX = intersections[i];
+        const endX = intersections[i + 1];
+        if (!Number.isFinite(startX) || !Number.isFinite(endX) || endX - startX < spacing * 0.25) continue;
+        const line = buildPolyline([
+          projector.unproject({ x: startX, y }),
+          projector.unproject({ x: endX, y })
+        ], color, width);
+        if (line) polylines.push(line);
+      }
+    }
+  });
+  return polylines;
+}
+
+function buildCircleGridPolylines(center, radius, options = {}) {
+  if (!center || !Number.isFinite(radius) || radius <= 0) {
+    return [];
+  }
+  const spacing = clampGridSpacing(
+    Number.isFinite(options.spacingMeters)
+      ? options.spacingMeters
+      : resolveGridSpacingByArea(Math.PI * radius * radius)
+  );
+  const width = Number.isFinite(options.gridWidth) ? options.gridWidth : DEFAULT_GRID_WIDTH;
+  const color = colorWithAlpha(options.gridColor || options.strokeColor || options.color || DEFAULT_COLOR, options.gridOpacity);
+  const kLat = 111320;
+  const kLng = kLat * Math.max(Math.cos((Number(center.lat) * Math.PI) / 180), 0.0001);
+  const toPoint = (xMeters, yMeters) => ({
+    lng: Number(center.lng) + xMeters / kLng,
+    lat: Number(center.lat) + yMeters / kLat
+  });
+  const polylines = [];
+
+  for (let x = -radius + spacing; x < radius; x += spacing) {
+    const halfChord = Math.sqrt(Math.max(0, radius * radius - x * x));
+    if (!Number.isFinite(halfChord) || halfChord < spacing * 0.25) continue;
+    const line = buildPolyline([
+      toPoint(x, -halfChord),
+      toPoint(x, halfChord)
+    ], color, width);
+    if (line) polylines.push(line);
+  }
+
+  for (let y = -radius + spacing; y < radius; y += spacing) {
+    const halfChord = Math.sqrt(Math.max(0, radius * radius - y * y));
+    if (!Number.isFinite(halfChord) || halfChord < spacing * 0.25) continue;
+    const line = buildPolyline([
+      toPoint(-halfChord, y),
+      toPoint(halfChord, y)
+    ], color, width);
+    if (line) polylines.push(line);
+  }
+
+  return polylines;
+}
+
 function toGcjPoint(lng, lat) {
   const latitude = Number(lat);
   const longitude = Number(lng);
@@ -241,6 +430,8 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
   }
   const areaList = expandNoFlyZoneAreas(zones);
   const baseColor = normalizeHex(options.color || DEFAULT_COLOR);
+  const fillColorBase = normalizeHex(options.fillColor || baseColor);
+  const strokeColorBase = normalizeHex(options.strokeColor || baseColor);
   const fillOpacity = Object.prototype.hasOwnProperty.call(options, "fillOpacity")
     ? clampColorOpacity(options.fillOpacity)
     : FILL_OPACITY;
@@ -248,6 +439,15 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
     ? clampColorOpacity(options.strokeOpacity)
     : STROKE_OPACITY;
   const strokeWidth = Number.isFinite(options.strokeWidth) ? options.strokeWidth : STROKE_WIDTH;
+  const enableGrid = options.grid === true;
+  const gridSpacingMeters = Number.isFinite(options.gridSpacingMeters)
+    ? clampGridSpacing(options.gridSpacingMeters)
+    : null;
+  const gridOpacity = Object.prototype.hasOwnProperty.call(options, "gridOpacity")
+    ? clampColorOpacity(options.gridOpacity)
+    : DEFAULT_GRID_OPACITY;
+  const gridWidth = Number.isFinite(options.gridWidth) ? options.gridWidth : DEFAULT_GRID_WIDTH;
+  const gridColor = normalizeHex(options.gridColor || strokeColorBase);
 
   areaList.forEach((zone) => {
     const type = String(zone?.type || "").toUpperCase();
@@ -261,10 +461,20 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
             longitude: gcj.longitude,
             latitude: gcj.latitude,
             radius,
-            color: colorWithAlpha(baseColor, strokeOpacity),
-            fillColor: colorWithAlpha(baseColor, fillOpacity),
+            color: colorWithAlpha(strokeColorBase, strokeOpacity),
+            fillColor: colorWithAlpha(fillColorBase, fillOpacity),
             strokeWidth
           });
+          if (enableGrid) {
+            polylines.push(...buildCircleGridPolylines(center, radius, {
+              spacingMeters: gridSpacingMeters,
+              gridColor,
+              gridOpacity,
+              gridWidth,
+              strokeColor: strokeColorBase,
+              color: baseColor
+            }));
+          }
           shapes.push({
             type: "circle",
             center,
@@ -287,7 +497,7 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
       if (gcjPolylinePoints.length >= 2) {
         polylines.push({
           points: gcjPolylinePoints,
-          color: colorWithAlpha(baseColor, strokeOpacity),
+          color: colorWithAlpha(strokeColorBase, strokeOpacity),
           width: Math.max(3, strokeWidth * 2),
           dottedLine: false,
           arrowLine: false
@@ -300,10 +510,20 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
         if (gcjPoints.length >= 3) {
           polygons.push({
             points: gcjPoints,
-            strokeColor: colorWithAlpha(baseColor, 0),
-            fillColor: colorWithAlpha(baseColor, Math.min(Math.max(fillOpacity * 0.45, 0.08), 0.16)),
-            strokeWidth: 0
+            strokeColor: colorWithAlpha(strokeColorBase, strokeOpacity),
+            fillColor: colorWithAlpha(fillColorBase, Math.min(Math.max(fillOpacity * 0.45, 0.08), 0.16)),
+            strokeWidth
           });
+        }
+        if (enableGrid) {
+          polylines.push(...buildPolygonGridPolylines([ring], {
+            spacingMeters: gridSpacingMeters,
+            gridColor,
+            gridOpacity,
+            gridWidth,
+            strokeColor: strokeColorBase,
+            color: baseColor
+          }));
         }
         shapes.push({
           type: "polygon",
@@ -323,12 +543,22 @@ function buildNoFlyZoneGraphics(zones = [], options = {}) {
         if (gcjPoints.length >= 3) {
           polygons.push({
             points: gcjPoints,
-            strokeColor: colorWithAlpha(baseColor, strokeOpacity),
-            fillColor: colorWithAlpha(baseColor, fillOpacity),
+            strokeColor: colorWithAlpha(strokeColorBase, strokeOpacity),
+            fillColor: colorWithAlpha(fillColorBase, fillOpacity),
             strokeWidth
           });
         }
       });
+      if (enableGrid) {
+        polylines.push(...buildPolygonGridPolylines(rings, {
+          spacingMeters: gridSpacingMeters,
+          gridColor,
+          gridOpacity,
+          gridWidth,
+          strokeColor: strokeColorBase,
+          color: baseColor
+        }));
+      }
       shapes.push({
         type: "polygon",
         rings,
@@ -384,6 +614,11 @@ function searchTemporaryNoFlyZones(keyword = "", options = {}) {
     `/api/no-fly-zones/temporary/search?keyword=${encodeURIComponent(text)}`,
     options
   ).then((data) => (Array.isArray(data) ? data : []));
+}
+
+function fetchNoFlyZoneRichTextConfig(options = {}) {
+  return requestNoFlyZoneApi("/api/no-fly-zones/rich-text-config", options)
+    .then((data) => (data && typeof data === "object" ? data : {}));
 }
 
 function collectZoneCoordinates(zone = {}) {
@@ -474,6 +709,7 @@ module.exports = {
   fetchNearbyNoFlyZones,
   fetchTemporaryNoFlyZonesPage,
   searchTemporaryNoFlyZones,
+  fetchNoFlyZoneRichTextConfig,
   buildNoFlyZoneGraphics,
   computeNoFlyZoneCenter,
   isNoFlyZoneEffective,

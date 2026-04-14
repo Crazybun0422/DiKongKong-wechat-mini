@@ -179,6 +179,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/no-fly-zones/rich-text-config:
+    put:
+      summary: 更新禁飞区富文本配置
+      description: 仅管理员可调用，写入禁飞区富文本说明内容。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoFlyZoneRichTextConfigRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneRichTextConfigResponse'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/no-fly-zones:
     get:
       summary: 查询未过期的临时禁飞区域
@@ -262,7 +293,7 @@ paths:
   /api/no-fly-zones/nearby:
     get:
       summary: 查询附近禁飞区域
-      description: 根据中心点和半径返回生效且与查询范围相交的禁飞区域。
+      description: 根据中心点和半径返回未过期且存在生效时段限制、并与查询范围相交的临时禁飞区域（包含当前生效或未来生效）。
       security: []
       parameters:
         - in: query
@@ -296,6 +327,24 @@ paths:
                 $ref: '#/components/schemas/ApiResponseNoFlyZoneList'
         '400':
           description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/no-fly-zones/rich-text-config:
+    get:
+      summary: 获取禁飞区富文本配置
+      description: 向用户端返回禁飞区富文本说明内容。
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNoFlyZoneRichTextConfigResponse'
+        '404':
+          description: 未配置
           content:
             application/json:
               schema:
@@ -342,6 +391,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NoFlyZoneResponse'
+    ApiResponseNoFlyZoneRichTextConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NoFlyZoneRichTextConfigResponse'
     ApiResponseObject:
       type: object
       properties:
@@ -416,6 +476,24 @@ components:
         wechatLink:
           type: string
           description: 关联的微信公众号链接，仅支持 mp.weixin.qq.com 域名，非必填。
+    NoFlyZoneRichTextConfigRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 禁飞区富文本内容。
+    NoFlyZoneRichTextConfigResponse:
+      type: object
+      properties:
+        content:
+          type: string
+          description: 禁飞区富文本内容。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间。
     NoFlyZoneResponse:
       type: object
       properties:

@@ -1,10 +1,12 @@
 const {
   fetchTemporaryNoFlyZonesPage,
   searchTemporaryNoFlyZones,
+  fetchNoFlyZoneRichTextConfig,
   computeNoFlyZoneCenter,
   isNoFlyZoneEffective
 } = require("../../utils/no-fly-zones");
 const { appendInviteCodeToPath, appendInviteCodeToQuery } = require("../../utils/share");
+const { transformHtmlContent } = require("../../utils/open-platform");
 
 const PAGE_SIZE = 20;
 const DEFAULT_MAP_SCALE = 13;
@@ -15,6 +17,7 @@ const SHARE_PAGE_PATH = "/pages/temporary-no-fly-announcement/index";
 const SHARE_TITLE = "临时禁飞通告";
 const ACTIVE_PREVIEW_COLOR = "#DE4329";
 const UPCOMING_PREVIEW_COLOR = "#8A6E72";
+const NOTICE_TEXT_COLOR = "#D7A33A";
 
 const normalizeUnixSeconds = (value) => {
   const numeric = Number(value);
@@ -27,17 +30,17 @@ const normalizeUnixSeconds = (value) => {
 
 const padNumber = (value) => `${value}`.padStart(2, "0");
 
-const formatPeriodDate = (value) => {
+const formatPeriodDateTime = (value) => {
   const seconds = normalizeUnixSeconds(value);
   if (!Number.isFinite(seconds)) return "";
   const date = new Date(seconds * 1000);
   if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`;
+  return `${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
 };
 
 const formatPeriodRange = (from, to) => {
-  const fromText = formatPeriodDate(from);
-  const toText = formatPeriodDate(to);
+  const fromText = formatPeriodDateTime(from);
+  const toText = formatPeriodDateTime(to);
   if (fromText && toText) return `${fromText}至${toText}`;
   if (fromText) return `${fromText}起`;
   if (toText) return `截至${toText}`;
@@ -78,12 +81,10 @@ const resolvePeriodRows = (zone = {}, nowSeconds = normalizeUnixSeconds(Date.now
   const rows = deduped.map((period) => {
     const from = period.effectiveFrom;
     const to = period.effectiveTo;
-    const isActive =
-      (from === null || nowSeconds >= from) &&
-      (to === null || nowSeconds <= to);
+    const isActive = (from === null || nowSeconds >= from) && (to === null || nowSeconds <= to);
     const isUpcoming = from !== null && nowSeconds < from;
     return {
-      label: isActive ? "禁飞区生效中" : isUpcoming ? "禁飞区待生效" : "已失效",
+      label: isActive ? "生效中" : isUpcoming ? "待生效" : "已失效",
       value: formatPeriodRange(from, to) || "时间待定",
       priority: isActive ? 0 : isUpcoming ? 1 : 2,
       tone: isActive ? "active" : isUpcoming ? "upcoming" : "expired"
@@ -112,6 +113,43 @@ const sortZonesByCreatedAtDesc = (list = []) =>
     return `${b?.id || ""}`.localeCompare(`${a?.id || ""}`);
   });
 
+const stripNoticeStyleDeclaration = (styleText = "") =>
+  styleText
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.split(":")[0]?.trim().toLowerCase();
+      return ![
+        "color",
+        "background",
+        "background-color",
+        "background-image"
+      ].includes(key);
+    })
+    .join(";");
+
+const normalizeNoticeHtml = (html = "") => {
+  if (!html || typeof html !== "string") return "";
+  let output = html.replace(/<font\b[^>]*>/gi, "<span>");
+  output = output.replace(/<\/font>/gi, "</span>");
+  output = output.replace(/\sstyle=['"]([^'"]*)['"]/gi, (match, styleText = "") => {
+    const next = stripNoticeStyleDeclaration(styleText);
+    return next ? ` style="${next}"` : "";
+  });
+  output = output.replace(/<(span|p|div|strong|b|em|i)\b([^>]*)>/gi, (match, tagName, attrs = "") => {
+    if (/\bstyle=['"]/.test(attrs)) {
+      return `<${tagName}${attrs.replace(/\bstyle=['"]([^'"]*)['"]/i, (m, styleText = "") => {
+        const cleaned = stripNoticeStyleDeclaration(styleText);
+        const merged = [cleaned, `color:${NOTICE_TEXT_COLOR}`].filter(Boolean).join(";");
+        return `style="${merged}"`;
+      })}>`;
+    }
+    return `<${tagName}${attrs} style="color:${NOTICE_TEXT_COLOR}">`;
+  });
+  return output;
+};
+
 const buildTemporaryPreviewShape = (zone = {}) => {
   const type = `${zone?.type || ""}`.trim().toUpperCase();
   if (type === "CIRCLE" && zone?.circle) {
@@ -125,11 +163,7 @@ const buildTemporaryPreviewShape = (zone = {}) => {
       type: "CIRCLE",
       coordinates: [{ latitude, longitude }],
       radius: radiusMeters / 1000,
-      circle: {
-        latitude,
-        longitude,
-        radiusMeters
-      }
+      circle: { latitude, longitude, radiusMeters }
     };
   }
   if (type === "PATH") {
@@ -241,6 +275,8 @@ const normalizeZoneItem = (zone = {}) => {
 Page({
   data: {
     keyword: "",
+    noticeVisible: false,
+    noticeNodes: [],
     zones: [],
     loading: true,
     loadingMore: false,
@@ -256,6 +292,7 @@ Page({
     this._activeRequestId = 0;
     this._navigationLocked = false;
     this._navigationTimer = null;
+    this.loadNotice();
     this.loadZoneList({ reset: true });
   },
 
@@ -283,6 +320,10 @@ Page({
     if (this.data.keyword.trim()) return;
     if (!this.data.hasMore || this.data.loading || this.data.loadingMore) return;
     this.loadZoneList({ reset: false });
+  },
+
+  onListScrollToLower() {
+    this.onReachBottom();
   },
 
   onKeywordInput(event) {
@@ -318,6 +359,28 @@ Page({
       title: SHARE_TITLE,
       query: appendInviteCodeToQuery("")
     };
+  },
+
+  loadNotice() {
+    return fetchNoFlyZoneRichTextConfig()
+      .then((response = {}) => {
+        const content = typeof response.content === "string" ? response.content.trim() : "";
+        const transformed = content ? normalizeNoticeHtml(transformHtmlContent(content)) : [];
+        const hasNotice = Array.isArray(transformed)
+          ? transformed.length > 0
+          : !!`${transformed || ""}`.replace(/<[^>]*>/g, "").replace(/\s+/g, "").trim();
+        this.setData({
+          noticeVisible: hasNotice,
+          noticeNodes: hasNotice ? transformed : []
+        });
+      })
+      .catch((err) => {
+        console.warn("load no-fly zone rich text config failed", err);
+        this.setData({
+          noticeVisible: false,
+          noticeNodes: []
+        });
+      });
   },
 
   loadZoneList(options = {}) {
@@ -422,12 +485,11 @@ Page({
     }
     if (this._navigationLocked) return;
     this.lockNavigation();
-    const previewPayload = buildTemporaryPreviewPayload(item?.raw, targetIndex);
     const existingMap = findLatestMapPage();
     if (existingMap?.page) {
       try {
-        if (previewPayload && typeof existingMap.page.applyPinPreview === "function") {
-          existingMap.page.applyPinPreview(previewPayload);
+        if (typeof existingMap.page.clearPinPreview === "function") {
+          existingMap.page.clearPinPreview();
         }
         if (typeof existingMap.page.centerOnPoint === "function") {
           existingMap.page.centerOnPoint({
@@ -452,7 +514,7 @@ Page({
     const longitude = Number(center.longitude).toFixed(6);
     const app = typeof getApp === "function" ? getApp() : null;
     if (app?.globalData) {
-      app.globalData.pendingPinPreview = previewPayload || null;
+      app.globalData.pendingPinPreview = null;
     }
     const targetUrl = `/pages/map/map?cs=1&clat=${encodeURIComponent(latitude)}&clng=${encodeURIComponent(longitude)}&cscale=${DEFAULT_MAP_SCALE}`;
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
