@@ -6,7 +6,31 @@ const { loadCachedMapLocation } = require("../../../pages/map/utils/location");
 const { shouldUseWeChatUom } = require("../../../utils/runtime");
 const { buildDroneCategories, resolveDroneIndexByModel } = require("../../../pages/map/utils/drone-picker");
 const { fetchReportEntries } = require("../../../utils/report-entries");
-const { buildCityReportWebviewPath } = require("../../../utils/city-report");
+const { buildPreflightRichTextUrl } = require("../../../utils/preflight-config");
+const {
+  QUALIFICATION_MODE_ENTERTAINMENT,
+  QUALIFICATION_MODE_COMMERCIAL,
+  QUALIFICATION_LEVEL_REQUIRED,
+  buildQualificationAssessment,
+  resolveAircraftClassFromStaticModel
+} = require("../../../utils/preflight-qualification");
+const {
+  fetchWeatherCalendarBundle,
+  loadWeatherCalendarSnapshot,
+  saveWeatherCalendarSnapshot,
+  snapshotMatches,
+  resolveWeatherIconPath
+} = require("../../../utils/weather");
+const { buildPreflightWeatherAssessment } = require("../../../utils/preflight-weather");
+const {
+  USER_CREDENTIAL_TYPES,
+  USER_CREDENTIAL_META,
+  fetchUserCredentials,
+  uploadUserCredential,
+  downloadUserCredentialFile,
+  deleteUserCredential,
+  inferFileKind
+} = require("../../../utils/user-credentials");
 const {
   fetchNearbyNoFlyZones,
   filterEffectiveNoFlyZones,
@@ -45,6 +69,199 @@ const REPORT_REGION_SUFFIXES = [
   "新区"
 ];
 
+const QUALIFICATION_CARD_ITEMS = [
+  USER_CREDENTIAL_TYPES.THEORY,
+  USER_CREDENTIAL_TYPES.CAAC,
+  USER_CREDENTIAL_TYPES.OPERATION,
+  USER_CREDENTIAL_TYPES.INSURANCE
+];
+const WEATHER_DAY_GRID_SIZE = 14;
+const WEATHER_HANDLE_WIDTH = 30;
+
+function pad2(value) {
+  return `${Number(value) || 0}`.padStart(2, "0");
+}
+
+function formatPreflightDayLabel(day = {}, index = 0) {
+  const relativeDay = Number(day?.relativeDay);
+  if (relativeDay === -1) return "昨天";
+  if (relativeDay === 0) return "今天";
+  if (relativeDay === 1) return "明天";
+  if (relativeDay === 2) return "后天";
+  return `${day?.weekdayLabel || `第${index + 1}天`}`.trim();
+}
+
+function buildWeatherIntelDays(snapshot = null) {
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  return days.slice(0, WEATHER_DAY_GRID_SIZE).map((day, index) => ({
+    key: day.dateKey || `day-${index}`,
+    dateKey: day.dateKey || "",
+    tabLabel: formatPreflightDayLabel(day, index),
+    dateLabel: day.dateLabel || "",
+    relativeDay: Number(day.relativeDay)
+  }));
+}
+
+function resolveWeatherIntelDefaultDay(snapshot = null) {
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  return days.find((item) => Number(item?.relativeDay) === 0) || days[0] || null;
+}
+
+function findWeatherSlot(snapshot = null, dateKey = "", hour = 0) {
+  const days = Array.isArray(snapshot?.days) ? snapshot.days : [];
+  const day = days.find((item) => item?.dateKey === dateKey) || null;
+  if (!day) return null;
+  const rows = Array.isArray(day.rows) ? day.rows : [];
+  const targetTimeKey = `${pad2(hour)}:00`;
+  return rows.find((item) => item?.timeKey === targetTimeKey) || rows[0] || null;
+}
+
+function buildWeatherHandleStyle(hour = 0) {
+  const bounded = Math.max(0, Math.min(23, Number(hour) || 0));
+  const percent = (bounded / 23) * 100;
+  return `left: calc(${percent.toFixed(4)}% - ${WEATHER_HANDLE_WIDTH / 2}px);`;
+}
+
+function clampWeatherHour(value) {
+  const numeric = Math.round(Number(value));
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.min(23, numeric));
+}
+
+function buildWeatherIntelPatch(snapshot = null, options = {}) {
+  const fallbackHour = new Date().getHours();
+  const selectedHour = Math.max(0, Math.min(23, Number(options.selectedHour)));
+  const days = buildWeatherIntelDays(snapshot);
+  const defaultDay = resolveWeatherIntelDefaultDay(snapshot);
+  const selectedDateKey = `${options.selectedDateKey || defaultDay?.dateKey || ""}`.trim();
+  const selectedSlot = findWeatherSlot(snapshot, selectedDateKey, Number.isFinite(selectedHour) ? selectedHour : fallbackHour);
+  const actualHour = Number.isFinite(Number(selectedSlot?.hour))
+    ? Number(selectedSlot.hour)
+    : (Number.isFinite(selectedHour) ? selectedHour : fallbackHour);
+  const aircraftClass = resolveAircraftClassFromStaticModel({
+    slug: options.droneSlug,
+    name: options.droneName
+  });
+  const assessment = buildPreflightWeatherAssessment(selectedSlot || {}, aircraftClass);
+  return {
+    weatherIntelDays: days.map((item) => Object.assign({}, item, {
+      active: item.dateKey === selectedDateKey
+    })),
+    weatherIntelSelectedDateKey: selectedDateKey,
+    weatherIntelSelectedHour: actualHour,
+    weatherIntelSelectedSlot: selectedSlot ? Object.assign({}, selectedSlot, {
+      iconPath: resolveWeatherIconPath(selectedSlot.iconName, false)
+    }) : null,
+    weatherIntelAssessmentLevel: assessment.level,
+    weatherIntelAssessmentTitle: assessment.title,
+    weatherIntelAssessmentReason: assessment.reason,
+    weatherIntelAssessmentReasons: assessment.reasons || [],
+    weatherIntelHandleStyle: buildWeatherHandleStyle(actualHour)
+  };
+}
+
+function buildQualificationCardItems(credentials = {}) {
+  const assessment = buildQualificationAssessment({
+    mode: credentials.__mode,
+    droneSlug: credentials.__droneSlug,
+    droneName: credentials.__droneName,
+    credentials
+  });
+  return QUALIFICATION_CARD_ITEMS.map((type) => {
+    const meta = USER_CREDENTIAL_META[type] || {};
+    const item = credentials[type] || {};
+    const policy = assessment.items?.[type] || {};
+    return {
+      type,
+      title: meta.title || item.title || "",
+      requirementText: policy.requirementLabel || "无需",
+      requirementDetail: policy.requirementDetail || "",
+      requirementClass:
+        policy.requirementLevel === QUALIFICATION_LEVEL_REQUIRED
+          ? "is-required"
+          : (policy.requirementLabel === "建议" ? "is-suggested" : "is-none"),
+      statusText: item.bound ? "已绑定" : "未绑定",
+      statusClass: item.bound ? "is-bound" : "is-unbound"
+    };
+  });
+}
+
+function buildQualificationState(mode = QUALIFICATION_MODE_ENTERTAINMENT, credentials = {}, drone = {}) {
+  const decoratedCredentials = Object.assign({}, credentials, {
+    __mode: mode,
+    __droneSlug: drone.slug || "",
+    __droneName: drone.name || ""
+  });
+  const assessment = buildQualificationAssessment({
+    mode,
+    droneSlug: drone.slug || "",
+    droneName: drone.name || "",
+    credentials
+  });
+  return {
+    qualificationMode: mode,
+    qualificationPassed: assessment.passed,
+    qualificationAircraftClass: assessment.aircraftClassLabel,
+    qualificationPurposeLabel: assessment.purposeLabel,
+    qualificationCardItems: buildQualificationCardItems(decoratedCredentials)
+  };
+}
+
+function createEmptyCredentialState() {
+  const map = {};
+  Object.keys(USER_CREDENTIAL_META).forEach((type) => {
+    map[type] = {
+      type,
+      key: USER_CREDENTIAL_META[type].key,
+      title: USER_CREDENTIAL_META[type].title,
+      fullTitle: USER_CREDENTIAL_META[type].fullTitle,
+      guideTitle: USER_CREDENTIAL_META[type].guideTitle,
+      guideSubtitle: USER_CREDENTIAL_META[type].guideSubtitle,
+      uploadLabel: USER_CREDENTIAL_META[type].uploadLabel,
+      richTextKey: USER_CREDENTIAL_META[type].richTextKey,
+      bound: false,
+      objectName: "",
+      location: "",
+      fileName: "",
+      originalFilename: "",
+      fileKind: "unknown",
+      publicUrl: ""
+    };
+  });
+  return map;
+}
+
+function buildCredentialDialogState(item = {}, mode = "empty", extra = {}) {
+  const fileKind = item?.fileKind || "unknown";
+  return Object.assign({
+    credentialDialogVisible: true,
+    credentialDialogMode: mode,
+    activeCredentialType: item?.type || "",
+    activeCredentialTitle: item?.fullTitle || item?.title || "",
+    activeCredentialGuideTitle: item?.guideTitle || "",
+    activeCredentialGuideSubtitle: item?.guideSubtitle || "",
+    activeCredentialRichTextKey: item?.richTextKey || "",
+    activeCredentialUploadLabel: item?.uploadLabel || "上传文件",
+    activeCredentialBound: !!item?.bound,
+    activeCredentialFileName: item?.fileName || "",
+    activeCredentialFileKind: fileKind,
+    activeCredentialPreviewUrl: "",
+    activeCredentialPdfPath: "",
+    activeCredentialUploading: false,
+    credentialPendingFilePath: "",
+    credentialPendingFileName: "",
+    credentialPendingFileKind: "unknown",
+    credentialPendingPreviewUrl: ""
+  }, extra);
+}
+
+function buildQualificationDroneSnapshot(data = {}) {
+  return {
+    slug: `${data?.selectedDrone || ""}`.trim(),
+    name: `${data?.selectedDroneName || ""}`.trim()
+  };
+}
+
 function hasValidCoordinate(latitude, longitude) {
   return Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude));
 }
@@ -70,7 +287,7 @@ function formatDistance(distanceMeters) {
 function parsePhone(value) {
   const text = `${value || ""}`.trim();
   if (!text) return "";
-  const cleaned = text.replace(/[锛?銆侊紝,]/g, "/");
+  const cleaned = text.replace(/[、，,；;]/g, "/");
   const parts = cleaned.split("/").map((item) => item.trim()).filter(Boolean);
   const candidates = parts.length ? parts : [cleaned];
   for (const item of candidates) {
@@ -267,7 +484,7 @@ function buildMapTargets(zone = {}) {
         id: `${zone?.id || zone?.name || "zone"}-${index + 1}`,
         index,
         center,
-        label: multiple ? `鏌ョ湅浣嶇疆${index + 1}` : "鏌ョ湅浣嶇疆"
+        label: multiple ? `查看位置${index + 1}` : "查看位置"
       };
     })
     .filter(Boolean);
@@ -553,7 +770,43 @@ Page({
     reportEntry: null,
     reportDialogText: "",
     activeTemporaryNoFlyZone: false,
-    activeTemporaryNoFlyZoneCard: null
+    activeTemporaryNoFlyZoneCard: null,
+    qualificationMode: QUALIFICATION_MODE_ENTERTAINMENT,
+    qualificationPassed: false,
+    qualificationAircraftClass: "",
+    qualificationPurposeLabel: "",
+    qualificationCardItems: buildQualificationCardItems(createEmptyCredentialState()),
+    weatherIntelLoading: true,
+    weatherIntelError: "",
+    weatherIntelUpdatedAtText: "",
+    weatherIntelDays: [],
+    weatherIntelSelectedDateKey: "",
+    weatherIntelSelectedHour: new Date().getHours(),
+    weatherIntelSelectedSlot: null,
+    weatherIntelAssessmentLevel: "caution",
+    weatherIntelAssessmentTitle: "谨慎飞行",
+    weatherIntelAssessmentReason: "气象数据加载中",
+    weatherIntelAssessmentReasons: [],
+    weatherIntelHandleStyle: buildWeatherHandleStyle(new Date().getHours()),
+    qualificationCredentials: createEmptyCredentialState(),
+    credentialDialogVisible: false,
+    credentialDialogMode: "empty",
+    activeCredentialType: "",
+    activeCredentialTitle: "",
+    activeCredentialGuideTitle: "",
+    activeCredentialGuideSubtitle: "",
+    activeCredentialRichTextKey: "",
+    activeCredentialUploadLabel: "上传文件",
+    activeCredentialBound: false,
+    activeCredentialFileName: "",
+    activeCredentialFileKind: "unknown",
+    activeCredentialPreviewUrl: "",
+    activeCredentialPdfPath: "",
+    activeCredentialUploading: false,
+    credentialPendingFilePath: "",
+    credentialPendingFileName: "",
+    credentialPendingFileKind: "unknown",
+    credentialPendingPreviewUrl: ""
   },
 
   onLoad(options = {}) {
@@ -591,6 +844,8 @@ Page({
     this.loadPoliceStation();
     this.loadReportEntry(center);
     this.loadTemporaryNoFlyZone(center);
+    this.loadQualificationCredentials();
+    this.loadWeatherIntel(center);
   },
 
   onReady() {
@@ -609,6 +864,89 @@ Page({
     if (this._djiLayer && typeof this._djiLayer.destroy === "function") {
       this._djiLayer.destroy();
     }
+  },
+
+  noop() {},
+
+  refreshQualificationState(nextMode = this.data.qualificationMode, nextCredentials = this.data.qualificationCredentials) {
+    const drone = buildQualificationDroneSnapshot(this.data);
+    this.setData(buildQualificationState(nextMode, nextCredentials || createEmptyCredentialState(), drone));
+  },
+
+  refreshWeatherIntelSelection(snapshot = this._weatherCalendarSnapshot) {
+    if (!snapshot) return;
+    const drone = buildQualificationDroneSnapshot(this.data);
+    this.setData(buildWeatherIntelPatch(snapshot, {
+      selectedDateKey: this.data.weatherIntelSelectedDateKey,
+      selectedHour: this.data.weatherIntelSelectedHour,
+      droneSlug: drone.slug,
+      droneName: drone.name
+    }));
+  },
+
+  measureWeatherIntelSlider() {
+    return new Promise((resolve) => {
+      const query = this.createSelectorQuery();
+      query.select(".preflight-weather-intel__slider-shell").boundingClientRect((rect) => {
+        this._weatherIntelSliderRect = rect && Number.isFinite(rect.width) ? rect : null;
+        resolve(this._weatherIntelSliderRect);
+      }).exec();
+    });
+  },
+
+  updateWeatherIntelHourByClientX(clientX, commit = false) {
+    const rect = this._weatherIntelSliderRect;
+    if (!rect || !Number.isFinite(Number(clientX)) || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
+      return;
+    }
+    const ratio = Math.max(0, Math.min(1, (Number(clientX) - rect.left) / rect.width));
+    const hour = clampWeatherHour(ratio * 23);
+    if (commit && this._weatherCalendarSnapshot) {
+      const drone = buildQualificationDroneSnapshot(this.data);
+      this.setData(buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
+        selectedDateKey: this.data.weatherIntelSelectedDateKey,
+        selectedHour: hour,
+        droneSlug: drone.slug,
+        droneName: drone.name
+      }));
+      return;
+    }
+    this.setData({
+      weatherIntelSelectedHour: hour,
+      weatherIntelHandleStyle: buildWeatherHandleStyle(hour)
+    });
+  },
+
+  onWeatherIntelHandleTouchStart(event = {}) {
+    const touch = event?.touches?.[0] || event?.changedTouches?.[0] || null;
+    if (!touch) return;
+    this.measureWeatherIntelSlider().then(() => {
+      this.updateWeatherIntelHourByClientX(touch.clientX, false);
+    });
+  },
+
+  onWeatherIntelHandleTouchMove(event = {}) {
+    const touch = event?.touches?.[0] || event?.changedTouches?.[0] || null;
+    if (!touch) return;
+    if (!this._weatherIntelSliderRect) {
+      this.measureWeatherIntelSlider().then(() => {
+        this.updateWeatherIntelHourByClientX(touch.clientX, false);
+      });
+      return;
+    }
+    this.updateWeatherIntelHourByClientX(touch.clientX, false);
+  },
+
+  onWeatherIntelHandleTouchEnd(event = {}) {
+    const touch = event?.changedTouches?.[0] || event?.touches?.[0] || null;
+    if (!touch) return;
+    if (!this._weatherIntelSliderRect) {
+      this.measureWeatherIntelSlider().then(() => {
+        this.updateWeatherIntelHourByClientX(touch.clientX, true);
+      });
+      return;
+    }
+    this.updateWeatherIntelHourByClientX(touch.clientX, true);
   },
 
   onOpenDronePickerTap() {
@@ -681,6 +1019,8 @@ Page({
       selectedDroneName: next.name,
       dronePickerLabel: next.name
     }, () => {
+      this.refreshQualificationState();
+      this.refreshWeatherIntelSelection();
       if (this._djiLayer && typeof this._djiLayer.updateQuery === "function") {
         this._djiLayer.updateQuery({
           drone: this.data.selectedDrone,
@@ -878,6 +1218,344 @@ Page({
       });
   },
 
+  loadWeatherIntel(center = this.data.center) {
+    if (!center || !hasValidCoordinate(center.latitude, center.longitude)) {
+      this._weatherCalendarSnapshot = null;
+      this.setData({
+        weatherIntelLoading: false,
+        weatherIntelError: "中心点不可用",
+        weatherIntelUpdatedAtText: "",
+        weatherIntelDays: [],
+        weatherIntelSelectedDateKey: "",
+        weatherIntelSelectedSlot: null
+      });
+      return;
+    }
+    const cached = loadWeatherCalendarSnapshot();
+    if (cached && snapshotMatches(cached, center)) {
+      this._weatherCalendarSnapshot = cached;
+      this.setData(Object.assign({
+        weatherIntelLoading: false,
+        weatherIntelError: "",
+        weatherIntelUpdatedAtText: `${cached.updatedAtText || ""}`.replace(/^更新于/, "")
+      }, buildWeatherIntelPatch(cached, {
+        selectedDateKey: this.data.weatherIntelSelectedDateKey,
+        selectedHour: this.data.weatherIntelSelectedHour,
+        droneSlug: this.data.selectedDrone,
+        droneName: this.data.selectedDroneName
+      })));
+    } else {
+      this.setData({ weatherIntelLoading: true, weatherIntelError: "" });
+    }
+
+    fetchWeatherCalendarBundle(center)
+      .then((snapshot) => {
+        this._weatherCalendarSnapshot = saveWeatherCalendarSnapshot(snapshot);
+        this.setData(Object.assign({
+          weatherIntelLoading: false,
+          weatherIntelError: "",
+          weatherIntelUpdatedAtText: `${snapshot?.updatedAtText || ""}`.replace(/^更新于/, "")
+        }, buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
+          selectedDateKey: this.data.weatherIntelSelectedDateKey,
+          selectedHour: this.data.weatherIntelSelectedHour,
+          droneSlug: this.data.selectedDrone,
+          droneName: this.data.selectedDroneName
+        })));
+      })
+      .catch((err) => {
+        console.warn("preflight load weather intel failed", err);
+        if (this._weatherCalendarSnapshot) {
+          this.setData({ weatherIntelLoading: false, weatherIntelError: "" });
+          return;
+        }
+        this.setData({
+          weatherIntelLoading: false,
+          weatherIntelError: "气象数据暂不可用"
+        });
+      });
+  },
+
+  onWeatherIntelDayTap(event = {}) {
+    const dateKey = `${event?.currentTarget?.dataset?.dateKey || ""}`.trim();
+    if (!dateKey || !this._weatherCalendarSnapshot) return;
+    const drone = buildQualificationDroneSnapshot(this.data);
+    this.setData(buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
+      selectedDateKey: dateKey,
+      selectedHour: this.data.weatherIntelSelectedHour,
+      droneSlug: drone.slug,
+      droneName: drone.name
+    }));
+  },
+
+  onWeatherIntelHourChanging(event = {}) {
+    const hour = Math.max(0, Math.min(23, Math.round(Number(event?.detail?.value))));
+    if (!Number.isFinite(hour)) return;
+    this.setData({ weatherIntelSelectedHour: hour, weatherIntelHandleStyle: buildWeatherHandleStyle(hour) });
+  },
+
+  onWeatherIntelHourChange(event = {}) {
+    const hour = Math.max(0, Math.min(23, Math.round(Number(event?.detail?.value))));
+    if (!Number.isFinite(hour) || !this._weatherCalendarSnapshot) return;
+    const drone = buildQualificationDroneSnapshot(this.data);
+    this.setData(buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
+      selectedDateKey: this.data.weatherIntelSelectedDateKey,
+      selectedHour: hour,
+      droneSlug: drone.slug,
+      droneName: drone.name
+    }));
+  },
+
+  loadQualificationCredentials() {
+    fetchUserCredentials({ apiBase: resolveApiBase() })
+      .then((credentials = {}) => {
+        const nextCredentials = Object.assign(createEmptyCredentialState(), credentials);
+        this.setData({
+          qualificationCredentials: nextCredentials
+        }, () => this.refreshQualificationState(this.data.qualificationMode, nextCredentials));
+      })
+      .catch((err) => {
+        console.warn("preflight load qualification credentials failed", err);
+        const nextCredentials = createEmptyCredentialState();
+        this.setData({
+          qualificationCredentials: nextCredentials
+        }, () => this.refreshQualificationState(this.data.qualificationMode, nextCredentials));
+      });
+  },
+
+  onQualificationTipTap() {
+    const target = buildPreflightRichTextUrl("flightQualificationAssessment", "飞行资质评估");
+    if (target) wx.navigateTo({ url: target });
+  },
+
+  onQualificationModeChange(event = {}) {
+    const mode = `${event?.currentTarget?.dataset?.mode || ""}`.trim();
+    if (!mode || mode === this.data.qualificationMode) return;
+    this.setData(
+      buildQualificationState(mode, this.data.qualificationCredentials || {}, buildQualificationDroneSnapshot(this.data))
+    );
+  },
+
+  onCredentialTap(event = {}) {
+    const type = `${event?.currentTarget?.dataset?.type || ""}`.trim();
+    if (!type) return;
+    const item = this.data.qualificationCredentials?.[type];
+    if (!item) return;
+    if (item.bound) {
+      this.openBoundCredentialDialog(item);
+      return;
+    }
+    this.setData(buildCredentialDialogState(item, "empty"));
+  },
+
+  closeCredentialDialog() {
+    this.setData({
+      credentialDialogVisible: false,
+      credentialDialogMode: "empty",
+      activeCredentialType: "",
+      activeCredentialTitle: "",
+      activeCredentialGuideTitle: "",
+      activeCredentialGuideSubtitle: "",
+      activeCredentialRichTextKey: "",
+      activeCredentialUploadLabel: "上传文件",
+      activeCredentialBound: false,
+      activeCredentialFileName: "",
+      activeCredentialFileKind: "unknown",
+      activeCredentialPreviewUrl: "",
+      activeCredentialPdfPath: "",
+      activeCredentialUploading: false,
+      credentialPendingFilePath: "",
+      credentialPendingFileName: "",
+      credentialPendingFileKind: "unknown",
+      credentialPendingPreviewUrl: ""
+    });
+  },
+
+  onCredentialMaskTap() {
+    if (this.data.activeCredentialUploading) return;
+    this.closeCredentialDialog();
+  },
+
+  onCredentialGuideTap() {
+    const key = `${this.data.activeCredentialRichTextKey || ""}`.trim();
+    if (!key) return;
+    const title = `${this.data.activeCredentialGuideTitle || this.data.activeCredentialTitle || ""}`.trim();
+    const target = buildPreflightRichTextUrl(key, title);
+    if (target) wx.navigateTo({ url: target });
+  },
+
+  onCredentialStartUploadTap() {
+    this.setData({
+      credentialDialogMode: "upload",
+      credentialPendingFilePath: "",
+      credentialPendingFileName: "",
+      credentialPendingFileKind: "unknown",
+      credentialPendingPreviewUrl: ""
+    });
+  },
+
+  onCredentialChooseFileTap() {
+    const success = (res = {}) => {
+      const file = res?.tempFiles?.[0] || res?.files?.[0] || null;
+      const filePath = file?.path || file?.tempFilePath || "";
+      const fileName = file?.name || file?.originalFileObj?.name || filePath.split(/[\\/]/).pop() || "";
+      const fileKind = inferFileKind(fileName || filePath);
+      if (!filePath) {
+        wx.showToast({ title: "未选择文件", icon: "none" });
+        return;
+      }
+      if (fileKind !== "image" && fileKind !== "pdf") {
+        wx.showToast({ title: "仅支持png或pdf", icon: "none" });
+        return;
+      }
+      this.setData({
+        credentialPendingFilePath: filePath,
+        credentialPendingFileName: fileName,
+        credentialPendingFileKind: fileKind,
+        credentialPendingPreviewUrl: fileKind === "image" ? filePath : ""
+      });
+    };
+
+    if (typeof wx.chooseFile === "function") {
+      wx.chooseFile({ count: 1, success });
+      return;
+    }
+    if (typeof wx.chooseMessageFile === "function") {
+      wx.chooseMessageFile({ count: 1, type: "all", success });
+      return;
+    }
+    wx.showToast({ title: "当前版本不支持选文件", icon: "none" });
+  },
+
+  onCredentialConfirmTap() {
+    const type = `${this.data.activeCredentialType || ""}`.trim();
+    const filePath = `${this.data.credentialPendingFilePath || ""}`.trim();
+    if (!type || !filePath) {
+      wx.showToast({ title: "请先选择文件", icon: "none" });
+      return;
+    }
+    this.setData({ activeCredentialUploading: true });
+    wx.showLoading({ title: "上传中...", mask: true });
+    uploadUserCredential(type, filePath, { apiBase: resolveApiBase() })
+      .then(() => fetchUserCredentials({ apiBase: resolveApiBase() }))
+      .then((credentials = {}) => {
+        wx.hideLoading();
+        const nextCredentials = Object.assign(createEmptyCredentialState(), credentials);
+        const nextItem = nextCredentials[type] || createEmptyCredentialState()[type];
+        this.setData({
+          qualificationCredentials: nextCredentials,
+          activeCredentialUploading: false
+        }, () => {
+          this.refreshQualificationState(this.data.qualificationMode, nextCredentials);
+          this.openBoundCredentialDialog(nextItem);
+        });
+      })
+      .catch((err) => {
+        wx.hideLoading();
+        console.warn("preflight upload credential failed", err);
+        this.setData({ activeCredentialUploading: false });
+        wx.showToast({ title: "上传失败", icon: "none" });
+      });
+  },
+
+  openBoundCredentialDialog(item = {}) {
+    this.setData(buildCredentialDialogState(item, "bound"));
+    if (!item?.bound) return;
+    if (item.fileKind === "pdf") {
+      return;
+    }
+    downloadUserCredentialFile(item, { apiBase: resolveApiBase() })
+      .then((tempFilePath) => {
+        if (this.data.activeCredentialType !== item.type || !this.data.credentialDialogVisible) return;
+        this.setData({
+          activeCredentialPreviewUrl: tempFilePath,
+          activeCredentialPdfPath: item.fileKind === "pdf" ? tempFilePath : ""
+        });
+      })
+      .catch((err) => {
+        console.warn("preflight download credential preview failed", err);
+      });
+  },
+
+  onCredentialPreviewTap() {
+    const previewUrl = `${this.data.activeCredentialPreviewUrl || ""}`.trim();
+    const kind = `${this.data.activeCredentialFileKind || ""}`.trim();
+    if (kind === "pdf") {
+      const item = this.data.qualificationCredentials?.[this.data.activeCredentialType] || null;
+      if (!item?.bound) return;
+      wx.showLoading({ title: "下载中...", mask: true });
+      downloadUserCredentialFile(item, { apiBase: resolveApiBase() })
+        .then((filePath) => {
+          wx.hideLoading();
+          if (typeof wx.openDocument === "function") {
+            wx.openDocument({ filePath, showMenu: true });
+          }
+        })
+        .catch((err) => {
+          wx.hideLoading();
+          console.warn("preflight open credential pdf failed", err);
+          wx.showToast({ title: "打开失败", icon: "none" });
+        });
+      return;
+    }
+    if (previewUrl && typeof wx.previewImage === "function") {
+      wx.previewImage({
+        urls: [previewUrl],
+        current: previewUrl,
+        showmenu: true
+      });
+    }
+  },
+
+  onCredentialMoreTap() {
+    const item = this.data.qualificationCredentials?.[this.data.activeCredentialType] || null;
+    if (!item?.type) return;
+    wx.showActionSheet({
+      itemList: ["重新上传", "删除"],
+      success: (res = {}) => {
+        if (Number(res.tapIndex) === 0) {
+          this.setData(buildCredentialDialogState(item, "upload"));
+          return;
+        }
+        if (Number(res.tapIndex) === 1) {
+          this.onCredentialDeleteTap(item);
+        }
+      }
+    });
+  },
+
+  onCredentialDeleteTap(item = null) {
+    const target = item || this.data.qualificationCredentials?.[this.data.activeCredentialType] || null;
+    if (!target?.type) return;
+    wx.showModal({
+      title: "删除资质文件",
+      content: `确认删除${target.title || "该资质"}吗？`,
+      confirmColor: "#d93025",
+      success: (res = {}) => {
+        if (!res.confirm) return;
+        wx.showLoading({ title: "删除中...", mask: true });
+        deleteUserCredential(target.type, { apiBase: resolveApiBase() })
+          .then(() => fetchUserCredentials({ apiBase: resolveApiBase() }))
+          .then((credentials = {}) => {
+            wx.hideLoading();
+            const nextCredentials = Object.assign(createEmptyCredentialState(), credentials);
+            const nextItem = nextCredentials[target.type] || createEmptyCredentialState()[target.type];
+            this.setData({
+              qualificationCredentials: nextCredentials
+            }, () => {
+              this.refreshQualificationState(this.data.qualificationMode, nextCredentials);
+              this.setData(buildCredentialDialogState(nextItem, "empty"));
+              wx.showToast({ title: "已删除", icon: "success" });
+            });
+          })
+          .catch((err) => {
+            wx.hideLoading();
+            console.warn("preflight delete credential failed", err);
+            wx.showToast({ title: "删除失败", icon: "none" });
+          });
+      }
+    });
+  },
+
   loadPoliceStation() {
     const center = this.data.center;
     if (!hasValidCoordinate(center.latitude, center.longitude)) return;
@@ -899,7 +1577,7 @@ Page({
         this.setData({
           policeLoading: false,
           policeStation: {
-            title: item.title || item.address || "闄勮繎鍏畨閮ㄩ棬",
+            title: item.title || item.address || "附近公安部门",
             address: item.address || "",
             latitude,
             longitude,
@@ -948,11 +1626,13 @@ Page({
   },
 
   onFlightHeightTipTap() {
-    wx.showToast({ title: "飞行高度说明待补充", icon: "none" });
+    const target = buildPreflightRichTextUrl("flightHeight120m", "120米飞行说明");
+    if (target) wx.navigateTo({ url: target });
   },
 
   onSpecialScenarioTipTap() {
-    wx.showToast({ title: "特殊飞行场景说明待补充", icon: "none" });
+    const target = buildPreflightRichTextUrl("noSpecialFlightScenario", "特殊飞行场景说明");
+    if (target) wx.navigateTo({ url: target });
   },
 
   onPhoneTap() {
@@ -970,7 +1650,7 @@ Page({
     wx.openLocation({
       latitude: Number(station.latitude),
       longitude: Number(station.longitude),
-      name: station.title || "鍏畨閮ㄩ棬",
+      name: station.title || "公安部门",
       address: station.address || "",
       scale: 18
     });
@@ -996,31 +1676,8 @@ Page({
   },
 
   onReportGuideTap() {
-    const guide = this.data.reportEntry?.guide || {};
-    const link = typeof guide.publicAccountLink === "string" ? guide.publicAccountLink.trim() : "";
-    if (link) {
-      const target = buildCityReportWebviewPath(link);
-      if (target) {
-        wx.navigateTo({ url: target });
-        return;
-      }
-    }
-    const finderUserName = typeof guide.videoAccountId === "string" ? guide.videoAccountId.trim() : "";
-    const feedId = typeof guide.videoId === "string" ? guide.videoId.trim() : "";
-    if (finderUserName && feedId && typeof wx.openChannelsActivity === "function") {
-      wx.openChannelsActivity({ finderUserName, feedId });
-      return;
-    }
-    if (finderUserName && typeof wx.openChannelsUserProfile === "function") {
-      wx.openChannelsUserProfile({ finderUserName });
-      return;
-    }
-    if (feedId && typeof wx.openChannelsActivity === "function") {
-      wx.openChannelsActivity({ activityId: feedId });
-      return;
-    }
-    const text = this.data.reportDialogText || "暂无更多报备说明";
-    wx.showModal({ title: "飞行报备", content: text, showCancel: false });
+    const target = buildPreflightRichTextUrl("reportAndUnlockGuide", "报备和解禁指南");
+    if (target) wx.navigateTo({ url: target });
   },
 
   onPolicePlatformTap() {
@@ -1036,7 +1693,7 @@ Page({
   onTemporaryNoticeTitleTap() {
     const item = this.data.activeTemporaryNoFlyZoneCard;
     if (!item?.wechatLink) {
-      wx.showToast({ title: "鍏紬鍙烽摼鎺ヤ笉鍙敤", icon: "none" });
+      wx.showToast({ title: "公众号链接不可用", icon: "none" });
       return;
     }
     if (this._navigationLocked) return;

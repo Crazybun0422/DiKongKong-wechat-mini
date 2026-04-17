@@ -1,5 +1,5 @@
 ﻿<view class="preflight-page">
-  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}}">
+  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}} {{(credentialDialogVisible || dronePickerVisible) ? 'preflight-page__shell--hidden' : ''}}">
     <view class="preflight-engine-stage" aria-hidden="true">
       <map
         id="preflight-hidden-map"
@@ -161,7 +161,9 @@
         <text class="preflight-guide-block__body">{{reportEntry.description}}</text>
         <view class="preflight-report-entry-row">
           <view class="preflight-guide-block__cta" bindtap="onReportEntryTap">{{reportEntry.buttonText}}</view>
-          <view wx:if="{{reportEntry.showGuide}}" class="preflight-report-entry__tip" bindtap="onReportGuideTap">i</view>
+          <view wx:if="{{reportEntry.showGuide}}" class="preflight-checklist__tip-btn preflight-report-entry__tip" bindtap="onReportGuideTap">
+            <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
+          </view>
         </view>
       </view>
       <view wx:else class="preflight-guide-block">
@@ -200,6 +202,199 @@
           <text class="preflight-platform-card__sub">公安实名和飞行登记</text>
         </view>
         <image class="preflight-platform-card__arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+      </view>
+    </view>
+
+    <view class="preflight-card preflight-card--qualification">
+      <view class="preflight-card__title-row">
+        <view class="preflight-card__badge">3</view>
+        <text class="preflight-card__title">飞行资质评估</text>
+        <view class="preflight-checklist__tip-btn preflight-card__title-tip" catchtap="onQualificationTipTap">
+          <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
+        </view>
+      </view>
+
+      <view class="preflight-qualification__top">
+        <view class="preflight-qualification__mode-group">
+          <view class="preflight-qualification__mode" data-mode="ENTERTAINMENT" bindtap="onQualificationModeChange">
+            <view class="preflight-qualification__radio {{qualificationMode === 'ENTERTAINMENT' ? 'is-active' : ''}}">
+              <view wx:if="{{qualificationMode === 'ENTERTAINMENT'}}" class="preflight-qualification__radio-dot"></view>
+            </view>
+            <text class="preflight-qualification__mode-text">娱乐飞行</text>
+          </view>
+          <view class="preflight-qualification__mode" data-mode="COMMERCIAL" bindtap="onQualificationModeChange">
+            <view class="preflight-qualification__radio {{qualificationMode === 'COMMERCIAL' ? 'is-active' : ''}}">
+              <view wx:if="{{qualificationMode === 'COMMERCIAL'}}" class="preflight-qualification__radio-dot"></view>
+            </view>
+            <text class="preflight-qualification__mode-text">商业飞行</text>
+          </view>
+        </view>
+
+        <image
+          class="preflight-qualification__stamp"
+          src="{{qualificationPassed ? '/packages/preflight/assets/assessment-passed.png' : '/packages/preflight/assets/assessment-failed.png'}}"
+          mode="aspectFit"
+        />
+      </view>
+
+      <view class="preflight-qualification__meta">
+        <text class="preflight-qualification__meta-text">机型分类：{{qualificationAircraftClass || '轻型'}}</text>
+        <text class="preflight-qualification__meta-dot">·</text>
+        <text class="preflight-qualification__meta-text">用途：{{qualificationPurposeLabel || '非商业（娱乐）'}}</text>
+      </view>
+
+      <view class="preflight-qualification__grid">
+        <block wx:for="{{qualificationCardItems}}" wx:key="type">
+          <view
+            class="preflight-qualification__item {{index === 3 ? 'is-single' : ''}}"
+            data-type="{{item.type}}"
+            bindtap="onCredentialTap"
+          >
+            <text class="preflight-qualification__item-title">{{item.title}}</text>
+            <view class="preflight-qualification__item-requirement">
+              <text class="preflight-qualification__item-requirement-text {{item.requirementClass}}">{{item.requirementText}}</text>
+              <text wx:if="{{item.requirementDetail}}" class="preflight-qualification__item-requirement-detail">{{item.requirementDetail}}</text>
+            </view>
+            <view class="preflight-qualification__item-footer">
+              <text class="preflight-qualification__item-status {{item.statusClass}}">{{item.statusText}}</text>
+              <image class="preflight-qualification__item-arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+            </view>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view class="preflight-card preflight-card--weather-intel">
+      <view class="preflight-card__title-row preflight-card__title-row--space">
+        <view class="preflight-card__title-inline">
+          <view class="preflight-card__badge">4</view>
+          <text class="preflight-card__title">低空气象情报</text>
+        </view>
+        <text class="preflight-weather-intel__updated">更新于{{weatherIntelUpdatedAtText || '--:--'}}</text>
+      </view>
+
+      <view wx:if="{{weatherIntelLoading}}" class="preflight-weather-intel__state">气象数据加载中...</view>
+      <view wx:elif="{{weatherIntelError}}" class="preflight-weather-intel__state">{{weatherIntelError}}</view>
+      <block wx:elif="{{weatherIntelSelectedSlot}}">
+        <view class="preflight-weather-intel__summary preflight-weather-intel__summary--{{weatherIntelAssessmentLevel}}">
+          <text class="preflight-weather-intel__summary-title">{{weatherIntelAssessmentTitle}}</text>
+          <text class="preflight-weather-intel__summary-reason">{{weatherIntelAssessmentReason}}</text>
+        </view>
+
+        <view class="preflight-weather-intel__slider-shell">
+          <slider
+            class="preflight-weather-intel__slider"
+            min="0"
+            max="23"
+            step="1"
+            value="{{weatherIntelSelectedHour}}"
+            activeColor="#8fd9f8"
+            backgroundColor="#d9dde2"
+            block-size="0"
+            bindchanging="onWeatherIntelHourChanging"
+            bindchange="onWeatherIntelHourChange"
+          />
+          <view
+            class="preflight-weather-intel__handle"
+            style="{{weatherIntelHandleStyle}}"
+            catchtouchstart="onWeatherIntelHandleTouchStart"
+            catchtouchmove="onWeatherIntelHandleTouchMove"
+            catchtouchend="onWeatherIntelHandleTouchEnd"
+            catchtouchcancel="onWeatherIntelHandleTouchEnd"
+          >
+            <image class="preflight-weather-intel__handle-bg" src="/packages/preflight/assets/hour-handle.svg" mode="aspectFit" />
+            <text class="preflight-weather-intel__handle-text">{{weatherIntelSelectedHour}}</text>
+          </view>
+          <view class="preflight-weather-intel__scale">
+            <text class="preflight-weather-intel__scale-text">0</text>
+            <text class="preflight-weather-intel__scale-text">23</text>
+          </view>
+        </view>
+
+        <view class="preflight-weather-intel__slot">
+          <image class="preflight-weather-intel__slot-icon" src="{{weatherIntelSelectedSlot.iconPath}}" mode="aspectFit" />
+          <view class="preflight-weather-intel__slot-copy">
+            <text class="preflight-weather-intel__slot-title">{{weatherIntelSelectedSlot.weatherLabel}}</text>
+            <text class="preflight-weather-intel__slot-meta">{{weatherIntelSelectedSlot.timeKey}} · {{weatherIntelSelectedSlot.windSpeedDisplay}}</text>
+          </view>
+          <view class="preflight-weather-intel__slot-side">
+            <text class="preflight-weather-intel__slot-side-text">{{weatherIntelSelectedSlot.windDirectionLabel || '暂无'}}</text>
+            <text class="preflight-weather-intel__slot-side-text">{{weatherIntelSelectedSlot.visibilityDisplay || '暂无'}}</text>
+          </view>
+        </view>
+
+        <view class="preflight-weather-intel__days">
+          <block wx:for="{{weatherIntelDays}}" wx:key="dateKey">
+            <view
+              class="preflight-weather-intel__day {{item.active ? 'is-active' : ''}}"
+              data-date-key="{{item.dateKey}}"
+              bindtap="onWeatherIntelDayTap"
+            >
+              <text class="preflight-weather-intel__day-title">{{item.tabLabel}}</text>
+              <text class="preflight-weather-intel__day-date">{{item.dateLabel}}</text>
+            </view>
+          </block>
+        </view>
+
+        <text class="preflight-weather-intel__note">所有评估结果仅供参考，请以当地规定为准。</text>
+      </block>
+    </view>
+  </view>
+
+  <view wx:if="{{credentialDialogVisible}}" class="preflight-credential-overlay" catchtouchmove="noop">
+    <view class="preflight-credential-mask" bindtap="onCredentialMaskTap"></view>
+    <view class="preflight-credential-sheet" catchtap="noop" catchtouchmove="noop">
+      <view class="preflight-credential-sheet__header">
+        <text class="preflight-credential-sheet__title">{{activeCredentialTitle}}</text>
+        <view wx:if="{{credentialDialogMode === 'bound'}}" class="preflight-credential-sheet__more" bindtap="onCredentialMoreTap">⋮</view>
+      </view>
+
+      <view wx:if="{{credentialDialogMode === 'empty'}}" class="preflight-credential-empty">
+        <view class="preflight-credential-empty__button" bindtap="onCredentialStartUploadTap">+绑定</view>
+        <view class="preflight-credential-guide-card" bindtap="onCredentialGuideTap">
+          <view class="preflight-credential-guide-card__body">
+            <text class="preflight-credential-guide-card__title">{{activeCredentialGuideTitle}}</text>
+            <text class="preflight-credential-guide-card__sub">{{activeCredentialGuideSubtitle}}</text>
+          </view>
+          <image class="preflight-credential-guide-card__arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+        </view>
+      </view>
+
+      <view wx:elif="{{credentialDialogMode === 'upload'}}" class="preflight-credential-upload">
+        <view class="preflight-credential-upload__picker" bindtap="onCredentialChooseFileTap">
+          <block wx:if="{{credentialPendingFilePath}}">
+            <image wx:if="{{credentialPendingFileKind === 'image'}}" class="preflight-credential-upload__preview" src="{{credentialPendingPreviewUrl}}" mode="aspectFit" />
+            <view wx:elif="{{credentialPendingFileKind === 'pdf'}}" class="preflight-credential-upload__pdf">
+              <text class="preflight-credential-upload__pdf-tag">PDF</text>
+              <text class="preflight-credential-upload__pdf-name">{{credentialPendingFileName}}</text>
+            </view>
+          </block>
+          <block wx:else>
+            <view class="preflight-credential-upload__plus">+</view>
+            <text class="preflight-credential-upload__label">{{activeCredentialUploadLabel}}</text>
+          </block>
+        </view>
+        <view class="preflight-credential-upload__confirm {{credentialPendingFilePath ? 'is-enabled' : ''}}" bindtap="onCredentialConfirmTap">确定</view>
+      </view>
+
+      <view wx:else class="preflight-credential-bound">
+        <view class="preflight-credential-bound__preview" bindtap="onCredentialPreviewTap">
+          <image wx:if="{{activeCredentialFileKind === 'image' && activeCredentialPreviewUrl}}" class="preflight-credential-bound__image" src="{{activeCredentialPreviewUrl}}" mode="widthFix" />
+          <view wx:elif="{{activeCredentialFileKind === 'pdf'}}" class="preflight-credential-bound__pdf">
+            <text class="preflight-credential-bound__pdf-tag">PDF</text>
+            <text class="preflight-credential-bound__pdf-name">{{activeCredentialFileName}}</text>
+            <text class="preflight-credential-bound__pdf-tip">点击预览文件</text>
+          </view>
+          <view wx:else class="preflight-credential-bound__loading">预览加载中...</view>
+        </view>
+
+        <view class="preflight-credential-guide-card" bindtap="onCredentialGuideTap">
+          <view class="preflight-credential-guide-card__body">
+            <text class="preflight-credential-guide-card__title">{{activeCredentialGuideTitle}}</text>
+            <text class="preflight-credential-guide-card__sub">{{activeCredentialGuideSubtitle}}</text>
+          </view>
+          <image class="preflight-credential-guide-card__arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+        </view>
       </view>
     </view>
   </view>

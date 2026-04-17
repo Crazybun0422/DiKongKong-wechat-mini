@@ -119,6 +119,141 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/credentials/upload:
+    post:
+      summary: 上传用户资质文件
+      description: 需要通过 Authorization Bearer Token 验证。type 建议传枚举编码：OPERATION_THEORY_CERT、CAAC_LICENSE、OPERATION_CERT、AIRCRAFT_INSURANCE（兼容中文值）。
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: OPERATION_THEORY_CERT | CAAC_LICENSE | OPERATION_CERT | AIRCRAFT_INSURANCE
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserCredentialUpload'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/credentials:
+    get:
+      summary: 获取当前用户全部资质文件
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserCredentialsMap'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/credentials/item:
+    get:
+      summary: 按类型获取当前用户资质文件
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            description: OPERATION_THEORY_CERT | CAAC_LICENSE | OPERATION_CERT | AIRCRAFT_INSURANCE
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserCredential'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 按类型删除当前用户资质文件
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            description: OPERATION_THEORY_CERT | CAAC_LICENSE | OPERATION_CERT | AIRCRAFT_INSURANCE
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/tencent-cos/config:
     get:
       summary: 读取腾讯 COS 配置
@@ -222,6 +357,69 @@ components:
               type: string
             location:
               type: string
+
+    UserCredentialUploadResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        displayName:
+          type: string
+        objectName:
+          type: string
+        location:
+          type: string
+    UserCredentialResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        displayName:
+          type: string
+        objectName:
+          type: string
+        location:
+          type: string
+        originalFilename:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    ApiResponseUserCredentialUpload:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserCredentialUploadResponse'
+    ApiResponseUserCredential:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserCredentialResponse'
+    ApiResponseUserCredentialsMap:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/UserCredentialResponse'
     TencentCosConfigResponse:
       type: object
       properties:
