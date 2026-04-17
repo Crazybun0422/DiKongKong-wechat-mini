@@ -54,6 +54,7 @@ Component({
         djiTone: "neutral",
         djiColor: "",
         djiMsg: "",
+        djiAreaLevel: null,
         loadingDji: false,
         djiReady: false,
         djiEnabled: true
@@ -107,6 +108,7 @@ Component({
           djiTone: "warn",
           djiColor: this.softenPanelColor("#F59E0B"),
           djiMsg: "",
+          djiAreaLevel: null,
           loadingDji: false,
           djiReady: false,
           djiEnabled: false

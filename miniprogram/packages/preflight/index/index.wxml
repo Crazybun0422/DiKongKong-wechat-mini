@@ -1,0 +1,219 @@
+﻿<view class="preflight-page">
+  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}}">
+    <view class="preflight-engine-stage" aria-hidden="true">
+      <map
+        id="preflight-hidden-map"
+        class="preflight-hidden-map"
+        longitude="{{center.longitude}}"
+        latitude="{{center.latitude}}"
+        scale="{{hiddenMapScale}}"
+        subkey="{{mapSubKey}}"
+        enable-scroll="false"
+        enable-zoom="false"
+        enable-rotate="false"
+        enable-overlooking="false"
+        show-location="false"
+      />
+      <uom-plugin wx:if="{{isWeChatRuntime}}" id="uom-plugin" bind:statuschange="onUomStatusChange" />
+      <uom2-plugin wx:else id="uom2-plugin" bind:statuschange="onUomStatusChange" />
+      <dji-no-fly-layer id="dji-no-fly-layer" bind:statuschange="onDjiStatusChange" />
+    </view>
+
+    <view class="preflight-aircraft-row" bindtap="onOpenDronePickerTap">
+      <view class="preflight-aircraft-row__left">
+        <image class="preflight-aircraft-row__icon" src="/packages/preflight/assets/triangle-arrow.png" mode="aspectFit" />
+        <text class="preflight-aircraft-row__value">{{dronePickerLabel}}</text>
+      </view>
+      <image class="preflight-aircraft-row__arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+    </view>
+
+    <view class="preflight-card">
+      <view class="preflight-card__title-row">
+        <view class="preflight-card__badge">1</view>
+        <view class="preflight-card__title-inline">
+          <text class="preflight-card__title">空域评估</text>
+          <text class="preflight-card__title-dot">·</text>
+          <text class="preflight-card__title-sub">{{centerAddress}}</text>
+        </view>
+      </view>
+
+      <view class="preflight-assess-banner {{assessmentState === 'safe' ? 'is-safe' : (assessmentState === 'no-fly' ? 'is-no-fly' : (assessmentState === 'report' ? 'is-report' : 'is-pending'))}}">
+        <view class="preflight-assess-banner__copy">
+          <text class="preflight-assess-banner__headline">{{assessmentState === 'pending' ? '评估中' : (assessmentState === 'no-fly' ? '禁止飞行' : (canFly ? '可以飞行' : '报备飞行'))}}</text>
+          <text class="preflight-assess-banner__subline">{{assessmentState === 'pending' ? '正在获取中心点空域结果' : (assessmentState === 'no-fly' ? '当前位置禁止无人机起飞' : (canFly ? '当前位置无需报备' : '需申请飞行许可'))}}</text>
+        </view>
+        <view class="preflight-assess-banner__icon-wrap">
+          <view wx:if="{{assessmentState === 'pending'}}" class="preflight-assess-banner__loading-shell" aria-hidden="true">
+            <view class="preflight-assess-banner__loading-glow"></view>
+            <view class="preflight-assess-banner__loading-ring"></view>
+            <view class="preflight-assess-banner__loading-core"></view>
+          </view>
+          <image
+            wx:elif="{{assessmentState === 'no-fly'}}"
+            class="preflight-assess-banner__icon"
+            src="/packages/preflight/assets/assessment-no-fly.png"
+            mode="aspectFit"
+          />
+          <image
+            wx:elif="{{canFly}}"
+            class="preflight-assess-banner__icon"
+            src="/packages/preflight/assets/assessment-can-fly.png"
+            mode="aspectFit"
+          />
+          <image
+            wx:else
+            class="preflight-assess-banner__icon"
+            src="/packages/preflight/assets/assessment-report.png"
+            mode="aspectFit"
+          />
+        </view>
+      </view>
+
+      <view class="preflight-status-line">
+        <text class="preflight-status-line__label">位于UOM划分：</text>
+        <text class="preflight-status-line__value {{'tone-' + uomTone}}">{{uomStatus}}</text>
+      </view>
+      <view class="preflight-status-line">
+        <text class="preflight-status-line__label">位于大疆划分：</text>
+        <text class="preflight-status-line__value {{'tone-' + djiTone}}">{{djiStatus}}</text>
+      </view>
+      <text wx:if="{{djiStatusExtra}}" class="preflight-status-extra">{{djiStatusExtra}}</text>
+
+      <view wx:if="{{showSafeChecklist}}" class="preflight-checklist">
+        <view class="preflight-checklist__item" bindtap="onToggleFlightHeight">
+          <view class="preflight-checklist__box {{flightHeightUnder120 ? 'is-checked' : ''}}">
+            <image wx:if="{{flightHeightUnder120}}" class="preflight-checklist__icon" src="/assets/check.png" mode="aspectFit" />
+          </view>
+          <text class="preflight-checklist__text">飞行高度小于120m</text>
+          <view class="preflight-checklist__tip-btn" catchtap="onFlightHeightTipTap">
+            <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
+          </view>
+        </view>
+        <view class="preflight-checklist__item" bindtap="onToggleSpecialScenario">
+          <view class="preflight-checklist__box {{noSpecialFlightScenario ? 'is-checked' : ''}}">
+            <image wx:if="{{noSpecialFlightScenario}}" class="preflight-checklist__icon" src="/assets/check.png" mode="aspectFit" />
+          </view>
+          <text class="preflight-checklist__text">无特殊飞行场景</text>
+          <view class="preflight-checklist__tip-btn" catchtap="onSpecialScenarioTipTap">
+            <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="preflight-card preflight-card--guide">
+      <view class="preflight-card__title-row">
+        <view class="preflight-card__badge">2</view>
+        <text class="preflight-card__title">飞行申请指南</text>
+      </view>
+
+      <view wx:if="{{activeTemporaryNoFlyZoneCard}}" class="preflight-guide-block preflight-guide-block--temporary">
+        <text class="preflight-guide-block__headline preflight-guide-block__headline--danger">临时禁飞通告</text>
+        <view class="preflight-temporary-card">
+          <view class="preflight-temporary-card__main">
+            <view
+              class="preflight-temporary-card__title"
+              bindtap="onTemporaryNoticeTitleTap"
+            >
+              {{activeTemporaryNoFlyZoneCard.title}}>
+            </view>
+            <block wx:for="{{activeTemporaryNoFlyZoneCard.periodRows}}" wx:key="index" wx:for-item="period">
+              <view class="preflight-temporary-card__period-row">
+                <text class="preflight-temporary-card__period-label {{period.tone === 'active' ? 'preflight-temporary-card__period-label--active' : ''}}">
+                  {{period.label}}：
+                </text>
+                <text class="preflight-temporary-card__period-value {{period.tone === 'active' ? 'preflight-temporary-card__period-value--active' : ''}}">
+                  {{period.value}}
+                </text>
+              </view>
+            </block>
+          </view>
+
+          <view class="preflight-temporary-card__map-entry-list">
+            <block wx:for="{{activeTemporaryNoFlyZoneCard.mapTargets}}" wx:key="id" wx:for-item="target">
+              <view
+                class="preflight-temporary-card__map-entry"
+                data-target-index="{{target.index}}"
+                catchtap="onTemporaryNoticeMapTap"
+              >
+                <image
+                  class="preflight-temporary-card__map-icon"
+                  src="/pages/temporary-no-fly-announcement/assets/map-view.png"
+                  mode="aspectFit"
+                />
+                <text class="preflight-temporary-card__map-text">{{target.label}}</text>
+              </view>
+            </block>
+          </view>
+        </view>
+      </view>
+      <view wx:elif="{{isDjiNoFlyZone}}" class="preflight-guide-block">
+        <text class="preflight-guide-block__headline preflight-guide-block__headline--danger">禁飞区</text>
+        <text class="preflight-guide-block__body">该地是禁飞区，如有飞行计划需申请解禁。先通过国家 UOM 平台获得官方空域许可，再向厂商申请系统解禁，个人申请较为困难。</text>
+        <view class="preflight-guide-block__cta" bindtap="onOpenUomGuideTap">报备和解禁指南 ></view>
+      </view>
+      <view wx:elif="{{canFly}}" class="preflight-guide-block">
+        <text class="preflight-guide-block__headline">无需UOM报备</text>
+        <text class="preflight-guide-block__body">依据《无人驾驶航空器飞行管理暂行条例》，常规农田、微型、轻型、小型无人驾驶航空器在适飞空域内的飞行活动，真高在120米内，无特殊飞行场景的，无需报备。</text>
+      </view>
+      <view wx:elif="{{showSafeChecklist && !safeChecklistComplete && reportEntry}}" class="preflight-guide-block">
+        <text class="preflight-guide-block__headline">当地报备</text>
+        <text class="preflight-guide-block__body">{{reportEntry.description}}</text>
+        <view class="preflight-report-entry-row">
+          <view class="preflight-guide-block__cta" bindtap="onReportEntryTap">{{reportEntry.buttonText}}</view>
+          <view wx:if="{{reportEntry.showGuide}}" class="preflight-report-entry__tip" bindtap="onReportGuideTap">i</view>
+        </view>
+      </view>
+      <view wx:else class="preflight-guide-block">
+        <text class="preflight-guide-block__headline">UOM报备</text>
+        <text class="preflight-guide-block__body">需在UOM官网或APP12点前报备次日飞行，获批并完成起飞确认后即可飞行。</text>
+      </view>
+
+      <view class="preflight-divider"></view>
+
+      <view class="preflight-police">
+        <text class="preflight-police__title">如有必要可咨询当地公安部门</text>
+        <view wx:if="{{policeStation}}" class="preflight-police__station">
+          <view class="preflight-police__station-meta">
+            <image class="preflight-police__station-icon" src="/packages/preflight/assets/police-badge.png" mode="aspectFit" />
+            <text class="preflight-police__station-name">{{policeStation.title}}</text>
+            <text class="preflight-police__station-distance">{{policeStation.distanceText}}</text>
+          </view>
+          <view class="preflight-police__actions">
+            <view class="preflight-police__action {{policeStation.phone ? '' : 'is-disabled'}}" bindtap="onPhoneTap">
+              <image class="preflight-police__action-icon" src="/assets/m-telephone.png" mode="aspectFit" />
+              <text class="preflight-police__action-text">{{policeStation.phone || '暂无电话'}}</text>
+            </view>
+            <view class="preflight-police__action" bindtap="onNavigateTap">
+              <image class="preflight-police__action-icon" src="/assets/location2.png" mode="aspectFit" />
+              <text class="preflight-police__action-text">导航</text>
+            </view>
+          </view>
+        </view>
+        <view wx:else class="preflight-police__empty">{{policeLoading ? '附近公安部门检索中...' : '附近未检索到公安部门'}}</view>
+      </view>
+
+      <view class="preflight-platform-card" bindtap="onPolicePlatformTap">
+        <image class="preflight-platform-card__logo" src="/packages/preflight/assets/police-platform.jpg" mode="aspectFit" />
+        <view class="preflight-platform-card__body">
+          <text class="preflight-platform-card__title">无人驾驶航空器·公安管理平台</text>
+          <text class="preflight-platform-card__sub">公安实名和飞行登记</text>
+        </view>
+        <image class="preflight-platform-card__arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+      </view>
+    </view>
+  </view>
+
+  <drone-picker-sheet
+    visible="{{dronePickerVisible}}"
+    wide-layout="{{isWideLayout}}"
+    drone-categories="{{droneCategories}}"
+    active-drone-category-index="{{activeDroneCategoryIndex}}"
+    drone-category-items="{{droneCategoryItems}}"
+    pending-drone-index="{{pendingDroneIndex}}"
+    bind:close="closeDronePicker"
+    bind:confirm="confirmDronePicker"
+    bind:selectcategory="onSelectDroneCategory"
+    bind:selectoption="onSelectDroneOption"
+  />
+</view>

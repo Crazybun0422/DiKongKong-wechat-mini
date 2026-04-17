@@ -1,0 +1,19 @@
+{
+  "navigationBarTitleText": "飞前安全准备",
+  "navigationBarBackgroundColor": "#FFFFFF",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#FFFFFF",
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "uom-plugin": "/packages/uom/components/uom-plugin/index",
+    "uom2-plugin": "/packages/uom2/components/uom-plugin/index",
+    "dji-no-fly-layer": "/packages/dji/components/dji-no-fly-layer/index",
+    "drone-picker-sheet": "/pages/map/components/drone-picker-sheet/index"
+  },
+  "componentPlaceholder": {
+    "uom-plugin": "view",
+    "uom2-plugin": "view",
+    "dji-no-fly-layer": "view",
+    "drone-picker-sheet": "view"
+  }
+}

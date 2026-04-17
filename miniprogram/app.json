@@ -98,6 +98,12 @@
         "index/index",
         "wind/index"
       ]
+    },
+    {
+      "root": "packages/preflight",
+      "pages": [
+        "index/index"
+      ]
     }
   ],
   "window": {
