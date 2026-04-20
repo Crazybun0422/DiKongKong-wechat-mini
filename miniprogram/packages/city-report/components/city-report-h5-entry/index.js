@@ -15,8 +15,8 @@ const REGION_SUFFIXES = [
   "市",
   "县",
   "区",
-  "自治区",
   "自治州",
+  "自治市",
   "自治县",
   "特别行政区",
   "盟",
@@ -127,7 +127,7 @@ const isGuideAvailable = (guide = {}) => {
   const publicAccountLink = normalizeGuideValue(guide.publicAccountLink);
   const videoAccountId = normalizeGuideValue(guide.videoAccountId);
   return !!publicAccountLink || !!videoAccountId;
-}
+};
 
 const haversineMeters = (lat1, lng1, lat2, lng2) => {
   const toRad = (v) => (Number(v) * Math.PI) / 180;
@@ -151,6 +151,7 @@ Component({
       value: true
     }
   },
+
   data: {
     visible: false,
     jumpLabel: "",
@@ -159,6 +160,7 @@ Component({
     dialogVisible: false,
     showGuide: false
   },
+
   observers: {
     "center.latitude, center.longitude, active": function (lat, lng, active) {
       if (!active) return;
@@ -170,10 +172,19 @@ Component({
       this.scheduleResolve(next);
     }
   },
+
   lifetimes: {
     attached() {
       this.ensureFontLoaded();
+      const center = this.properties.center || {};
+      if (this.properties.active && Number.isFinite(Number(center.latitude)) && Number.isFinite(Number(center.longitude))) {
+        this.scheduleResolve({
+          latitude: Number(center.latitude),
+          longitude: Number(center.longitude)
+        });
+      }
     },
+
     detached() {
       if (this._resolveTimer) {
         clearTimeout(this._resolveTimer);
@@ -181,8 +192,10 @@ Component({
       }
     }
   },
+
   methods: {
-    noop() { },
+    noop() {},
+
     ensureFontLoaded() {
       if (this._fontLoaded) return;
       const apiBase = typeof getApp === "function" ? getApp()?.globalData?.apiBase : "";
@@ -197,7 +210,7 @@ Component({
             family: "ZhSubset",
             source: `url("${source}")`,
             global: true,
-            success: () => { },
+            success: () => {},
             fail: () => {
               this._fontLoaded = false;
             }
@@ -207,10 +220,12 @@ Component({
           this._fontLoaded = false;
         });
     },
+
     triggerStateChange(payload) {
       const state = { blockMap: !!this.data.dialogVisible };
       this.triggerEvent("statechange", Object.assign(state, payload || {}));
     },
+
     triggerDialogChange(visible, text) {
       this.triggerEvent("dialogchange", {
         visible: !!visible,
@@ -227,7 +242,14 @@ Component({
           center.latitude,
           center.longitude
         );
-        if (Number.isFinite(dist) && dist < MIN_MOVED_METERS) return;
+        if (
+          Number.isFinite(dist) &&
+          dist < MIN_MOVED_METERS &&
+          this.data.visible &&
+          this.data.jumpLabel
+        ) {
+          return;
+        }
       }
       this._pendingCenter = center;
       if (this._resolveTimer) clearTimeout(this._resolveTimer);
@@ -247,22 +269,26 @@ Component({
           this._lastCenter = center;
           const region = buildRegionInfo(res.ad_info || {});
           if (!region.province && !region.city) {
-            this.setData({ visible: false, jumpLabel: "" });
+            if (!this.data.jumpLabel) {
+              this.setData({ visible: false, jumpLabel: "" });
+            }
             return;
           }
           const regionKey = buildRegionKey(region);
-          if (this._lastRegionKey === regionKey) {
-            this._regionInfo = region;
+          this._regionInfo = region;
+          this.applyRegion(region);
+          if (this._lastRegionKey === regionKey && Array.isArray(this._entries)) {
+            this.applyMatchedEntry(region, this._entries, this._globalDialogText);
             return;
           }
           this._lastRegionKey = regionKey;
-          this.applyRegion(region);
           this.loadReportEntries(region);
         })
-        .catch(() => {
+        .catch((err) => {
           if (this._resolveToken !== token) return;
-          if (!this.data.jumpLabel) {
-            this.setData({ visible: false });
+          console.warn("resolve city report region failed", err);
+          if (!this.data.jumpLabel && this._regionInfo) {
+            this.applyRegion(this._regionInfo);
           }
         });
     },

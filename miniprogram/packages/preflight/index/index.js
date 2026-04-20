@@ -6,7 +6,15 @@ const { loadCachedMapLocation } = require("../../../pages/map/utils/location");
 const { shouldUseWeChatUom } = require("../../../utils/runtime");
 const { buildDroneCategories, resolveDroneIndexByModel } = require("../../../pages/map/utils/drone-picker");
 const { fetchReportEntries } = require("../../../utils/report-entries");
-const { buildPreflightRichTextUrl } = require("../../../utils/preflight-config");
+const {
+  buildPreflightRichTextUrl,
+  fetchPreflightRichTextConfig
+} = require("../../../utils/preflight-config");
+const {
+  transformHtmlContent,
+  extractImageUrls,
+  buildContentSegments
+} = require("../../../utils/open-platform");
 const {
   QUALIFICATION_MODE_ENTERTAINMENT,
   QUALIFICATION_MODE_COMMERCIAL,
@@ -77,6 +85,9 @@ const QUALIFICATION_CARD_ITEMS = [
 ];
 const WEATHER_DAY_GRID_SIZE = 14;
 const WEATHER_HANDLE_WIDTH = 30;
+const TIP_DIALOG_COPY_SUCCESS = "链接已复制";
+const TIP_DIALOG_COPY_FAIL = "复制失败";
+const TIP_DIALOG_CANNOT_OPEN = "无法打开链接";
 
 function pad2(value) {
   return `${Number(value) || 0}`.padStart(2, "0");
@@ -126,6 +137,39 @@ function clampWeatherHour(value) {
   const numeric = Math.round(Number(value));
   if (!Number.isFinite(numeric)) return 0;
   return Math.max(0, Math.min(23, numeric));
+}
+
+function buildKeyVariants(key) {
+  if (typeof key !== "string" || !key) return [key];
+  const variants = new Set([key, key.toLowerCase(), key.toUpperCase()]);
+  if (key.includes("-")) {
+    variants.add(key.replace(/-([a-z])/gi, (_, letter) => letter.toUpperCase()));
+  }
+  return Array.from(variants).filter(Boolean);
+}
+
+function getRichTextAttribute(event, keys = []) {
+  const sources = [
+    event?.target?.dataset,
+    event?.detail?.target?.dataset,
+    event?.detail?.dataset,
+    event?.detail?.node?.dataset,
+    event?.detail?.node?.attrs,
+    event?.mark,
+    event?.currentTarget?.dataset
+  ];
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of keys) {
+      const variants = buildKeyVariants(key);
+      for (const variant of variants) {
+        if (variant && Object.prototype.hasOwnProperty.call(source, variant)) {
+          return source[variant];
+        }
+      }
+    }
+  }
+  return "";
 }
 
 function buildWeatherIntelPatch(snapshot = null, options = {}) {
@@ -252,6 +296,19 @@ function buildCredentialDialogState(item = {}, mode = "empty", extra = {}) {
     credentialPendingFileName: "",
     credentialPendingFileKind: "unknown",
     credentialPendingPreviewUrl: ""
+  }, extra);
+}
+
+function createTipDialogState(extra = {}) {
+  return Object.assign({
+    tipDialogVisible: false,
+    tipDialogLoading: false,
+    tipDialogError: "",
+    tipDialogTitle: "",
+    tipDialogKey: "",
+    tipDialogContentNodes: "",
+    tipDialogContentSegments: [],
+    tipDialogImageUrls: []
   }, extra);
 }
 
@@ -657,6 +714,8 @@ function resolveReportEntryLabel(entry = {}, region = {}) {
 }
 
 function resolveReportEntryDescription(entry = {}, label = "") {
+  const cityDescription = typeof entry?.cityDescription === "string" ? entry.cityDescription.trim() : "";
+  if (cityDescription) return cityDescription;
   const direct = typeof entry?.description === "string" ? entry.description.trim() : "";
   if (direct) return direct;
   const summary = typeof entry?.summary === "string" ? entry.summary.trim() : "";
@@ -806,7 +865,15 @@ Page({
     credentialPendingFilePath: "",
     credentialPendingFileName: "",
     credentialPendingFileKind: "unknown",
-    credentialPendingPreviewUrl: ""
+    credentialPendingPreviewUrl: "",
+    tipDialogVisible: false,
+    tipDialogLoading: false,
+    tipDialogError: "",
+    tipDialogTitle: "",
+    tipDialogKey: "",
+    tipDialogContentNodes: "",
+    tipDialogContentSegments: [],
+    tipDialogImageUrls: []
   },
 
   onLoad(options = {}) {
@@ -1205,6 +1272,8 @@ Page({
                 label,
                 description: resolveReportEntryDescription(match, label),
                 buttonText: label,
+                doubleReported: !!match.doubleReported,
+                cityDescription: typeof match.cityDescription === "string" ? match.cityDescription.trim() : "",
                 miniProgram: match.miniProgram || null,
                 guide: match.guide || null,
                 showGuide: isGuideAvailable(match.guide || {})
@@ -1325,6 +1394,87 @@ Page({
   onQualificationTipTap() {
     const target = buildPreflightRichTextUrl("flightQualificationAssessment", "飞行资质评估");
     if (target) wx.navigateTo({ url: target });
+  },
+
+  openTipDialog(key = "", fallbackTitle = "") {
+    const richTextKey = `${key || ""}`.trim();
+    if (!richTextKey) return;
+    const title = `${fallbackTitle || ""}`.trim();
+    this.setData(createTipDialogState({
+      tipDialogVisible: true,
+      tipDialogLoading: true,
+      tipDialogTitle: title,
+      tipDialogKey: richTextKey
+    }));
+    fetchPreflightRichTextConfig(richTextKey, { apiBase: resolveApiBase() })
+      .then((payload = {}) => {
+        const html = typeof payload.content === "string" ? payload.content : "";
+        const finalTitle = `${payload.title || title || ""}`.trim();
+        this.setData(createTipDialogState({
+          tipDialogVisible: true,
+          tipDialogLoading: false,
+          tipDialogTitle: finalTitle,
+          tipDialogKey: richTextKey,
+          tipDialogContentNodes: transformHtmlContent(html, { apiBase: resolveApiBase() }),
+          tipDialogContentSegments: buildContentSegments(html, { apiBase: resolveApiBase() }),
+          tipDialogImageUrls: extractImageUrls(html, { apiBase: resolveApiBase() })
+        }));
+      })
+      .catch((err = {}) => {
+        console.warn("preflight load tip dialog failed", err);
+        this.setData(createTipDialogState({
+          tipDialogVisible: true,
+          tipDialogLoading: false,
+          tipDialogError: err.message || "加载失败",
+          tipDialogTitle: title,
+          tipDialogKey: richTextKey
+        }));
+      });
+  },
+
+  closeTipDialog() {
+    this.setData(createTipDialogState());
+  },
+
+  onTipDialogMaskTap() {
+    this.closeTipDialog();
+  },
+
+  onTipDialogRetryTap() {
+    if (!this.data.tipDialogKey) return;
+    this.openTipDialog(this.data.tipDialogKey, this.data.tipDialogTitle);
+  },
+
+  onTipDialogRichTextTap(event = {}) {
+    const link = getRichTextAttribute(event, ["opLink", "data-op-link", "href"]);
+    if (link) {
+      const url = String(link);
+      const canOpen = typeof wx.openUrl === "function" && /^https?:\/\//i.test(url);
+      if (canOpen) {
+        wx.openUrl({ url });
+        return;
+      }
+      if (typeof wx.setClipboardData === "function") {
+        wx.setClipboardData({
+          data: url,
+          success: () => wx.showToast({ title: TIP_DIALOG_COPY_SUCCESS, icon: "success" }),
+          fail: () => wx.showToast({ title: TIP_DIALOG_COPY_FAIL, icon: "none" })
+        });
+        return;
+      }
+      wx.showToast({ title: TIP_DIALOG_CANNOT_OPEN, icon: "none" });
+      return;
+    }
+    const current = `${getRichTextAttribute(event, ["opImage", "data-op-image", "src"]) || ""}`.trim();
+    if (!current || typeof wx.previewImage !== "function") return;
+    const urls = Array.isArray(this.data.tipDialogImageUrls) && this.data.tipDialogImageUrls.length
+      ? this.data.tipDialogImageUrls
+      : [current];
+    wx.previewImage({
+      urls,
+      current,
+      showmenu: true
+    });
   },
 
   onQualificationModeChange(event = {}) {
@@ -1626,13 +1776,11 @@ Page({
   },
 
   onFlightHeightTipTap() {
-    const target = buildPreflightRichTextUrl("flightHeight120m", "120米飞行说明");
-    if (target) wx.navigateTo({ url: target });
+    this.openTipDialog("flightHeight120m", "120米飞行说明");
   },
 
   onSpecialScenarioTipTap() {
-    const target = buildPreflightRichTextUrl("noSpecialFlightScenario", "特殊飞行场景说明");
-    if (target) wx.navigateTo({ url: target });
+    this.openTipDialog("noSpecialFlightScenario", "特殊飞行场景说明");
   },
 
   onPhoneTap() {
@@ -1657,7 +1805,8 @@ Page({
   },
 
   onOpenUomGuideTap() {
-    wx.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(UOM_GUIDE_URL)}` });
+    const target = buildPreflightRichTextUrl("reportAndUnlockGuide", "报备和解禁指南");
+    if (target) wx.navigateTo({ url: target });
   },
 
   onReportEntryTap() {

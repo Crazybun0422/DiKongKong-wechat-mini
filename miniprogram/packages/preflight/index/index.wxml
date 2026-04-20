@@ -1,5 +1,5 @@
 ﻿<view class="preflight-page">
-  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}} {{(credentialDialogVisible || dronePickerVisible) ? 'preflight-page__shell--hidden' : ''}}">
+  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}} {{(credentialDialogVisible || dronePickerVisible || tipDialogVisible) ? 'preflight-page__shell--hidden' : ''}}">
     <view class="preflight-engine-stage" aria-hidden="true">
       <map
         id="preflight-hidden-map"
@@ -152,19 +152,32 @@
         <text class="preflight-guide-block__body">该地是禁飞区，如有飞行计划需申请解禁。先通过国家 UOM 平台获得官方空域许可，再向厂商申请系统解禁，个人申请较为困难。</text>
         <view class="preflight-guide-block__cta" bindtap="onOpenUomGuideTap">报备和解禁指南 ></view>
       </view>
-      <view wx:elif="{{canFly}}" class="preflight-guide-block">
-        <text class="preflight-guide-block__headline">无需UOM报备</text>
-        <text class="preflight-guide-block__body">依据《无人驾驶航空器飞行管理暂行条例》，常规农田、微型、轻型、小型无人驾驶航空器在适飞空域内的飞行活动，真高在120米内，无特殊飞行场景的，无需报备。</text>
-      </view>
-      <view wx:elif="{{showSafeChecklist && !safeChecklistComplete && reportEntry}}" class="preflight-guide-block">
+      <view wx:elif="{{reportEntry && !reportEntry.doubleReported}}" class="preflight-guide-block">
         <text class="preflight-guide-block__headline">当地报备</text>
         <text class="preflight-guide-block__body">{{reportEntry.description}}</text>
         <view class="preflight-report-entry-row">
           <view class="preflight-guide-block__cta" bindtap="onReportEntryTap">{{reportEntry.buttonText}}</view>
           <view wx:if="{{reportEntry.showGuide}}" class="preflight-checklist__tip-btn preflight-report-entry__tip" bindtap="onReportGuideTap">
-            <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
+            <image class="preflight-checklist__info-icon preflight-report-entry__tip-icon" src="/assets/tips-b.png" mode="aspectFit" />
           </view>
         </view>
+      </view>
+      <view wx:elif="{{reportEntry && reportEntry.doubleReported}}" class="preflight-guide-block">
+        <text class="preflight-guide-block__headline">UOM报备</text>
+        <text class="preflight-guide-block__body">需在UOM官网或APP12点前报备次日飞行，获批并完成起飞确认后即可飞行。</text>
+        <view class="preflight-divider preflight-divider--guide-inner"></view>
+        <text class="preflight-guide-block__headline">当地报备</text>
+        <text class="preflight-guide-block__body">{{reportEntry.description}}</text>
+        <view class="preflight-report-entry-row">
+          <view class="preflight-guide-block__cta" bindtap="onReportEntryTap">{{reportEntry.buttonText}}</view>
+          <view wx:if="{{reportEntry.showGuide}}" class="preflight-checklist__tip-btn preflight-report-entry__tip" bindtap="onReportGuideTap">
+            <image class="preflight-checklist__info-icon preflight-report-entry__tip-icon" src="/assets/tips-b.png" mode="aspectFit" />
+          </view>
+        </view>
+      </view>
+      <view wx:elif="{{canFly}}" class="preflight-guide-block">
+        <text class="preflight-guide-block__headline">无需UOM报备</text>
+        <text class="preflight-guide-block__body">依据《无人驾驶航空器飞行管理暂行条例》，常规农田、微型、轻型、小型无人驾驶航空器在适飞空域内的飞行活动，真高在120米内，无特殊飞行场景的，无需报备。</text>
       </view>
       <view wx:else class="preflight-guide-block">
         <text class="preflight-guide-block__headline">UOM报备</text>
@@ -210,7 +223,7 @@
         <view class="preflight-card__badge">3</view>
         <text class="preflight-card__title">飞行资质评估</text>
         <view class="preflight-checklist__tip-btn preflight-card__title-tip" catchtap="onQualificationTipTap">
-          <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
+          <image class="preflight-checklist__info-icon" src="/assets/tips-b.png" mode="aspectFit" />
         </view>
       </view>
 
@@ -396,6 +409,55 @@
           <image class="preflight-credential-guide-card__arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
         </view>
       </view>
+    </view>
+  </view>
+
+  <view wx:if="{{tipDialogVisible}}" class="preflight-tip-dialog-overlay" catchtouchmove="noop">
+    <view class="preflight-tip-dialog-mask" bindtap="onTipDialogMaskTap"></view>
+    <view class="preflight-tip-dialog-sheet" catchtap="noop" catchtouchmove="noop">
+      <view class="preflight-tip-dialog__header">
+        <text class="preflight-tip-dialog__title">{{tipDialogTitle}}</text>
+        <view class="preflight-tip-dialog__close" bindtap="closeTipDialog">×</view>
+      </view>
+
+      <scroll-view scroll-y="true" class="preflight-tip-dialog__scroll">
+        <view wx:if="{{tipDialogLoading}}" class="preflight-tip-dialog__state">加载中...</view>
+        <view wx:elif="{{tipDialogError}}" class="preflight-tip-dialog__state preflight-tip-dialog__state--error">
+          <text>{{tipDialogError}}</text>
+          <view class="preflight-tip-dialog__retry" bindtap="onTipDialogRetryTap">重试</view>
+        </view>
+        <block wx:else>
+          <block wx:if="{{tipDialogContentSegments.length}}">
+            <block wx:for="{{tipDialogContentSegments}}" wx:key="index">
+              <rich-text
+                wx:if="{{item.type === 'rich'}}"
+                class="preflight-tip-dialog__content"
+                nodes="{{item.nodes}}"
+                space="nbsp"
+                selectable="true"
+                bindtap="onTipDialogRichTextTap"
+              />
+              <image
+                wx:elif="{{item.type === 'image'}}"
+                class="preflight-tip-dialog__image"
+                src="{{item.src}}"
+                mode="widthFix"
+                show-menu-by-longpress="true"
+                data-op-image="{{item.src}}"
+                bindtap="onTipDialogRichTextTap"
+              />
+            </block>
+          </block>
+          <rich-text
+            wx:else
+            class="preflight-tip-dialog__content"
+            nodes="{{tipDialogContentNodes}}"
+            space="nbsp"
+            selectable="true"
+            bindtap="onTipDialogRichTextTap"
+          />
+        </block>
+      </scroll-view>
     </view>
   </view>
 

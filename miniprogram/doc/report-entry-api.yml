@@ -378,10 +378,18 @@ components:
           type: string
           nullable: true
           description: 城市名称，可为空。
+        cityDescription:
+          type: string
+          nullable: true
+          description: 城市说明，可为空。
         county:
           type: string
           nullable: true
           description: 区县名称，可为空。
+        doubleReported:
+          type: boolean
+          nullable: true
+          description: 是否双报备，默认 false。
         miniProgram:
           $ref: '#/components/schemas/ReportEntryMiniProgram'
           description: 跳转小程序配置。
@@ -398,9 +406,14 @@ components:
         city:
           type: string
           nullable: true
+        cityDescription:
+          type: string
+          nullable: true
         county:
           type: string
           nullable: true
+        doubleReported:
+          type: boolean
         miniProgram:
           $ref: '#/components/schemas/ReportEntryMiniProgram'
         guide:
@@ -425,19 +438,18 @@ components:
           description: 小程序 path。
     ReportEntryGuide:
       type: object
-      required:
-        - publicAccountLink
-        - videoAccountId
-        - videoId
       properties:
         publicAccountLink:
           type: string
+          nullable: true
           description: 公众号链接。
         videoAccountId:
           type: string
+          nullable: true
           description: 视频号 ID。
         videoId:
           type: string
+          nullable: true
           description: 视频 ID。
     ReportEntryListResponse:
       type: object

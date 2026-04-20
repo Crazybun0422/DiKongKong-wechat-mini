@@ -1,7 +1,7 @@
 const PREFLIGHT_GLOW_DURATION_MS = 9600;
 const PREFLIGHT_GLOW_FRAME_MS = 33;
 const PREFLIGHT_GLOW_SEGMENT_RPX = 22;
-const PREFLIGHT_ENTRY_CANVAS_INSET_RPX = 1;
+const PREFLIGHT_ENTRY_CANVAS_INSET_RPX = 0;
 const PREFLIGHT_ENTRY_BORDER_WIDTH_RPX = 1;
 
 function getWindowMetrics() {
@@ -14,39 +14,6 @@ function getWindowMetrics() {
     return wx.getSystemInfoSync();
   } catch (error) {
     return { windowWidth: 375, pixelRatio: 1 };
-  }
-}
-
-function isAppleRuntime() {
-  try {
-    if (typeof wx.getDeviceInfo === "function") {
-      const deviceInfo = wx.getDeviceInfo() || {};
-      const platform = `${deviceInfo.platform || ""}`.toLowerCase();
-      const system = `${deviceInfo.system || ""}`.toLowerCase();
-      const model = `${deviceInfo.model || ""}`.toLowerCase();
-      if (
-        platform === "ios" ||
-        system.includes("ios") ||
-        model.includes("iphone") ||
-        model.includes("ipad")
-      ) {
-        return true;
-      }
-    }
-  } catch (error) {}
-  try {
-    const systemInfo = wx.getSystemInfoSync() || {};
-    const platform = `${systemInfo.platform || ""}`.toLowerCase();
-    const system = `${systemInfo.system || ""}`.toLowerCase();
-    const model = `${systemInfo.model || ""}`.toLowerCase();
-    return (
-      platform === "ios" ||
-      system.includes("ios") ||
-      model.includes("iphone") ||
-      model.includes("ipad")
-    );
-  } catch (error) {
-    return false;
   }
 }
 
@@ -305,20 +272,32 @@ Component({
       }
 
       const query = wx.createSelectorQuery().in(this);
-      query.select(".preflight-entry").boundingClientRect();
+      query.select(".preflight-entry").fields({
+        rect: true,
+        size: true
+      });
       query.exec((results = []) => {
         const entryRect = Array.isArray(results) ? results[0] : null;
-        if (!entryRect || !(entryRect.width > 0) || !(entryRect.height > 0)) {
+        if (!entryRect) {
+          return;
+        }
+        const measuredWidth = Math.max(
+          Number(entryRect.width) || 0,
+          Number(entryRect.right) - Number(entryRect.left) || 0
+        );
+        const measuredHeight = Math.max(
+          Number(entryRect.height) || 0,
+          Number(entryRect.bottom) - Number(entryRect.top) || 0
+        );
+        if (!(measuredWidth > 0) || !(measuredHeight > 0)) {
           return;
         }
 
         this.stopPreflightGlow();
 
         const insetPx = rpxToPx(PREFLIGHT_ENTRY_CANVAS_INSET_RPX);
-        const uiScale = resolveUiScale(this.properties.uiScaleStyle);
-        const compensateScale = uiScale < 0.999 && !isAppleRuntime();
-        const localWidth = Math.max(compensateScale ? entryRect.width / uiScale : entryRect.width, 1);
-        const localHeight = Math.max(compensateScale ? entryRect.height / uiScale : entryRect.height, 1);
+        const localWidth = Math.max(measuredWidth, 1);
+        const localHeight = Math.max(measuredHeight, 1);
         const cssWidth = Math.max(localWidth - insetPx * 2, 1);
         const cssHeight = Math.max(localHeight - insetPx * 2, 1);
         const style = `left:${insetPx}px;top:${insetPx}px;width:${cssWidth}px;height:${cssHeight}px;`;
