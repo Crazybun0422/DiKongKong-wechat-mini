@@ -58,6 +58,7 @@ const INIT_RETRY_BASE_DELAY = 80;
 const STATUS_PENDING_TEXT = "评估中";
 const POLICE_SEARCH_RADIUS = 1000;
 const UOM_GUIDE_URL = "https://uom.caac.gov.cn/";
+const UOM_REPORT_APPLY_URL = "https://uom.caac.gov.cn/#/app-about";
 const POLICE_PLATFORM_APP_ID = "wx049b98d340ec25cd";
 const NAVIGATION_LOCK_MS = 1500;
 const REPORT_REGION_SUFFIXES = [
@@ -84,7 +85,6 @@ const QUALIFICATION_CARD_ITEMS = [
   USER_CREDENTIAL_TYPES.INSURANCE
 ];
 const WEATHER_DAY_GRID_SIZE = 14;
-const WEATHER_HANDLE_WIDTH = 30;
 const TIP_DIALOG_COPY_SUCCESS = "链接已复制";
 const TIP_DIALOG_COPY_FAIL = "复制失败";
 const TIP_DIALOG_CANNOT_OPEN = "无法打开链接";
@@ -130,7 +130,7 @@ function findWeatherSlot(snapshot = null, dateKey = "", hour = 0) {
 function buildWeatherHandleStyle(hour = 0) {
   const bounded = Math.max(0, Math.min(23, Number(hour) || 0));
   const percent = (bounded / 23) * 100;
-  return `left: calc(${percent.toFixed(4)}% - ${WEATHER_HANDLE_WIDTH / 2}px);`;
+  return `left: ${percent.toFixed(4)}%;`;
 }
 
 function clampWeatherHour(value) {
@@ -951,69 +951,39 @@ Page({
     }));
   },
 
-  measureWeatherIntelSlider() {
-    return new Promise((resolve) => {
-      const query = this.createSelectorQuery();
-      query.select(".preflight-weather-intel__slider-shell").boundingClientRect((rect) => {
-        this._weatherIntelSliderRect = rect && Number.isFinite(rect.width) ? rect : null;
-        resolve(this._weatherIntelSliderRect);
-      }).exec();
-    });
-  },
-
-  updateWeatherIntelHourByClientX(clientX, commit = false) {
-    const rect = this._weatherIntelSliderRect;
-    if (!rect || !Number.isFinite(Number(clientX)) || !Number.isFinite(rect.left) || !Number.isFinite(rect.width) || rect.width <= 0) {
-      return;
+  maybeVibrateWeatherHour(hour) {
+    if (!Number.isFinite(Number(hour))) return;
+    if (this._lastWeatherIntelVibrateHour === Number(hour)) return;
+    this._lastWeatherIntelVibrateHour = Number(hour);
+    if (typeof wx.vibrateShort !== "function") return;
+    try {
+      wx.vibrateShort({ type: "light" });
+    } catch (err) {
+      try {
+        wx.vibrateShort();
+      } catch (innerErr) {}
     }
-    const ratio = Math.max(0, Math.min(1, (Number(clientX) - rect.left) / rect.width));
-    const hour = clampWeatherHour(ratio * 23);
-    if (commit && this._weatherCalendarSnapshot) {
-      const drone = buildQualificationDroneSnapshot(this.data);
-      this.setData(buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
-        selectedDateKey: this.data.weatherIntelSelectedDateKey,
-        selectedHour: hour,
-        droneSlug: drone.slug,
-        droneName: drone.name
-      }));
-      return;
-    }
-    this.setData({
-      weatherIntelSelectedHour: hour,
-      weatherIntelHandleStyle: buildWeatherHandleStyle(hour)
-    });
   },
 
-  onWeatherIntelHandleTouchStart(event = {}) {
-    const touch = event?.touches?.[0] || event?.changedTouches?.[0] || null;
-    if (!touch) return;
-    this.measureWeatherIntelSlider().then(() => {
-      this.updateWeatherIntelHourByClientX(touch.clientX, false);
-    });
-  },
-
-  onWeatherIntelHandleTouchMove(event = {}) {
-    const touch = event?.touches?.[0] || event?.changedTouches?.[0] || null;
-    if (!touch) return;
-    if (!this._weatherIntelSliderRect) {
-      this.measureWeatherIntelSlider().then(() => {
-        this.updateWeatherIntelHourByClientX(touch.clientX, false);
+  applyWeatherIntelHourSelection(hour, options = {}) {
+    const boundedHour = Math.max(0, Math.min(23, Math.round(Number(hour))));
+    if (!Number.isFinite(boundedHour)) return;
+    if (!this._weatherCalendarSnapshot) {
+      this.setData({
+        weatherIntelSelectedHour: boundedHour,
+        weatherIntelHandleStyle: buildWeatherHandleStyle(boundedHour)
       });
+      if (options.vibrate) this.maybeVibrateWeatherHour(boundedHour);
       return;
     }
-    this.updateWeatherIntelHourByClientX(touch.clientX, false);
-  },
-
-  onWeatherIntelHandleTouchEnd(event = {}) {
-    const touch = event?.changedTouches?.[0] || event?.touches?.[0] || null;
-    if (!touch) return;
-    if (!this._weatherIntelSliderRect) {
-      this.measureWeatherIntelSlider().then(() => {
-        this.updateWeatherIntelHourByClientX(touch.clientX, true);
-      });
-      return;
-    }
-    this.updateWeatherIntelHourByClientX(touch.clientX, true);
+    const drone = buildQualificationDroneSnapshot(this.data);
+    this.setData(buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
+      selectedDateKey: this.data.weatherIntelSelectedDateKey,
+      selectedHour: boundedHour,
+      droneSlug: drone.slug,
+      droneName: drone.name
+    }));
+    if (options.vibrate) this.maybeVibrateWeatherHour(boundedHour);
   },
 
   onOpenDronePickerTap() {
@@ -1359,19 +1329,13 @@ Page({
   onWeatherIntelHourChanging(event = {}) {
     const hour = Math.max(0, Math.min(23, Math.round(Number(event?.detail?.value))));
     if (!Number.isFinite(hour)) return;
-    this.setData({ weatherIntelSelectedHour: hour, weatherIntelHandleStyle: buildWeatherHandleStyle(hour) });
+    this.applyWeatherIntelHourSelection(hour, { vibrate: true });
   },
 
   onWeatherIntelHourChange(event = {}) {
     const hour = Math.max(0, Math.min(23, Math.round(Number(event?.detail?.value))));
-    if (!Number.isFinite(hour) || !this._weatherCalendarSnapshot) return;
-    const drone = buildQualificationDroneSnapshot(this.data);
-    this.setData(buildWeatherIntelPatch(this._weatherCalendarSnapshot, {
-      selectedDateKey: this.data.weatherIntelSelectedDateKey,
-      selectedHour: hour,
-      droneSlug: drone.slug,
-      droneName: drone.name
-    }));
+    if (!Number.isFinite(hour)) return;
+    this.applyWeatherIntelHourSelection(hour, { vibrate: false });
   },
 
   loadQualificationCredentials() {
@@ -1393,6 +1357,11 @@ Page({
 
   onQualificationTipTap() {
     const target = buildPreflightRichTextUrl("flightQualificationAssessment", "飞行资质评估");
+    if (target) wx.navigateTo({ url: target });
+  },
+
+  onAirspaceDescriptionTipTap() {
+    const target = buildPreflightRichTextUrl("airspaceDescription", "空域说明");
     if (target) wx.navigateTo({ url: target });
   },
 
@@ -1807,6 +1776,25 @@ Page({
   onOpenUomGuideTap() {
     const target = buildPreflightRichTextUrl("reportAndUnlockGuide", "报备和解禁指南");
     if (target) wx.navigateTo({ url: target });
+  },
+
+  onUomReportApplyTap() {
+    if (typeof wx.setClipboardData !== "function") {
+      wx.showToast({ title: "当前环境不支持复制", icon: "none" });
+      return;
+    }
+    wx.setClipboardData({
+      data: UOM_REPORT_APPLY_URL,
+      success: () => {
+        wx.showToast({
+          title: "已复制，请前往浏览器打开",
+          icon: "none"
+        });
+      },
+      fail: () => {
+        wx.showToast({ title: "复制失败", icon: "none" });
+      }
+    });
   },
 
   onReportEntryTap() {

@@ -1,5 +1,5 @@
 ﻿<view class="preflight-page">
-  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}} {{(credentialDialogVisible || dronePickerVisible || tipDialogVisible) ? 'preflight-page__shell--hidden' : ''}}">
+  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}}">
     <view class="preflight-engine-stage" aria-hidden="true">
       <map
         id="preflight-hidden-map"
@@ -32,6 +32,9 @@
         <view class="preflight-card__badge">1</view>
         <view class="preflight-card__title-inline">
           <text class="preflight-card__title">空域评估</text>
+          <view class="preflight-checklist__tip-btn preflight-card__title-tip" catchtap="onAirspaceDescriptionTipTap">
+            <image class="preflight-checklist__info-icon" src="/assets/tips-b.png" mode="aspectFit" />
+          </view>
           <text class="preflight-card__title-dot">·</text>
           <text class="preflight-card__title-sub">{{centerAddress}}</text>
         </view>
@@ -165,6 +168,7 @@
       <view wx:elif="{{reportEntry && reportEntry.doubleReported}}" class="preflight-guide-block">
         <text class="preflight-guide-block__headline">UOM报备</text>
         <text class="preflight-guide-block__body">需在UOM官网或APP12点前报备次日飞行，获批并完成起飞确认后即可飞行。</text>
+        <view class="preflight-guide-block__cta" bindtap="onUomReportApplyTap">报备申请</view>
         <view class="preflight-divider preflight-divider--guide-inner"></view>
         <text class="preflight-guide-block__headline">当地报备</text>
         <text class="preflight-guide-block__body">{{reportEntry.description}}</text>
@@ -182,6 +186,7 @@
       <view wx:else class="preflight-guide-block">
         <text class="preflight-guide-block__headline">UOM报备</text>
         <text class="preflight-guide-block__body">需在UOM官网或APP12点前报备次日飞行，获批并完成起飞确认后即可飞行。</text>
+        <view class="preflight-guide-block__cta" bindtap="onUomReportApplyTap">报备申请</view>
       </view>
 
       <view class="preflight-divider"></view>
@@ -295,32 +300,29 @@
         </view>
 
         <view class="preflight-weather-intel__slider-shell">
-          <slider
-            class="preflight-weather-intel__slider"
-            min="0"
-            max="23"
-            step="1"
-            value="{{weatherIntelSelectedHour}}"
-            activeColor="#8fd9f8"
-            backgroundColor="#d9dde2"
-            block-size="0"
-            bindchanging="onWeatherIntelHourChanging"
-            bindchange="onWeatherIntelHourChange"
-          />
-          <view
-            class="preflight-weather-intel__handle"
-            style="{{weatherIntelHandleStyle}}"
-            catchtouchstart="onWeatherIntelHandleTouchStart"
-            catchtouchmove="onWeatherIntelHandleTouchMove"
-            catchtouchend="onWeatherIntelHandleTouchEnd"
-            catchtouchcancel="onWeatherIntelHandleTouchEnd"
-          >
-            <image class="preflight-weather-intel__handle-bg" src="/packages/preflight/assets/hour-handle.svg" mode="aspectFit" />
-            <text class="preflight-weather-intel__handle-text">{{weatherIntelSelectedHour}}</text>
+          <view class="preflight-weather-intel__edge">
+            <text class="preflight-weather-intel__scale-text preflight-weather-intel__scale-text--edge">0</text>
           </view>
-          <view class="preflight-weather-intel__scale">
-            <text class="preflight-weather-intel__scale-text">0</text>
-            <text class="preflight-weather-intel__scale-text">23</text>
+          <view class="preflight-weather-intel__track-wrap">
+            <view class="preflight-weather-intel__scale">
+              <text class="preflight-weather-intel__scale-text preflight-weather-intel__scale-text--current" style="{{weatherIntelHandleStyle}}">{{weatherIntelSelectedHour}}</text>
+            </view>
+            <slider
+              class="preflight-weather-intel__slider"
+              min="0"
+              max="23"
+              step="1"
+              value="{{weatherIntelSelectedHour}}"
+              activeColor="#8fd9f8"
+              backgroundColor="#d9dde2"
+              block-size="18"
+              block-color="#ffffff"
+              bindchanging="onWeatherIntelHourChanging"
+              bindchange="onWeatherIntelHourChange"
+            />
+          </view>
+          <view class="preflight-weather-intel__edge">
+            <text class="preflight-weather-intel__scale-text preflight-weather-intel__scale-text--edge">23</text>
           </view>
         </view>
 

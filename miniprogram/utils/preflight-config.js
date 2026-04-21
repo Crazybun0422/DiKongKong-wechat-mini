@@ -32,6 +32,10 @@ const CONFIG_DEFINITIONS = {
   reportAndUnlockGuide: {
     path: "/api/config/report-and-unlock-guide-rich-text",
     title: "报备和解禁指南"
+  },
+  airspaceDescription: {
+    path: "/api/config/airspace-description-rich-text",
+    title: "空域说明"
   }
 };
 
