@@ -97,12 +97,12 @@ const pickBestEntry = (entries = [], region = {}) => {
   if (!matched.length) return null;
   const countyEntry = matched.find((entry) => normalizeName(entry.county));
   if (countyEntry) return countyEntry;
+  const cityEntry = matched.find((entry) => normalizeName(entry.city));
+  if (cityEntry) return cityEntry;
   const provinceEntry = matched.find(
     (entry) => normalizeName(entry.province) && !normalizeName(entry.city) && !normalizeName(entry.county)
   );
   if (provinceEntry) return provinceEntry;
-  const cityEntry = matched.find((entry) => normalizeName(entry.city));
-  if (cityEntry) return cityEntry;
   return null;
 };
 

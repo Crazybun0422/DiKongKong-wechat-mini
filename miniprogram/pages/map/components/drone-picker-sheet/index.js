@@ -6,6 +6,8 @@ Component({
   properties: {
     visible: { type: Boolean, value: false },
     wideLayout: { type: Boolean, value: false },
+    showBackFloat: { type: Boolean, value: false },
+    backHoleTop: { type: Number, value: 0 },
     droneCategories: { type: Array, value: [] },
     activeDroneCategoryIndex: { type: Number, value: 0 },
     droneCategoryItems: { type: Array, value: [] },
@@ -14,6 +16,10 @@ Component({
 
   methods: {
     noop() {},
+
+    onBackTap() {
+      this.triggerEvent("backtap");
+    },
 
     onMaskTap() {
       this.triggerEvent("close");

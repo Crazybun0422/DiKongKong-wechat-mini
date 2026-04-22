@@ -17,7 +17,7 @@ const USER_CREDENTIAL_META = {
     key: "theory",
     title: "操控理论合格证",
     fullTitle: "操控理论合格证",
-    uploadLabel: "上传操控理论合格证",
+    uploadLabel: "上传操控理论合格证\n（照片）",
     guideTitle: "考取操控理论合格证",
     guideSubtitle: "UOM官方提供的免费证书",
     richTextKey: "theoryCertificate"
@@ -26,7 +26,7 @@ const USER_CREDENTIAL_META = {
     key: "caac",
     title: "CAAC执照",
     fullTitle: "民用无人驾驶航空器操控员执照",
-    uploadLabel: "上传CAAC执照",
+    uploadLabel: "上传CAAC执照\n（照片）",
     guideTitle: "CAAC执照报名补贴",
     guideSubtitle: "联合上百家培训机构提供考证补贴",
     richTextKey: "caacLicenseRegistrationSubsidy"
@@ -35,7 +35,7 @@ const USER_CREDENTIAL_META = {
     key: "operation",
     title: "运营合格证",
     fullTitle: "民用无人驾驶航空器运营合格证",
-    uploadLabel: "上传运营合格证",
+    uploadLabel: "上传运营合格证\n（照片）",
     guideTitle: "办理运营合格证",
     guideSubtitle: "企业合法开展无人机商业运营的必备",
     richTextKey: "operationCertificate"
@@ -44,7 +44,7 @@ const USER_CREDENTIAL_META = {
     key: "insurance",
     title: "爱机保险",
     fullTitle: "爱机保险",
-    uploadLabel: "上传保单",
+    uploadLabel: "上传保单\n（照片）",
     guideTitle: "为爱机领取保险额度",
     guideSubtitle: "适配主流航拍设备的全面保障方案",
     richTextKey: "insuranceCoverage"

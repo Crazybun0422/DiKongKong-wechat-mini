@@ -31,13 +31,49 @@ function formatSearchLinkElevationDiff(diffMeters) {
   return `${prefix}${rounded}m`;
 }
 
-function buildCenterPinLinkTipText(distanceText = "", elevationDiffText = "") {
+function computeCenterPinLinkBearing(center = {}, target = {}) {
+  const lat1 = Number(center?.latitude) * Math.PI / 180;
+  const lng1 = Number(center?.longitude) * Math.PI / 180;
+  const lat2 = Number(target?.latitude) * Math.PI / 180;
+  const lng2 = Number(target?.longitude) * Math.PI / 180;
+  if (![lat1, lng1, lat2, lng2].every((value) => Number.isFinite(value))) {
+    return NaN;
+  }
+  const y = Math.sin(lng2 - lng1) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function formatCenterPinLinkDirection(center = {}, target = {}) {
+  const bearing = computeCenterPinLinkBearing(center, target);
+  if (!Number.isFinite(bearing)) return "";
+  const rounded = Math.round(bearing) % 360;
+  if (rounded === 0) return "方位0°（正北）";
+  if (rounded === 90) return "方位90°（正东）";
+  if (rounded === 180) return "方位180°（正南）";
+  if (rounded === 270) return "方位270°（正西）";
+  if (rounded > 0 && rounded < 90) {
+    return `方位${rounded}°（北偏东${rounded}°）`;
+  }
+  if (rounded > 90 && rounded < 180) {
+    return `方位${rounded}°（东偏南${rounded - 90}°）`;
+  }
+  if (rounded > 180 && rounded < 270) {
+    return `方位${rounded}°（南偏西${rounded - 180}°）`;
+  }
+  return `方位${rounded}°（西偏北${rounded - 270}°）`;
+}
+
+function buildCenterPinLinkTipText(distanceText = "", elevationDiffText = "", directionText = "") {
   if (!distanceText) {
     return "";
   }
+  const prefix = directionText ? `${directionText}，` : "";
   return elevationDiffText
-    ? `距离${distanceText}，高差${elevationDiffText}，长按解除`
-    : `距离${distanceText}，长按解除`;
+    ? `${prefix}距离${distanceText}，高差${elevationDiffText}，长按解除`
+    : `${prefix}距离${distanceText}，长按解除`;
 }
 
 function resetSearchLinkElevationDiff(page) {
@@ -175,9 +211,10 @@ function buildCenterPinLinkState(page, center, options = {}) {
   }
   const distanceText = formatCenterPinLinkDistance(distanceMeters);
   const elevationDiffText = readSearchLinkElevationDiffText(page, center, target);
+  const directionText = formatCenterPinLinkDirection(center, target);
   return {
     centerPinLinkActive: true,
-    centerPinLinkTipText: buildCenterPinLinkTipText(distanceText, elevationDiffText)
+    centerPinLinkTipText: buildCenterPinLinkTipText(distanceText, elevationDiffText, directionText)
   };
 }
 
@@ -322,7 +359,7 @@ function onMapTap(page, event = {}) {
   if (!point) return;
   const now = Date.now();
   if (!canReplaceMapTapTarget(page._mapTapTargetTapAt, now)) {
-    wx.showToast({ title: "请2秒后再选下一个目标点", icon: "none" });
+    wx.showToast({ title: "请5秒后再选下一个目标点", icon: "none" });
     return;
   }
   page.clearSearchSelectionVisuals();

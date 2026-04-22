@@ -1,5 +1,6 @@
 ﻿const { getMapKeySync, prefetchMapKey, resolveMapKey } = require("../../../utils/map-key");
 const { reverseGeocode } = require("../../../utils/geocoder");
+const { buildCityReportWebviewPath } = require("../../../utils/city-report");
 const { fetchDrones } = require("../../../utils/drones");
 const { haversineMeters } = require("../../../utils/coords");
 const { loadCachedMapLocation } = require("../../../pages/map/utils/location");
@@ -36,8 +37,7 @@ const {
   fetchUserCredentials,
   uploadUserCredential,
   downloadUserCredentialFile,
-  deleteUserCredential,
-  inferFileKind
+  deleteUserCredential
 } = require("../../../utils/user-credentials");
 const {
   fetchNearbyNoFlyZones,
@@ -695,12 +695,12 @@ function pickBestReportEntry(entries = [], region = {}) {
   if (!matched.length) return null;
   const countyEntry = matched.find((entry) => normalizeRegionName(entry.county));
   if (countyEntry) return countyEntry;
+  const cityEntry = matched.find((entry) => normalizeRegionName(entry.city));
+  if (cityEntry) return cityEntry;
   const provinceEntry = matched.find(
     (entry) => normalizeRegionName(entry.province) && !normalizeRegionName(entry.city) && !normalizeRegionName(entry.county)
   );
   if (provinceEntry) return provinceEntry;
-  const cityEntry = matched.find((entry) => normalizeRegionName(entry.city));
-  if (cityEntry) return cityEntry;
   return matched[0] || null;
 }
 
@@ -873,13 +873,31 @@ Page({
     tipDialogKey: "",
     tipDialogContentNodes: "",
     tipDialogContentSegments: [],
-    tipDialogImageUrls: []
+    tipDialogImageUrls: [],
+    navStatusBarHeight: 0,
+    navBarHeight: 44,
+    navTotalHeight: 44,
+    shellTopPadding: 52,
+    backHoleTop: 0
   },
 
   onLoad(options = {}) {
     const center = normalizeCenter(options);
     const systemInfo = typeof wx.getWindowInfo === "function" ? (wx.getWindowInfo() || {}) : {};
     const width = Number(systemInfo.windowWidth) || 375;
+    const statusBarHeight = Number(systemInfo.statusBarHeight) || 0;
+    let navBarHeight = 44;
+    try {
+      const menuRect = typeof wx.getMenuButtonBoundingClientRect === "function"
+        ? wx.getMenuButtonBoundingClientRect()
+        : null;
+      if (menuRect && Number.isFinite(menuRect.top) && Number.isFinite(menuRect.bottom)) {
+        navBarHeight = Math.max(44, Math.round(menuRect.bottom - statusBarHeight + (menuRect.top - statusBarHeight)));
+      }
+    } catch (error) {}
+    const navTotalHeight = statusBarHeight + navBarHeight;
+    const shellTopPadding = navTotalHeight + 6;
+    const backHoleTop = Math.max(0, statusBarHeight + Math.max((navBarHeight - 46) / 2, 0));
     this._selectedDroneFromQuery = `${options.drone || ""}`.trim();
     this._droneList = [];
     this._uomPlugin = null;
@@ -895,7 +913,12 @@ Page({
     this.setData(Object.assign({
       center,
       isWeChatRuntime: shouldUseWeChatUom(),
-      isWideLayout: width >= 560
+      isWideLayout: width >= 560,
+      navStatusBarHeight: statusBarHeight,
+      navBarHeight,
+      navTotalHeight,
+      shellTopPadding,
+      backHoleTop
     }, buildAssessmentPatch({
       uomStatus: STATUS_PENDING_TEXT,
       djiStatus: STATUS_PENDING_TEXT,
@@ -934,6 +957,19 @@ Page({
   },
 
   noop() {},
+
+  onBackTap() {
+    if (typeof wx.navigateBack !== "function") {
+      return;
+    }
+    wx.navigateBack({
+      fail: () => {
+        if (typeof wx.switchTab === "function") {
+          wx.switchTab({ url: "/pages/map/map" });
+        }
+      }
+    });
+  },
 
   refreshQualificationState(nextMode = this.data.qualificationMode, nextCredentials = this.data.qualificationCredentials) {
     const drone = buildQualificationDroneSnapshot(this.data);
@@ -1517,32 +1553,28 @@ Page({
       const file = res?.tempFiles?.[0] || res?.files?.[0] || null;
       const filePath = file?.path || file?.tempFilePath || "";
       const fileName = file?.name || file?.originalFileObj?.name || filePath.split(/[\\/]/).pop() || "";
-      const fileKind = inferFileKind(fileName || filePath);
       if (!filePath) {
         wx.showToast({ title: "未选择文件", icon: "none" });
-        return;
-      }
-      if (fileKind !== "image" && fileKind !== "pdf") {
-        wx.showToast({ title: "仅支持png或pdf", icon: "none" });
         return;
       }
       this.setData({
         credentialPendingFilePath: filePath,
         credentialPendingFileName: fileName,
-        credentialPendingFileKind: fileKind,
-        credentialPendingPreviewUrl: fileKind === "image" ? filePath : ""
+        credentialPendingFileKind: "image",
+        credentialPendingPreviewUrl: filePath
       });
     };
 
-    if (typeof wx.chooseFile === "function") {
-      wx.chooseFile({ count: 1, success });
+    if (typeof wx.chooseImage === "function") {
+      wx.chooseImage({
+        count: 1,
+        sizeType: ["compressed", "original"],
+        sourceType: ["album", "camera"],
+        success
+      });
       return;
     }
-    if (typeof wx.chooseMessageFile === "function") {
-      wx.chooseMessageFile({ count: 1, type: "all", success });
-      return;
-    }
-    wx.showToast({ title: "当前版本不支持选文件", icon: "none" });
+    wx.showToast({ title: "当前版本不支持选图", icon: "none" });
   },
 
   onCredentialConfirmTap() {
@@ -1579,15 +1611,12 @@ Page({
   openBoundCredentialDialog(item = {}) {
     this.setData(buildCredentialDialogState(item, "bound"));
     if (!item?.bound) return;
-    if (item.fileKind === "pdf") {
-      return;
-    }
     downloadUserCredentialFile(item, { apiBase: resolveApiBase() })
       .then((tempFilePath) => {
         if (this.data.activeCredentialType !== item.type || !this.data.credentialDialogVisible) return;
         this.setData({
           activeCredentialPreviewUrl: tempFilePath,
-          activeCredentialPdfPath: item.fileKind === "pdf" ? tempFilePath : ""
+          activeCredentialPdfPath: ""
         });
       })
       .catch((err) => {
@@ -1597,25 +1626,6 @@ Page({
 
   onCredentialPreviewTap() {
     const previewUrl = `${this.data.activeCredentialPreviewUrl || ""}`.trim();
-    const kind = `${this.data.activeCredentialFileKind || ""}`.trim();
-    if (kind === "pdf") {
-      const item = this.data.qualificationCredentials?.[this.data.activeCredentialType] || null;
-      if (!item?.bound) return;
-      wx.showLoading({ title: "下载中...", mask: true });
-      downloadUserCredentialFile(item, { apiBase: resolveApiBase() })
-        .then((filePath) => {
-          wx.hideLoading();
-          if (typeof wx.openDocument === "function") {
-            wx.openDocument({ filePath, showMenu: true });
-          }
-        })
-        .catch((err) => {
-          wx.hideLoading();
-          console.warn("preflight open credential pdf failed", err);
-          wx.showToast({ title: "打开失败", icon: "none" });
-        });
-      return;
-    }
     if (previewUrl && typeof wx.previewImage === "function") {
       wx.previewImage({
         urls: [previewUrl],
@@ -1813,8 +1823,30 @@ Page({
   },
 
   onReportGuideTap() {
-    const target = buildPreflightRichTextUrl("reportAndUnlockGuide", "报备和解禁指南");
-    if (target) wx.navigateTo({ url: target });
+    const guide = this.data.reportEntry?.guide || {};
+    const link = typeof guide.publicAccountLink === "string" ? guide.publicAccountLink.trim() : "";
+    if (link) {
+      const target = buildCityReportWebviewPath(link);
+      if (target) {
+        wx.navigateTo({ url: target });
+        return;
+      }
+    }
+    const finderUserName = typeof guide.videoAccountId === "string" ? guide.videoAccountId.trim() : "";
+    const feedId = typeof guide.videoId === "string" ? guide.videoId.trim() : "";
+    if (finderUserName && feedId && typeof wx?.openChannelsActivity === "function") {
+      wx.openChannelsActivity({ finderUserName, feedId });
+      return;
+    }
+    if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
+      wx.openChannelsUserProfile({ finderUserName });
+      return;
+    }
+    if (feedId && typeof wx?.openChannelsActivity === "function") {
+      wx.openChannelsActivity({ activityId: feedId });
+      return;
+    }
+    wx.showToast({ title: "暂无报备说明链接", icon: "none" });
   },
 
   onPolicePlatformTap() {

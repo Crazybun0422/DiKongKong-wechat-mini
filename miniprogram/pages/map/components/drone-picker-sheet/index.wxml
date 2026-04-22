@@ -1,8 +1,18 @@
 <block wx:if="{{visible}}">
-  <view class="drone-picker-mask" bindtap="onMaskTap"></view>
+  <block wx:if="{{showBackFloat}}">
+    <view class="drone-picker-mask-layer" catchtap="onMaskTap" catchtouchmove="noop">
+      <view
+        class="drone-picker-mask-hole"
+        style="left: 10px; top: {{backHoleTop}}px; width: 46px; height: 46px;"
+        catchtap="onBackTap"
+      ></view>
+    </view>
+  </block>
+  <view wx:else class="drone-picker-mask" catchtap="onMaskTap" catchtouchmove="noop"></view>
   <view
     class="drone-picker-sheet"
     catchtap="noop"
+    catchtouchmove="noop"
     style="{{wideLayout ? 'width:calc(100vw - 64rpx);max-width:920rpx;left:0;right:0;margin-left:auto;margin-right:auto;' : ''}}"
   >
     <view class="drone-picker-sheet-header">

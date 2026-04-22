@@ -30,9 +30,7 @@ function getWindLimits(aircraftClass = AIRCRAFT_CLASS_LIGHT) {
 function pushReason(list = [], text = "") {
   const value = `${text || ""}`.trim();
   if (!value) return;
-  if (!list.includes(value)) {
-    list.push(value);
-  }
+  if (!list.includes(value)) list.push(value);
 }
 
 function resolveSeverityTitle(severity = WEATHER_RISK_SAFE) {
@@ -41,13 +39,8 @@ function resolveSeverityTitle(severity = WEATHER_RISK_SAFE) {
   return "适宜飞行";
 }
 
-function buildSafeReason(slot = {}) {
-  const weatherLabel = `${slot.weatherLabel || ""}`.trim() || "天气平稳";
-  const windText = `${slot.windSpeedDisplay || ""}`.trim();
-  if (windText) {
-    return `${weatherLabel}，地面风速${windText}`;
-  }
-  return `${weatherLabel}，适合当前机型飞行`;
+function buildSafeReason() {
+  return "当前天气条件适合飞行";
 }
 
 function bumpSeverity(current, next) {
@@ -61,16 +54,15 @@ function bumpSeverity(current, next) {
 
 function evaluateWind(severity, reasons, slot = {}, aircraftClass = AIRCRAFT_CLASS_LIGHT) {
   const wind = normalizeNumber(slot.windSpeedValue);
-  if (wind === null) {
-    return severity;
-  }
+  if (wind === null) return severity;
+
   const limits = getWindLimits(aircraftClass);
   if (wind >= limits.danger) {
-    pushReason(reasons, `地面风速${wind.toFixed(1)}m/s偏大`);
+    pushReason(reasons, "当前风速过大，不建议飞行");
     return bumpSeverity(severity, WEATHER_RISK_DANGER);
   }
   if (wind >= limits.caution) {
-    pushReason(reasons, `地面风速${wind.toFixed(1)}m/s偏高`);
+    pushReason(reasons, "当前风速偏高，请谨慎飞行");
     return bumpSeverity(severity, WEATHER_RISK_CAUTION);
   }
   return severity;
@@ -78,17 +70,16 @@ function evaluateWind(severity, reasons, slot = {}, aircraftClass = AIRCRAFT_CLA
 
 function evaluateWeatherPhenomena(severity, reasons, slot = {}) {
   const iconName = `${slot.iconName || ""}`.trim();
-  const weatherLabel = `${slot.weatherLabel || ""}`.trim() || "当前天气";
   if (["strong-convective", "thunderstorm", "hail"].includes(iconName)) {
-    pushReason(reasons, `${weatherLabel}不适合无人机飞行`);
+    pushReason(reasons, "当前天气不适合无人机飞行");
     return bumpSeverity(severity, WEATHER_RISK_DANGER);
   }
   if (["heavy-rain", "heavy-snow", "moderate-snow"].includes(iconName)) {
-    pushReason(reasons, `${weatherLabel}会明显影响飞行安全`);
+    pushReason(reasons, "当前降水或降雪会明显影响飞行安全");
     return bumpSeverity(severity, WEATHER_RISK_DANGER);
   }
   if (["moderate-rain", "showers", "snow-showers", "light-snow", "fog"].includes(iconName)) {
-    pushReason(reasons, `${weatherLabel}会影响姿态与视距`);
+    pushReason(reasons, "当前天气会影响姿态控制和视距");
     return bumpSeverity(severity, WEATHER_RISK_CAUTION);
   }
   return severity;
@@ -96,15 +87,14 @@ function evaluateWeatherPhenomena(severity, reasons, slot = {}) {
 
 function evaluateVisibility(severity, reasons, slot = {}) {
   const visibility = normalizeNumber(slot.visibilityValue);
-  if (visibility === null) {
-    return severity;
-  }
+  if (visibility === null) return severity;
+
   if (visibility < 1000) {
-    pushReason(reasons, `能见度仅${(visibility / 1000).toFixed(1)}km`);
+    pushReason(reasons, "当前能见度过低，不建议飞行");
     return bumpSeverity(severity, WEATHER_RISK_DANGER);
   }
   if (visibility < 3000) {
-    pushReason(reasons, `能见度偏低`);
+    pushReason(reasons, "当前能见度偏低，请谨慎飞行");
     return bumpSeverity(severity, WEATHER_RISK_CAUTION);
   }
   return severity;
@@ -122,12 +112,13 @@ function evaluatePrecipitation(severity, reasons, slot = {}) {
     showers || 0,
     snowfall || 0
   );
+
   if (actual >= 1.2) {
-    pushReason(reasons, "降水较强");
+    pushReason(reasons, "当前降水较强，不建议飞行");
     return bumpSeverity(severity, WEATHER_RISK_DANGER);
   }
   if (actual > 0 || (probability !== null && probability >= 60)) {
-    pushReason(reasons, "存在降水影响");
+    pushReason(reasons, "存在降水影响，请谨慎飞行");
     return bumpSeverity(severity, WEATHER_RISK_CAUTION);
   }
   return severity;
@@ -142,19 +133,20 @@ function buildPreflightWeatherAssessment(slot = {}, aircraftClass = AIRCRAFT_CLA
       reasons: ["气象数据加载中"]
     };
   }
+
   const reasons = [];
   let severity = WEATHER_RISK_SAFE;
   severity = evaluateWind(severity, reasons, slot, aircraftClass);
   severity = evaluateWeatherPhenomena(severity, reasons, slot);
   severity = evaluateVisibility(severity, reasons, slot);
   severity = evaluatePrecipitation(severity, reasons, slot);
-  if (!reasons.length) {
-    pushReason(reasons, buildSafeReason(slot));
-  }
+
+  if (!reasons.length) pushReason(reasons, buildSafeReason());
+
   return {
     level: severity,
     title: resolveSeverityTitle(severity),
-    reason: reasons[0] || buildSafeReason(slot),
+    reason: reasons[0] || buildSafeReason(),
     reasons
   };
 }

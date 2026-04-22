@@ -1,5 +1,13 @@
 ﻿<view class="preflight-page">
-  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}}">
+  <view class="preflight-nav" style="padding-top: {{navStatusBarHeight}}px; height: {{navTotalHeight}}px;">
+    <view class="preflight-nav__inner {{isWideLayout ? 'preflight-nav__inner--wide' : ''}}">
+      <view class="preflight-nav__back" bindtap="onBackTap">
+        <image class="preflight-nav__back-icon" src="/packages/preflight/assets/back.png" mode="aspectFit" />
+      </view>
+      <text class="preflight-nav__title">飞前安全准备</text>
+    </view>
+  </view>
+  <view class="preflight-page__shell {{isWideLayout ? 'preflight-page__shell--wide' : ''}}" style="padding-top: {{shellTopPadding}}px;">
     <view class="preflight-engine-stage" aria-hidden="true">
       <map
         id="preflight-hidden-map"
@@ -83,18 +91,18 @@
       <text wx:if="{{djiStatusExtra}}" class="preflight-status-extra">{{djiStatusExtra}}</text>
 
       <view wx:if="{{showSafeChecklist}}" class="preflight-checklist">
-        <view class="preflight-checklist__item" bindtap="onToggleFlightHeight">
-          <view class="preflight-checklist__box {{flightHeightUnder120 ? 'is-checked' : ''}}">
-            <image wx:if="{{flightHeightUnder120}}" class="preflight-checklist__icon" src="/assets/check.png" mode="aspectFit" />
+        <view class="preflight-checklist__item">
+          <view class="preflight-checklist__box {{flightHeightUnder120 ? 'is-checked' : ''}}" bindtap="onToggleFlightHeight">
+            <text wx:if="{{flightHeightUnder120}}" class="preflight-checklist__icon">✓</text>
           </view>
           <text class="preflight-checklist__text">飞行高度小于120m</text>
           <view class="preflight-checklist__tip-btn" catchtap="onFlightHeightTipTap">
             <image class="preflight-checklist__info-icon" src="/packages/preflight/assets/info-modal.png" mode="aspectFit" />
           </view>
         </view>
-        <view class="preflight-checklist__item" bindtap="onToggleSpecialScenario">
-          <view class="preflight-checklist__box {{noSpecialFlightScenario ? 'is-checked' : ''}}">
-            <image wx:if="{{noSpecialFlightScenario}}" class="preflight-checklist__icon" src="/assets/check.png" mode="aspectFit" />
+        <view class="preflight-checklist__item">
+          <view class="preflight-checklist__box {{noSpecialFlightScenario ? 'is-checked' : ''}}" bindtap="onToggleSpecialScenario">
+            <text wx:if="{{noSpecialFlightScenario}}" class="preflight-checklist__icon">✓</text>
           </view>
           <text class="preflight-checklist__text">无特殊飞行场景</text>
           <view class="preflight-checklist__tip-btn" catchtap="onSpecialScenarioTipTap">
@@ -167,7 +175,7 @@
       </view>
       <view wx:elif="{{reportEntry && reportEntry.doubleReported}}" class="preflight-guide-block">
         <text class="preflight-guide-block__headline">UOM报备</text>
-        <text class="preflight-guide-block__body">需在UOM官网或APP12点前报备次日飞行，获批并完成起飞确认后即可飞行。</text>
+        <text class="preflight-guide-block__body">需至少提前1天申请，并在飞行前一日中午12:00前完成提交。</text>
         <view class="preflight-guide-block__cta" bindtap="onUomReportApplyTap">报备申请</view>
         <view class="preflight-divider preflight-divider--guide-inner"></view>
         <text class="preflight-guide-block__headline">当地报备</text>
@@ -181,11 +189,11 @@
       </view>
       <view wx:elif="{{canFly}}" class="preflight-guide-block">
         <text class="preflight-guide-block__headline">无需UOM报备</text>
-        <text class="preflight-guide-block__body">依据《无人驾驶航空器飞行管理暂行条例》，常规农田、微型、轻型、小型无人驾驶航空器在适飞空域内的飞行活动，真高在120米内，无特殊飞行场景的，无需报备。</text>
+        <text class="preflight-guide-block__body">依据《无人驾驶航空器飞行管理暂行条例》，常规农用、微型、轻型、小型无人驾驶航空器在适飞空域内的飞行活动，真高在120米内，无特殊飞行场景的，无需报备。</text>
       </view>
       <view wx:else class="preflight-guide-block">
         <text class="preflight-guide-block__headline">UOM报备</text>
-        <text class="preflight-guide-block__body">需在UOM官网或APP12点前报备次日飞行，获批并完成起飞确认后即可飞行。</text>
+        <text class="preflight-guide-block__body">需至少提前1天申请，并在飞行前一日中午12:00前完成提交。</text>
         <view class="preflight-guide-block__cta" bindtap="onUomReportApplyTap">报备申请</view>
       </view>
 
@@ -268,12 +276,19 @@
             data-type="{{item.type}}"
             bindtap="onCredentialTap"
           >
-            <text class="preflight-qualification__item-title">{{item.title}}</text>
+            <view wx:if="{{index === 3}}" class="preflight-qualification__item-head">
+              <text class="preflight-qualification__item-title">{{item.title}}</text>
+              <view class="preflight-qualification__item-footer">
+                <text class="preflight-qualification__item-status {{item.statusClass}}">{{item.statusText}}</text>
+                <image class="preflight-qualification__item-arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
+              </view>
+            </view>
+            <text wx:else class="preflight-qualification__item-title">{{item.title}}</text>
             <view class="preflight-qualification__item-requirement">
               <text class="preflight-qualification__item-requirement-text {{item.requirementClass}}">{{item.requirementText}}</text>
               <text wx:if="{{item.requirementDetail}}" class="preflight-qualification__item-requirement-detail">{{item.requirementDetail}}</text>
             </view>
-            <view class="preflight-qualification__item-footer">
+            <view wx:if="{{index !== 3}}" class="preflight-qualification__item-footer">
               <text class="preflight-qualification__item-status {{item.statusClass}}">{{item.statusText}}</text>
               <image class="preflight-qualification__item-arrow" src="/packages/preflight/assets/arrow-black.png" mode="aspectFit" />
             </view>
@@ -284,8 +299,8 @@
 
     <view class="preflight-card preflight-card--weather-intel">
       <view class="preflight-card__title-row preflight-card__title-row--space">
-        <view class="preflight-card__title-inline">
-          <view class="preflight-card__badge">4</view>
+        <view class="preflight-card__badge">4</view>
+        <view class="preflight-card__title-inline preflight-card__title-inline--weather">
           <text class="preflight-card__title">低空气象情报</text>
         </view>
         <text class="preflight-weather-intel__updated">更新于{{weatherIntelUpdatedAtText || '--:--'}}</text>
@@ -297,6 +312,17 @@
         <view class="preflight-weather-intel__summary preflight-weather-intel__summary--{{weatherIntelAssessmentLevel}}">
           <text class="preflight-weather-intel__summary-title">{{weatherIntelAssessmentTitle}}</text>
           <text class="preflight-weather-intel__summary-reason">{{weatherIntelAssessmentReason}}</text>
+          <view class="preflight-weather-intel__summary-slot">
+            <image class="preflight-weather-intel__slot-icon" src="{{weatherIntelSelectedSlot.iconPath}}" mode="aspectFit" />
+            <view class="preflight-weather-intel__slot-copy">
+              <text class="preflight-weather-intel__slot-title">{{weatherIntelSelectedSlot.weatherLabel}}</text>
+              <text class="preflight-weather-intel__slot-meta">{{weatherIntelSelectedSlot.timeKey}} · {{weatherIntelSelectedSlot.windSpeedDisplay}}</text>
+            </view>
+            <view class="preflight-weather-intel__slot-side">
+              <text class="preflight-weather-intel__slot-side-text">{{weatherIntelSelectedSlot.windDirectionLabel || '暂无'}}</text>
+              <text class="preflight-weather-intel__slot-side-text">{{weatherIntelSelectedSlot.visibilityDisplay || '暂无'}}</text>
+            </view>
+          </view>
         </view>
 
         <view class="preflight-weather-intel__slider-shell">
@@ -326,18 +352,6 @@
           </view>
         </view>
 
-        <view class="preflight-weather-intel__slot">
-          <image class="preflight-weather-intel__slot-icon" src="{{weatherIntelSelectedSlot.iconPath}}" mode="aspectFit" />
-          <view class="preflight-weather-intel__slot-copy">
-            <text class="preflight-weather-intel__slot-title">{{weatherIntelSelectedSlot.weatherLabel}}</text>
-            <text class="preflight-weather-intel__slot-meta">{{weatherIntelSelectedSlot.timeKey}} · {{weatherIntelSelectedSlot.windSpeedDisplay}}</text>
-          </view>
-          <view class="preflight-weather-intel__slot-side">
-            <text class="preflight-weather-intel__slot-side-text">{{weatherIntelSelectedSlot.windDirectionLabel || '暂无'}}</text>
-            <text class="preflight-weather-intel__slot-side-text">{{weatherIntelSelectedSlot.visibilityDisplay || '暂无'}}</text>
-          </view>
-        </view>
-
         <view class="preflight-weather-intel__days">
           <block wx:for="{{weatherIntelDays}}" wx:key="dateKey">
             <view
@@ -357,7 +371,10 @@
   </view>
 
   <view wx:if="{{credentialDialogVisible}}" class="preflight-credential-overlay" catchtouchmove="noop">
-    <view class="preflight-credential-mask" bindtap="onCredentialMaskTap"></view>
+    <view class="preflight-credential-mask" catchtap="onCredentialMaskTap" catchtouchmove="noop"></view>
+    <view class="preflight-dialog-back-float" style="top: {{backHoleTop}}px;" catchtap="onBackTap">
+      <image class="preflight-dialog-back-float__icon" src="/packages/preflight/assets/back.png" mode="aspectFit" />
+    </view>
     <view class="preflight-credential-sheet" catchtap="noop" catchtouchmove="noop">
       <view class="preflight-credential-sheet__header">
         <text class="preflight-credential-sheet__title">{{activeCredentialTitle}}</text>
@@ -376,32 +393,27 @@
       </view>
 
       <view wx:elif="{{credentialDialogMode === 'upload'}}" class="preflight-credential-upload">
-        <view class="preflight-credential-upload__picker" bindtap="onCredentialChooseFileTap">
-          <block wx:if="{{credentialPendingFilePath}}">
-            <image wx:if="{{credentialPendingFileKind === 'image'}}" class="preflight-credential-upload__preview" src="{{credentialPendingPreviewUrl}}" mode="aspectFit" />
-            <view wx:elif="{{credentialPendingFileKind === 'pdf'}}" class="preflight-credential-upload__pdf">
-              <text class="preflight-credential-upload__pdf-tag">PDF</text>
-              <text class="preflight-credential-upload__pdf-name">{{credentialPendingFileName}}</text>
-            </view>
-          </block>
-          <block wx:else>
-            <view class="preflight-credential-upload__plus">+</view>
-            <text class="preflight-credential-upload__label">{{activeCredentialUploadLabel}}</text>
-          </block>
-        </view>
+        <scroll-view scroll-y="true" class="preflight-credential-upload__scroll">
+          <view class="preflight-credential-upload__picker" bindtap="onCredentialChooseFileTap">
+            <block wx:if="{{credentialPendingFilePath}}">
+              <image class="preflight-credential-upload__preview" src="{{credentialPendingPreviewUrl}}" mode="widthFix" />
+            </block>
+            <block wx:else>
+              <view class="preflight-credential-upload__plus">+</view>
+              <text class="preflight-credential-upload__label">{{activeCredentialUploadLabel}}</text>
+            </block>
+          </view>
+        </scroll-view>
         <view class="preflight-credential-upload__confirm {{credentialPendingFilePath ? 'is-enabled' : ''}}" bindtap="onCredentialConfirmTap">确定</view>
       </view>
 
       <view wx:else class="preflight-credential-bound">
-        <view class="preflight-credential-bound__preview" bindtap="onCredentialPreviewTap">
-          <image wx:if="{{activeCredentialFileKind === 'image' && activeCredentialPreviewUrl}}" class="preflight-credential-bound__image" src="{{activeCredentialPreviewUrl}}" mode="widthFix" />
-          <view wx:elif="{{activeCredentialFileKind === 'pdf'}}" class="preflight-credential-bound__pdf">
-            <text class="preflight-credential-bound__pdf-tag">PDF</text>
-            <text class="preflight-credential-bound__pdf-name">{{activeCredentialFileName}}</text>
-            <text class="preflight-credential-bound__pdf-tip">点击预览文件</text>
+        <scroll-view scroll-y="true" class="preflight-credential-bound__scroll">
+          <view class="preflight-credential-bound__preview" bindtap="onCredentialPreviewTap">
+            <image wx:if="{{activeCredentialPreviewUrl}}" class="preflight-credential-bound__image" src="{{activeCredentialPreviewUrl}}" mode="widthFix" />
+            <view wx:else class="preflight-credential-bound__loading">预览加载中...</view>
           </view>
-          <view wx:else class="preflight-credential-bound__loading">预览加载中...</view>
-        </view>
+        </scroll-view>
 
         <view class="preflight-credential-guide-card" bindtap="onCredentialGuideTap">
           <view class="preflight-credential-guide-card__body">
@@ -415,7 +427,10 @@
   </view>
 
   <view wx:if="{{tipDialogVisible}}" class="preflight-tip-dialog-overlay" catchtouchmove="noop">
-    <view class="preflight-tip-dialog-mask" bindtap="onTipDialogMaskTap"></view>
+    <view class="preflight-tip-dialog-mask" catchtap="onTipDialogMaskTap" catchtouchmove="noop"></view>
+    <view class="preflight-dialog-back-float" style="top: {{backHoleTop}}px;" catchtap="onBackTap">
+      <image class="preflight-dialog-back-float__icon" src="/packages/preflight/assets/back.png" mode="aspectFit" />
+    </view>
     <view class="preflight-tip-dialog-sheet" catchtap="noop" catchtouchmove="noop">
       <view class="preflight-tip-dialog__header">
         <text class="preflight-tip-dialog__title">{{tipDialogTitle}}</text>
@@ -466,10 +481,13 @@
   <drone-picker-sheet
     visible="{{dronePickerVisible}}"
     wide-layout="{{isWideLayout}}"
+    show-back-float="{{true}}"
+    back-hole-top="{{backHoleTop}}"
     drone-categories="{{droneCategories}}"
     active-drone-category-index="{{activeDroneCategoryIndex}}"
     drone-category-items="{{droneCategoryItems}}"
     pending-drone-index="{{pendingDroneIndex}}"
+    bind:backtap="onBackTap"
     bind:close="closeDronePicker"
     bind:confirm="confirmDronePicker"
     bind:selectcategory="onSelectDroneCategory"
