@@ -50,19 +50,19 @@ page {
   position: absolute;
   left: 10px;
   top: 50%;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
-  border-radius: 22px;
+  border-radius: 18px;
 }
 
 .preflight-nav__back-icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 
 .preflight-nav__title {

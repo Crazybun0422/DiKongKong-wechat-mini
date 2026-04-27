@@ -446,6 +446,56 @@ function resolveCenterAddress(center = null) {
     });
 }
 
+const POLICE_STATION_INCLUDE_KEYWORDS = [
+  "派出所",
+  "公安派出所"
+];
+
+const POLICE_STATION_EXCLUDE_KEYWORDS = [
+  "车管所",
+  "交警",
+  "支队",
+  "大队",
+  "中队",
+  "监所",
+  "看守所",
+  "拘留所",
+  "收容所",
+  "服务站",
+  "警务站",
+  "检查站",
+  "警务室",
+  "办证",
+  "窗口",
+  "政务中心",
+  "出入境",
+  "巡逻",
+  "事故",
+  "高速"
+];
+
+function normalizePoiSearchText(value) {
+  return `${value || ""}`.trim().replace(/\s+/g, "");
+}
+
+function isPoliceStationPoi(item = {}) {
+  const title = normalizePoiSearchText(item.title);
+  const category = normalizePoiSearchText(item.category);
+  const address = normalizePoiSearchText(item.address);
+  const text = `${title}|${category}|${address}`;
+  const hasInclude = POLICE_STATION_INCLUDE_KEYWORDS.some((keyword) => text.includes(keyword));
+  if (!hasInclude) return false;
+  const hasExclude = POLICE_STATION_EXCLUDE_KEYWORDS.some((keyword) => text.includes(keyword));
+  return !hasExclude;
+}
+
+function pickNearestPoliceStation(list = []) {
+  if (!Array.isArray(list) || !list.length) return null;
+  const strictMatches = list.filter(isPoliceStationPoi);
+  if (strictMatches.length) return strictMatches[0];
+  return null;
+}
+
 function fetchNearestPoliceStation(center = {}) {
   return resolveMapKey()
     .then((mapKey) => new Promise((resolve, reject) => {
@@ -472,7 +522,7 @@ function fetchNearestPoliceStation(center = {}) {
             return;
           }
           const list = Array.isArray(payload.data) ? payload.data : [];
-          resolve(list[0] || null);
+          resolve(pickNearestPoliceStation(list));
         },
         fail: reject
       });
