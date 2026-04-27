@@ -59,6 +59,7 @@ function onReady(page) {
     page.ensureUomPluginReady();
     page.ensureDjiLayerReady();
     page.ensureTemporaryNoFlyLayerReady();
+    page.ensureTiandituSatelliteLayerReady();
   }
 }
 

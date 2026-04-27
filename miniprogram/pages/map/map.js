@@ -397,6 +397,18 @@ Page({
     return mapPluginsUtils.onTemporaryNoFlyStatusChange(this, event);
   },
 
+  ensureTiandituSatelliteLayerReady(retry = 0) {
+    return mapPluginsUtils.ensureTiandituSatelliteLayerReady(this, retry);
+  },
+
+  syncTiandituSatelliteLayerViewport(options = {}) {
+    return mapPluginsUtils.syncTiandituSatelliteLayerViewport(this, options);
+  },
+
+  setTiandituSatelliteLayerEnabled(enabled, options = {}) {
+    return mapPluginsUtils.setTiandituSatelliteLayerEnabled(this, enabled, options);
+  },
+
   ensureMapMarkerId(value) {
     return markerDataUtils.ensureMapMarkerId(this, value);
   },
@@ -1436,6 +1448,10 @@ Page({
 
   resolveProvinceCityHighlightSelectionId(settings = {}) {
     return layerPanelUtils.resolveProvinceCityHighlightSelectionId(this, settings);
+  },
+
+  resolveMapBaseLayerType(settings = {}) {
+    return layerPanelUtils.resolveMapBaseLayerType(this, settings);
   },
 
   buildMapLayerExtraConfigPayload() {

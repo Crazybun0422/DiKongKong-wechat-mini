@@ -40,6 +40,16 @@
               </view>
               <text class="layer-card-label">卫星图</text>
             </view>
+            <view
+              class="layer-card {{mapLayerType === 'tianditu' ? 'is-active' : ''}}"
+              data-type="tianditu"
+              bindtap="onMapLayerSelect"
+            >
+              <view class="layer-card-thumb-wrap">
+                <image class="layer-card-thumb" src="/assets/天地图.png" mode="aspectFill" />
+              </view>
+              <text class="layer-card-label">天地卫星图</text>
+            </view>
           </view>
 
           <view class="layer-panel-section layer-panel-section--switch">

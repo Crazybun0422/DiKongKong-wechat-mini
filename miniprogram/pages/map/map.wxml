@@ -29,18 +29,19 @@
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
     />
+    <tianditu-satellite-layer id="tianditu-satellite-layer" />
     <map-search-link
       center="{{searchLinkCenter}}"
       target="{{searchLinkTarget}}"
       visible="{{mapCenterReady && searchLinkVisible && centerTargetLinkEnabled}}"
-      satellite="{{mapLayerType === 'satellite'}}"
+      satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
       bind:graphicschange="onSearchLinkGraphicsChange"
     />
     <map-center-pin
       wx:if="{{mapCenterReady}}"
       top-offset-px="{{centerPinOffsetPx}}"
       ui-scale="{{mapUiScale}}"
-      satellite="{{mapLayerType === 'satellite'}}"
+      satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
       sneaking-active="{{stealthModeActive}}"
       sneaking-tip-text="专注中，长按解除"
       link-active="{{centerPinLinkActive}}"
@@ -120,19 +121,19 @@
       </button>
     </view>
     <view
-      class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}"
+      class="map-compass-anchor map-ui-scale-left {{(mapLayerType === 'satellite' || mapLayerType === 'tianditu') ? 'map-compass-anchor--satellite' : ''}}"
       wx:if="{{compassVisible}}"
       style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{compassBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
     >
       <map-compass
         rotate="{{compassRotate}}"
         skew="{{compassSkew}}"
-        satellite="{{mapLayerType === 'satellite'}}"
+        satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
         bind:compasstap="onCompassTap"
       />
     </view>
     <view
-      class="map-scale-container map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}"
+      class="map-scale-container map-ui-scale-left {{(mapLayerType === 'satellite' || mapLayerType === 'tianditu') ? 'map-scale-container--satellite' : ''}}"
       wx:if="{{scaleBarVisible}}"
       style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{scaleControlsBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
     >
@@ -252,7 +253,7 @@
     <map-weather-strip
       visible="{{weatherFeatureEnabled && activeTab === 'home' && !stealthModeActive}}"
       container-style="left: {{weatherWidgetLeftPx}}px; min-width: {{weatherWidgetWidthPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{weatherWidgetBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
-      satellite="{{mapLayerType === 'satellite'}}"
+      satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
       loading="{{weatherLoading}}"
       error="{{weatherError}}"
       updated-at-text="{{weatherUpdatedAtText}}"

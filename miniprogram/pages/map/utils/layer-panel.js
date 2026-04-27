@@ -12,6 +12,8 @@ const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
 const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
 const MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY = "enableProvinceCityHighlight";
 const MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY = "provinceCityHighlightSelection";
+const MAP_LAYER_EXTRA_CONFIG_BASE_LAYER_TYPE_KEY = "baseLayerType";
+const MAP_LAYER_BASE_TYPE_TIANDITU = "tiandituSatellite";
 
 const resolveEventDataset = (event = {}) => {
   const currentTargetDataset = event?.currentTarget?.dataset;
@@ -69,12 +71,13 @@ function closeLayerPanel(page) {
 
 function onMapLayerSelect(page, event = {}) {
   const type = resolveEventDataset(event).type || "";
-  const nextType = type === "satellite" ? "satellite" : "standard";
-  const enableSatellite = nextType === "satellite";
+  const nextType = type === "satellite" || type === "tianditu" ? type : "standard";
+  const enableSatellite = nextType === "satellite" || nextType === "tianditu";
   page.setData({
     mapLayerType: nextType,
     enableSatellite
   }, () => {
+    page.setTiandituSatelliteLayerEnabled(nextType === "tianditu", { force: true });
     page.refreshMyLocationGraphics(page.data.myLocationPoint || page._lastKnownLocation || null);
     page.persistMapLayerSettings();
   });
@@ -539,6 +542,15 @@ function resolveProvinceCityHighlightSelectionId(page, settings = {}) {
   return raw.trim();
 }
 
+function resolveMapBaseLayerType(page, settings = {}) {
+  const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+  const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_BASE_LAYER_TYPE_KEY] : undefined;
+  if (`${raw || ""}` === MAP_LAYER_BASE_TYPE_TIANDITU) {
+    return "tianditu";
+  }
+  return settings.mapType === "SATELLITE" ? "satellite" : "standard";
+}
+
 function buildMapLayerExtraConfigPayload(page) {
   const existing =
     page._mapLayerSettings && typeof page._mapLayerSettings.extraConfig === "object"
@@ -552,12 +564,14 @@ function buildMapLayerExtraConfigPayload(page) {
   const selectedId =
     `${page._provinceCityHighlightSelectedId || page.data.provinceCityHighlightSelectedId || ""}`.trim();
   extraConfig[MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY] = selectedId || null;
+  extraConfig[MAP_LAYER_EXTRA_CONFIG_BASE_LAYER_TYPE_KEY] =
+    page.data.mapLayerType === "tianditu" ? MAP_LAYER_BASE_TYPE_TIANDITU : null;
   return extraConfig;
 }
 
 function buildMapLayerSettingsPayload(page) {
   return {
-    mapType: page.data.mapLayerType === "satellite" ? "SATELLITE" : "STANDARD",
+    mapType: page.data.mapLayerType === "satellite" || page.data.mapLayerType === "tianditu" ? "SATELLITE" : "STANDARD",
     airspaceBoardEnabled: !!page.data.airBoardEnabled,
     uomDivisionEnabled: !!page.data.uomDivisionEnabled,
     djiNoFlyZoneEnabled: !!page.data.djiNoFlyZoneEnabled,
@@ -619,7 +633,7 @@ function composeMapElementOptions(flags = {}) {
 }
 
 function applyLayerSettings(page, settings = {}, options = {}) {
-  const mapType = settings.mapType === "SATELLITE" ? "satellite" : "standard";
+  const mapType = page.resolveMapBaseLayerType(settings);
   const airspace = settings.airspaceBoardEnabled !== false;
   const uom = settings.uomDivisionEnabled !== false;
   const dji = settings.djiNoFlyZoneEnabled !== false;
@@ -646,7 +660,7 @@ function applyLayerSettings(page, settings = {}, options = {}) {
   page.setData(
     {
       mapLayerType: mapType,
-      enableSatellite: mapType === "satellite",
+      enableSatellite: mapType === "satellite" || mapType === "tianditu",
       airBoardEnabled: airspace,
       showDashboardPanel: airspace,
       uomDivisionEnabled: uom,
@@ -672,6 +686,7 @@ function applyLayerSettings(page, settings = {}, options = {}) {
         if (page._uomPlugin && typeof page._uomPlugin.setEnabled === "function") {
           page._uomPlugin.setEnabled(uom);
         }
+        page.setTiandituSatelliteLayerEnabled(mapType === "tianditu", { force: true });
         page.applyNoFlyOverlayToggle({ djiEnabled: dji, temporaryEnabled: temporary });
         page.applyMerchantMarkersToggle(merchant);
         page.applyPinLayerToggle(true);
@@ -851,6 +866,7 @@ module.exports = {
   resolveCenterTargetLinkEnabled,
   resolveProvinceCityHighlightEnabled,
   resolveProvinceCityHighlightSelectionId,
+  resolveMapBaseLayerType,
   buildMapLayerExtraConfigPayload,
   buildMapLayerSettingsPayload,
   loadCachedUsePlanetMyLocationPreference,

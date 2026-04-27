@@ -174,7 +174,7 @@ function onWeatherWidgetTap(page) {
     }
     return;
   }
-  const satellite = page.data.mapLayerType === "satellite" ? 1 : 0;
+  const satellite = page.data.mapLayerType === "satellite" || page.data.mapLayerType === "tianditu" ? 1 : 0;
   const coordinateSystem = `${page.data.coordinateSystem || "wgs84"}`.toLowerCase();
   const url =
     `/packages/weather/index/index?latitude=${encodeURIComponent(Number(center.latitude).toFixed(6))}` +

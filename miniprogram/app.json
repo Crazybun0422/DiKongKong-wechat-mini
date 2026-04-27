@@ -93,6 +93,12 @@
       ]
     },
     {
+      "root": "packages/tianditu",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/weather",
       "pages": [
         "index/index",

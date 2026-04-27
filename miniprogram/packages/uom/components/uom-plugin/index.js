@@ -1180,6 +1180,7 @@ Component({
             id: overlayId,
             src: src || tile.src,
             bounds: tile.bounds,
+            zIndex: Number.isFinite(Number(tile.zIndex)) ? Number(tile.zIndex) : 10,
             alpha,
             success: () => {
               const handle = { overlayId, signature, epoch, stale: false, staleTimer: null };

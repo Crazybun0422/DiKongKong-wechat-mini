@@ -186,6 +186,7 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
     page.ensureUomPluginReady();
     page.ensureDjiLayerReady();
     page.ensureTemporaryNoFlyLayerReady();
+    page.ensureTiandituSatelliteLayerReady();
     if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
       page._uomPlugin.handleRegionChange({
         center: point,
@@ -218,6 +219,7 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
       scale: targetScale
     });
     page.syncTemporaryNoFlyLayerViewport(fetchOptions);
+    page.syncTiandituSatelliteLayerViewport(fetchOptions);
     page.syncDjiLayerViewport({
       center: point,
       region: page._lastRegion,
@@ -394,6 +396,12 @@ function onRegionChange(page, e) {
         scale,
         force: !!forceRefresh
       });
+      page.syncTiandituSatelliteLayerViewport({
+        center: newCenter,
+        region,
+        scale,
+        force: !!forceRefresh
+      });
     };
     const afterSync = () => {
       page.updateScaleBar({
@@ -504,6 +512,12 @@ function updateCenterAndRadius(page, detail) {
           scale
         });
         page.syncTemporaryNoFlyLayerViewport({
+          center: newCenter,
+          region,
+          scale,
+          force: true
+        });
+        page.syncTiandituSatelliteLayerViewport({
           center: newCenter,
           region,
           scale,

@@ -53,6 +53,7 @@ function onUnload(page) {
   if (page._uomPluginInitTimer) clearTimeout(page._uomPluginInitTimer);
   if (page._djiLayerInitTimer) clearTimeout(page._djiLayerInitTimer);
   if (page._temporaryNoFlyLayerInitTimer) clearTimeout(page._temporaryNoFlyLayerInitTimer);
+  if (page._tiandituSatelliteLayerInitTimer) clearTimeout(page._tiandituSatelliteLayerInitTimer);
   page._activeMarkersRequest = null;
   page._activePinsRequest = null;
   page._activeWeatherRequest = null;
@@ -69,6 +70,11 @@ function onUnload(page) {
   if (page._temporaryNoFlyLayer && typeof page._temporaryNoFlyLayer.destroy === "function") {
     page._temporaryNoFlyLayer.destroy();
   }
+  if (page._tiandituSatelliteLayer && typeof page._tiandituSatelliteLayer.destroy === "function") {
+    page._tiandituSatelliteLayer.destroy();
+  }
+  page._pendingTiandituSatelliteLayerEnabled = null;
+  page._pendingTiandituSatelliteLayerViewport = null;
 }
 
 module.exports = {

@@ -190,6 +190,75 @@ function ensureTemporaryNoFlyLayerReady(page, retry = 0) {
   }, delay);
 }
 
+function ensureTiandituSatelliteLayerReady(page, retry = 0) {
+  if (page._tiandituSatelliteLayer && page._tiandituSatelliteLayerInitialized) return;
+  const layer = page.selectComponent("#tianditu-satellite-layer");
+  if (
+    layer &&
+    typeof layer.init === "function" &&
+    typeof layer.updateViewport === "function" &&
+    typeof layer.setEnabled === "function"
+  ) {
+    page._tiandituSatelliteLayer = layer;
+    page._tiandituSatelliteLayerInitialized = true;
+    const pendingEnabled = typeof page._pendingTiandituSatelliteLayerEnabled === "boolean"
+      ? page._pendingTiandituSatelliteLayerEnabled
+      : page.data.mapLayerType === "tianditu";
+    const pendingViewport =
+      page._pendingTiandituSatelliteLayerViewport && typeof page._pendingTiandituSatelliteLayerViewport === "object"
+        ? page._pendingTiandituSatelliteLayerViewport
+        : {};
+    layer.init({
+      mapCtx: page.mapCtx,
+      enabled: pendingEnabled,
+      center: pendingViewport.center || page._centerOverride || page.data.center,
+      region: pendingViewport.region || page._lastRegion || null,
+      scale: Number.isFinite(Number(pendingViewport.scale)) ? Number(pendingViewport.scale) : page.data.scale
+    });
+    page._pendingTiandituSatelliteLayerEnabled = null;
+    page._pendingTiandituSatelliteLayerViewport = null;
+    return;
+  }
+  if (retry >= 10) {
+    console.warn("[tianditu-satellite-layer] init retries exhausted");
+    return;
+  }
+  if (page._tiandituSatelliteLayerInitTimer) clearTimeout(page._tiandituSatelliteLayerInitTimer);
+  const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+  page._tiandituSatelliteLayerInitTimer = setTimeout(() => {
+    page._tiandituSatelliteLayerInitTimer = null;
+    ensureTiandituSatelliteLayerReady(page, retry + 1);
+  }, delay);
+}
+
+function syncTiandituSatelliteLayerViewport(page, options = {}) {
+  const viewport = {
+    center: options.center || page._centerOverride || page.data.center,
+    region: options.region || page._lastRegion || null,
+    scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : page.data.scale,
+    force: options.force === true
+  };
+  page._pendingTiandituSatelliteLayerViewport = viewport;
+  ensureTiandituSatelliteLayerReady(page);
+  if (!page._tiandituSatelliteLayer || typeof page._tiandituSatelliteLayer.updateViewport !== "function") return;
+  page._tiandituSatelliteLayer.updateViewport(viewport);
+}
+
+function setTiandituSatelliteLayerEnabled(page, enabled, options = {}) {
+  const nextEnabled = enabled === true;
+  const viewport = {
+    center: options.center || page._centerOverride || page.data.center,
+    region: options.region || page._lastRegion || null,
+    scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : page.data.scale,
+    force: options.force === true
+  };
+  page._pendingTiandituSatelliteLayerEnabled = nextEnabled;
+  page._pendingTiandituSatelliteLayerViewport = viewport;
+  ensureTiandituSatelliteLayerReady(page);
+  if (!page._tiandituSatelliteLayer || typeof page._tiandituSatelliteLayer.setEnabled !== "function") return;
+  page._tiandituSatelliteLayer.setEnabled(nextEnabled, viewport);
+}
+
 function syncTemporaryNoFlyLayerViewport(page, options = {}) {
   ensureTemporaryNoFlyLayerReady(page);
   if (!page._temporaryNoFlyLayer || typeof page._temporaryNoFlyLayer.updateViewport !== "function") return;
@@ -265,5 +334,8 @@ module.exports = {
   syncTemporaryNoFlyLayerViewport,
   setTemporaryNoFlyLayerEnabled,
   onTemporaryNoFlyGraphicsChange,
-  onTemporaryNoFlyStatusChange
+  onTemporaryNoFlyStatusChange,
+  ensureTiandituSatelliteLayerReady,
+  syncTiandituSatelliteLayerViewport,
+  setTiandituSatelliteLayerEnabled
 };
