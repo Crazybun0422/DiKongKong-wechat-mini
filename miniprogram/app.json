@@ -26,7 +26,8 @@
         "flp/invite-guide/index",
         "open-platform/index",
         "subscription-feed/index",
-        "edit/index"
+        "edit/index",
+        "cyberpunk-pilot/index"
       ]
     },
     {
@@ -63,6 +64,12 @@
       "root": "packages/add-mini-app",
       "pages": [
         "placeholder/index"
+      ]
+    },
+    {
+      "root": "packages/member",
+      "pages": [
+        "index/index"
       ]
     },
     {

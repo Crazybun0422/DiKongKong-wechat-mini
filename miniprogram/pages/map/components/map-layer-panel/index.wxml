@@ -46,7 +46,7 @@
               bindtap="onMapLayerSelect"
             >
               <view class="layer-card-thumb-wrap">
-                <image class="layer-card-thumb" src="/assets/天地图.png" mode="aspectFill" />
+                <image class="layer-card-thumb" src="/assets/tianditu.png" mode="aspectFill" />
               </view>
               <text class="layer-card-label">天地卫星图</text>
             </view>

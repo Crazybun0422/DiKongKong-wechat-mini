@@ -158,9 +158,128 @@ button.profile-avatar-button {
   height: 120rpx;
   border-radius: 50%;
   overflow: hidden;
-  /* position: relative; */
+  position: relative;
   /* flex:1; */
   /* display: flex; */
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-action-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 120;
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.avatar-action-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 121;
+  padding: 16rpx 28rpx calc(env(safe-area-inset-bottom) + 28rpx);
+  background: #ffffff;
+  border-top-left-radius: 30rpx;
+  border-top-right-radius: 30rpx;
+  box-sizing: border-box;
+  box-shadow: 0 -18rpx 44rpx rgba(0, 0, 0, 0.16);
+}
+
+.avatar-action-handle {
+  width: 64rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: rgba(15, 23, 42, 0.12);
+  margin: 0 auto 24rpx;
+}
+
+.avatar-action-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 18rpx;
+}
+
+.avatar-action-item {
+  width: 100%;
+  min-height: 112rpx;
+  padding: 18rpx 8rpx;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 20rpx;
+  text-align: left;
+  line-height: normal;
+  box-sizing: border-box;
+}
+
+button.avatar-action-item {
+  width: 100%;
+}
+
+button.avatar-action-item::after {
+  border: none;
+}
+
+.avatar-action-item + .avatar-action-item {
+  border-top: 2rpx solid rgba(15, 23, 42, 0.06);
+}
+
+.avatar-action-icon {
+  flex: 0 0 auto;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+}
+
+.avatar-action-icon--wechat {
+  background: linear-gradient(135deg, #24d366 0%, #0aa84f 100%);
+}
+
+.avatar-action-icon--cyber {
+  background:
+    linear-gradient(135deg, rgba(0, 255, 255, 0.95) 0%, rgba(255, 45, 177, 0.92) 100%),
+    #111827;
+}
+
+.avatar-action-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.avatar-action-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.avatar-action-desc {
+  font-size: 22rpx;
+  line-height: 30rpx;
+  color: rgba(15, 23, 42, 0.52);
+}
+
+.avatar-action-cancel {
+  height: 88rpx;
+  margin-top: 12rpx;
+  border-radius: 18rpx;
+  background: #f5f5f7;
+  color: #111827;
+  font-size: 28rpx;
+  font-weight: 600;
+  display: flex;
   align-items: center;
   justify-content: center;
 }

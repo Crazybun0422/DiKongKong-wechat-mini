@@ -23,8 +23,7 @@
         <view class="profile-header-card">
           <button
             class="profile-avatar-button"
-            open-type="chooseAvatar"
-            bindchooseavatar="onChooseAvatar"
+            bindtap="openAvatarActionSheet"
           >
             <image
               class="profile-avatar"
@@ -146,6 +145,33 @@
       </view>
     </block>
   </view>
+
+  <block wx:if="{{avatarActionSheetVisible}}">
+    <view class="avatar-action-mask" bindtap="closeAvatarActionSheet" catchtouchmove="noop"></view>
+    <view class="avatar-action-sheet" catchtap="noop" catchtouchmove="noop">
+      <view class="avatar-action-handle"></view>
+      <text class="avatar-action-title">更换头像</text>
+      <button
+        class="avatar-action-item"
+        open-type="chooseAvatar"
+        bindchooseavatar="onChooseAvatar"
+      >
+        <view class="avatar-action-icon avatar-action-icon--wechat"></view>
+        <view class="avatar-action-copy">
+          <text class="avatar-action-name">微信或照片</text>
+          <text class="avatar-action-desc">选择微信头像或本地照片</text>
+        </view>
+      </button>
+      <view class="avatar-action-item" bindtap="onCyberpunkPilotTap">
+        <view class="avatar-action-icon avatar-action-icon--cyber"></view>
+        <view class="avatar-action-copy">
+          <text class="avatar-action-name">赛博朋克飞手</text>
+          <text class="avatar-action-desc">进入飞手形象生成页</text>
+        </view>
+      </view>
+      <view class="avatar-action-cancel" bindtap="closeAvatarActionSheet">取消</view>
+    </view>
+  </block>
 
   <view class="bottom-controls">
     <view class="bottom-menu">

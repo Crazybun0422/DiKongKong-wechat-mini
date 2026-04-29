@@ -83,6 +83,7 @@ Page({
     showSubscribeWaitOverlay: false,
     checkinTodaySigned: false,
     statusBadgeStyle: "",
+    avatarActionSheetVisible: false,
     showCheckinGuideProfile: false,
     checkinGuideOverlayStyle: "",
     checkinGuideMask: {
@@ -289,10 +290,30 @@ Page({
     this.startNicknameEdit();
   },
 
+  openAvatarActionSheet() {
+    this.setData({ avatarActionSheetVisible: true });
+  },
+
+  closeAvatarActionSheet() {
+    this.setData({ avatarActionSheetVisible: false });
+  },
+
   onChooseAvatar(e) {
     const avatarUrl = e?.detail?.avatarUrl;
     if (!avatarUrl) return;
+    if (this.data.avatarActionSheetVisible) {
+      this.setData({ avatarActionSheetVisible: false });
+    }
     this.handleAvatarSelection(avatarUrl);
+  },
+
+  onCyberpunkPilotTap() {
+    this.setData({ avatarActionSheetVisible: false });
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/pages/profile/cyberpunk-pilot/index" });
   },
 
   handleAvatarSelection(tempPath) {

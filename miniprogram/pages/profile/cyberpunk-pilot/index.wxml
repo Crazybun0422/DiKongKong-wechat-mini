@@ -1,0 +1,25 @@
+<view class="cyber-page">
+  <view class="cyber-topbar">
+    <button class="cyber-back" bindtap="onBackTap">‹</button>
+    <text class="cyber-title">赛博朋克飞手</text>
+  </view>
+  <view class="cyber-hero">
+    <view class="pilot-avatar">
+      <view class="pilot-visor"></view>
+      <view class="pilot-glow pilot-glow--left"></view>
+      <view class="pilot-glow pilot-glow--right"></view>
+    </view>
+    <text class="pilot-name">Cyber Pilot</text>
+    <text class="pilot-desc">生成你的低空飞手头像形象</text>
+  </view>
+  <view class="cyber-panel">
+    <view class="cyber-row">
+      <text class="cyber-row-label">风格</text>
+      <text class="cyber-row-value">霓虹 / 飞手 / 低空</text>
+    </view>
+    <view class="cyber-row">
+      <text class="cyber-row-label">状态</text>
+      <text class="cyber-row-value">即将上线</text>
+    </view>
+  </view>
+</view>
