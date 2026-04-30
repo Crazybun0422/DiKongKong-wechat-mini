@@ -321,7 +321,7 @@ paths:
   /api/user/profile:
     get:
       summary: 获取用户资料
-      description: 返回用户基础信息、收到的点赞总数、从 FLP 余额表读取的 flpBalance 虚拟代币余额，以及用户分别最新访问的协议/隐私版本记录。
+      description: 返回用户基础信息、收到的点赞总数、从 FLP 余额表读取的 flpBalance 虚拟代币余额、每周补签/助签剩余次数，以及用户分别最新访问的协议/隐私版本记录。
       responses:
         '200':
           description: OK
@@ -345,6 +345,146 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseUserProfileResponse'
+  /api/user/profile/voice-pack:
+    put:
+      summary: 设置VIP语音包
+      description: 仅会员可设置当前使用的语音包目录名称（来自语音包 yml 的顶层 key），数据存储在 profile kv 中。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSelectedVoicePackRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/profile/kv/location-reporting:
+    get:
+      summary: 获取位置上报开关
+      description: 读取当前登录用户的位置上报开关，数据存储在 profile kv 中。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserLocationReportingEnabledResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 设置位置上报开关
+      description: 写入当前登录用户的位置上报开关（true/false），存储在 profile kv 中。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileKvRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/location:
+    post:
+      summary: 上传用户位置
+      description: 鉴权后按当前用户 featureCode 写入经纬度到 user_locations 集合（upsert）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLocationUploadRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/nearby:
+    get:
+      summary: 查询附近用户
+      description: 参考 pin nearby 逻辑，按经纬度和半径查询附近用户（头像、机型、用户名、FLP）。
+      parameters:
+        - in: query
+          name: latitude
+          required: true
+          schema:
+            type: number
+            format: double
+        - in: query
+          name: longitude
+          required: true
+          schema:
+            type: number
+            format: double
+        - in: query
+          name: radiusInKilometers
+          required: true
+          schema:
+            type: number
+            format: double
+            minimum: 0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNearbyUserResponseList'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/weapp/login:
     post:
       summary: 小程序用户登录
@@ -608,6 +748,51 @@ components:
           type: string
         avatarUrl:
           type: string
+    UserProfileKvRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    UserSelectedVoicePackRequest:
+      type: object
+      required: [voicePackDirectoryName]
+      properties:
+        voicePackDirectoryName:
+          type: string
+          description: 语音包目录名称，例如 xiao_xing_voice_pack。
+    UserLocationReportingEnabledResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: 当前位置上报开关。
+    UserLocationUploadRequest:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+    NearbyUserResponse:
+      type: object
+      properties:
+        avatarUrl:
+          type: string
+        aircraftModel:
+          type: string
+        username:
+          type: string
+        flpBalance:
+          type: number
+          format: double
     AdminProfileResponse:
       type: object
       properties:
@@ -664,6 +849,21 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/UserPolicyAccessRecordResponse'
           description: 用户各协议类型最新访问记录，key 为 privacy 或 terms。
+        checkinQuota:
+          $ref: '#/components/schemas/CheckinQuotaResponse'
+        selectedVoicePackDirectoryName:
+          type: string
+          nullable: true
+          description: 当前用户选择的语音包目录名称（仅会员可设置）。
+    CheckinQuotaResponse:
+      type: object
+      properties:
+        remainingMakeupCount:
+          type: integer
+          description: 本周剩余补签次数（初始为2）。
+        remainingAssistCount:
+          type: integer
+          description: 本周剩余助签次数（初始为1）。
     UserPolicyAccessRecordResponse:
       type: object
       properties:
@@ -853,6 +1053,30 @@ components:
           format: int64
         totalPages:
           type: integer
+    ApiResponseUserLocationReportingEnabledResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserLocationReportingEnabledResponse'
+    ApiResponseNearbyUserResponseList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NearbyUserResponse'
     ApiResponseAdminProfileResponse:
       type: object
       properties:

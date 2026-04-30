@@ -237,6 +237,60 @@ function updateUserProfile(payload = {}, options = {}) {
   }).then((body) => body?.data || {});
 }
 
+function fetchLocationReportingEnabled(options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/user/profile/kv/location-reporting",
+    method: "GET"
+  }).then((body = {}) => body?.data || {});
+}
+
+function updateLocationReportingEnabled(enabled, options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/user/profile/kv/location-reporting",
+    method: "PUT",
+    data: { enabled: !!enabled }
+  }).then((body = {}) => body?.data || {});
+}
+
+function uploadUserLocation(payload = {}, options = {}) {
+  const latitude = Number(payload.latitude);
+  const longitude = Number(payload.longitude);
+  if (!isFinite(latitude) || !isFinite(longitude)) {
+    return Promise.reject(new Error("invalid-location"));
+  }
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: "/api/user/location",
+    method: "POST",
+    data: { latitude, longitude }
+  }).then((body = {}) => body?.data || {});
+}
+
+function fetchNearbyUsers(params = {}, options = {}) {
+  const latitude = Number(params.latitude);
+  const longitude = Number(params.longitude);
+  const radiusInKilometers = Number(params.radiusInKilometers);
+  if (!isFinite(latitude) || !isFinite(longitude) || !isFinite(radiusInKilometers)) {
+    return Promise.reject(new Error("invalid-nearby-user-params"));
+  }
+  const query = [
+    `latitude=${encodeURIComponent(latitude)}`,
+    `longitude=${encodeURIComponent(longitude)}`,
+    `radiusInKilometers=${encodeURIComponent(radiusInKilometers)}`
+  ].join("&");
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token,
+    path: `/api/user/nearby?${query}`,
+    method: "GET"
+  }).then((body = {}) => body?.data || []);
+}
+
 function normalizeProfileData(raw = {}, options = {}) {
   const stored = options.storedProfile || {};
   const fallbackName =
@@ -287,6 +341,31 @@ function normalizeProfileData(raw = {}, options = {}) {
     if (isFinite(parsed)) flpValue = parsed;
   }
   const inviteCode = normalizeInviteCodeValue(raw.inviteCode || stored.inviteCode || "");
+  const vip = normalizeBooleanFlag(
+    raw.vip ??
+    raw.member ??
+    raw.membership ??
+    raw.isMember ??
+    stored.vip ??
+    stored.member
+  );
+  const memberExpireDate = normalizeInviteCodeValue(
+    raw.memberExpireDate ||
+    raw.membershipExpireDate ||
+    raw.vipExpireDate ||
+    stored.memberExpireDate ||
+    stored.membershipExpireDate ||
+    ""
+  );
+  const checkinQuota = normalizeCheckinQuota(raw.checkinQuota || stored.checkinQuota || {});
+  const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
+    raw.selectedVoicePackDirectoryName ||
+    raw.voicePackDirectoryName ||
+    raw.voicePack ||
+    stored.selectedVoicePackDirectoryName ||
+    stored.voicePackDirectoryName ||
+    ""
+  );
   return {
     nickname,
     featureCode,
@@ -294,6 +373,11 @@ function normalizeProfileData(raw = {}, options = {}) {
     avatarUrl: displayAvatar,
     flpValue,
     inviteCode,
+    vip,
+    member: vip,
+    memberExpireDate,
+    selectedVoicePackDirectoryName,
+    checkinQuota,
     flpDisplay: typeof flpValue === "number" && isFinite(flpValue) ? flpValue.toFixed(2) : "--"
   };
 }
@@ -374,6 +458,28 @@ function normalizeInviteCodeValue(value) {
   return `${value}`.trim();
 }
 
+function normalizeBooleanFlag(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    const numeric = Number(normalized);
+    if (isFinite(numeric)) return numeric > 0;
+    return ["true", "yes", "y", "vip", "svip", "member"].includes(normalized);
+  }
+  return !!value;
+}
+
+function normalizeCheckinQuota(raw = {}) {
+  const remainingMakeupCount = Number(raw.remainingMakeupCount);
+  const remainingAssistCount = Number(raw.remainingAssistCount);
+  return {
+    remainingMakeupCount: isFinite(remainingMakeupCount) ? remainingMakeupCount : 0,
+    remainingAssistCount: isFinite(remainingAssistCount) ? remainingAssistCount : 0
+  };
+}
+
 function readStoredProfileObject() {
   if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") {
     return {};
@@ -415,13 +521,36 @@ function persistProfileLocally(profile = {}) {
   }
   const inviteCode =
     normalizeInviteCodeValue(profile.inviteCode) || normalizeInviteCodeValue(existing.inviteCode);
+  const vip = normalizeBooleanFlag(profile.vip ?? existing.vip);
+  const memberExpireDate = normalizeInviteCodeValue(
+    profile.memberExpireDate ||
+    profile.membershipExpireDate ||
+    profile.vipExpireDate ||
+    existing.memberExpireDate ||
+    existing.membershipExpireDate ||
+    ""
+  );
+  const checkinQuota = normalizeCheckinQuota(profile.checkinQuota || existing.checkinQuota || {});
+  const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
+    profile.selectedVoicePackDirectoryName ||
+    profile.voicePackDirectoryName ||
+    profile.voicePack ||
+    existing.selectedVoicePackDirectoryName ||
+    existing.voicePackDirectoryName ||
+    ""
+  );
 
   const payload = {
     nickname,
     avatarUrl,
     featureCode,
     flpValue,
-    inviteCode
+    inviteCode,
+    vip,
+    member: vip,
+    memberExpireDate,
+    selectedVoicePackDirectoryName,
+    checkinQuota
   };
 
   const app = getAppInstance();
@@ -429,6 +558,10 @@ function persistProfileLocally(profile = {}) {
     app.globalData.userProfile = { nickName: nickname, avatarUrl };
     app.globalData.userFeatureCode = featureCode;
     app.globalData.userInviteCode = inviteCode;
+    app.globalData.userVip = vip;
+    app.globalData.userMemberExpireDate = memberExpireDate;
+    app.globalData.userCheckinQuota = checkinQuota;
+    app.globalData.userSelectedVoicePackDirectoryName = selectedVoicePackDirectoryName;
     if (flpValue !== null) app.globalData.userFlp = flpValue;
   }
 
@@ -451,15 +584,25 @@ function loadStoredProfile() {
   const featureFromGlobal = app && app.globalData ? app.globalData.userFeatureCode || "" : "";
   const flpFromGlobal = app && app.globalData ? app.globalData.userFlp : null;
   const inviteFromGlobal = app && app.globalData ? app.globalData.userInviteCode || "" : "";
+  const vipFromGlobal = app && app.globalData ? app.globalData.userVip : false;
+  const memberExpireDateFromGlobal = app && app.globalData ? app.globalData.userMemberExpireDate || "" : "";
+  const selectedVoicePackFromGlobal =
+    app && app.globalData ? app.globalData.userSelectedVoicePackDirectoryName || "" : "";
   if (nicknameFromGlobal || avatarFromGlobal || featureFromGlobal) {
     const featureCode = ensureFeatureCode(featureFromGlobal);
     const inviteCode = normalizeInviteCodeValue(inviteFromGlobal);
+    const vip = normalizeBooleanFlag(vipFromGlobal);
     return {
       nickname: nicknameFromGlobal || DEFAULT_NICKNAME,
       avatarUrl: avatarFromGlobal || "",
       featureCode,
       flpValue: typeof flpFromGlobal === "number" && isFinite(flpFromGlobal) ? flpFromGlobal : null,
-      inviteCode
+      inviteCode,
+      vip,
+      member: vip,
+      memberExpireDate: normalizeInviteCodeValue(memberExpireDateFromGlobal),
+      selectedVoicePackDirectoryName: normalizeInviteCodeValue(selectedVoicePackFromGlobal),
+      checkinQuota: normalizeCheckinQuota(app?.globalData?.userCheckinQuota || {})
     };
   }
 
@@ -473,10 +616,22 @@ function loadStoredProfile() {
     }
     const featureCode = ensureFeatureCode(cached.featureCode || cached.userFeatureCode || "");
     const inviteCode = normalizeInviteCodeValue(cached.inviteCode);
+    const vip = normalizeBooleanFlag(cached.vip ?? cached.member);
+    const memberExpireDate = normalizeInviteCodeValue(
+      cached.memberExpireDate || cached.membershipExpireDate || cached.vipExpireDate || ""
+    );
+    const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
+      cached.selectedVoicePackDirectoryName || cached.voicePackDirectoryName || cached.voicePack || ""
+    );
+    const checkinQuota = normalizeCheckinQuota(cached.checkinQuota || {});
     if (app && app.globalData) {
       app.globalData.userProfile = { nickName: nicknameCandidate || DEFAULT_NICKNAME, avatarUrl };
       app.globalData.userFeatureCode = featureCode;
       app.globalData.userInviteCode = inviteCode;
+      app.globalData.userVip = vip;
+      app.globalData.userMemberExpireDate = memberExpireDate;
+      app.globalData.userCheckinQuota = checkinQuota;
+      app.globalData.userSelectedVoicePackDirectoryName = selectedVoicePackDirectoryName;
       if (flpValue !== null) app.globalData.userFlp = flpValue;
     }
     return {
@@ -484,7 +639,12 @@ function loadStoredProfile() {
       avatarUrl,
       featureCode,
       flpValue,
-      inviteCode
+      inviteCode,
+      vip,
+      member: vip,
+      memberExpireDate,
+      selectedVoicePackDirectoryName,
+      checkinQuota
     };
   }
 
@@ -494,7 +654,12 @@ function loadStoredProfile() {
     avatarUrl: DEFAULT_AVATAR_PATH,
     featureCode,
     flpValue: null,
-    inviteCode: ""
+    inviteCode: "",
+    vip: false,
+    member: false,
+    memberExpireDate: "",
+    selectedVoicePackDirectoryName: "",
+    checkinQuota: normalizeCheckinQuota()
   };
 }
 
@@ -523,6 +688,10 @@ module.exports = {
   uploadAvatarFile,
   fetchUserProfile,
   updateUserProfile,
+  fetchLocationReportingEnabled,
+  updateLocationReportingEnabled,
+  uploadUserLocation,
+  fetchNearbyUsers,
   normalizeProfileData,
   resolveApiBase,
   getAuthToken,

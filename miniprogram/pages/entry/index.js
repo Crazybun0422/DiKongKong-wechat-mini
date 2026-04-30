@@ -1,6 +1,12 @@
-const { fetchUserProfile, loadStoredProfile, resolveApiBase } = require("../../utils/profile");
+const {
+  fetchUserProfile,
+  loadStoredProfile,
+  normalizeProfileData,
+  resolveApiBase
+} = require("../../utils/profile");
 const { fetchMapLayerSettings } = require("../../utils/map-layer-settings");
 const { shouldShowGuide } = require("../../utils/policies");
+const { prepareSelectedVoicePack, playVoicePackEvent } = require("../../utils/voice-pack");
 
 const DEFAULT_ERROR = "初始化失败，请重试";
 
@@ -107,7 +113,10 @@ Page({
     const preloadGuide = this.preloadGuideSubpackage();
     this.ensureProfile()
       .then((profile = {}) =>
-        this.preloadInitialMapLocationMode().then(() => profile)
+        Promise.all([
+          this.preloadInitialMapLocationMode(),
+          this.preloadVoicePack(profile)
+        ]).then(() => profile)
       )
       .then((profile = {}) => {
         if (this._navigating) return;
@@ -228,6 +237,25 @@ Page({
         console.warn("entry preload map layer settings failed", err);
         app.globalData.initialUsePlanetCenterPoint = false;
         return false;
+      });
+  },
+
+  preloadVoicePack(profile = {}) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const apiBase = app?.globalData?.apiBase || resolveApiBase();
+    const normalized = normalizeProfileData(profile, {
+      storedProfile: loadStoredProfile(),
+      apiBase
+    });
+    return prepareSelectedVoicePack(normalized, {
+      apiBase,
+      token: app?.globalData?.token
+    })
+      .then((pack) => {
+        if (pack) playVoicePackEvent("start");
+      })
+      .catch((err) => {
+        console.warn("entry preload voice pack failed", err);
       });
   },
 

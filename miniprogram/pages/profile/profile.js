@@ -231,7 +231,10 @@ Page({
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
           featureCode: normalized.featureCode,
           flpValue: normalized.flpValue,
-          inviteCode: normalized.inviteCode
+          inviteCode: normalized.inviteCode,
+          vip: normalized.vip,
+          memberExpireDate: normalized.memberExpireDate,
+          checkinQuota: normalized.checkinQuota
         });
         this.setData({
           profile: normalized,
@@ -508,7 +511,10 @@ Page({
       nickname: merged.nickname || current.nickname || "",
       avatarUrl: merged.avatarFileName || merged.avatarUrl || current.avatarFileName || "",
       featureCode: merged.featureCode,
-      flpValue: merged.flpValue
+      flpValue: merged.flpValue,
+      vip: merged.vip ?? merged.member ?? current.vip ?? false,
+      memberExpireDate: merged.memberExpireDate || current.memberExpireDate || "",
+      checkinQuota: merged.checkinQuota || current.checkinQuota || {}
     });
     this._storedProfileCache = persisted;
     const normalized = normalizeProfileData(merged, {
@@ -556,6 +562,14 @@ Page({
     const balance = this.data.profile?.flpDisplay || "0.00";
     const query = encodeURIComponent(balance);
     wx.navigateTo({ url: `/pages/profile/flp/index?balance=${query}` });
+  },
+
+  onMemberCenterTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/packages/member/index/index" });
   },
 
   onListItemTap(e) {

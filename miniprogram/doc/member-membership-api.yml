@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: DiKongKong Membership API
+  version: 1.0.0
+  description: 会员状态与会员充值相关接口文档
+servers:
+  - url: /
+paths:
+  /api/config/member-recharge:
+    get:
+      tags: [Config]
+      summary: 获取会员充值配置（客户端读取）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMemberRechargeConfig'
+    put:
+      tags: [Config]
+      summary: 更新会员充值配置（仅管理端）
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberRechargeConfigRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMemberRechargeConfig'
+        '401':
+          description: 未授权或非管理员
+  /api/user/member/recharge:
+    post:
+      tags: [User]
+      summary: 会员充值（支持微信与FLP）
+      description: 支付成功后刷新会员状态和会员到期日。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberRechargeRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+        '400':
+          description: 参数错误
+        '401':
+          description: 未授权
+  /api/user/profile:
+    get:
+      tags: [User]
+      summary: 获取个人资料
+      description: 包含新增会员字段 `member` 和 `memberExpireDate`。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponseMemberRechargeConfig:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MemberRechargeConfigResponse'
+    ApiResponseAny:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          description: 微信充值时返回预支付参数；FLP充值时返回扣费结果
+          type: object
+    MemberRechargeConfigRequest:
+      type: object
+      required:
+        - yearlyWechatNetPrice
+        - yearlyWechatListPrice
+        - yearlyFlpNetPrice
+        - yearlyFlpListPrice
+        - monthlyWechatNetPrice
+        - monthlyWechatListPrice
+        - monthlyFlpNetPrice
+        - monthlyFlpListPrice
+      properties:
+        yearlyWechatNetPrice:
+          type: number
+          format: double
+          description: 年度会员微信实付价（元）
+        yearlyWechatListPrice:
+          type: number
+          format: double
+          description: 年度会员微信划线价（元）
+        yearlyFlpNetPrice:
+          type: number
+          format: double
+          description: 年度会员FLP实付价（FLP）
+        yearlyFlpListPrice:
+          type: number
+          format: double
+          description: 年度会员FLP划线价（FLP）
+        monthlyWechatNetPrice:
+          type: number
+          format: double
+          description: 月度会员微信实付价（元）
+        monthlyWechatListPrice:
+          type: number
+          format: double
+          description: 月度会员微信划线价（元）
+        monthlyFlpNetPrice:
+          type: number
+          format: double
+          description: 月度会员FLP实付价（FLP）
+        monthlyFlpListPrice:
+          type: number
+          format: double
+          description: 月度会员FLP划线价（FLP）
+    MemberRechargeConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/MemberRechargeConfigRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置更新时间
+    MemberRechargeRequest:
+      type: object
+      required: [cycle, paymentMode]
+      properties:
+        cycle:
+          type: string
+          enum: [MONTHLY, YEARLY]
+          description: 会员周期
+        paymentMode:
+          type: string
+          enum: [WECHAT, FLP]
+          description: 支付方式

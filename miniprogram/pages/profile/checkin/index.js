@@ -1,4 +1,5 @@
 ﻿const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+const { playVoicePackEvent } = require("../../../utils/voice-pack");
 const { completeNewbieTask } = require("../../../utils/newbie-tasks");
 const { fetchLotteryConfig, drawLottery, fetchLotteryLogs } = require("../../../utils/lottery");
 const {
@@ -666,6 +667,7 @@ Page({
     checkin({ apiBase })
       .then(() => {
         hideLoading();
+        playVoicePackEvent("sign_in");
         wx.showToast({ title: "签到成功", icon: "success" });
         this.loadCheckinDetail();
         this.refreshFlp();

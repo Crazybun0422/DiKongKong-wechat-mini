@@ -1,1 +1,202 @@
-<view></view>
+<view class="member-page">
+  <view wx:if="{{loading}}" class="member-loading-mask">
+    <view class="member-loading-card">
+      <image class="member-loading-image" src="{{assets.loading}}" mode="aspectFit" />
+      <text class="member-loading-text">{{loadingText}}</text>
+    </view>
+  </view>
+
+  <view class="member-shell">
+    <view class="member-gradient"></view>
+    <view class="member-topbar">
+      <view class="member-back-hit" bindtap="onBackTap"></view>
+      <button class="member-back" bindtap="onBackTap">
+        <text class="member-back-icon">‹</text>
+      </button>
+      <text class="member-title">会员中心</text>
+      <view class="member-topbar-spacer"></view>
+    </view>
+
+    <view class="member-main-tabs">
+      <block wx:for="{{mainTabs}}" wx:key="id">
+        <view
+          class="member-main-tab {{activeMainTab === item.id ? 'is-active' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="onMainTabTap"
+        >
+          {{item.label}}
+        </view>
+      </block>
+    </view>
+
+    <view class="member-content">
+      <block wx:if="{{activeMainTab === 'privilege'}}">
+        <scroll-view class="feature-tabs-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+          <view class="feature-tabs-track">
+            <block wx:for="{{featureItems}}" wx:key="id">
+              <view
+                class="feature-tab {{activeFeatureTab === item.id ? 'is-active' : ''}}"
+                data-id="{{item.id}}"
+                bindtap="onFeatureTabTap"
+              >
+                {{item.title}}
+              </view>
+            </block>
+          </view>
+        </scroll-view>
+        <view class="privilege-card">
+          <image wx:if="{{activeFeatureItem.image}}" class="privilege-card-bg" src="{{activeFeatureItem.image}}" mode="aspectFit" />
+          <view wx:else class="privilege-card-fallback"></view>
+        </view>
+      </block>
+
+      <block wx:elif="{{activeMainTab === 'dress'}}">
+        <view class="dress-tabs">
+          <block wx:for="{{dressTabs}}" wx:key="id">
+            <view
+              class="dress-tab {{activeDressTab === item.id ? 'is-active' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="onDressTabTap"
+            >
+              {{item.label}}
+            </view>
+          </block>
+        </view>
+
+        <view wx:if="{{activeDressTab === 'avatar'}}" class="avatar-pendant-panel">
+          <view class="avatar-card avatar-card--normal">
+            <text class="avatar-card-label">通用</text>
+            <view class="avatar-preview-row">
+              <image class="avatar-preview avatar-preview--normal" src="{{avatarUrl}}" mode="aspectFill" />
+              <text class="avatar-name avatar-name--normal">{{nickname}}</text>
+            </view>
+          </view>
+
+          <view class="avatar-card avatar-card--vip">
+            <image class="vip-pill-image" src="{{assets.vipUser}}" mode="aspectFit" />
+            <view class="avatar-preview-row">
+              <view class="avatar-vip-frame">
+                <image class="avatar-preview avatar-preview--vip" src="{{avatarUrl}}" mode="aspectFill" />
+              </view>
+              <text class="avatar-name avatar-name--vip">{{nickname}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view wx:elif="{{activeDressTab === 'location'}}" class="location-panel">
+          <view class="location-section">
+            <text class="location-title">位置图标</text>
+            <view class="location-grid location-grid--top">
+              <view class="icon-card icon-card--default">
+                <image class="default-position-icon" src="{{assets.defaultPosition}}" mode="aspectFit" />
+                <text class="icon-card-text">默认</text>
+              </view>
+              <view class="icon-card icon-card--shadow">
+                <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
+                <image class="location-highlight-icon" src="{{assets.pPoint}}" mode="aspectFit" />
+                <text class="icon-card-text">高亮</text>
+              </view>
+              <view class="icon-card">
+                <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
+                <view class="avatar-location-pin">
+                  <image class="avatar-location-photo" src="{{avatarUrl}}" mode="aspectFill" />
+                  <image class="avatar-location-frame" src="{{assets.vipPosition}}" mode="aspectFit" />
+                </view>
+                <text class="icon-card-text">头像</text>
+              </view>
+            </view>
+          </view>
+
+          <view class="location-section location-section--center">
+            <text class="location-title">中心点图标</text>
+            <view class="location-grid">
+              <view class="icon-card icon-card--default">
+                <image class="center-position-icon" src="{{assets.position}}" mode="aspectFit" />
+                <text class="icon-card-text">默认</text>
+              </view>
+              <view class="icon-card">
+                <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
+                <image class="center-asset center-asset--drone" src="{{assets.drone1}}" mode="aspectFit" />
+                <text class="icon-card-text">无人机</text>
+              </view>
+              <view class="icon-card">
+                <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
+                <image class="center-asset center-asset--drone" src="{{assets.drone2}}" mode="aspectFit" />
+                <text class="icon-card-text">无人机</text>
+              </view>
+              <view class="icon-card">
+                <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
+                <image class="center-asset center-asset--bamboo" src="{{assets.bamboo1}}" mode="aspectFit" />
+                <text class="icon-card-text">竹蜻蜓</text>
+              </view>
+              <view class="icon-card">
+                <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
+                <image class="center-asset center-asset--bamboo" src="{{assets.bamboo2}}" mode="aspectFit" />
+                <text class="icon-card-text">竹蜻蜓</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <view wx:else class="voice-panel">
+          <view wx:if="{{voicePackLoading}}" class="voice-state">语音包加载中...</view>
+          <view wx:elif="{{voicePackError}}" class="voice-state voice-state--error">{{voicePackError}}</view>
+          <block wx:else>
+            <view wx:if="{{!voicePacks.length}}" class="voice-state">暂无语音包</view>
+            <block wx:for="{{voicePacks}}" wx:key="directoryName">
+              <view class="voice-pack-card">
+                <view class="voice-pack-head">
+                  <text class="voice-pack-title">{{item.title || item.description || item.directoryName}}</text>
+                  <image class="voice-pack-vip" src="{{assets.vipUser}}" mode="aspectFit" />
+                </view>
+                <view class="voice-pack-body">
+                  <text class="voice-pack-tip">点击可试听</text>
+                  <block wx:for="{{item.files}}" wx:key="name" wx:for-item="file">
+                    <view class="voice-file-row">
+                      <text class="voice-file-name">{{file.description || file.name}}</text>
+                      <view
+                        class="voice-play-btn"
+                        data-directory="{{file.directoryName}}"
+                        data-file="{{file.name}}"
+                        data-key="{{file.voiceKey}}"
+                        catchtap="onVoicePreviewTap"
+                      >
+                        <image
+                          class="voice-play-icon"
+                          src="{{playingVoiceKey === file.voiceKey ? assets.voicePause : assets.voicePlay}}"
+                          mode="aspectFit"
+                        />
+                      </view>
+                    </view>
+                  </block>
+                  <view
+                    class="voice-use-btn {{item.selected ? 'is-active' : ''}}"
+                    data-directory="{{item.directoryName}}"
+                    bindtap="onVoicePackUseTap"
+                  >
+                    {{item.selected ? '使用中' : '立即使用'}}
+                  </view>
+                </view>
+              </view>
+            </block>
+          </block>
+        </view>
+      </block>
+
+      <block wx:else>
+        <view class="benefit-panel">
+          <image class="benefit-empty-image" src="{{assets.emptyBenefits}}" mode="aspectFit" />
+          <text class="benefit-empty-title">快马准备中...</text>
+          <text class="benefit-empty-desc">更多会员专属福利正在路上</text>
+        </view>
+      </block>
+    </view>
+
+    <view class="member-action-wrap">
+      <button class="member-action" bindtap="onRechargeTap">
+        <text class="member-action-status">{{memberExpireDateText}}</text>
+        <text class="member-action-text">{{actionText}}</text>
+      </button>
+    </view>
+  </view>
+</view>

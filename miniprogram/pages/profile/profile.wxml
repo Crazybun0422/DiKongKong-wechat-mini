@@ -65,6 +65,13 @@
               <text class="profile-like-value">{{likeSummary.total}}</text>
             </view>
           </view>
+          <button class="profile-member-button" bindtap="onMemberCenterTap">
+            <image
+              class="profile-member-image"
+              src="{{profile.vip ? '/assets/vip/vip-user.png' : '/assets/vip/regular-user.png'}}"
+              mode="aspectFit"
+            />
+          </button>
         </view>
 
         <view class="profile-card" id="profile-flp-card" bindtap="onFlpCardTap">

@@ -1,4 +1,5 @@
 const { haversineMeters } = require("../../../utils/coords");
+const { playVoicePackEvent } = require("../../../utils/voice-pack");
 const EARTH_RADIUS_METERS = 6378137;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
 const WEB_TILE_SIZE = 256;
@@ -275,6 +276,10 @@ function onRegionChange(page, e) {
     return;
   }
   page._centerPinWelcomeBubbleDismissedInGesture = false;
+  if (!page._voiceFirstDragPlayed && `${cause || ""}`.toLowerCase() === "drag") {
+    page._voiceFirstDragPlayed = true;
+    playVoicePackEvent("first_drag_map");
+  }
   if (page._uomPlugin && typeof page._uomPlugin.stopFollow === "function") {
     page._uomPlugin.stopFollow();
   }
