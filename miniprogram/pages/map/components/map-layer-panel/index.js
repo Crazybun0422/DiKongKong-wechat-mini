@@ -16,7 +16,23 @@ Component({
     provinceCityTree: { type: Array, value: [] },
     provinceCityHighlightLoading: { type: Boolean, value: false },
     provinceCityHighlightError: { type: String, value: "" },
-    mapElementOptions: { type: Array, value: [] }
+    mapElementOptions: { type: Array, value: [] },
+    userVip: { type: Boolean, value: false },
+    userAvatarUrl: { type: String, value: "" }
+  },
+
+  data: {
+    activeSettingsTab: "common",
+    vipGateToastVisible: false
+  },
+
+  lifetimes: {
+    detached() {
+      if (this._vipGateToastTimer) {
+        clearTimeout(this._vipGateToastTimer);
+        this._vipGateToastTimer = null;
+      }
+    }
   },
 
   methods: {
@@ -47,7 +63,49 @@ Component({
     },
 
     onMapLayerSelect(event = {}) {
+      const type = event?.currentTarget?.dataset?.type || "";
+      if ((type === "satellite" || type === "tianditu") && !this.properties.userVip) {
+        this.showVipGateToast();
+        return;
+      }
       this.emitDataset("maplayerselect", event);
+    },
+
+    onSettingsTabTap(event = {}) {
+      const tab = event?.currentTarget?.dataset?.tab || "";
+      if (!tab || tab === this.data.activeSettingsTab) return;
+      this.setData({ activeSettingsTab: tab }, () => {
+        this.triggerEvent("layoutchange");
+      });
+    },
+
+    onLocationIconTap(event = {}) {
+      const mode = event?.currentTarget?.dataset?.mode || "default";
+      if (mode !== "default" && !this.properties.userVip) {
+        this.showVipGateToast();
+        return;
+      }
+      this.triggerEvent("useplanetcenterpointswitchchange", {
+        value: mode !== "default"
+      });
+    },
+
+    onVipFeatureTap() {
+      if (!this.properties.userVip) {
+        this.showVipGateToast();
+      }
+    },
+
+    showVipGateToast() {
+      if (this._vipGateToastTimer) {
+        clearTimeout(this._vipGateToastTimer);
+        this._vipGateToastTimer = null;
+      }
+      this.setData({ vipGateToastVisible: true });
+      this._vipGateToastTimer = setTimeout(() => {
+        this._vipGateToastTimer = null;
+        this.setData({ vipGateToastVisible: false });
+      }, 1600);
     },
 
     onAirBoardSwitchChange(event = {}) {

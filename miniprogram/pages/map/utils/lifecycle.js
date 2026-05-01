@@ -4,6 +4,7 @@ function onShow(page) {
   applyMapStatusBarStyle();
   page.startMyLocationDirectionTracking();
   page.refreshResponsiveLayout({ force: true });
+  page.syncUserMembershipState();
   page.updateMapCheckinEntryStyle();
   page.updateSubscriptionBannerLayout();
   page.scheduleMapCheckinEntryStyleRefresh();

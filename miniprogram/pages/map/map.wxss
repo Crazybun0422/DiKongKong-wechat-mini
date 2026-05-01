@@ -2389,31 +2389,33 @@ button.panorama-button::after,
 
 .layer-type-grid {
   display: flex;
-  gap: 12rpx;
-  margin-bottom: 24rpx;
+  gap: 20rpx;
+  margin-bottom: 28rpx;
   justify-content: flex-start;
   flex-wrap: nowrap;
 }
 
 .layer-card {
+  position: relative;
   flex: 0 0 30%;
   min-width: 0;
   max-width: 196rpx;
-  padding: 14rpx 12rpx 18rpx;
+  height: 132rpx;
+  padding: 12rpx 12rpx 14rpx;
   border-radius: 18rpx;
   background: #f3f4f6;
   border: 2rpx solid transparent;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
+  gap: 8rpx;
   box-shadow: 0 8rpx 16rpx rgba(0, 0, 0, 0.06);
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .layer-card-thumb-wrap {
   width: 100%;
-  height: 80rpx;
+  height: 72rpx;
   padding: 4rpx;
   border-radius: 14rpx;
   background: #f8f8f8;
@@ -2438,6 +2440,25 @@ button.panorama-button::after,
   white-space: nowrap;
 }
 
+.layer-card-label-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rpx;
+}
+
+.layer-vip-badge {
+  width: 58rpx;
+  height: 34rpx;
+  flex: 0 0 auto;
+  transform: translateY(-1rpx);
+}
+
+.layer-card.is-locked .layer-card-thumb {
+  opacity: 0.92;
+}
+
 .layer-card.is-active {
   background: #000000;
   border-color: #000000;
@@ -2454,9 +2475,9 @@ button.panorama-button::after,
 }
 
 .layer-panel-section {
-  margin-top: 6rpx;
-  padding-top: 12rpx;
-  border-top: 2rpx solid rgba(15, 23, 42, 0.04);
+  margin-top: 26rpx;
+  padding-top: 0;
+  border-top: none;
 }
 
 .layer-panel-section-title {
@@ -2469,6 +2490,37 @@ button.panorama-button::after,
 
 .layer-panel-section--switch {
   padding-bottom: 4rpx;
+  margin-top: 34rpx;
+}
+
+.layer-settings-tabs {
+  width: 86%;
+  height: 64rpx;
+  margin: 24rpx 0 30rpx;
+  padding: 0 4rpx;
+  border-radius: 999rpx;
+  background: #f1f2f5;
+  display: flex;
+  align-items: center;
+}
+
+.layer-settings-tab {
+  flex: 1;
+  height: 52rpx;
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #111827;
+}
+
+.layer-settings-tab.is-active {
+  background: #2f80ff;
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 8rpx 16rpx rgba(47, 128, 255, 0.28);
 }
 
 .airboard-row {
@@ -2618,7 +2670,7 @@ button.panorama-button::after,
 .layer-element-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18rpx 12rpx;
+  gap: 20rpx 12rpx;
 }
 
 .layer-element-item {
@@ -2671,6 +2723,142 @@ button.panorama-button::after,
   margin-top: 16rpx;
   font-size: 22rpx;
   color: rgba(15, 23, 42, 0.55);
+}
+
+.layer-panel-section--advanced {
+  margin-top: 0;
+}
+
+.layer-panel-section-title--center {
+  margin-top: 64rpx;
+}
+
+.layer-icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22rpx 30rpx;
+}
+
+.layer-icon-grid--top {
+  flex-wrap: nowrap;
+}
+
+.layer-icon-card {
+  position: relative;
+  width: 168rpx;
+  height: 96rpx;
+  border: 1rpx solid rgba(17, 24, 39, 0.42);
+  box-sizing: border-box;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+}
+
+.layer-icon-card--default {
+  border: none;
+  background: #f0f0f0;
+}
+
+.layer-icon-card--shadow,
+.layer-icon-card.is-selected:not(.layer-icon-card--default) {
+  border: none;
+  box-shadow: 0 16rpx 24rpx rgba(0, 0, 0, 0.22);
+}
+
+.layer-vip-corner {
+  position: absolute;
+  right: 8rpx;
+  top: -2rpx;
+  width: 66rpx;
+  height: 40rpx;
+  z-index: 3;
+}
+
+.layer-position-icon {
+  width: 54rpx;
+  height: 54rpx;
+  display: block;
+}
+
+.layer-icon-label {
+  min-width: 0;
+  font-size: 27rpx;
+  line-height: 34rpx;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.layer-avatar-pin {
+  position: relative;
+  width: 58rpx;
+  height: 58rpx;
+  flex: 0 0 auto;
+}
+
+.layer-avatar-photo {
+  position: absolute;
+  left: 50%;
+  top: 55%;
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.layer-avatar-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 58rpx;
+  height: 58rpx;
+  z-index: 2;
+}
+
+.layer-center-position-icon {
+  width: 42rpx;
+  height: 42rpx;
+  display: block;
+  filter: brightness(0) saturate(100%);
+}
+
+.layer-center-asset {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.layer-center-asset--drone {
+  width: 56rpx;
+  height: 66rpx;
+  margin-right: -8rpx;
+}
+
+.layer-center-asset--bamboo {
+  width: 52rpx;
+  height: 38rpx;
+  margin-right: -12rpx;
+}
+
+.layer-vip-gate-toast {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+  min-width: 276rpx;
+  height: 84rpx;
+  padding: 0 34rpx;
+  box-sizing: border-box;
+  background: #000000;
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .call-sheet-mask {

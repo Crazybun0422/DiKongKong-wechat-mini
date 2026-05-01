@@ -199,4 +199,11 @@
       </button>
     </view>
   </view>
+
+  <member-recharge-popup
+    visible="{{rechargePopupVisible}}"
+    expire-text="{{memberExpireDateText}}"
+    bindclose="onRechargePopupClose"
+    bindsuccess="onRechargeSuccess"
+  />
 </view>

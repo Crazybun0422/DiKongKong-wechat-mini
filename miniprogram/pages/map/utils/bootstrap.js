@@ -48,6 +48,7 @@ function onLoad(page, options = {}) {
     page.data.myLocationVisible = true;
   }
   applyMapStatusBarStyle();
+  page.syncUserMembershipState();
   page.mapCtx = wx.createMapContext("main-map");
   page._isIOS = false;
   page.loadMapSubKey();

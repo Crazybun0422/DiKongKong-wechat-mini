@@ -1,0 +1,63 @@
+<view wx:if="{{visible}}" class="recharge-overlay" catchtap="onMaskTap">
+  <view wx:if="{{!successVisible}}" class="recharge-sheet" catchtap="noop">
+    <text class="recharge-title">开通高级会员</text>
+
+    <view class="recharge-mode-tabs">
+      <block wx:for="{{paymentModes}}" wx:key="id">
+        <view
+          class="recharge-mode-tab {{paymentMode === item.id ? 'is-active' : ''}}"
+          data-mode="{{item.id}}"
+          bindtap="onModeTap"
+        >
+          {{item.label}}
+        </view>
+      </block>
+    </view>
+
+    <view class="recharge-plan-list">
+      <block wx:for="{{plans}}" wx:key="cycle">
+        <view
+          class="recharge-plan {{selectedCycle === item.cycle ? 'is-active' : ''}}"
+          data-cycle="{{item.cycle}}"
+          bindtap="onPlanTap"
+        >
+          <text wx:if="{{item.badge}}" class="recharge-plan-badge">{{item.badge}}</text>
+          <view class="recharge-plan-copy">
+            <view class="recharge-plan-name-row">
+              <text class="recharge-plan-name">{{item.name}}</text>
+              <text class="recharge-plan-duration">{{item.duration}}</text>
+            </view>
+            <text class="recharge-plan-desc">{{item.desc}}</text>
+          </view>
+          <view class="recharge-plan-price">
+            <text class="recharge-plan-current">{{item.price}}</text>
+            <text class="recharge-plan-original">{{item.originalPrice}}</text>
+          </view>
+        </view>
+      </block>
+    </view>
+
+    <button
+      class="recharge-submit"
+      loading="{{submitting}}"
+      disabled="{{submitting}}"
+      bindtap="onConfirmTap"
+    >
+      <text class="recharge-submit-status">{{expireText || '暂未获得'}}</text>
+      <text class="recharge-submit-text">立即支付</text>
+    </button>
+  </view>
+
+  <view wx:else class="recharge-success-sheet" catchtap="noop">
+    <view class="recharge-success-icon">
+      <view class="recharge-success-icon-inner">
+        <text class="recharge-success-check">✓</text>
+      </view>
+    </view>
+    <text class="recharge-success-title">开通成功</text>
+    <text class="recharge-success-desc">恭喜成为低空星球高级会员</text>
+    <text class="recharge-success-desc">一起探索低空未来</text>
+    <button class="recharge-success-btn" bindtap="onSuccessConfirmTap">立即体验</button>
+    <text class="recharge-success-note">点击立即体验，关闭此弹窗</text>
+  </view>
+</view>

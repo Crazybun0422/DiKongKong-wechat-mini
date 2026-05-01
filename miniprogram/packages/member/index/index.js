@@ -192,6 +192,7 @@ Page({
     isVip: false,
     memberExpireDateText: "暂未获得",
     actionText: "优惠开通",
+    rechargePopupVisible: false,
     selectedVoicePackDirectoryName: "",
     voicePackLoading: false,
     voicePackError: "",
@@ -390,10 +391,20 @@ Page({
   },
 
   onRechargeTap() {
-    wx.showToast({
-      title: this.data.isVip ? "续费功能准备中" : "开通功能准备中",
-      icon: "none"
-    });
+    this.setData({ rechargePopupVisible: true });
+  },
+
+  onRechargePopupClose() {
+    this.setData({ rechargePopupVisible: false });
+  },
+
+  onRechargeSuccess(e) {
+    const profile = e?.detail?.profile;
+    if (profile) {
+      this.applyProfile(profile);
+      return;
+    }
+    this.loadProfile();
   },
 
   loadVoicePacks() {

@@ -31,132 +31,214 @@
               <text class="layer-card-label">标准图层</text>
             </view>
             <view
-              class="layer-card {{mapLayerType === 'satellite' ? 'is-active' : ''}}"
+              class="layer-card layer-card--vip {{mapLayerType === 'satellite' ? 'is-active' : ''}} {{!userVip ? 'is-locked' : ''}}"
               data-type="satellite"
               bindtap="onMapLayerSelect"
             >
               <view class="layer-card-thumb-wrap">
                 <image class="layer-card-thumb" src="/assets/map-satellite.png" mode="aspectFill" />
               </view>
-              <text class="layer-card-label">卫星图</text>
+              <view class="layer-card-label-row">
+                <text class="layer-card-label">卫星图</text>
+                <image class="layer-vip-badge" src="/assets/vip/vip-user.png" mode="aspectFit" />
+              </view>
             </view>
             <view
-              class="layer-card {{mapLayerType === 'tianditu' ? 'is-active' : ''}}"
+              class="layer-card layer-card--vip {{mapLayerType === 'tianditu' ? 'is-active' : ''}} {{!userVip ? 'is-locked' : ''}}"
               data-type="tianditu"
               bindtap="onMapLayerSelect"
             >
               <view class="layer-card-thumb-wrap">
                 <image class="layer-card-thumb" src="/assets/tianditu.png" mode="aspectFill" />
               </view>
-              <text class="layer-card-label">天地卫星图</text>
+              <view class="layer-card-label-row">
+                <text class="layer-card-label">天地图</text>
+                <image class="layer-vip-badge" src="/assets/vip/vip-user.png" mode="aspectFit" />
+              </view>
             </view>
           </view>
 
-          <view class="layer-panel-section layer-panel-section--switch">
-            <view class="airboard-row">
-              <view class="airboard-icon"></view>
-              <text class="airboard-label">空域看板</text>
-              <switch
-                class="airboard-switch"
-                checked="{{airBoardEnabled}}"
-                color="#000000"
-                bindchange="onAirBoardSwitchChange"
-              />
+          <view class="layer-settings-tabs">
+            <view
+              class="layer-settings-tab {{activeSettingsTab === 'common' ? 'is-active' : ''}}"
+              data-tab="common"
+              bindtap="onSettingsTabTap"
+            >
+              常用设置
             </view>
-            <view class="airboard-row">
-              <image class="planet-center-icon" src="/assets/p-point.svg" mode="aspectFit" />
-              <text class="airboard-label">使用星球我的位置点</text>
-              <switch
-                class="airboard-switch"
-                checked="{{usePlanetCenterPoint}}"
-                color="#000000"
-                bindchange="onUsePlanetCenterPointSwitchChange"
-              />
+            <view
+              class="layer-settings-tab {{activeSettingsTab === 'advanced' ? 'is-active' : ''}}"
+              data-tab="advanced"
+              bindtap="onSettingsTabTap"
+            >
+              高级设置
             </view>
-            <view class="airboard-row">
-              <image class="planet-center-icon" src="/assets/line.png" mode="aspectFit" />
-              <text class="airboard-label">开启中心点到目标连线/距离</text>
-              <switch
-                class="airboard-switch"
-                checked="{{centerTargetLinkEnabled}}"
-                color="#000000"
-                bindchange="onCenterTargetLinkSwitchChange"
-              />
-            </view>
-            <view class="airboard-row">
-              <image class="planet-center-icon" src="/assets/highlight-city.png" mode="aspectFit" />
-              <text class="airboard-label">省市级图层高亮显示</text>
-              <switch
-                class="airboard-switch"
-                checked="{{provinceCityHighlightEnabled}}"
-                color="#000000"
-                bindchange="onProvinceCityHighlightSwitchChange"
-              />
-            </view>
-            <view class="province-city-tree-wrap" wx:if="{{provinceCityHighlightEnabled}}">
-              <view class="province-city-tree-state" wx:if="{{provinceCityHighlightLoading}}">省市图层加载中...</view>
-              <view class="province-city-tree-state province-city-tree-state--error" wx:elif="{{provinceCityHighlightError}}">
-                {{provinceCityHighlightError}}
-              </view>
-              <view class="province-city-tree-state" wx:elif="{{!provinceCityTree.length}}">暂无省市图层资源</view>
-              <view wx:else>
-                <block wx:for="{{provinceCityTree}}" wx:key="id">
-                  <view class="province-city-tree-node">
-                    <view class="province-city-tree-row">
-                      <view class="province-city-tree-main" data-id="{{item.id}}" bindtap="onProvinceCityTreeSelectTap">
-                        <view class="province-city-tree-radio {{item.selected ? 'is-selected' : ''}}">
-                          <view wx:if="{{item.selected}}" class="province-city-tree-radio-dot"></view>
-                        </view>
-                        <text class="province-city-tree-label">{{item.label}}</text>
-                      </view>
-                      <view
-                        wx:if="{{item.hasChildren}}"
-                        class="province-city-tree-expand-hit"
-                        data-id="{{item.id}}"
-                        catchtap="onProvinceCityTreeExpandTap"
-                      >
-                        <view class="province-city-tree-arrow {{item.expanded ? 'is-expanded' : ''}}"></view>
-                      </view>
-                    </view>
-                    <view wx:if="{{item.expanded && item.children.length}}" class="province-city-tree-children">
-                      <block wx:for="{{item.children}}" wx:key="id">
-                        <view class="province-city-tree-row province-city-tree-row--child">
-                          <view class="province-city-tree-main" data-id="{{item.id}}" bindtap="onProvinceCityTreeSelectTap">
-                            <view class="province-city-tree-radio {{item.selected ? 'is-selected' : ''}}">
-                              <view wx:if="{{item.selected}}" class="province-city-tree-radio-dot"></view>
-                            </view>
-                            <text class="province-city-tree-label province-city-tree-label--child">{{item.label}}</text>
-                          </view>
-                        </view>
-                      </block>
-                    </view>
+          </view>
+
+          <block wx:if="{{activeSettingsTab === 'common'}}">
+            <view class="layer-panel-section">
+              <text class="layer-panel-section-title">地图元素</text>
+              <view class="layer-element-grid">
+                <block wx:for="{{mapElementOptions}}" wx:key="id">
+                  <view class="layer-element-item" data-id="{{item.id}}" bindtap="onMapElementToggle">
+                    <image
+                      wx:if="{{item.enabled}}"
+                      class="layer-element-icon"
+                      src="/assets/check.png"
+                      mode="aspectFit"
+                    />
+                    <view wx:else class="layer-element-icon layer-element-icon--off"></view>
+                    <text class="layer-element-label">{{item.label}}</text>
                   </view>
                 </block>
               </view>
-              <text class="layer-panel-hint layer-panel-hint--tree">省和市总共只允许勾选一个</text>
+              <text class="layer-panel-hint">更多图层配置将陆续上线</text>
             </view>
-          </view>
 
-          <view class="layer-panel-section">
-            <text class="layer-panel-section-title">地图元素</text>
-            <view class="layer-element-grid">
-              <block wx:for="{{mapElementOptions}}" wx:key="id">
-                <view class="layer-element-item" data-id="{{item.id}}" bindtap="onMapElementToggle">
-                  <image
-                    wx:if="{{item.enabled}}"
-                    class="layer-element-icon"
-                    src="/assets/check.png"
-                    mode="aspectFit"
-                  />
-                  <view wx:else class="layer-element-icon layer-element-icon--off"></view>
-                  <text class="layer-element-label">{{item.label}}</text>
+            <view class="layer-panel-section layer-panel-section--switch">
+              <view class="airboard-row">
+                <view class="airboard-icon"></view>
+                <text class="airboard-label">空域看板</text>
+                <switch
+                  class="airboard-switch"
+                  checked="{{airBoardEnabled}}"
+                  color="#000000"
+                  bindchange="onAirBoardSwitchChange"
+                />
+              </view>
+              <view class="airboard-row">
+                <image class="planet-center-icon" src="/assets/line.png" mode="aspectFit" />
+                <text class="airboard-label">开启中心点到目标连线/距离</text>
+                <switch
+                  class="airboard-switch"
+                  checked="{{centerTargetLinkEnabled}}"
+                  color="#000000"
+                  bindchange="onCenterTargetLinkSwitchChange"
+                />
+              </view>
+              <view class="airboard-row">
+                <image class="planet-center-icon" src="/assets/highlight-city.png" mode="aspectFit" />
+                <text class="airboard-label">省市级图层高亮显示</text>
+                <switch
+                  class="airboard-switch"
+                  checked="{{provinceCityHighlightEnabled}}"
+                  color="#000000"
+                  bindchange="onProvinceCityHighlightSwitchChange"
+                />
+              </view>
+              <view class="province-city-tree-wrap" wx:if="{{provinceCityHighlightEnabled}}">
+                <view class="province-city-tree-state" wx:if="{{provinceCityHighlightLoading}}">省市图层加载中...</view>
+                <view class="province-city-tree-state province-city-tree-state--error" wx:elif="{{provinceCityHighlightError}}">
+                  {{provinceCityHighlightError}}
                 </view>
-              </block>
+                <view class="province-city-tree-state" wx:elif="{{!provinceCityTree.length}}">暂无省市图层资源</view>
+                <view wx:else>
+                  <block wx:for="{{provinceCityTree}}" wx:key="id">
+                    <view class="province-city-tree-node">
+                      <view class="province-city-tree-row">
+                        <view class="province-city-tree-main" data-id="{{item.id}}" bindtap="onProvinceCityTreeSelectTap">
+                          <view class="province-city-tree-radio {{item.selected ? 'is-selected' : ''}}">
+                            <view wx:if="{{item.selected}}" class="province-city-tree-radio-dot"></view>
+                          </view>
+                          <text class="province-city-tree-label">{{item.label}}</text>
+                        </view>
+                        <view
+                          wx:if="{{item.hasChildren}}"
+                          class="province-city-tree-expand-hit"
+                          data-id="{{item.id}}"
+                          catchtap="onProvinceCityTreeExpandTap"
+                        >
+                          <view class="province-city-tree-arrow {{item.expanded ? 'is-expanded' : ''}}"></view>
+                        </view>
+                      </view>
+                      <view wx:if="{{item.expanded && item.children.length}}" class="province-city-tree-children">
+                        <block wx:for="{{item.children}}" wx:key="id">
+                          <view class="province-city-tree-row province-city-tree-row--child">
+                            <view class="province-city-tree-main" data-id="{{item.id}}" bindtap="onProvinceCityTreeSelectTap">
+                              <view class="province-city-tree-radio {{item.selected ? 'is-selected' : ''}}">
+                                <view wx:if="{{item.selected}}" class="province-city-tree-radio-dot"></view>
+                              </view>
+                              <text class="province-city-tree-label province-city-tree-label--child">{{item.label}}</text>
+                            </view>
+                          </view>
+                        </block>
+                      </view>
+                    </view>
+                  </block>
+                </view>
+                <text class="layer-panel-hint layer-panel-hint--tree">省和市总共只允许勾选一个</text>
+              </view>
             </view>
-            <text class="layer-panel-hint">更多图层配置将陆续上线</text>
-          </view>
+          </block>
+
+          <block wx:else>
+            <view class="layer-panel-section layer-panel-section--advanced">
+              <text class="layer-panel-section-title">定位图标</text>
+              <view class="layer-icon-grid layer-icon-grid--top">
+                <view
+                  class="layer-icon-card layer-icon-card--default {{!usePlanetCenterPoint ? 'is-selected' : ''}}"
+                  data-mode="default"
+                  bindtap="onLocationIconTap"
+                >
+                  <image class="layer-position-icon" src="/assets/vip/default-position.png" mode="aspectFit" />
+                  <text class="layer-icon-label">默认</text>
+                </view>
+                <view
+                  class="layer-icon-card layer-icon-card--shadow {{usePlanetCenterPoint ? 'is-selected' : ''}}"
+                  data-mode="highlight"
+                  bindtap="onLocationIconTap"
+                >
+                  <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <image class="layer-position-icon" src="/assets/p-point.png" mode="aspectFit" />
+                  <text class="layer-icon-label">高亮</text>
+                </view>
+                <view
+                  class="layer-icon-card"
+                  data-mode="avatar"
+                  bindtap="onLocationIconTap"
+                >
+                  <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <view class="layer-avatar-pin">
+                    <image class="layer-avatar-photo" src="{{userAvatarUrl || '/assets/default-avatar.png'}}" mode="aspectFill" />
+                    <image class="layer-avatar-frame" src="/assets/vip/vip-position.png" mode="aspectFit" />
+                  </view>
+                  <text class="layer-icon-label">头像</text>
+                </view>
+              </view>
+
+              <text class="layer-panel-section-title layer-panel-section-title--center">中心点图标</text>
+              <view class="layer-icon-grid">
+                <view class="layer-icon-card layer-icon-card--default">
+                  <image class="layer-center-position-icon" src="/assets/position.png" mode="aspectFit" />
+                  <text class="layer-icon-label">默认</text>
+                </view>
+                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                  <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <image class="layer-center-asset layer-center-asset--drone" src="/assets/vip/drone-1.png" mode="aspectFit" />
+                  <text class="layer-icon-label">无人机</text>
+                </view>
+                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                  <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <image class="layer-center-asset layer-center-asset--drone" src="/assets/vip/drone-2.png" mode="aspectFit" />
+                  <text class="layer-icon-label">无人机</text>
+                </view>
+                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                  <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <image class="layer-center-asset layer-center-asset--bamboo" src="/assets/vip/bamboo-copter-1.png" mode="aspectFit" />
+                  <text class="layer-icon-label">竹蜻蜓</text>
+                </view>
+                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                  <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <image class="layer-center-asset layer-center-asset--bamboo" src="/assets/vip/bamboo-copter-2.png" mode="aspectFit" />
+                  <text class="layer-icon-label">竹蜻蜓</text>
+                </view>
+              </view>
+            </view>
+          </block>
         </view>
       </scroll-view>
+
+      <view wx:if="{{vipGateToastVisible}}" class="layer-vip-gate-toast">请先开通会员</view>
     </view>
   </view>
 </view>

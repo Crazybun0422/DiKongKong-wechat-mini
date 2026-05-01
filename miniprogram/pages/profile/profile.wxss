@@ -168,6 +168,20 @@
   background: #eceff3;
 }
 
+.profile-avatar-clip {
+  position: relative;
+  z-index: 1;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.profile-avatar-clip .profile-avatar {
+  display: block;
+  margin-right: 0;
+}
+
 .profile-header-body {
   flex: 1;
   min-width: 0;
@@ -192,6 +206,26 @@ button.profile-avatar-button {
   /* display: flex; */
   align-items: center;
   justify-content: center;
+}
+
+button.profile-avatar-button.is-vip {
+  overflow: visible;
+}
+
+button.profile-avatar-button.is-vip::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 138rpx;
+  height: 138rpx;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #ffffff;
+  border: 5rpx solid #f59e0b;
+  box-shadow: 0 0 20rpx rgba(245, 158, 11, 0.42);
+  box-sizing: border-box;
+  z-index: 0;
 }
 
 .avatar-action-mask {
@@ -348,6 +382,11 @@ button.profile-avatar-button::after {
   font-size: 34rpx;
   font-weight: 600;
   color: #0f172a;
+}
+
+.profile-name.is-vip {
+  color: #f59e0b;
+  font-weight: 800;
 }
 
 .profile-name-edit {

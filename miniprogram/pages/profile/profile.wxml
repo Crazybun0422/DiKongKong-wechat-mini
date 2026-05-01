@@ -22,16 +22,18 @@
         <view class="profile-content">
         <view class="profile-header-card">
           <button
-            class="profile-avatar-button"
+            class="profile-avatar-button {{profile.vip ? 'is-vip' : ''}}"
             bindtap="openAvatarActionSheet"
           >
-            <image
-              class="profile-avatar"
-              src="{{profile.avatarUrl || defaultAvatar}}"
-              mode="aspectFill"
-            />
-            <view class="avatar-overlay">
-              <text>更换</text>
+            <view class="profile-avatar-clip">
+              <image
+                class="profile-avatar"
+                src="{{profile.avatarUrl || defaultAvatar}}"
+                mode="aspectFill"
+              />
+              <view class="avatar-overlay">
+                <text>更换</text>
+              </view>
             </view>
           </button>
           <view class="profile-header-body" catchtap="onEditing">
@@ -51,7 +53,7 @@
                 />
               </block>
               <block wx:else>
-                <text class="profile-name" bindtap="startNicknameEdit">{{profile.nickname}}</text>
+                <text class="profile-name {{profile.vip ? 'is-vip' : ''}}" bindtap="startNicknameEdit">{{profile.nickname}}</text>
                 <text class="profile-name-edit" bindtap="startNicknameEdit">点击修改</text>
               </block>
             </view>

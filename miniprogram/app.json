@@ -73,6 +73,12 @@
       ]
     },
     {
+      "root": "packages/member-recharge",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/city-report",
       "pages": [
         "placeholder/index",

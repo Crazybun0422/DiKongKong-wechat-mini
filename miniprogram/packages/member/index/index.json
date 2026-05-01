@@ -1,3 +1,9 @@
 {
-  "navigationStyle": "custom"
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "member-recharge-popup": "/packages/member-recharge/components/recharge-popup/index"
+  },
+  "componentPlaceholder": {
+    "member-recharge-popup": "view"
+  }
 }

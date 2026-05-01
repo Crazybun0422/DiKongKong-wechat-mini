@@ -36,6 +36,9 @@ const resolveEventDataset = (event = {}) => {
 };
 
 function onLayerButtonTap(page) {
+  if (typeof page.syncUserMembershipState === "function") {
+    page.syncUserMembershipState();
+  }
   if (page._layerPanelCloseTimer) {
     clearTimeout(page._layerPanelCloseTimer);
     page._layerPanelCloseTimer = null;
@@ -72,6 +75,12 @@ function closeLayerPanel(page) {
 function onMapLayerSelect(page, event = {}) {
   const type = resolveEventDataset(event).type || "";
   const nextType = type === "satellite" || type === "tianditu" ? type : "standard";
+  if ((nextType === "satellite" || nextType === "tianditu") && !page.data.userVip) {
+    if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
+      wx.showToast({ title: "请先开通会员", icon: "none" });
+    }
+    return;
+  }
   const enableSatellite = nextType === "satellite" || nextType === "tianditu";
   page.setData({
     mapLayerType: nextType,
@@ -633,7 +642,11 @@ function composeMapElementOptions(flags = {}) {
 }
 
 function applyLayerSettings(page, settings = {}, options = {}) {
-  const mapType = page.resolveMapBaseLayerType(settings);
+  const resolvedMapType = page.resolveMapBaseLayerType(settings);
+  const mapType =
+    (resolvedMapType === "satellite" || resolvedMapType === "tianditu") && !page.data.userVip
+      ? "standard"
+      : resolvedMapType;
   const airspace = settings.airspaceBoardEnabled !== false;
   const uom = settings.uomDivisionEnabled !== false;
   const dji = settings.djiNoFlyZoneEnabled !== false;

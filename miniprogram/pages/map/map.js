@@ -54,6 +54,8 @@ const {
 
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const MARKER_SVIP_ICON_PATH = "/assets/svip2.png";
+const DEFAULT_AVATAR_PATH = "/assets/default-avatar.png";
+const USER_PROFILE_STORAGE_KEY = "userProfile";
 const MARKER_CERTIFICATION_INFO_ITEMS = [
   {
     id: "location",
@@ -74,6 +76,41 @@ const MARKER_CERTIFICATION_INFO_ITEMS = [
     description: "主页提供更丰富的案例、产品文档等展示"
   }
 ];
+
+function parseMemberExpireTime(value = "") {
+  const text = `${value || ""}`.trim();
+  if (!text) return 0;
+  const timestamp = Date.parse(text.includes("T") ? text : text.replace(/-/g, "/"));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isProfileMemberActive(profile = {}) {
+  if (!profile || !profile.vip) return false;
+  const expireAt = parseMemberExpireTime(
+    profile.memberExpireDate || profile.membershipExpireDate || profile.vipExpireDate || ""
+  );
+  return !expireAt || expireAt >= Date.now();
+}
+
+function normalizeMemberFlag(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["true", "1", "yes", "y", "vip", "svip", "member"].includes(normalized);
+  }
+  return false;
+}
+
+function readRawStoredUserProfile() {
+  if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return {};
+  try {
+    const cached = wx.getStorageSync(USER_PROFILE_STORAGE_KEY);
+    return cached && typeof cached === "object" ? cached : {};
+  } catch (err) {
+    return {};
+  }
+}
 
 Page({
   data: {
@@ -257,6 +294,8 @@ Page({
     markerCertificationSheetClosing: false,
     markerCertificationInfoItems: MARKER_CERTIFICATION_INFO_ITEMS,
     markerSvipIconPath: MARKER_SVIP_ICON_PATH,
+    userVip: false,
+    userAvatarUrl: DEFAULT_AVATAR_PATH,
     callSheetVisible: false,
     callSheetPhone: "",
     callSheetMarkerId: "",
@@ -1029,6 +1068,46 @@ Page({
     return lifecycleUtils.onShow(this);
   },
 
+  syncUserMembershipState() {
+    const stored = this.loadStoredProfile() || {};
+    const rawStored = readRawStoredUserProfile();
+    let globalVip = false;
+    let globalExpireDate = "";
+    let globalAvatarUrl = "";
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const globalData = app && app.globalData ? app.globalData : {};
+      globalVip = !!globalData.userVip;
+      globalExpireDate = globalData.userMemberExpireDate || "";
+      globalAvatarUrl = globalData.userProfile?.avatarUrl || "";
+    } catch (err) {
+      globalVip = false;
+    }
+    const profile = Object.assign({}, rawStored, stored, {
+      vip:
+        normalizeMemberFlag(stored.vip) ||
+        normalizeMemberFlag(stored.member) ||
+        normalizeMemberFlag(rawStored.vip) ||
+        normalizeMemberFlag(rawStored.member) ||
+        normalizeMemberFlag(rawStored.membership) ||
+        normalizeMemberFlag(globalVip),
+      memberExpireDate:
+        stored.memberExpireDate ||
+        stored.membershipExpireDate ||
+        stored.vipExpireDate ||
+        rawStored.memberExpireDate ||
+        rawStored.membershipExpireDate ||
+        rawStored.vipExpireDate ||
+        globalExpireDate
+    });
+    const userVip = isProfileMemberActive(profile);
+    const userAvatarUrl = stored.avatarUrl || rawStored.avatarUrl || globalAvatarUrl || DEFAULT_AVATAR_PATH;
+    if (this.data.userVip !== userVip || this.data.userAvatarUrl !== userAvatarUrl) {
+      this.setData({ userVip, userAvatarUrl });
+    }
+    return userVip;
+  },
+
   onResize(event = {}) {
     return lifecycleUtils.onResize(this, event);
   },
@@ -1344,6 +1423,10 @@ Page({
 
   closeLayerPanel() {
     return layerPanelUtils.closeLayerPanel(this);
+  },
+
+  onLayerPanelLayoutChange() {
+    return layerPanelUtils.scheduleLayerPanelLayoutMeasure(this, 32);
   },
 
   onMapLayerSelect(event = {}) {
