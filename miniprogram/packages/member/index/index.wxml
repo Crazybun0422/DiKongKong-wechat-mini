@@ -85,6 +85,7 @@
 
         <view wx:elif="{{activeDressTab === 'location'}}" class="location-panel">
           <view class="location-section">
+            <text class="location-guide-text">地图页的图层按钮->高级设置中开启</text>
             <text class="location-title">位置图标</text>
             <view class="location-grid location-grid--top">
               <view class="icon-card icon-card--default">
@@ -139,6 +140,14 @@
         </view>
 
         <view wx:else class="voice-panel">
+          <view class="voice-panel-toolbar">
+            <view
+              class="voice-clear-btn {{clearingVoicePack ? 'is-disabled' : ''}}"
+              bindtap="onClearVoicePacksTap"
+            >
+              清空设置
+            </view>
+          </view>
           <view wx:if="{{voicePackLoading}}" class="voice-state">语音包加载中...</view>
           <view wx:elif="{{voicePackError}}" class="voice-state voice-state--error">{{voicePackError}}</view>
           <block wx:else>

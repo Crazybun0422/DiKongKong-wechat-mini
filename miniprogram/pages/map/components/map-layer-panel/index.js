@@ -18,7 +18,10 @@ Component({
     provinceCityHighlightError: { type: String, value: "" },
     mapElementOptions: { type: Array, value: [] },
     userVip: { type: Boolean, value: false },
-    userAvatarUrl: { type: String, value: "" }
+    userAvatarUrl: { type: String, value: "" },
+    myLocationIconType: { type: String, value: "default" },
+    myLocationAvatarIconPath: { type: String, value: "" },
+    centerPinIconType: { type: String, value: "default" }
   },
 
   data: {
@@ -85,9 +88,16 @@ Component({
         this.showVipGateToast();
         return;
       }
-      this.triggerEvent("useplanetcenterpointswitchchange", {
-        value: mode !== "default"
-      });
+      this.triggerEvent("mylocationiconselect", { dataset: { type: mode } });
+    },
+
+    onCenterPinIconTap(event = {}) {
+      const type = event?.currentTarget?.dataset?.type || "default";
+      if (type !== "default" && !this.properties.userVip) {
+        this.showVipGateToast();
+        return;
+      }
+      this.triggerEvent("centerpiniconselect", { dataset: { type } });
     },
 
     onVipFeatureTap() {

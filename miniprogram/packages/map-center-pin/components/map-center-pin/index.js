@@ -68,6 +68,14 @@ Component({
     suppressWelcomeBubble: {
       type: Boolean,
       value: false
+    },
+    iconSrc: {
+      type: String,
+      value: "/assets/position.png"
+    },
+    iconType: {
+      type: String,
+      value: "default"
     }
   },
 

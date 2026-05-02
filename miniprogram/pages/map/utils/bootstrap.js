@@ -18,12 +18,6 @@ function onLoad(page, options = {}) {
   if (typeof initialUsePlanetCenterPoint === "boolean") {
     page.data.usePlanetCenterPoint = initialUsePlanetCenterPoint;
     page.data.myLocationModeResolved = true;
-  } else {
-    const cachedUsePlanetMyLocation = page.loadCachedUsePlanetMyLocationPreference();
-    if (typeof cachedUsePlanetMyLocation === "boolean") {
-      page.data.usePlanetCenterPoint = cachedUsePlanetMyLocation;
-      page.data.myLocationModeResolved = true;
-    }
   }
   const launchOptions = page.consumePendingLaunchOptions(options);
   const launchCenterPreset = normalizeLaunchCenterShareOptions(launchOptions);
@@ -210,6 +204,8 @@ function onLoad(page, options = {}) {
   page._lastKnownLocation = page._lastKnownLocation || null;
   page._myLocationMarkers = [];
   page._myLocationCircles = [];
+  page._myLocationAvatarIconCacheKey = "";
+  page._myLocationAvatarIconPromise = null;
   page._mapGraphicsSyncTimer = null;
   page._pendingMapGraphicsSync = null;
   page._centerPinFollowActive = false;

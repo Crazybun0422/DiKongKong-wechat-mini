@@ -4,7 +4,12 @@ const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const USER_PROFILE_STORAGE_KEY = "userProfile";
 const INVITE_CODE_STORAGE_KEY = "pendingInviteCode";
 
-const { fetchUserProfile } = require("./utils/profile");
+const {
+  fetchUserProfile,
+  loadStoredProfile,
+  normalizeProfileData,
+  persistProfileLocally
+} = require("./utils/profile");
 const {
   fetchSubscriptions,
   updateSubscriptions,
@@ -181,11 +186,17 @@ App({
     try {
       const storedProfile = wx.getStorageSync(USER_PROFILE_STORAGE_KEY);
       if (storedProfile && typeof storedProfile === "object") {
-        const nickname = storedProfile.nickname || storedProfile.nickName || "";
-        const avatarUrl = storedProfile.avatarUrl || "";
-        if (nickname || avatarUrl) {
-          this.globalData.userProfile = { nickName: nickname, avatarUrl };
-        }
+        const profile = loadStoredProfile() || {};
+        const nickname = profile.nickname || profile.nickName || "";
+        const avatarUrl = profile.avatarUrl || "";
+        if (nickname || avatarUrl) this.globalData.userProfile = { nickName: nickname, avatarUrl };
+        this.globalData.userFeatureCode = profile.featureCode || "";
+        this.globalData.userInviteCode = profile.inviteCode || "";
+        this.globalData.userVip = profile.vip === true || profile.member === true;
+        this.globalData.userMemberExpireDate = profile.memberExpireDate || "";
+        this.globalData.userCheckinQuota = profile.checkinQuota || {};
+        this.globalData.userSelectedVoicePackDirectoryName = profile.selectedVoicePackDirectoryName || "";
+        if (typeof profile.flpValue === "number") this.globalData.userFlp = profile.flpValue;
       }
     } catch (err) {
       console.warn("Failed to read stored user profile", err);
@@ -222,20 +233,12 @@ App({
       apiBase: API_BASE_URL
     })
       .then((profile) => {
-        const nickname = profile.nickname || profile.nickName || "";
-        const avatarUrl = profile.avatarUrl || profile.avatar || "";
-        if (nickname || avatarUrl) {
-          this.globalData.userProfile = { nickName: nickname, avatarUrl };
-          try {
-            wx.setStorageSync(USER_PROFILE_STORAGE_KEY, {
-              nickname,
-              avatarUrl
-            });
-          } catch (err) {
-            console.warn("Failed to persist validated user profile", err);
-          }
-        }
-        return profile;
+        const stored = loadStoredProfile() || {};
+        const normalized = normalizeProfileData(profile, {
+          storedProfile: stored,
+          apiBase: API_BASE_URL
+        });
+        return persistProfileLocally(normalized);
       })
       .catch((err) => {
         console.warn("Stored token rejected, clearing it", err);
@@ -390,13 +393,7 @@ App({
           resolve({});
           return;
         }
-        const profile = { nickname: nick, avatarUrl: avatar };
-        this.globalData.userProfile = { nickName: nick, avatarUrl: avatar };
-        try {
-          wx.setStorageSync(USER_PROFILE_STORAGE_KEY, profile);
-        } catch (err) {
-          console.warn("Failed to persist user profile", err);
-        }
+        const profile = persistProfileLocally({ nickname: nick, avatarUrl: avatar });
         resolve(profile);
       };
 

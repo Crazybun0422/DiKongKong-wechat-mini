@@ -176,7 +176,7 @@
               <text class="layer-panel-section-title">定位图标</text>
               <view class="layer-icon-grid layer-icon-grid--top">
                 <view
-                  class="layer-icon-card layer-icon-card--default {{!usePlanetCenterPoint ? 'is-selected' : ''}}"
+                  class="layer-icon-card layer-icon-card--default {{myLocationIconType === 'default' ? 'is-selected' : ''}}"
                   data-mode="default"
                   bindtap="onLocationIconTap"
                 >
@@ -184,7 +184,7 @@
                   <text class="layer-icon-label">默认</text>
                 </view>
                 <view
-                  class="layer-icon-card layer-icon-card--shadow {{usePlanetCenterPoint ? 'is-selected' : ''}}"
+                  class="layer-icon-card {{myLocationIconType === 'highlight' ? 'is-selected' : ''}}"
                   data-mode="highlight"
                   bindtap="onLocationIconTap"
                 >
@@ -193,12 +193,18 @@
                   <text class="layer-icon-label">高亮</text>
                 </view>
                 <view
-                  class="layer-icon-card"
+                  class="layer-icon-card {{myLocationIconType === 'avatar' ? 'is-selected' : ''}}"
                   data-mode="avatar"
                   bindtap="onLocationIconTap"
                 >
                   <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
-                  <view class="layer-avatar-pin">
+                  <image
+                    wx:if="{{myLocationAvatarIconPath}}"
+                    class="layer-avatar-composed"
+                    src="{{myLocationAvatarIconPath}}"
+                    mode="aspectFit"
+                  />
+                  <view wx:else class="layer-avatar-pin">
                     <image class="layer-avatar-photo" src="{{userAvatarUrl || '/assets/default-avatar.png'}}" mode="aspectFill" />
                     <image class="layer-avatar-frame" src="/assets/vip/vip-position.png" mode="aspectFit" />
                   </view>
@@ -208,26 +214,46 @@
 
               <text class="layer-panel-section-title layer-panel-section-title--center">中心点图标</text>
               <view class="layer-icon-grid">
-                <view class="layer-icon-card layer-icon-card--default">
+                <view
+                  class="layer-icon-card layer-icon-card--default {{centerPinIconType === 'default' ? 'is-selected' : ''}}"
+                  data-type="default"
+                  bindtap="onCenterPinIconTap"
+                >
                   <image class="layer-center-position-icon" src="/assets/position.png" mode="aspectFit" />
                   <text class="layer-icon-label">默认</text>
                 </view>
-                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                <view
+                  class="layer-icon-card {{centerPinIconType === 'drone1' ? 'is-selected' : ''}}"
+                  data-type="drone1"
+                  bindtap="onCenterPinIconTap"
+                >
                   <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
                   <image class="layer-center-asset layer-center-asset--drone" src="/assets/vip/drone-1.png" mode="aspectFit" />
                   <text class="layer-icon-label">无人机</text>
                 </view>
-                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                <view
+                  class="layer-icon-card {{centerPinIconType === 'drone2' ? 'is-selected' : ''}}"
+                  data-type="drone2"
+                  bindtap="onCenterPinIconTap"
+                >
                   <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
                   <image class="layer-center-asset layer-center-asset--drone" src="/assets/vip/drone-2.png" mode="aspectFit" />
                   <text class="layer-icon-label">无人机</text>
                 </view>
-                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                <view
+                  class="layer-icon-card {{centerPinIconType === 'bamboo1' ? 'is-selected' : ''}}"
+                  data-type="bamboo1"
+                  bindtap="onCenterPinIconTap"
+                >
                   <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
                   <image class="layer-center-asset layer-center-asset--bamboo" src="/assets/vip/bamboo-copter-1.png" mode="aspectFit" />
                   <text class="layer-icon-label">竹蜻蜓</text>
                 </view>
-                <view class="layer-icon-card" bindtap="onVipFeatureTap">
+                <view
+                  class="layer-icon-card {{centerPinIconType === 'bamboo2' ? 'is-selected' : ''}}"
+                  data-type="bamboo2"
+                  bindtap="onCenterPinIconTap"
+                >
                   <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
                   <image class="layer-center-asset layer-center-asset--bamboo" src="/assets/vip/bamboo-copter-2.png" mode="aspectFit" />
                   <text class="layer-icon-label">竹蜻蜓</text>

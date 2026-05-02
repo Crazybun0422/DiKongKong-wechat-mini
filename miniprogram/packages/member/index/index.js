@@ -7,6 +7,11 @@ const {
 } = require("../../../utils/profile");
 const { fetchBackgroundImagePackVersion, downloadBackgroundImagePack } = require("../../../utils/file-packs");
 const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../../utils/map-layer-settings");
+const {
+  clearSelectedVoicePack,
   getSelectedVoicePackDirectoryName,
   isMembershipActive,
   playVoicePackFile,
@@ -16,6 +21,35 @@ const {
   stopVoicePackAudio,
   updateSelectedVoicePack
 } = require("../../../utils/voice-pack");
+
+const MAP_LAYER_VOICE_PACK_KEYS = [
+  "selectedVoicePackDirectoryName",
+  "voicePackDirectoryName",
+  "voicePack",
+  "selectedVoicePack"
+];
+
+function normalizeVoicePackDirectoryName(value) {
+  if (value === undefined || value === null) return "";
+  return `${value}`.trim();
+}
+
+function resolveMapLayerVoicePackDirectoryName(settings = {}) {
+  const extraConfig =
+    settings && typeof settings.extraConfig === "object" && settings.extraConfig
+      ? settings.extraConfig
+      : {};
+  for (let i = 0; i < MAP_LAYER_VOICE_PACK_KEYS.length; i += 1) {
+    const key = MAP_LAYER_VOICE_PACK_KEYS[i];
+    if (Object.prototype.hasOwnProperty.call(extraConfig, key)) {
+      return {
+        hasValue: true,
+        directoryName: normalizeVoicePackDirectoryName(extraConfig[key])
+      };
+    }
+  }
+  return { hasValue: false, directoryName: "" };
+}
 
 const BACKGROUND_PACK_CACHE_KEY = "memberBackgroundImagePackCache";
 const BACKGROUND_EXTRACT_DIR_NAME = "member-background-images";
@@ -194,6 +228,7 @@ Page({
     actionText: "优惠开通",
     rechargePopupVisible: false,
     selectedVoicePackDirectoryName: "",
+    clearingVoicePack: false,
     voicePackLoading: false,
     voicePackError: "",
     voicePacks: [],
@@ -259,6 +294,7 @@ Page({
           apiBase: resolveApiBase()
         });
         this.applyProfile(profile);
+        return this.syncSelectedVoicePackFromMapLayer();
       })
       .catch((err) => {
         if (err?.message !== "missing-token") {
@@ -281,6 +317,34 @@ Page({
       memberExpireDateText: expireText,
       actionText: isVip ? "优惠续费" : "优惠开通"
     });
+  },
+
+  syncSelectedVoicePackFromMapLayer() {
+    const apiBase = resolveApiBase();
+    return fetchMapLayerSettings({ apiBase })
+      .then((settings = {}) => {
+        const resolved = resolveMapLayerVoicePackDirectoryName(settings);
+        if (!resolved.hasValue) return null;
+        const directoryName = resolved.directoryName;
+        const profile = Object.assign({}, this.data.profile || {}, {
+          selectedVoicePackDirectoryName: directoryName,
+          voicePackDirectoryName: directoryName,
+          voicePack: directoryName
+        });
+        this.setData({
+          selectedVoicePackDirectoryName: directoryName,
+          profile
+        });
+        if (this.data.voicePacks && this.data.voicePacks.length) {
+          this.applySelectedVoicePackToList(directoryName);
+        }
+        persistProfileLocally(profile);
+        return directoryName;
+      })
+      .catch((err) => {
+        console.warn("sync member voice pack from map layer failed", err);
+        return null;
+      });
   },
 
   formatExpireDate(value = "") {
@@ -410,7 +474,8 @@ Page({
   loadVoicePacks() {
     if (this._voicePackLoadingPromise) return this._voicePackLoadingPromise;
     this.setData({ voicePackLoading: true, voicePackError: "" });
-    this._voicePackLoadingPromise = prepareVoicePackCatalog()
+    this._voicePackLoadingPromise = this.syncSelectedVoicePackFromMapLayer()
+      .then(() => prepareVoicePackCatalog())
       .then((catalog = {}) => {
         const selected = this.data.selectedVoicePackDirectoryName;
         const voicePacks = (catalog.packages || []).map((item) =>
@@ -439,6 +504,35 @@ Page({
 
   findVoicePack(directoryName = "") {
     return (this.data.voicePacks || []).find((item) => item.directoryName === directoryName) || null;
+  },
+
+  applySelectedVoicePackToList(directoryName = "") {
+    const selected = normalizeVoicePackDirectoryName(directoryName);
+    const voicePacks = (this.data.voicePacks || []).map((item) =>
+      Object.assign({}, item, { selected: !!selected && item.directoryName === selected })
+    );
+    this.setData({ voicePacks });
+  },
+
+  updateVoicePackMapLayerSetting(directoryName = "") {
+    const apiBase = resolveApiBase();
+    return fetchMapLayerSettings({ apiBase })
+      .catch((err) => {
+        console.warn("fetch map layer settings before updating voice pack failed", err);
+        return {};
+      })
+      .then((settings = {}) => {
+        const existing =
+          settings && typeof settings.extraConfig === "object" && settings.extraConfig
+            ? settings.extraConfig
+            : {};
+        const extraConfig = Object.assign({}, existing);
+        const nextValue = normalizeVoicePackDirectoryName(directoryName);
+        MAP_LAYER_VOICE_PACK_KEYS.forEach((key) => {
+          extraConfig[key] = nextValue;
+        });
+        return updateMapLayerSettings({ extraConfig }, { apiBase });
+      });
   },
 
   onVoicePreviewTap(e) {
@@ -473,20 +567,28 @@ Page({
       return;
     }
     if (directoryName === this.data.selectedVoicePackDirectoryName) return;
-    updateSelectedVoicePack(directoryName)
-      .then(() => {
-        const voicePacks = (this.data.voicePacks || []).map((item) =>
-          Object.assign({}, item, { selected: item.directoryName === directoryName })
-        );
+    Promise.allSettled([
+      updateSelectedVoicePack(directoryName),
+      this.updateVoicePackMapLayerSetting(directoryName)
+    ])
+      .then((results) => {
+        const mapLayerResult = results[1];
+        if (mapLayerResult.status === "rejected") {
+          throw mapLayerResult.reason || new Error("update-map-layer-voice-pack-failed");
+        }
+        this.applySelectedVoicePackToList(directoryName);
         this.setData({
           selectedVoicePackDirectoryName: directoryName,
           profile: Object.assign({}, this.data.profile || {}, {
-            selectedVoicePackDirectoryName: directoryName
-          }),
-          voicePacks
+            selectedVoicePackDirectoryName: directoryName,
+            voicePackDirectoryName: directoryName,
+            voicePack: directoryName
+          })
         });
         persistProfileLocally(Object.assign({}, this.data.profile || {}, {
-          selectedVoicePackDirectoryName: directoryName
+          selectedVoicePackDirectoryName: directoryName,
+          voicePackDirectoryName: directoryName,
+          voicePack: directoryName
         }));
         setActiveVoicePack(pack);
         wx.showToast({ title: "已启用", icon: "success" });
@@ -495,5 +597,51 @@ Page({
         console.warn("set voice pack failed", err);
         wx.showToast({ title: "设置失败", icon: "none" });
       });
+  },
+
+  onClearVoicePacksTap() {
+    if (this.data.clearingVoicePack) return;
+    this.setData({ clearingVoicePack: true });
+    const apiBase = resolveApiBase();
+    Promise.allSettled([
+      clearSelectedVoicePack({ apiBase }),
+      this.updateVoicePackMapLayerSetting("")
+    ])
+      .then((results) => {
+        const profileResult = results[0];
+        const mapLayerResult = results[1];
+        if (profileResult.status === "rejected") {
+          throw profileResult.reason || new Error("clear-profile-voice-pack-failed");
+        }
+        if (mapLayerResult.status === "rejected") {
+          throw mapLayerResult.reason || new Error("clear-map-layer-voice-pack-failed");
+        }
+        stopVoicePackAudio();
+        setActiveVoicePack(null);
+        const profile = Object.assign({}, this.data.profile || {}, {
+          selectedVoicePackDirectoryName: "",
+          voicePackDirectoryName: "",
+          voicePack: ""
+        });
+        this.applySelectedVoicePackToList("");
+        this.setData({
+          selectedVoicePackDirectoryName: "",
+          playingVoiceKey: "",
+          profile
+        });
+        persistProfileLocally(profile);
+        wx.showToast({ title: "已清空", icon: "success" });
+      })
+      .catch((err) => {
+        console.warn("clear voice pack failed", err);
+        wx.showToast({ title: "清空失败", icon: "none" });
+      })
+      .finally(() => {
+        this.setData({ clearingVoicePack: false });
+      });
+  },
+
+  onVoicePackClearPlaceholderTap() {
+    return this.onClearVoicePacksTap();
   }
 });

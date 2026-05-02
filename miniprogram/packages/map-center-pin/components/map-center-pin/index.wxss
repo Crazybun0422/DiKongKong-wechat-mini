@@ -27,9 +27,17 @@
   width: 48rpx;
   height: 51rpx;
   display: block;
-  filter: brightness(0) saturate(100%);
   opacity: 0.95;
   transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.center-pin--default {
+  filter: brightness(0) saturate(100%);
+}
+
+.center-pin--custom {
+  width: 64rpx;
+  height: 64rpx;
 }
 
 .center-pin--satellite {

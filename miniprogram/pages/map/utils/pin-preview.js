@@ -238,11 +238,16 @@ function buildMyLocationMarker(page, point = {}) {
   const longitude = Number(point?.longitude);
   if (!hasValidCoordinate(latitude, longitude)) return null;
   const rotate = page.normalizeCompassDirection(page._myLocationDirection);
+  const iconType = `${page.data.myLocationIconType || ""}`.trim();
+  const iconPath =
+    iconType === "avatar" && page.data.myLocationAvatarIconPath
+      ? page.data.myLocationAvatarIconPath
+      : MY_LOCATION_MARKER_ICON_PATH;
   return {
     id: MY_LOCATION_MARKER_ID,
     latitude,
     longitude,
-    iconPath: MY_LOCATION_MARKER_ICON_PATH,
+    iconPath,
     width: MY_LOCATION_MARKER_SIZE,
     height: MY_LOCATION_MARKER_SIZE,
     alpha: 1,

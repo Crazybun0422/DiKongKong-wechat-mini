@@ -303,6 +303,14 @@
   padding: 36rpx 0 0;
 }
 
+.location-guide-text {
+  display: block;
+  margin: -18rpx 0 22rpx;
+  font-size: 22rpx;
+  line-height: 32rpx;
+  color: rgba(17, 24, 39, 0.48);
+}
+
 .location-section + .location-section {
   margin-top: 86rpx;
 }
@@ -434,6 +442,28 @@
 .voice-panel {
   min-height: 500rpx;
   padding: 48rpx 0 0;
+}
+
+.voice-panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: -22rpx 0 28rpx;
+}
+
+.voice-clear-btn {
+  height: 52rpx;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: #111827;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 52rpx;
+}
+
+.voice-clear-btn.is-disabled {
+  opacity: 0.42;
 }
 
 .voice-state {

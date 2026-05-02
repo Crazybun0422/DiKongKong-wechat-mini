@@ -471,6 +471,16 @@ function updateSelectedVoicePack(directoryName = "", options = {}) {
   }).then((body = {}) => body?.data || body);
 }
 
+function clearSelectedVoicePack(options = {}) {
+  return authorizedRequest({
+    apiBase: options.apiBase,
+    token: options.token || getAuthToken(),
+    path: "/api/user/profile/voice-pack",
+    method: "PUT",
+    data: { voicePackDirectoryName: "" }
+  }).then((body = {}) => body?.data || body);
+}
+
 module.exports = {
   VOICE_PACK_EVENTS,
   getSelectedVoicePackDirectoryName,
@@ -483,5 +493,6 @@ module.exports = {
   playVoicePackEvent,
   stopVoicePackAudio,
   setVoicePackAudioEndedHandler,
-  updateSelectedVoicePack
+  updateSelectedVoicePack,
+  clearSelectedVoicePack
 };

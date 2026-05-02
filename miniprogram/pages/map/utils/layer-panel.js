@@ -8,12 +8,32 @@ const {
   updateMapLayerSettings
 } = require("../../../utils/map-layer-settings");
 
-const MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY = "map.usePlanetMyLocationPoint";
 const MAP_LAYER_EXTRA_CONFIG_DISABLE_CENTER_TARGET_LINK_KEY = "disableCenterTargetLinkDistance";
 const MAP_LAYER_EXTRA_CONFIG_ENABLE_PROVINCE_CITY_HIGHLIGHT_KEY = "enableProvinceCityHighlight";
 const MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY = "provinceCityHighlightSelection";
 const MAP_LAYER_EXTRA_CONFIG_BASE_LAYER_TYPE_KEY = "baseLayerType";
+const MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY = "myLocationIconType";
+const MAP_LAYER_EXTRA_CONFIG_CENTER_PIN_ICON_TYPE_KEY = "centerPinIconType";
 const MAP_LAYER_BASE_TYPE_TIANDITU = "tiandituSatellite";
+const MY_LOCATION_ICON_TYPES = {
+  DEFAULT: "default",
+  HIGHLIGHT: "highlight",
+  AVATAR: "avatar"
+};
+const CENTER_PIN_ICON_TYPES = {
+  DEFAULT: "default",
+  DRONE_1: "drone1",
+  DRONE_2: "drone2",
+  BAMBOO_1: "bamboo1",
+  BAMBOO_2: "bamboo2"
+};
+const CENTER_PIN_ICON_PATHS = {
+  default: "/assets/position.png",
+  drone1: "/assets/vip/drone-1.png",
+  drone2: "/assets/vip/drone-2.png",
+  bamboo1: "/assets/vip/bamboo-copter-1.png",
+  bamboo2: "/assets/vip/bamboo-copter-2.png"
+};
 
 const resolveEventDataset = (event = {}) => {
   const currentTargetDataset = event?.currentTarget?.dataset;
@@ -105,8 +125,25 @@ function onAirBoardSwitchChange(page, event = {}) {
 
 function onUsePlanetCenterPointSwitchChange(page, event = {}) {
   const enabled = !!event?.detail?.value;
-  page.setData({ usePlanetCenterPoint: enabled }, () => {
-    page.cacheUsePlanetMyLocationPreference(enabled);
+  applyMyLocationIconType(page, enabled ? MY_LOCATION_ICON_TYPES.HIGHLIGHT : MY_LOCATION_ICON_TYPES.DEFAULT);
+}
+
+function onMyLocationIconSelect(page, event = {}) {
+  const type = normalizeMyLocationIconType(resolveEventDataset(event).type);
+  if (type !== MY_LOCATION_ICON_TYPES.DEFAULT && !page.data.userVip) {
+    wx.showToast({ title: "请先开通会员", icon: "none" });
+    return;
+  }
+  applyMyLocationIconType(page, type);
+}
+
+function applyMyLocationIconType(page, type) {
+  const nextType = normalizeMyLocationIconType(type);
+  const enabled = nextType !== MY_LOCATION_ICON_TYPES.DEFAULT;
+  page.setData({ myLocationIconType: nextType, usePlanetCenterPoint: enabled }, () => {
+    if (nextType === MY_LOCATION_ICON_TYPES.AVATAR && typeof page.ensureMyLocationAvatarIcon === "function") {
+      page.ensureMyLocationAvatarIcon({ force: true });
+    }
     const finish = () => {
       page.refreshMyLocationGraphics(page.data.myLocationPoint || page._lastKnownLocation || null);
       page.persistMapLayerSettings();
@@ -117,6 +154,23 @@ function onUsePlanetCenterPointSwitchChange(page, event = {}) {
     }
     finish();
   });
+}
+
+function onCenterPinIconSelect(page, event = {}) {
+  const type = normalizeCenterPinIconType(resolveEventDataset(event).type);
+  if (type !== CENTER_PIN_ICON_TYPES.DEFAULT && !page.data.userVip) {
+    wx.showToast({ title: "请先开通会员", icon: "none" });
+    return;
+  }
+  page.setData(
+    {
+      centerPinIconType: type,
+      centerPinIconPath: resolveCenterPinIconPath(type)
+    },
+    () => {
+      page.persistMapLayerSettings();
+    }
+  );
 }
 
 function onCenterTargetLinkSwitchChange(page, event = {}) {
@@ -560,6 +614,45 @@ function resolveMapBaseLayerType(page, settings = {}) {
   return settings.mapType === "SATELLITE" ? "satellite" : "standard";
 }
 
+function normalizeMyLocationIconType(value) {
+  const text = `${value || ""}`.trim();
+  if (text === MY_LOCATION_ICON_TYPES.HIGHLIGHT || text === MY_LOCATION_ICON_TYPES.AVATAR) {
+    return text;
+  }
+  return MY_LOCATION_ICON_TYPES.DEFAULT;
+}
+
+function normalizeCenterPinIconType(value) {
+  const text = `${value || ""}`.trim();
+  return CENTER_PIN_ICON_PATHS[text] ? text : CENTER_PIN_ICON_TYPES.DEFAULT;
+}
+
+function resolveMyLocationIconType(page, settings = {}) {
+  const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+  const raw = extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY] : undefined;
+  const type = normalizeMyLocationIconType(raw);
+  const resolved = type !== MY_LOCATION_ICON_TYPES.DEFAULT
+    ? type
+    : settings.useDefaultCenterPoint === false
+    ? MY_LOCATION_ICON_TYPES.HIGHLIGHT
+    : MY_LOCATION_ICON_TYPES.DEFAULT;
+  return resolved !== MY_LOCATION_ICON_TYPES.DEFAULT && !page.data.userVip
+    ? MY_LOCATION_ICON_TYPES.DEFAULT
+    : resolved;
+}
+
+function resolveCenterPinIconType(page, settings = {}) {
+  const extraConfig = settings && typeof settings.extraConfig === "object" ? settings.extraConfig : null;
+  const resolved = normalizeCenterPinIconType(extraConfig ? extraConfig[MAP_LAYER_EXTRA_CONFIG_CENTER_PIN_ICON_TYPE_KEY] : "");
+  return resolved !== CENTER_PIN_ICON_TYPES.DEFAULT && !page.data.userVip
+    ? CENTER_PIN_ICON_TYPES.DEFAULT
+    : resolved;
+}
+
+function resolveCenterPinIconPath(type) {
+  return CENTER_PIN_ICON_PATHS[normalizeCenterPinIconType(type)] || CENTER_PIN_ICON_PATHS.default;
+}
+
 function buildMapLayerExtraConfigPayload(page) {
   const existing =
     page._mapLayerSettings && typeof page._mapLayerSettings.extraConfig === "object"
@@ -572,13 +665,22 @@ function buildMapLayerExtraConfigPayload(page) {
     page.data.provinceCityHighlightEnabled === true ? "true" : "false";
   const selectedId =
     `${page._provinceCityHighlightSelectedId || page.data.provinceCityHighlightSelectedId || ""}`.trim();
+  const myLocationIconType =
+    normalizeMyLocationIconType(page.data.myLocationIconType) !== MY_LOCATION_ICON_TYPES.DEFAULT ||
+      page.data.usePlanetCenterPoint !== true
+      ? normalizeMyLocationIconType(page.data.myLocationIconType)
+      : MY_LOCATION_ICON_TYPES.HIGHLIGHT;
   extraConfig[MAP_LAYER_EXTRA_CONFIG_PROVINCE_CITY_HIGHLIGHT_SELECTION_KEY] = selectedId || null;
   extraConfig[MAP_LAYER_EXTRA_CONFIG_BASE_LAYER_TYPE_KEY] =
     page.data.mapLayerType === "tianditu" ? MAP_LAYER_BASE_TYPE_TIANDITU : null;
+  extraConfig[MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY] = myLocationIconType;
+  extraConfig[MAP_LAYER_EXTRA_CONFIG_CENTER_PIN_ICON_TYPE_KEY] =
+    normalizeCenterPinIconType(page.data.centerPinIconType);
   return extraConfig;
 }
 
 function buildMapLayerSettingsPayload(page) {
+  const extraConfig = buildMapLayerExtraConfigPayload(page);
   return {
     mapType: page.data.mapLayerType === "satellite" || page.data.mapLayerType === "tianditu" ? "SATELLITE" : "STANDARD",
     airspaceBoardEnabled: !!page.data.airBoardEnabled,
@@ -589,30 +691,10 @@ function buildMapLayerSettingsPayload(page) {
     privateMarkersEnabled: !!page.data.privateMarkersEnabled,
     groupSharingEnabled: !!page.data.groupSharingEnabled,
     platformCoConstructionEnabled: !!page.data.platformCoConstructionEnabled,
-    useDefaultCenterPoint: !page.data.usePlanetCenterPoint,
+    useDefaultCenterPoint: extraConfig[MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY] === MY_LOCATION_ICON_TYPES.DEFAULT,
     aircraftModel: page.data.selectedDrone || "",
-    extraConfig: buildMapLayerExtraConfigPayload(page)
+    extraConfig
   };
-}
-
-function loadCachedUsePlanetMyLocationPreference() {
-  if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return null;
-  try {
-    const cached = wx.getStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY);
-    if (typeof cached === "boolean") return cached;
-  } catch (err) {
-    console.warn("load cached usePlanetMyLocation preference failed", err);
-  }
-  return null;
-}
-
-function cacheUsePlanetMyLocationPreference(enabled) {
-  if (typeof wx === "undefined" || typeof wx.setStorageSync !== "function") return;
-  try {
-    wx.setStorageSync(MAP_USE_PLANET_MY_LOCATION_STORAGE_KEY, enabled === true);
-  } catch (err) {
-    console.warn("cache usePlanetMyLocation preference failed", err);
-  }
 }
 
 function composeMapElementOptions(flags = {}) {
@@ -657,10 +739,12 @@ function applyLayerSettings(page, settings = {}, options = {}) {
   const privateMarkers = settings.privateMarkersEnabled !== false;
   const groupSharing = settings.groupSharingEnabled !== false;
   const platformCoConstruction = settings.platformCoConstructionEnabled !== false;
-  const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
   const centerTargetLinkEnabled = page.resolveCenterTargetLinkEnabled(settings);
   const provinceCityHighlightEnabled = page.resolveProvinceCityHighlightEnabled(settings);
   const provinceCityHighlightSelectionId = page.resolveProvinceCityHighlightSelectionId(settings);
+  const myLocationIconType = page.resolveMyLocationIconType(settings);
+  const centerPinIconType = page.resolveCenterPinIconType(settings);
+  const usePlanetCenterPoint = myLocationIconType !== MY_LOCATION_ICON_TYPES.DEFAULT;
   const mapElementOptions = page.composeMapElementOptions({
     uomDivisionEnabled: uom,
     djiNoFlyZoneEnabled: dji,
@@ -683,7 +767,10 @@ function applyLayerSettings(page, settings = {}, options = {}) {
       privateMarkersEnabled: privateMarkers,
       groupSharingEnabled: groupSharing,
       platformCoConstructionEnabled: platformCoConstruction,
+      myLocationIconType,
       usePlanetCenterPoint,
+      centerPinIconType,
+      centerPinIconPath: page.resolveCenterPinIconPath(centerPinIconType),
       centerTargetLinkEnabled,
       provinceCityHighlightEnabled,
       provinceCityHighlightSelectedId: provinceCityHighlightSelectionId,
@@ -692,7 +779,9 @@ function applyLayerSettings(page, settings = {}, options = {}) {
     },
     () => {
       page._provinceCityHighlightSelectedId = provinceCityHighlightSelectionId;
-      page.cacheUsePlanetMyLocationPreference(usePlanetCenterPoint);
+      if (myLocationIconType === MY_LOCATION_ICON_TYPES.AVATAR && typeof page.ensureMyLocationAvatarIcon === "function") {
+        page.ensureMyLocationAvatarIcon({ force: true });
+      }
       const afterLocationReady = () => {
         page.refreshMyLocationGraphics(page.data.myLocationPoint || page._lastKnownLocation || null);
         page.applyAirBoardToggle(airspace);
@@ -858,6 +947,8 @@ module.exports = {
   onMapLayerSelect,
   onAirBoardSwitchChange,
   onUsePlanetCenterPointSwitchChange,
+  onMyLocationIconSelect,
+  onCenterPinIconSelect,
   onCenterTargetLinkSwitchChange,
   buildProvinceCityTreeViewData,
   updateProvinceCityTreeData,
@@ -880,10 +971,13 @@ module.exports = {
   resolveProvinceCityHighlightEnabled,
   resolveProvinceCityHighlightSelectionId,
   resolveMapBaseLayerType,
+  normalizeMyLocationIconType,
+  normalizeCenterPinIconType,
+  resolveMyLocationIconType,
+  resolveCenterPinIconType,
+  resolveCenterPinIconPath,
   buildMapLayerExtraConfigPayload,
   buildMapLayerSettingsPayload,
-  loadCachedUsePlanetMyLocationPreference,
-  cacheUsePlanetMyLocationPreference,
   composeMapElementOptions,
   applyLayerSettings,
   loadMapLayerSettings,

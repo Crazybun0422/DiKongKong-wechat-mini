@@ -292,17 +292,21 @@ function fetchNearbyUsers(params = {}, options = {}) {
 }
 
 function normalizeProfileData(raw = {}, options = {}) {
+  const nestedProfile = raw && typeof raw.profile === "object" && raw.profile ? raw.profile : {};
   const stored = options.storedProfile || {};
   const fallbackName =
     (stored.nickname || stored.nickName || stored.username || "").trim();
   const nickname =
-    (raw.nickname || raw.nickName || raw.username || "").trim() ||
+    (raw.nickname || raw.nickName || raw.username || nestedProfile.nickname || nestedProfile.nickName || nestedProfile.username || "").trim() ||
     fallbackName ||
     DEFAULT_NICKNAME;
   const featureCandidates = [
     raw.featureCode,
     raw.loginSeq,
     raw.userId,
+    nestedProfile.featureCode,
+    nestedProfile.loginSeq,
+    nestedProfile.userId,
     stored.featureCode,
     stored.loginSeq,
     stored.userId,
@@ -322,6 +326,9 @@ function normalizeProfileData(raw = {}, options = {}) {
     raw.avatarFileName ||
     raw.avatarUrl ||
     raw.avatar ||
+    nestedProfile.avatarFileName ||
+    nestedProfile.avatarUrl ||
+    nestedProfile.avatar ||
     stored.avatarFileName ||
     stored.avatarUrl ||
     "";
@@ -332,7 +339,7 @@ function normalizeProfileData(raw = {}, options = {}) {
   } else if (typeof avatarCandidate === "string" && /^https?:\/\//.test(avatarCandidate)) {
     displayAvatar = avatarCandidate;
   }
-  const flpRaw = raw.flp ?? raw.FLP ?? raw.flpBalance ?? stored.flpValue ?? stored.flp;
+  const flpRaw = raw.flp ?? raw.FLP ?? raw.flpBalance ?? nestedProfile.flp ?? nestedProfile.FLP ?? nestedProfile.flpBalance ?? stored.flpValue ?? stored.flp;
   let flpValue = null;
   if (typeof flpRaw === "number" && isFinite(flpRaw)) {
     flpValue = flpRaw;
@@ -340,12 +347,16 @@ function normalizeProfileData(raw = {}, options = {}) {
     const parsed = Number(flpRaw.trim());
     if (isFinite(parsed)) flpValue = parsed;
   }
-  const inviteCode = normalizeInviteCodeValue(raw.inviteCode || stored.inviteCode || "");
+  const inviteCode = normalizeInviteCodeValue(raw.inviteCode || nestedProfile.inviteCode || stored.inviteCode || "");
   const vip = normalizeBooleanFlag(
     raw.vip ??
     raw.member ??
     raw.membership ??
     raw.isMember ??
+    nestedProfile.vip ??
+    nestedProfile.member ??
+    nestedProfile.membership ??
+    nestedProfile.isMember ??
     stored.vip ??
     stored.member
   );
@@ -353,15 +364,21 @@ function normalizeProfileData(raw = {}, options = {}) {
     raw.memberExpireDate ||
     raw.membershipExpireDate ||
     raw.vipExpireDate ||
+    nestedProfile.memberExpireDate ||
+    nestedProfile.membershipExpireDate ||
+    nestedProfile.vipExpireDate ||
     stored.memberExpireDate ||
     stored.membershipExpireDate ||
     ""
   );
-  const checkinQuota = normalizeCheckinQuota(raw.checkinQuota || stored.checkinQuota || {});
+  const checkinQuota = normalizeCheckinQuota(raw.checkinQuota || nestedProfile.checkinQuota || stored.checkinQuota || {});
   const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
     raw.selectedVoicePackDirectoryName ||
     raw.voicePackDirectoryName ||
     raw.voicePack ||
+    nestedProfile.selectedVoicePackDirectoryName ||
+    nestedProfile.voicePackDirectoryName ||
+    nestedProfile.voicePack ||
     stored.selectedVoicePackDirectoryName ||
     stored.voicePackDirectoryName ||
     ""
@@ -521,7 +538,7 @@ function persistProfileLocally(profile = {}) {
   }
   const inviteCode =
     normalizeInviteCodeValue(profile.inviteCode) || normalizeInviteCodeValue(existing.inviteCode);
-  const vip = normalizeBooleanFlag(profile.vip ?? existing.vip);
+  const vip = normalizeBooleanFlag(profile.vip ?? profile.member ?? profile.membership ?? existing.vip ?? existing.member);
   const memberExpireDate = normalizeInviteCodeValue(
     profile.memberExpireDate ||
     profile.membershipExpireDate ||
@@ -532,12 +549,17 @@ function persistProfileLocally(profile = {}) {
   );
   const checkinQuota = normalizeCheckinQuota(profile.checkinQuota || existing.checkinQuota || {});
   const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
-    profile.selectedVoicePackDirectoryName ||
-    profile.voicePackDirectoryName ||
-    profile.voicePack ||
+    Object.prototype.hasOwnProperty.call(profile, "selectedVoicePackDirectoryName")
+      ? profile.selectedVoicePackDirectoryName
+      : Object.prototype.hasOwnProperty.call(profile, "voicePackDirectoryName")
+        ? profile.voicePackDirectoryName
+        : Object.prototype.hasOwnProperty.call(profile, "voicePack")
+          ? profile.voicePack
+          : (
     existing.selectedVoicePackDirectoryName ||
     existing.voicePackDirectoryName ||
     ""
+          )
   );
 
   const payload = {
@@ -578,18 +600,23 @@ function persistProfileLocally(profile = {}) {
 
 function loadStoredProfile() {
   const app = getAppInstance();
-  const fromGlobal = app && app.globalData && app.globalData.userProfile;
+  const globalData = app && app.globalData ? app.globalData : null;
+  const cached = readStoredProfileObject();
+  const fromGlobal = globalData && globalData.userProfile;
   const nicknameFromGlobal = (fromGlobal && (fromGlobal.nickName || fromGlobal.nickname || "") || "").trim();
   const avatarFromGlobal = (fromGlobal && fromGlobal.avatarUrl) || "";
-  const featureFromGlobal = app && app.globalData ? app.globalData.userFeatureCode || "" : "";
-  const flpFromGlobal = app && app.globalData ? app.globalData.userFlp : null;
-  const inviteFromGlobal = app && app.globalData ? app.globalData.userInviteCode || "" : "";
-  const vipFromGlobal = app && app.globalData ? app.globalData.userVip : false;
-  const memberExpireDateFromGlobal = app && app.globalData ? app.globalData.userMemberExpireDate || "" : "";
+  const featureFromGlobal = globalData ? globalData.userFeatureCode || "" : "";
+  const flpFromGlobal = globalData ? globalData.userFlp : null;
+  const inviteFromGlobal = globalData ? globalData.userInviteCode || "" : "";
+  const hasGlobalVip = !!(globalData && Object.prototype.hasOwnProperty.call(globalData, "userVip"));
+  const vipFromGlobal = hasGlobalVip ? globalData.userVip : cached.vip ?? cached.member;
+  const memberExpireDateFromGlobal = globalData
+    ? globalData.userMemberExpireDate || cached.memberExpireDate || cached.membershipExpireDate || cached.vipExpireDate || ""
+    : cached.memberExpireDate || cached.membershipExpireDate || cached.vipExpireDate || "";
   const selectedVoicePackFromGlobal =
-    app && app.globalData ? app.globalData.userSelectedVoicePackDirectoryName || "" : "";
+    globalData ? globalData.userSelectedVoicePackDirectoryName || cached.selectedVoicePackDirectoryName || "" : cached.selectedVoicePackDirectoryName || "";
   if (nicknameFromGlobal || avatarFromGlobal || featureFromGlobal) {
-    const featureCode = ensureFeatureCode(featureFromGlobal);
+    const featureCode = ensureFeatureCode(featureFromGlobal || cached.featureCode || cached.userFeatureCode || "");
     const inviteCode = normalizeInviteCodeValue(inviteFromGlobal);
     const vip = normalizeBooleanFlag(vipFromGlobal);
     return {
@@ -597,16 +624,15 @@ function loadStoredProfile() {
       avatarUrl: avatarFromGlobal || "",
       featureCode,
       flpValue: typeof flpFromGlobal === "number" && isFinite(flpFromGlobal) ? flpFromGlobal : null,
-      inviteCode,
+      inviteCode: inviteCode || normalizeInviteCodeValue(cached.inviteCode),
       vip,
       member: vip,
       memberExpireDate: normalizeInviteCodeValue(memberExpireDateFromGlobal),
       selectedVoicePackDirectoryName: normalizeInviteCodeValue(selectedVoicePackFromGlobal),
-      checkinQuota: normalizeCheckinQuota(app?.globalData?.userCheckinQuota || {})
+      checkinQuota: normalizeCheckinQuota(globalData?.userCheckinQuota || cached.checkinQuota || {})
     };
   }
 
-  const cached = readStoredProfileObject();
   if (cached && Object.keys(cached).length) {
     const nicknameCandidate = (cached.nickname || cached.nickName || "").trim();
     const avatarUrl = cached.avatarUrl || "";
