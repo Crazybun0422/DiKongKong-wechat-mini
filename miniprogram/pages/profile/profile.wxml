@@ -67,7 +67,12 @@
               <text class="profile-like-value">{{likeSummary.total}}</text>
             </view>
           </view>
-          <button class="profile-member-button" bindtap="onMemberCenterTap">
+          <button
+            class="profile-member-button"
+            bindtap="onMemberCenterTap"
+            hover-class="profile-member-button-hover"
+            hover-stay-time="90"
+          >
             <image
               class="profile-member-image"
               src="{{profile.vip ? '/assets/vip/vip-user.png' : '/assets/vip/regular-user.png'}}"

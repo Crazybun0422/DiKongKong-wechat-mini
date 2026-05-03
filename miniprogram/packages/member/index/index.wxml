@@ -45,8 +45,10 @@
           </view>
         </scroll-view>
         <view class="privilege-card">
-          <image wx:if="{{activeFeatureItem.image}}" class="privilege-card-bg" src="{{activeFeatureItem.image}}" mode="aspectFit" />
-          <view wx:else class="privilege-card-fallback"></view>
+          <view class="privilege-card-media">
+            <image wx:if="{{activeFeatureItem.image}}" class="privilege-card-bg" src="{{activeFeatureItem.image}}" mode="aspectFill" />
+            <view wx:else class="privilege-card-fallback"></view>
+          </view>
         </view>
       </block>
 

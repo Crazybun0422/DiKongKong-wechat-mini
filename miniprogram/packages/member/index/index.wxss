@@ -7,7 +7,7 @@
 .member-shell {
   position: relative;
   min-height: 100vh;
-  padding: calc(env(safe-area-inset-top) + 142rpx) 58rpx calc(env(safe-area-inset-bottom) + 178rpx);
+  padding: calc(env(safe-area-inset-top) + 132rpx) 58rpx calc(env(safe-area-inset-bottom) + 178rpx);
   box-sizing: border-box;
   overflow: hidden;
   background: #ffffff;
@@ -35,7 +35,7 @@
   position: absolute;
   left: 58rpx;
   right: 58rpx;
-  top: calc(env(safe-area-inset-top) + 72rpx);
+  top: calc(env(safe-area-inset-top) + 54rpx);
   height: 96rpx;
   display: flex;
   align-items: center;
@@ -85,7 +85,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 25rpx);
+  top: calc(50% + 10rpx);
   transform: translateY(-50%);
   text-align: center;
   font-size: 34rpx;
@@ -100,7 +100,7 @@
 }
 
 .member-main-tabs {
-  margin-top: 90rpx;
+  margin-top: 50rpx;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -120,7 +120,7 @@
 
 .member-content {
   min-height: 720rpx;
-  margin-top: 44rpx;
+  margin-top: 38rpx;
 }
 
 .feature-tabs-scroll {
@@ -152,11 +152,20 @@
 
 .privilege-card {
   position: relative;
-  width: calc(100% + 116rpx);
+  width: 100%;
   height: 940rpx;
-  margin-left: -58rpx;
-  overflow: hidden;
+  margin-left: 0;
+  overflow: visible;
   border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.privilege-card-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 34rpx;
   background: transparent;
 }
 
@@ -170,6 +179,7 @@
   width: 100%;
   height: 100%;
   display: block;
+  transform: scale(1.02);
 }
 
 .privilege-card-fallback {

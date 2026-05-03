@@ -148,10 +148,17 @@
   align-items: center;
   justify-content: center;
   line-height: normal;
+  transition: transform 0.16s ease, opacity 0.16s ease, filter 0.16s ease;
 }
 
 .profile-member-button::after {
   border: none;
+}
+
+.profile-member-button-hover {
+  transform: translateY(-50%) scale(0.94);
+  opacity: 0.92;
+  filter: brightness(0.98);
 }
 
 .profile-member-image {
