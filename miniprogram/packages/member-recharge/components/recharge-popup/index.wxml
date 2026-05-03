@@ -58,6 +58,5 @@
     <text class="recharge-success-desc">恭喜成为低空星球高级会员</text>
     <text class="recharge-success-desc">一起探索低空未来</text>
     <button class="recharge-success-btn" bindtap="onSuccessConfirmTap">立即体验</button>
-    <text class="recharge-success-note">点击立即体验，关闭此弹窗</text>
   </view>
 </view>

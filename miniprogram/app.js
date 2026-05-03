@@ -148,16 +148,17 @@ function createWeappLoginError(reason, detail = {}) {
 }
 
 App({
-  globalData: {
+    globalData: {
     version: "0.0.1",
     buildFrom: "vue-tencent-map-demo",
     token: null,
     userProfile: null,
     apiBase: API_BASE_URL,
     guideAssetBase: GUIDE_ASSET_BASE_URL,
-    mapKey: "",
-    initialUsePlanetCenterPoint: null,
-    pendingMarkerFocus: null,
+      mapKey: "",
+      initialUsePlanetCenterPoint: null,
+      initialMyLocationIconType: "",
+      pendingMarkerFocus: null,
     pendingPinPreview: null,
     pendingInviteCode: "",
     subscriptionAcceptedTemplateIds: [],

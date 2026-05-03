@@ -15,8 +15,18 @@ const { normalizeLaunchCenterShareOptions } = require("./launch-shared");
 
 function onLoad(page, options = {}) {
   const initialUsePlanetCenterPoint = page.consumeInitialUsePlanetCenterPoint();
+  const initialMyLocationIconType = page.consumeInitialMyLocationIconType();
   if (typeof initialUsePlanetCenterPoint === "boolean") {
     page.data.usePlanetCenterPoint = initialUsePlanetCenterPoint;
+    if (
+      initialMyLocationIconType === "avatar" ||
+      initialMyLocationIconType === "highlight" ||
+      initialMyLocationIconType === "default"
+    ) {
+      page.data.myLocationIconType = initialMyLocationIconType;
+    } else {
+      page.data.myLocationIconType = initialUsePlanetCenterPoint ? "highlight" : "default";
+    }
     page.data.myLocationModeResolved = true;
   }
   const launchOptions = page.consumePendingLaunchOptions(options);

@@ -64,7 +64,7 @@ function onLayerButtonTap(page) {
     page._layerPanelCloseTimer = null;
   }
   page.setData({ layerPanelVisible: true, layerPanelClosing: false }, () => {
-    scheduleLayerPanelLayoutMeasure(page, 32);
+    scheduleLayerPanelLayoutMeasure(page, 0);
   });
   page.loadMapLayerSettings(false);
 }
@@ -87,7 +87,7 @@ function closeLayerPanel(page) {
   }
   page.setData({ layerPanelClosing: true });
   page._layerPanelCloseTimer = setTimeout(() => {
-    page.setData({ layerPanelVisible: false, layerPanelClosing: false, layerPanelBodyHeightPx: 0 });
+    page.setData({ layerPanelVisible: false, layerPanelClosing: false });
     page._layerPanelCloseTimer = null;
   }, 220);
 }
@@ -216,56 +216,33 @@ function updateProvinceCityTreeData(page, extra = {}) {
       extra || {}
     ),
     () => {
-      if (page.data.layerPanelVisible) {
-        scheduleLayerPanelLayoutMeasure(page, 0);
-      }
+      return null;
     }
   );
 }
 
 function scheduleLayerPanelLayoutMeasure(page, delay = 0) {
-  if (page._layerPanelMeasureTimer) {
-    clearTimeout(page._layerPanelMeasureTimer);
-  }
-  page._layerPanelMeasureTimer = setTimeout(() => {
-    page._layerPanelMeasureTimer = null;
-    measureLayerPanelLayout(page);
-  }, Math.max(0, Number(delay) || 0));
+  const _ignoredDelay = delay;
+  return measureLayerPanelLayout(page);
 }
 
 function measureLayerPanelLayout(page) {
-  if (!page.data.layerPanelVisible) return;
+  if (!page.data.layerPanelVisible && !page.data.layerPanelBodyMaxHeightPx) return;
   const bodyMaxHeightPx = Number(page.data.layerPanelBodyMaxHeightPx);
   const panelMaxHeightPx = Number(page.data.layerPanelMaxHeightPx);
-  if (!Number.isFinite(bodyMaxHeightPx) || bodyMaxHeightPx <= 0 || !Number.isFinite(panelMaxHeightPx)) {
+  if (!Number.isFinite(bodyMaxHeightPx) || bodyMaxHeightPx <= 0 || !Number.isFinite(panelMaxHeightPx) || panelMaxHeightPx <= 0) {
     return;
   }
-  const pxPerRpx = page._pxPerRpx || 0.5;
-  const bodyBottomPaddingPx = Math.round(36 * pxPerRpx);
-  const panel = page.selectComponent("#map-layer-panel");
-  if (!panel || typeof panel.measureContentHeight !== "function") {
+  if (
+    page.data.layerPanelBodyHeightPx === bodyMaxHeightPx &&
+    page.data.layerPanelMaxHeightPx === panelMaxHeightPx
+  ) {
     return;
   }
-  Promise.resolve(panel.measureContentHeight())
-    .then((contentHeight) => {
-      const numericHeight = Number(contentHeight);
-      if (!Number.isFinite(numericHeight) || numericHeight <= 0) {
-        return;
-      }
-      const nextBodyHeightPx = Math.max(
-        120,
-        Math.min(bodyMaxHeightPx, Math.ceil(numericHeight + bodyBottomPaddingPx))
-      );
-      if (page.data.layerPanelBodyHeightPx !== nextBodyHeightPx) {
-        page.setData({
-          layerPanelBodyHeightPx: nextBodyHeightPx,
-          layerPanelMaxHeightPx: panelMaxHeightPx
-        });
-      }
-    })
-    .catch((err) => {
-      console.warn("measure layer panel layout failed", err);
-    });
+  page.setData({
+    layerPanelBodyHeightPx: bodyMaxHeightPx,
+    layerPanelMaxHeightPx: panelMaxHeightPx
+  });
 }
 
 function findProvinceCityTreeNodeById(page, nodeId, treeNodes = null) {

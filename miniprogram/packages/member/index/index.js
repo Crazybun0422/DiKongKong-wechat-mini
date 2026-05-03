@@ -28,6 +28,20 @@ const MAP_LAYER_VOICE_PACK_KEYS = [
   "voicePack",
   "selectedVoicePack"
 ];
+const MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY = "myLocationIconType";
+const MAP_LAYER_EXTRA_CONFIG_CENTER_PIN_ICON_TYPE_KEY = "centerPinIconType";
+const MY_LOCATION_ICON_TYPES = {
+  DEFAULT: "default",
+  HIGHLIGHT: "highlight",
+  AVATAR: "avatar"
+};
+const CENTER_PIN_ICON_TYPES = {
+  DEFAULT: "default",
+  DRONE_1: "drone1",
+  DRONE_2: "drone2",
+  BAMBOO_1: "bamboo1",
+  BAMBOO_2: "bamboo2"
+};
 
 function normalizeVoicePackDirectoryName(value) {
   if (value === undefined || value === null) return "";
@@ -49,6 +63,56 @@ function resolveMapLayerVoicePackDirectoryName(settings = {}) {
     }
   }
   return { hasValue: false, directoryName: "" };
+}
+
+function normalizeMyLocationIconType(value) {
+  const text = `${value || ""}`.trim();
+  if (text === MY_LOCATION_ICON_TYPES.HIGHLIGHT || text === MY_LOCATION_ICON_TYPES.AVATAR) {
+    return text;
+  }
+  return MY_LOCATION_ICON_TYPES.DEFAULT;
+}
+
+function normalizeCenterPinIconType(value) {
+  const text = `${value || ""}`.trim();
+  switch (text) {
+    case CENTER_PIN_ICON_TYPES.DRONE_1:
+    case CENTER_PIN_ICON_TYPES.DRONE_2:
+    case CENTER_PIN_ICON_TYPES.BAMBOO_1:
+    case CENTER_PIN_ICON_TYPES.BAMBOO_2:
+      return text;
+    default:
+      return CENTER_PIN_ICON_TYPES.DEFAULT;
+  }
+}
+
+function resolveMyLocationIconTypeFromSettings(settings = {}, userVip = false) {
+  const extraConfig =
+    settings && typeof settings.extraConfig === "object" && settings.extraConfig
+      ? settings.extraConfig
+      : {};
+  const raw = extraConfig[MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY];
+  const normalized = normalizeMyLocationIconType(raw);
+  const resolved =
+    normalized !== MY_LOCATION_ICON_TYPES.DEFAULT
+      ? normalized
+      : settings.useDefaultCenterPoint === false
+      ? MY_LOCATION_ICON_TYPES.HIGHLIGHT
+      : MY_LOCATION_ICON_TYPES.DEFAULT;
+  return resolved !== MY_LOCATION_ICON_TYPES.DEFAULT && !userVip
+    ? MY_LOCATION_ICON_TYPES.DEFAULT
+    : resolved;
+}
+
+function resolveCenterPinIconTypeFromSettings(settings = {}, userVip = false) {
+  const extraConfig =
+    settings && typeof settings.extraConfig === "object" && settings.extraConfig
+      ? settings.extraConfig
+      : {};
+  const normalized = normalizeCenterPinIconType(extraConfig[MAP_LAYER_EXTRA_CONFIG_CENTER_PIN_ICON_TYPE_KEY]);
+  return normalized !== CENTER_PIN_ICON_TYPES.DEFAULT && !userVip
+    ? CENTER_PIN_ICON_TYPES.DEFAULT
+    : normalized;
 }
 
 const BACKGROUND_PACK_CACHE_KEY = "memberBackgroundImagePackCache";
@@ -234,6 +298,8 @@ Page({
     voicePacks: [],
     playingVoiceKey: "",
     backgroundImages: {},
+    myLocationIconType: MY_LOCATION_ICON_TYPES.DEFAULT,
+    centerPinIconType: CENTER_PIN_ICON_TYPES.DEFAULT,
     assets: {
       loading: "/assets/af-loading.png",
       defaultAvatar: "/assets/default-avatar.png",
@@ -323,7 +389,11 @@ Page({
     const apiBase = resolveApiBase();
     return fetchMapLayerSettings({ apiBase })
       .then((settings = {}) => {
+        this._mapLayerSettings = settings;
         const resolved = resolveMapLayerVoicePackDirectoryName(settings);
+        const userVip = !!this.data.isVip;
+        const myLocationIconType = resolveMyLocationIconTypeFromSettings(settings, userVip);
+        const centerPinIconType = resolveCenterPinIconTypeFromSettings(settings, userVip);
         if (!resolved.hasValue) return null;
         const directoryName = resolved.directoryName;
         const profile = Object.assign({}, this.data.profile || {}, {
@@ -333,7 +403,9 @@ Page({
         });
         this.setData({
           selectedVoicePackDirectoryName: directoryName,
-          profile
+          profile,
+          myLocationIconType,
+          centerPinIconType
         });
         if (this.data.voicePacks && this.data.voicePacks.length) {
           this.applySelectedVoicePackToList(directoryName);
@@ -344,7 +416,18 @@ Page({
       .catch((err) => {
         console.warn("sync member voice pack from map layer failed", err);
         return null;
-      });
+      })
+      .then((result) => {
+        if (result !== null) return result;
+        if (this._mapLayerSettings) {
+          const userVip = !!this.data.isVip;
+          this.setData({
+            myLocationIconType: resolveMyLocationIconTypeFromSettings(this._mapLayerSettings, userVip),
+            centerPinIconType: resolveCenterPinIconTypeFromSettings(this._mapLayerSettings, userVip)
+          });
+        }
+        return result;
+      })
   },
 
   formatExpireDate(value = "") {
@@ -452,6 +535,70 @@ Page({
       FEATURE_ITEMS.find((item) => item.id === id) ||
       this.data.activeFeatureItem;
     this.setData({ activeFeatureTab: id, activeFeatureItem });
+  },
+
+  openVipRechargeSheet() {
+    this.setData({ rechargePopupVisible: true });
+  },
+
+  persistLocationIconSettings(nextMyLocationIconType, nextCenterPinIconType) {
+    const apiBase = resolveApiBase();
+    const currentSettings =
+      this._mapLayerSettings && typeof this._mapLayerSettings === "object"
+        ? this._mapLayerSettings
+        : {};
+    const existingExtraConfig =
+      currentSettings.extraConfig && typeof currentSettings.extraConfig === "object"
+        ? currentSettings.extraConfig
+        : {};
+    const myLocationIconType = normalizeMyLocationIconType(nextMyLocationIconType);
+    const centerPinIconType = normalizeCenterPinIconType(nextCenterPinIconType);
+    const extraConfig = Object.assign({}, existingExtraConfig, {
+      [MAP_LAYER_EXTRA_CONFIG_MY_LOCATION_ICON_TYPE_KEY]: myLocationIconType,
+      [MAP_LAYER_EXTRA_CONFIG_CENTER_PIN_ICON_TYPE_KEY]: centerPinIconType
+    });
+    const payload = {
+      useDefaultCenterPoint: myLocationIconType === MY_LOCATION_ICON_TYPES.DEFAULT,
+      extraConfig
+    };
+    return updateMapLayerSettings(payload, { apiBase })
+      .then((settings = {}) => {
+        this._mapLayerSettings = settings && typeof settings === "object"
+          ? settings
+          : Object.assign({}, currentSettings, payload);
+        this.setData({
+          myLocationIconType,
+          centerPinIconType
+        });
+      });
+  },
+
+  onLocationIconTap(e) {
+    const type = normalizeMyLocationIconType(e.currentTarget?.dataset?.type);
+    if (!type || type === this.data.myLocationIconType) return;
+    if (type !== MY_LOCATION_ICON_TYPES.DEFAULT && !this.data.isVip) {
+      this.openVipRechargeSheet();
+      return;
+    }
+    this.persistLocationIconSettings(type, this.data.centerPinIconType)
+      .catch((err) => {
+        console.warn("update member my location icon failed", err);
+        wx.showToast({ title: "设置失败", icon: "none" });
+      });
+  },
+
+  onCenterPinIconTap(e) {
+    const type = normalizeCenterPinIconType(e.currentTarget?.dataset?.type);
+    if (!type || type === this.data.centerPinIconType) return;
+    if (type !== CENTER_PIN_ICON_TYPES.DEFAULT && !this.data.isVip) {
+      this.openVipRechargeSheet();
+      return;
+    }
+    this.persistLocationIconSettings(this.data.myLocationIconType, type)
+      .catch((err) => {
+        console.warn("update member center pin icon failed", err);
+        wx.showToast({ title: "设置失败", icon: "none" });
+      });
   },
 
   onRechargeTap() {

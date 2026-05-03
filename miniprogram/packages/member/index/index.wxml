@@ -87,19 +87,30 @@
 
         <view wx:elif="{{activeDressTab === 'location'}}" class="location-panel">
           <view class="location-section">
-            <text class="location-guide-text">地图页的图层按钮->高级设置中开启</text>
-            <text class="location-title">位置图标</text>
+            <text class="location-title">定位图标</text>
             <view class="location-grid location-grid--top">
-              <view class="icon-card icon-card--default">
+              <view
+                class="icon-card icon-card--default {{myLocationIconType === 'default' ? 'is-selected' : ''}}"
+                data-type="default"
+                bindtap="onLocationIconTap"
+              >
                 <image class="default-position-icon" src="{{assets.defaultPosition}}" mode="aspectFit" />
                 <text class="icon-card-text">默认</text>
               </view>
-              <view class="icon-card icon-card--shadow">
+              <view
+                class="icon-card {{myLocationIconType === 'highlight' ? 'is-selected' : ''}}"
+                data-type="highlight"
+                bindtap="onLocationIconTap"
+              >
                 <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
                 <image class="location-highlight-icon" src="{{assets.pPoint}}" mode="aspectFit" />
                 <text class="icon-card-text">高亮</text>
               </view>
-              <view class="icon-card">
+              <view
+                class="icon-card {{myLocationIconType === 'avatar' ? 'is-selected' : ''}}"
+                data-type="avatar"
+                bindtap="onLocationIconTap"
+              >
                 <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
                 <view class="avatar-location-pin">
                   <image class="avatar-location-photo" src="{{avatarUrl}}" mode="aspectFill" />
@@ -113,26 +124,46 @@
           <view class="location-section location-section--center">
             <text class="location-title">中心点图标</text>
             <view class="location-grid">
-              <view class="icon-card icon-card--default">
+              <view
+                class="icon-card icon-card--default {{centerPinIconType === 'default' ? 'is-selected' : ''}}"
+                data-type="default"
+                bindtap="onCenterPinIconTap"
+              >
                 <image class="center-position-icon" src="{{assets.position}}" mode="aspectFit" />
                 <text class="icon-card-text">默认</text>
               </view>
-              <view class="icon-card">
+              <view
+                class="icon-card {{centerPinIconType === 'drone1' ? 'is-selected' : ''}}"
+                data-type="drone1"
+                bindtap="onCenterPinIconTap"
+              >
                 <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
                 <image class="center-asset center-asset--drone" src="{{assets.drone1}}" mode="aspectFit" />
                 <text class="icon-card-text">无人机</text>
               </view>
-              <view class="icon-card">
+              <view
+                class="icon-card {{centerPinIconType === 'drone2' ? 'is-selected' : ''}}"
+                data-type="drone2"
+                bindtap="onCenterPinIconTap"
+              >
                 <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
                 <image class="center-asset center-asset--drone" src="{{assets.drone2}}" mode="aspectFit" />
                 <text class="icon-card-text">无人机</text>
               </view>
-              <view class="icon-card">
+              <view
+                class="icon-card {{centerPinIconType === 'bamboo1' ? 'is-selected' : ''}}"
+                data-type="bamboo1"
+                bindtap="onCenterPinIconTap"
+              >
                 <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
                 <image class="center-asset center-asset--bamboo" src="{{assets.bamboo1}}" mode="aspectFit" />
                 <text class="icon-card-text">竹蜻蜓</text>
               </view>
-              <view class="icon-card">
+              <view
+                class="icon-card {{centerPinIconType === 'bamboo2' ? 'is-selected' : ''}}"
+                data-type="bamboo2"
+                bindtap="onCenterPinIconTap"
+              >
                 <image class="vip-corner-image" src="{{assets.vipUser}}" mode="aspectFit" />
                 <image class="center-asset center-asset--bamboo" src="{{assets.bamboo2}}" mode="aspectFit" />
                 <text class="icon-card-text">竹蜻蜓</text>

@@ -313,14 +313,6 @@
   padding: 36rpx 0 0;
 }
 
-.location-guide-text {
-  display: block;
-  margin: -18rpx 0 22rpx;
-  font-size: 22rpx;
-  line-height: 32rpx;
-  color: rgba(17, 24, 39, 0.48);
-}
-
 .location-section + .location-section {
   margin-top: 86rpx;
 }
@@ -345,15 +337,15 @@
 
 .icon-card {
   position: relative;
-  width: 166rpx;
+  width: 168rpx;
   height: 96rpx;
-  border: 1rpx solid rgba(17, 24, 39, 0.42);
+  border: none;
   box-sizing: border-box;
-  background: #ffffff;
+  background: #f0f0f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14rpx;
+  gap: 12rpx;
 }
 
 .icon-card--default {
@@ -361,9 +353,10 @@
   background: #f0f0f0;
 }
 
-.icon-card--shadow {
-  border: none;
-  box-shadow: 0 16rpx 24rpx rgba(0, 0, 0, 0.24);
+.icon-card.is-selected {
+  border: 2rpx solid #f59e0b;
+  background: #ffffff;
+  box-shadow: 0 18rpx 28rpx rgba(245, 158, 11, 0.28);
 }
 
 .vip-corner {

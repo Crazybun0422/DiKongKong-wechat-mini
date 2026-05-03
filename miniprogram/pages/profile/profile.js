@@ -26,6 +26,12 @@ const {
   normalizeVersion
 } = require("../../utils/latest-items");
 const { fetchCheckinDetail } = require("../../utils/checkin");
+const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../utils/map-layer-settings");
+
+const MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY = "selectedCyberPilotCharacterId";
 
 const NICKNAME_MAX_UNITS = 16;
 const NICKNAME_CJK_RE = /[\u4e00-\u9fff]/;
@@ -66,6 +72,28 @@ function resolveNicknameUpdateErrorMessage(err) {
     return "名称重复";
   }
   return err?.displayMessage || err?.message || "更新失败，请稍后重试";
+}
+
+function clearCyberPilotCharacterIdFromMapLayer(options = {}) {
+  const apiBase = resolveApiBase();
+  return fetchMapLayerSettings({ apiBase })
+    .catch(() => ({}))
+    .then((settings = {}) => {
+      const existing =
+        settings && typeof settings.extraConfig === "object" && settings.extraConfig
+          ? settings.extraConfig
+          : {};
+      const extraConfig = Object.assign({}, existing, {
+        [MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY]: null
+      });
+      return updateMapLayerSettings({ extraConfig }, { apiBase });
+    })
+    .catch((err) => {
+      if (options.silent !== true) {
+        console.warn("clear cyber pilot character id failed", err);
+      }
+      throw err;
+    });
 }
 
 Page({
@@ -320,7 +348,18 @@ Page({
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;
     }
-    wx.navigateTo({ url: "/pages/profile/cyberpunk-pilot/index" });
+    wx.navigateTo({
+      url: "/pages/profile/cyberpunk-pilot/index",
+      events: {
+        profileUpdated: (payload = {}) => {
+          if (payload && payload.profile) {
+            this.handleProfileUpdateResult(payload.profile, {});
+          } else {
+            this.reloadProfile();
+          }
+        }
+      }
+    });
   },
 
   handleAvatarSelection(tempPath) {
@@ -339,6 +378,11 @@ Page({
             wrapped._uploadedFileName = fileName;
             throw wrapped;
           })
+      )
+      .then(({ remote, fileName }) =>
+        clearCyberPilotCharacterIdFromMapLayer({ silent: true })
+          .catch(() => null)
+          .then(() => ({ remote, fileName }))
       )
       .then(({ remote, fileName }) => {
         hideLoading();

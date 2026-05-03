@@ -18,14 +18,22 @@
 
   <view wx:else class="cyber-content">
     <view class="cyber-strip-shell">
-      <scroll-view class="cyber-strip" scroll-x enhanced show-scrollbar="{{false}}">
+      <scroll-view
+        class="cyber-strip"
+        scroll-x
+        enhanced
+        show-scrollbar="{{false}}"
+        scroll-into-view="{{stripScrollIntoView}}"
+      >
         <view class="cyber-strip-track">
           <block wx:for="{{characters}}" wx:key="id">
             <view
+              id="cyber-avatar-{{item.id}}"
               class="cyber-avatar-card {{selectedCharacterId === item.id ? 'is-selected' : ''}}"
               data-id="{{item.id}}"
               bindtap="onCharacterTap"
             >
+              <text wx:if="{{appliedCharacterId === item.id}}" class="cyber-avatar-status">使用中</text>
               <view class="cyber-avatar-frame">
                 <image class="cyber-avatar-image" src="{{item.avatarPath}}" mode="aspectFill" />
               </view>
@@ -38,7 +46,6 @@
         <button
           class="cyber-confirm-btn"
           bindtap="onConfirmTap"
-          loading="{{submitting}}"
           disabled="{{submitting}}"
         >
           <image class="cyber-confirm-vip" src="{{assets.vipUser}}" mode="aspectFit" />

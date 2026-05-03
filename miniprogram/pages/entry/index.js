@@ -10,6 +10,18 @@ const { prepareSelectedVoicePack, playVoicePackEvent } = require("../../utils/vo
 
 const DEFAULT_ERROR = "初始化失败，请重试";
 
+function normalizeInitialMyLocationIconType(settings = {}) {
+  const extraConfig =
+    settings && typeof settings.extraConfig === "object" && settings.extraConfig
+      ? settings.extraConfig
+      : {};
+  const raw = `${extraConfig.myLocationIconType || ""}`.trim();
+  if (raw === "avatar" || raw === "highlight") {
+    return raw;
+  }
+  return settings.useDefaultCenterPoint === false ? "highlight" : "default";
+}
+
 function safeStringify(value) {
   const seen = new WeakSet();
   try {
@@ -225,17 +237,21 @@ Page({
     const token = app.globalData.token;
     if (!apiBase || !token) {
       app.globalData.initialUsePlanetCenterPoint = false;
+      app.globalData.initialMyLocationIconType = "default";
       return Promise.resolve(false);
     }
     return fetchMapLayerSettings({ apiBase, token })
       .then((settings = {}) => {
-        const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
+        const initialMyLocationIconType = normalizeInitialMyLocationIconType(settings);
+        const usePlanetCenterPoint = initialMyLocationIconType !== "default";
         app.globalData.initialUsePlanetCenterPoint = usePlanetCenterPoint;
+        app.globalData.initialMyLocationIconType = initialMyLocationIconType;
         return usePlanetCenterPoint;
       })
       .catch((err) => {
         console.warn("entry preload map layer settings failed", err);
         app.globalData.initialUsePlanetCenterPoint = false;
+        app.globalData.initialMyLocationIconType = "default";
         return false;
       });
   },

@@ -1,5 +1,5 @@
 const DEFAULT_FRAME_PATH = "/assets/vip/vip-position.png";
-const DEFAULT_SIZE = 96;
+const DEFAULT_SIZE = 256;
 
 function resolveLocalImagePath(src) {
   return new Promise((resolve, reject) => {
@@ -75,7 +75,8 @@ function composeAvatarLocationIcon(options = {}) {
   }
   const avatarUrl = options.avatarUrl || "";
   const framePath = options.framePath || DEFAULT_FRAME_PATH;
-  const size = Number(options.size) > 0 ? Number(options.size) : DEFAULT_SIZE;
+  const requestedSize = Number(options.size) > 0 ? Number(options.size) : DEFAULT_SIZE;
+  const size = Math.max(requestedSize, DEFAULT_SIZE);
   const avatarSize = Math.round(size * (142 / 256));
   const avatarX = Math.round(size * (57 / 256));
   const avatarY = Math.round(size * (70 / 256));
@@ -84,6 +85,12 @@ function composeAvatarLocationIcon(options = {}) {
   if (!ctx || typeof canvas.createImage !== "function") {
     return Promise.reject(new Error("canvas-2d-unavailable"));
   }
+  try {
+    ctx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in ctx) {
+      ctx.imageSmoothingQuality = "high";
+    }
+  } catch (err) {}
   return Promise.all([
     resolveLocalImagePath(avatarUrl),
     resolveLocalImagePath(framePath)

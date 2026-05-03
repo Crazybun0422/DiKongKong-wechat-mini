@@ -378,6 +378,14 @@ function consumeInitialUsePlanetCenterPoint() {
   return value;
 }
 
+function consumeInitialMyLocationIconType() {
+  const app = typeof getApp === "function" ? getApp() : null;
+  if (!app?.globalData) return "";
+  const value = `${app.globalData.initialMyLocationIconType || ""}`.trim();
+  app.globalData.initialMyLocationIconType = "";
+  return value;
+}
+
 function resolveWindowMetrics(event = {}) {
   const metrics = getWindowMetrics();
   const resize = readResizeWindowSize(event);
@@ -465,26 +473,23 @@ function refreshResponsiveLayout(page, options = {}) {
     updates.weatherWidgetBottomPx = weatherWidgetBottomPx;
   }
   const windowHeight = Number(metrics.windowHeight);
-  if (Number.isFinite(windowHeight) && windowHeight > 0) {
-    const pxPerRpx = page._pxPerRpx || ((metrics.windowWidth || 375) / 750) || 0.5;
-    const panelMaxHeightPx = Math.max(280, Math.floor(windowHeight * 0.8));
-    const bodyMaxHeightPx = Math.max(180, panelMaxHeightPx - Math.round(124 * pxPerRpx));
-    if (page.data.layerPanelMaxHeightPx !== panelMaxHeightPx) {
-      updates.layerPanelMaxHeightPx = panelMaxHeightPx;
-    }
-    if (page.data.layerPanelBodyMaxHeightPx !== bodyMaxHeightPx) {
-      updates.layerPanelBodyMaxHeightPx = bodyMaxHeightPx;
-    }
-  }
-  if (Object.keys(updates).length) {
-    page.setData(updates, () => {
-      if (page.data.layerPanelVisible) {
-        page.scheduleLayerPanelLayoutMeasure(0);
+    if (Number.isFinite(windowHeight) && windowHeight > 0) {
+      const pxPerRpx = page._pxPerRpx || ((metrics.windowWidth || 375) / 750) || 0.5;
+      const panelMaxHeightPx = Math.max(280, Math.floor(windowHeight * 0.8));
+      const bodyMaxHeightPx = Math.max(180, panelMaxHeightPx - Math.round(124 * pxPerRpx));
+      if (page.data.layerPanelMaxHeightPx !== panelMaxHeightPx) {
+        updates.layerPanelMaxHeightPx = panelMaxHeightPx;
       }
-    });
-  } else if (page.data.layerPanelVisible) {
-    page.scheduleLayerPanelLayoutMeasure(0);
-  }
+      if (page.data.layerPanelBodyMaxHeightPx !== bodyMaxHeightPx) {
+        updates.layerPanelBodyMaxHeightPx = bodyMaxHeightPx;
+      }
+      if (page.data.layerPanelBodyHeightPx !== bodyMaxHeightPx) {
+        updates.layerPanelBodyHeightPx = bodyMaxHeightPx;
+      }
+    }
+    if (Object.keys(updates).length) {
+      page.setData(updates);
+    }
   if (options.refreshScaleBar === false) {
     return;
   }
@@ -544,6 +549,7 @@ module.exports = {
   queueRegionUpdateSkip,
   consumePendingLaunchOptions,
   consumeInitialUsePlanetCenterPoint,
+  consumeInitialMyLocationIconType,
   resolveWindowMetrics,
   refreshResponsiveLayout,
   registerWindowResizeListener,

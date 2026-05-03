@@ -376,6 +376,10 @@ Page({
     return pageRuntimeUtils.consumeInitialUsePlanetCenterPoint();
   },
 
+  consumeInitialMyLocationIconType() {
+    return pageRuntimeUtils.consumeInitialMyLocationIconType();
+  },
+
   resolveWindowMetrics(event = {}) {
     return pageRuntimeUtils.resolveWindowMetrics(event);
   },
@@ -1506,7 +1510,7 @@ Page({
   },
 
   onLayerPanelLayoutChange() {
-    return layerPanelUtils.scheduleLayerPanelLayoutMeasure(this, 32);
+    return null;
   },
 
   onMapLayerSelect(event = {}) {

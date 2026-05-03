@@ -200,8 +200,8 @@ button.recharge-success-btn::after {
 }
 
 .recharge-success-sheet {
-  min-height: 1100rpx;
-  padding-top: 150rpx;
+  min-height: 760rpx;
+  padding-top: 88rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -236,7 +236,7 @@ button.recharge-success-btn::after {
 }
 
 .recharge-success-title {
-  margin-top: 110rpx;
+  margin-top: 64rpx;
   font-size: 30rpx;
   line-height: 42rpx;
   font-weight: 900;
@@ -244,7 +244,7 @@ button.recharge-success-btn::after {
 }
 
 .recharge-success-desc {
-  margin-top: 18rpx;
+  margin-top: 16rpx;
   font-size: 26rpx;
   line-height: 34rpx;
   font-weight: 700;
@@ -259,13 +259,4 @@ button.recharge-success-btn {
   justify-content: center;
   font-size: 32rpx;
   font-weight: 900;
-}
-
-.recharge-success-note {
-  position: absolute;
-  right: 42rpx;
-  bottom: calc(env(safe-area-inset-bottom) + 8rpx);
-  font-size: 20rpx;
-  line-height: 28rpx;
-  color: rgba(17, 24, 39, 0.62);
 }

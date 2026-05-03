@@ -7,8 +7,14 @@ const {
   updateUserProfile,
   uploadAvatarFile
 } = require("../../../utils/profile");
+const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../../utils/map-layer-settings");
 const { isMembershipActive } = require("../../../utils/voice-pack");
 const { prepareCyberAvatarCatalog } = require("../../../utils/cyber-avatar-pack");
+
+const MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY = "selectedCyberPilotCharacterId";
 
 function extractFileName(value = "") {
   const text = `${value || ""}`.trim();
@@ -36,6 +42,8 @@ Page({
     characters: [],
     selectedCharacterId: "",
     selectedCharacter: null,
+    appliedCharacterId: "",
+    stripScrollIntoView: "",
     confirmVisible: false,
     vipGatePopupVisible: false,
     assets: {
@@ -57,6 +65,7 @@ Page({
     const isVip = isMembershipActive(profile);
     this._storedProfileCache = stored;
     this._currentAvatarFileName = extractFileName(profile.avatarFileName || profile.avatarUrl || "");
+    this._appliedCharacterId = "";
     logCyberPilot("bootstrap", {
       currentAvatarFileName: this._currentAvatarFileName,
       isVip,
@@ -70,16 +79,20 @@ Page({
       profile,
       isVip
     });
-    prepareCyberAvatarCatalog({ apiBase })
-      .then((catalog = {}) => {
+    Promise.all([
+      prepareCyberAvatarCatalog({ apiBase }),
+      this.loadAppliedCharacterIdFromMapLayer()
+    ])
+      .then(([catalog = {}, appliedCharacterId = ""]) => {
         const characters = Array.isArray(catalog.characters) ? catalog.characters : [];
         if (!characters.length) throw new Error("empty-cyber-avatar-catalog");
-        const selectedCharacterId = this.resolveInitialCharacterId(characters);
+        const selectedCharacterId = this.resolveInitialCharacterId(characters, appliedCharacterId);
         const selectedCharacter =
           characters.find((item) => item.id === selectedCharacterId) || characters[0];
         logCyberPilot("catalog-ready", {
           characterCount: characters.length,
-          selectedCharacterId: selectedCharacter.id
+          selectedCharacterId: selectedCharacter.id,
+          appliedCharacterId
         });
         this.setData({
           loading: false,
@@ -87,7 +100,11 @@ Page({
           characters,
           selectedCharacterId: selectedCharacter.id,
           selectedCharacter,
-          confirmVisible: false
+          appliedCharacterId,
+          stripScrollIntoView: "",
+          confirmVisible: selectedCharacter.id !== appliedCharacterId
+        }, () => {
+          this.syncStripScrollPosition(selectedCharacter.id);
         });
       })
       .catch((err) => {
@@ -100,12 +117,76 @@ Page({
       });
   },
 
-  resolveInitialCharacterId(characters = []) {
-    const currentFileName = `${this._currentAvatarFileName || ""}`.toLowerCase();
-    const matched = characters.find((item) =>
-      extractFileName(item.avatarPath).toLowerCase() === currentFileName
-    );
-    return (matched && matched.id) || (characters[0] && characters[0].id) || "";
+  resolveInitialCharacterId(characters = [], appliedCharacterId = "") {
+    const applied = `${appliedCharacterId || ""}`.trim();
+    if (applied && characters.some((item) => item.id === applied)) {
+      return applied;
+    }
+    return (characters[0] && characters[0].id) || "";
+  },
+
+  buildCharacterAnchorId(characterId = "") {
+    const text = `${characterId || ""}`.trim();
+    return text ? `cyber-avatar-${text}` : "";
+  },
+
+  syncStripScrollPosition(characterId = "") {
+    const anchorId = this.buildCharacterAnchorId(characterId);
+    if (!anchorId) return;
+    this.setData({ stripScrollIntoView: "" }, () => {
+      if (typeof wx !== "undefined" && typeof wx.nextTick === "function") {
+        wx.nextTick(() => {
+          this.setData({ stripScrollIntoView: anchorId });
+        });
+        return;
+      }
+      this.setData({ stripScrollIntoView: anchorId });
+    });
+  },
+
+  loadAppliedCharacterIdFromMapLayer() {
+    const apiBase = resolveApiBase();
+    return fetchMapLayerSettings({ apiBase })
+      .then((settings = {}) => {
+        this._mapLayerSettings = settings;
+        const extraConfig =
+          settings && typeof settings.extraConfig === "object" && settings.extraConfig
+            ? settings.extraConfig
+            : {};
+        const appliedCharacterId = `${extraConfig[MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY] || ""}`.trim();
+        this._appliedCharacterId = appliedCharacterId;
+        return appliedCharacterId;
+      })
+      .catch((err) => {
+        console.warn("load cyber pilot map layer setting failed", err);
+        this._mapLayerSettings = null;
+        this._appliedCharacterId = "";
+        return "";
+      });
+  },
+
+  persistAppliedCharacterIdToMapLayer(characterId = "") {
+    const apiBase = resolveApiBase();
+    const currentSettings =
+      this._mapLayerSettings && typeof this._mapLayerSettings === "object"
+        ? this._mapLayerSettings
+        : {};
+    const existingExtraConfig =
+      currentSettings.extraConfig && typeof currentSettings.extraConfig === "object"
+        ? currentSettings.extraConfig
+        : {};
+    const nextCharacterId = `${characterId || ""}`.trim();
+    const extraConfig = Object.assign({}, existingExtraConfig, {
+      [MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY]: nextCharacterId || null
+    });
+    return updateMapLayerSettings({ extraConfig }, { apiBase })
+      .then((settings = {}) => {
+        this._mapLayerSettings = settings && typeof settings === "object"
+          ? settings
+          : Object.assign({}, currentSettings, { extraConfig });
+        this._appliedCharacterId = nextCharacterId;
+        return nextCharacterId;
+      });
   },
 
   onBackTap() {
@@ -129,7 +210,9 @@ Page({
     this.setData({
       selectedCharacterId: characterId,
       selectedCharacter,
-      confirmVisible: true
+      confirmVisible: characterId !== this.data.appliedCharacterId
+    }, () => {
+      this.syncStripScrollPosition(characterId);
     });
   },
 
@@ -162,6 +245,10 @@ Page({
         updateUserProfile({ avatarUrl: fileName }, { apiBase })
           .then((remote) => ({ remote, fileName }))
       )
+      .then(({ remote, fileName }) =>
+        this.persistAppliedCharacterIdToMapLayer(selectedCharacter.id)
+          .then(() => ({ remote, fileName }))
+      )
       .then(({ remote, fileName }) => {
         logCyberPilot("apply-avatar:uploaded", {
           selectedCharacterId: selectedCharacter.id,
@@ -190,9 +277,14 @@ Page({
           storedProfile: persisted,
           apiBase
         });
+        const eventChannel = this.getOpenerEventChannel ? this.getOpenerEventChannel() : null;
+        if (eventChannel && typeof eventChannel.emit === "function") {
+          eventChannel.emit("profileUpdated", { profile });
+        }
         this.setData({
           profile,
           isVip: isMembershipActive(profile),
+          appliedCharacterId: selectedCharacter.id,
           confirmVisible: false
         });
         wx.showToast({ title: "头像已更新", icon: "success" });
