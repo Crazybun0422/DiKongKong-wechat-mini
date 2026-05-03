@@ -18,9 +18,15 @@
     <view class="drone-picker-sheet-header">
       <view class="drone-description">
         <text class="drone-description-title">此次执飞的无人机型号</text>
-        <text class="drone-description-subtitle">不同机型在飞行高度/区域、报备有差异。</text>
+        <text class="drone-description-subtitle">不同机型在飞行高度、区域和报备要求上有差异。</text>
       </view>
-      <text class="drone-picker-confirm" bindtap="onConfirmTap">确定</text>
+      <view
+        class="drone-picker-confirm-btn"
+        bindtap="onConfirmTap"
+      >
+        <image class="drone-picker-confirm-btn__vip" src="/assets/vip/vip-user.png" mode="aspectFit" />
+        <text class="drone-picker-confirm-btn__text">{{userVip ? '确定' : '解锁'}}</text>
+      </view>
     </view>
     <view class="drone-picker-sheet-body">
       <scroll-view class="drone-category-list" scroll-y="true">
@@ -47,4 +53,9 @@
       </scroll-view>
     </view>
   </view>
+  <vip-gate-popup
+    visible="{{vipGatePopupVisible}}"
+    bind:close="onVipGatePopupClose"
+    bind:confirm="onVipGatePopupConfirm"
+  />
 </block>

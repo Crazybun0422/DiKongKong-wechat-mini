@@ -1,0 +1,31 @@
+.drone-picker-confirm-btn {
+  min-width: 172rpx;
+  height: 60rpx;
+  padding: 0 16rpx 0 12rpx;
+  border-radius: 999rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  box-sizing: border-box;
+  border: 2rpx solid #000000;
+  background: #ffffff;
+}
+
+.drone-picker-confirm-btn__vip {
+  width: 72rpx;
+  height: 44rpx;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.drone-picker-confirm-btn__text--vip {
+  font-size: 28rpx;
+}
+
+.drone-picker-confirm-btn__text {
+  font-size: 24rpx;
+  color: #000000;
+  font-weight: 600;
+  line-height: 1;
+}

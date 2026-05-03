@@ -26,16 +26,7 @@ Component({
 
   data: {
     activeSettingsTab: "common",
-    vipGateToastVisible: false
-  },
-
-  lifetimes: {
-    detached() {
-      if (this._vipGateToastTimer) {
-        clearTimeout(this._vipGateToastTimer);
-        this._vipGateToastTimer = null;
-      }
-    }
+    vipGatePopupVisible: false
   },
 
   methods: {
@@ -68,7 +59,7 @@ Component({
     onMapLayerSelect(event = {}) {
       const type = event?.currentTarget?.dataset?.type || "";
       if ((type === "satellite" || type === "tianditu") && !this.properties.userVip) {
-        this.showVipGateToast();
+        this.showVipGatePopup();
         return;
       }
       this.emitDataset("maplayerselect", event);
@@ -85,7 +76,7 @@ Component({
     onLocationIconTap(event = {}) {
       const mode = event?.currentTarget?.dataset?.mode || "default";
       if (mode !== "default" && !this.properties.userVip) {
-        this.showVipGateToast();
+        this.showVipGatePopup();
         return;
       }
       this.triggerEvent("mylocationiconselect", { dataset: { type: mode } });
@@ -94,7 +85,7 @@ Component({
     onCenterPinIconTap(event = {}) {
       const type = event?.currentTarget?.dataset?.type || "default";
       if (type !== "default" && !this.properties.userVip) {
-        this.showVipGateToast();
+        this.showVipGatePopup();
         return;
       }
       this.triggerEvent("centerpiniconselect", { dataset: { type } });
@@ -102,20 +93,21 @@ Component({
 
     onVipFeatureTap() {
       if (!this.properties.userVip) {
-        this.showVipGateToast();
+        this.showVipGatePopup();
       }
     },
 
-    showVipGateToast() {
-      if (this._vipGateToastTimer) {
-        clearTimeout(this._vipGateToastTimer);
-        this._vipGateToastTimer = null;
-      }
-      this.setData({ vipGateToastVisible: true });
-      this._vipGateToastTimer = setTimeout(() => {
-        this._vipGateToastTimer = null;
-        this.setData({ vipGateToastVisible: false });
-      }, 1600);
+    showVipGatePopup() {
+      this.setData({ vipGatePopupVisible: true });
+    },
+
+    onVipGatePopupClose() {
+      this.setData({ vipGatePopupVisible: false });
+    },
+
+    onVipGatePopupConfirm() {
+      this.setData({ vipGatePopupVisible: false });
+      this.triggerEvent("vipgateconfirm");
     },
 
     onAirBoardSwitchChange(event = {}) {

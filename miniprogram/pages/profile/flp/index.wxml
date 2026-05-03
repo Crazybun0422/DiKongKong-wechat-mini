@@ -22,9 +22,20 @@
           <view class="flp-rights-list">
             <block wx:for="{{rights}}" wx:key="id">
               <view class="flp-right-item" data-right-id="{{item.id}}" bindtap="onRightItemTap">
-                <image class="flp-right-icon" src="{{item.icon}}" mode="aspectFit" />
-                <text class="flp-right-title">{{item.title}}</text>
-                <text class="flp-right-desc">{{item.description}}</text>
+                <block wx:if="{{item.id === 'ad-free'}}">
+                  <image class="flp-right-vip-badge" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                  <view class="flp-right-copy">
+                    <text class="flp-right-title">兑换会员</text>
+                    <text class="flp-right-desc">0元开通</text>
+                  </view>
+                </block>
+                <block wx:else>
+                  <image class="flp-right-icon" src="{{item.icon}}" mode="aspectFit" />
+                  <view class="flp-right-copy">
+                    <text class="flp-right-title">{{item.title}}</text>
+                    <text class="flp-right-desc">{{item.description}}</text>
+                  </view>
+                </block>
               </view>
             </block>
             <view class="flp-right-item flp-right-item--placeholder"></view>

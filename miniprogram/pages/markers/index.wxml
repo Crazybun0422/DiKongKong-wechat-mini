@@ -1063,11 +1063,15 @@
             </view>
           </view>
           <view class="field-row">
-            <view class="field-label">
-              <text>图片/视频</text>
-              <text wx:if="{{pinVideoUploadFlpLimitDisplay}}" class="pin-video-flp-hint">（FLP>{{pinVideoUploadFlpLimitDisplay}}可上传高清视频）</text>
-            </view>
-            <view class="my-pin-media-grid">
+          <view class="field-label">
+            <text>图片/视频</text>
+            <text wx:if="{{pinVideoUploadFlpLimitDisplay}}" class="pin-video-flp-hint">（FLP>{{pinVideoUploadFlpLimitDisplay}}可上传高清视频）</text>
+          </view>
+          <view class="pin-video-vip-entry" bindtap="onVideoVipHintTap">
+            <image class="pin-video-vip-badge" src="{{assetPaths.vipUser}}" mode="aspectFit" />
+            <text class="pin-video-vip-text">上传解锁超清视频</text>
+          </view>
+          <view class="my-pin-media-grid">
               <block wx:for="{{myPinForm.images}}" wx:key="fileName">
                 <view class="my-pin-media">
                   <image class="my-pin-media-img" src="{{item.url}}" mode="aspectFill" />
@@ -1273,7 +1277,10 @@
         <view class="pin-create-sheet-divider"></view>
         <view class="pin-create-sheet-item" bindtap="onPinCreateKml">
           <view class="pin-create-sheet-row">
-            <text class="pin-create-sheet-title">通过KML/KMZ文件创建（仅微信）</text>
+            <view class="pin-create-sheet-copy">
+              <text class="pin-create-sheet-title">通过KML/KMZ文件创建（仅微信）</text>
+              <image class="pin-create-sheet-vip" src="{{assetPaths.vipUser}}" mode="aspectFit" />
+            </view>
             <view class="pin-create-sheet-tip" catchtap="onKmlTipsTap">
               <image class="pin-create-sheet-tip-icon" src="{{assetPaths.tips}}" mode="aspectFit" />
             </view>
@@ -1322,7 +1329,10 @@
           </block>
           <block wx:for="{{actionSheetSecondaryOptions}}" wx:key="action">
             <view class="action-sheet-item action-sheet-item-my {{!item.enabled ? 'action-sheet-item-disabled' : ''}}" data-action="{{item.action}}" bindtap="onActionSheetAction">
-              <text class="action-sheet-label action-sheet-label--single">{{item.label}}</text>
+              <view class="action-sheet-label-row">
+                <text class="action-sheet-label action-sheet-label--single">{{item.label}}</text>
+                <image wx:if="{{item.vipOnly}}" class="action-sheet-vip-badge" src="{{assetPaths.vipUser}}" mode="aspectFit" />
+              </view>
               <text wx:if="{{item.note}}" class="action-sheet-note">{{item.note}}</text>
             </view>
           </block>
@@ -1403,6 +1413,12 @@
       </view>
     </view>
   </view>
+
+  <vip-gate-popup
+    visible="{{vipGatePopupVisible}}"
+    bind:close="onVipGatePopupClose"
+    bind:confirm="onVipGatePopupConfirm"
+  />
 </view>
 
 

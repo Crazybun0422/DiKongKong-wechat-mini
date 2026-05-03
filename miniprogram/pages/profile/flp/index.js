@@ -153,7 +153,7 @@ Page({
     const rightId = `${event?.currentTarget?.dataset?.rightId || ""}`.trim();
     if (!rightId) return;
     if (rightId === "ad-free") {
-      this.handleAdFreePrivilegeHint();
+      this.navigateToMemberCenter();
       return;
     }
     if (rightId === "merchant") {
@@ -172,6 +172,14 @@ Page({
       title: hasPrivilege ? "您已获得免开屏广告特权" : "暂未获得免开屏广告特权",
       icon: "none"
     });
+  },
+
+  navigateToMemberCenter() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/packages/member/index/index" });
   },
 
   onBenefitActionTap(event) {

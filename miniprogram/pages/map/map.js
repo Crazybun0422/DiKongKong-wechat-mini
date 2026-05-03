@@ -1529,6 +1529,14 @@ Page({
     return layerPanelUtils.onCenterPinIconSelect(this, event);
   },
 
+  onLayerVipGateConfirm() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/packages/member/index/index" });
+  },
+
   onCenterTargetLinkSwitchChange(event = {}) {
     return layerPanelUtils.onCenterTargetLinkSwitchChange(this, event);
   },

@@ -5,6 +5,7 @@ Component({
 
   properties: {
     visible: { type: Boolean, value: false },
+    userVip: { type: Boolean, value: false },
     wideLayout: { type: Boolean, value: false },
     showBackFloat: { type: Boolean, value: false },
     backHoleTop: { type: Number, value: 0 },
@@ -12,6 +13,10 @@ Component({
     activeDroneCategoryIndex: { type: Number, value: 0 },
     droneCategoryItems: { type: Array, value: [] },
     pendingDroneIndex: { type: Number, value: null }
+  },
+
+  data: {
+    vipGatePopupVisible: false
   },
 
   methods: {
@@ -26,7 +31,20 @@ Component({
     },
 
     onConfirmTap() {
+      if (!this.properties.userVip) {
+        this.setData({ vipGatePopupVisible: true });
+        return;
+      }
       this.triggerEvent("confirm");
+    },
+
+    onVipGatePopupClose() {
+      this.setData({ vipGatePopupVisible: false });
+    },
+
+    onVipGatePopupConfirm() {
+      this.setData({ vipGatePopupVisible: false });
+      this.triggerEvent("vipgateconfirm");
     },
 
     onSelectCategory(event = {}) {

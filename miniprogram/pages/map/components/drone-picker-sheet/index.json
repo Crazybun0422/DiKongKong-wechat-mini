@@ -1,3 +1,6 @@
 {
-  "component": true
+  "component": true,
+  "usingComponents": {
+    "vip-gate-popup": "../../../../components/vip-gate-popup/index"
+  }
 }

@@ -4,5 +4,8 @@
   "navigationBarBackgroundColor": "#0b1020",
   "navigationBarTextStyle": "white",
   "backgroundColor": "#0b1020",
-  "backgroundTextStyle": "light"
+  "backgroundTextStyle": "light",
+  "usingComponents": {
+    "vip-gate-popup": "../../../components/vip-gate-popup/index"
+  }
 }

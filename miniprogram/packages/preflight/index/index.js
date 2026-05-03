@@ -47,7 +47,8 @@ const {
   isNoFlyZoneEffective,
   expandNoFlyZoneAreas
 } = require("../../../utils/no-fly-zones");
-const { resolveApiBase } = require("../../../utils/profile");
+const { resolveApiBase, loadStoredProfile, normalizeProfileData } = require("../../../utils/profile");
+const { isMembershipActive } = require("../../../utils/voice-pack");
 
 const DEFAULT_CENTER = { latitude: 39.908823, longitude: 116.39747 };
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
@@ -929,6 +930,8 @@ Page({
     navTotalHeight: 44,
     shellTopPadding: 52,
     backHoleTop: 0
+    ,
+    isVip: false
   },
 
   onLoad(options = {}) {
@@ -968,7 +971,8 @@ Page({
       navBarHeight,
       navTotalHeight,
       shellTopPadding,
-      backHoleTop
+      backHoleTop,
+      isVip: this.resolveVipState()
     }, buildAssessmentPatch({
       uomStatus: STATUS_PENDING_TEXT,
       djiStatus: STATUS_PENDING_TEXT,
@@ -993,6 +997,13 @@ Page({
     this.initStatusEngines();
   },
 
+  onShow() {
+    const nextVip = this.resolveVipState();
+    if (nextVip !== this.data.isVip) {
+      this.setData({ isVip: nextVip });
+    }
+  },
+
   onUnload() {
     if (this._uomPluginInitTimer) clearTimeout(this._uomPluginInitTimer);
     if (this._djiLayerInitTimer) clearTimeout(this._djiLayerInitTimer);
@@ -1003,6 +1014,19 @@ Page({
     }
     if (this._djiLayer && typeof this._djiLayer.destroy === "function") {
       this._djiLayer.destroy();
+    }
+  },
+
+  resolveVipState() {
+    try {
+      const stored = loadStoredProfile() || {};
+      const profile = normalizeProfileData(stored, {
+        storedProfile: stored,
+        apiBase: resolveApiBase()
+      });
+      return isMembershipActive(profile);
+    } catch (err) {
+      return false;
     }
   },
 
@@ -1101,6 +1125,14 @@ Page({
     const index = Number(this.data.pendingDroneIndex);
     if (Number.isFinite(index) && index >= 0) this.applyDroneByIndex(index);
     this.closeDronePicker();
+  },
+
+  onDronePickerVipGateConfirm() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/packages/member/index/index" });
   },
 
   loadDroneList() {

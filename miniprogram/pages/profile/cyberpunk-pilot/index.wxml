@@ -1,25 +1,63 @@
 <view class="cyber-page">
+  <view class="cyber-noise"></view>
   <view class="cyber-topbar">
-    <button class="cyber-back" bindtap="onBackTap">‹</button>
-    <text class="cyber-title">赛博朋克飞手</text>
+    <button class="cyber-back" bindtap="onBackTap">
+      <image class="cyber-back-image" src="./assets/return.png" mode="aspectFit" />
+    </button>
   </view>
-  <view class="cyber-hero">
-    <view class="pilot-avatar">
-      <view class="pilot-visor"></view>
-      <view class="pilot-glow pilot-glow--left"></view>
-      <view class="pilot-glow pilot-glow--right"></view>
-    </view>
-    <text class="pilot-name">Cyber Pilot</text>
-    <text class="pilot-desc">生成你的低空飞手头像形象</text>
+
+  <view wx:if="{{loading}}" class="cyber-state cyber-state--loading">
+    <view class="cyber-state-ring"></view>
+    <text class="cyber-state-text">{{loadingText}}</text>
   </view>
-  <view class="cyber-panel">
-    <view class="cyber-row">
-      <text class="cyber-row-label">风格</text>
-      <text class="cyber-row-value">霓虹 / 飞手 / 低空</text>
+
+  <view wx:elif="{{error}}" class="cyber-state cyber-state--error">
+    <text class="cyber-state-text">{{error}}</text>
+    <button class="cyber-retry" bindtap="onRetryTap">重新加载</button>
+  </view>
+
+  <view wx:else class="cyber-content">
+    <view class="cyber-strip-shell">
+      <scroll-view class="cyber-strip" scroll-x enhanced show-scrollbar="{{false}}">
+        <view class="cyber-strip-track">
+          <block wx:for="{{characters}}" wx:key="id">
+            <view
+              class="cyber-avatar-card {{selectedCharacterId === item.id ? 'is-selected' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="onCharacterTap"
+            >
+              <view class="cyber-avatar-frame">
+                <image class="cyber-avatar-image" src="{{item.avatarPath}}" mode="aspectFill" />
+              </view>
+            </view>
+          </block>
+        </view>
+      </scroll-view>
+
+      <view wx:if="{{confirmVisible && selectedCharacter}}" class="cyber-confirm-wrap">
+        <button
+          class="cyber-confirm-btn"
+          bindtap="onConfirmTap"
+          loading="{{submitting}}"
+          disabled="{{submitting}}"
+        >
+          <image class="cyber-confirm-vip" src="{{assets.vipUser}}" mode="aspectFit" />
+          <text>确认使用</text>
+        </button>
+      </view>
     </view>
-    <view class="cyber-row">
-      <text class="cyber-row-label">状态</text>
-      <text class="cyber-row-value">即将上线</text>
+
+    <view wx:if="{{selectedCharacter}}" class="cyber-preview">
+      <image class="cyber-preview-bg" src="{{selectedCharacter.quoteCardPath}}" mode="aspectFill" />
+      <view class="cyber-preview-stage">
+        <image class="cyber-preview-image" src="{{selectedCharacter.quoteCardPath}}" mode="aspectFit" />
+      </view>
     </view>
   </view>
+
+  <vip-gate-popup
+    visible="{{vipGatePopupVisible}}"
+    bind:close="onVipGatePopupClose"
+    bind:confirm="onVipGatePopupConfirm"
+  />
 </view>

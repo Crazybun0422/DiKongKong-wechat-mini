@@ -171,12 +171,13 @@
           <text class="avatar-action-desc">选择微信头像或本地照片</text>
         </view>
       </button>
-      <view class="avatar-action-item" bindtap="onCyberpunkPilotTap">
+      <view class="avatar-action-item avatar-action-item--vip" bindtap="onCyberpunkPilotTap">
         <view class="avatar-action-icon avatar-action-icon--cyber"></view>
         <view class="avatar-action-copy">
           <text class="avatar-action-name">赛博朋克飞手</text>
-          <text class="avatar-action-desc">进入飞手形象生成页</text>
+          <text class="avatar-action-desc">会员专属飞手形象</text>
         </view>
+        <image class="avatar-action-vip" src="/assets/vip/vip-user.png" mode="aspectFit" />
       </view>
       <view class="avatar-action-cancel" bindtap="closeAvatarActionSheet">取消</view>
     </view>

@@ -297,6 +297,10 @@ button.avatar-action-item::after {
   border-top: 2rpx solid rgba(15, 23, 42, 0.06);
 }
 
+.avatar-action-item--vip.is-disabled {
+  opacity: 0.56;
+}
+
 .avatar-action-icon {
   flex: 0 0 auto;
   width: 72rpx;
@@ -320,6 +324,14 @@ button.avatar-action-item::after {
   display: flex;
   flex-direction: column;
   gap: 8rpx;
+}
+
+.avatar-action-vip {
+  width: 132rpx;
+  height: 80rpx;
+  flex: 0 0 auto;
+  margin-left: 8rpx;
+  align-self: center;
 }
 
 .avatar-action-name {

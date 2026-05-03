@@ -10,6 +10,7 @@
   uploadAvatarFile,
   updateUserProfile
 } = require("../../utils/profile");
+const { isMembershipActive } = require("../../utils/voice-pack");
 const { fetchMyLikes } = require("../../utils/likes");
 const {
   fetchLatestSubscriptionPush,
@@ -84,6 +85,7 @@ Page({
     checkinTodaySigned: false,
     statusBadgeStyle: "",
     avatarActionSheetVisible: false,
+    cyberpunkPilotVipEnabled: false,
     showCheckinGuideProfile: false,
     checkinGuideOverlayStyle: "",
     checkinGuideMask: {
@@ -155,6 +157,7 @@ Page({
       profile: normalized,
       loading: true,
       error: "",
+      cyberpunkPilotVipEnabled: isMembershipActive(normalized),
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
       nicknameInput: normalized.nickname
     });
@@ -240,6 +243,7 @@ Page({
           profile: normalized,
           loading: false,
           error: "",
+          cyberpunkPilotVipEnabled: isMembershipActive(normalized),
           customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
           nicknameInput: this.data.nicknameEditing ? this.data.nicknameInput : normalized.nickname
         });
@@ -523,6 +527,7 @@ Page({
     });
     this.setData({
       profile: normalized,
+      cyberpunkPilotVipEnabled: isMembershipActive(normalized),
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
       nicknameInput: this.data.nicknameEditing ? this.data.nicknameInput : normalized.nickname
     });

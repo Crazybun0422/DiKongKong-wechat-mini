@@ -79,6 +79,7 @@ const {
   buildTencentCosSignedUrl
 } = require("../../utils/tencent-cos");
 const { fetchPinVideoUploadFlpLimit } = require("../../utils/pin-video-config");
+const { isMembershipActive } = require("../../utils/voice-pack");
 
 const STATIC_ASSETS = {
   add: "/pages/markers/assets/add.png",
@@ -108,7 +109,8 @@ const STATIC_ASSETS = {
   delete: "/pages/markers/assets/delete.png",
   kml: "/pages/markers/assets/kml.png",
   kmlLoaded: "/pages/markers/assets/kml-loaded.png",
-  tips: "/assets/tips-b.png"
+  tips: "/assets/tips-b.png",
+  vipUser: "/assets/vip/vip-user.png"
 };
 
 function buildBadgeTitleParts(title, fallback = "") {
@@ -769,7 +771,10 @@ Page({
     customerServiceSessionFrom: "marker-create-support",
     planetCreationGuideReady: false,
     pinVideoUploadFlpLimit: null,
-    pinVideoUploadFlpLimitDisplay: ""
+    pinVideoUploadFlpLimitDisplay: "",
+    isVip: false,
+    vipGatePopupVisible: false,
+    vipGatePopupFeature: ""
   },
 
   onLoad(options = {}) {
@@ -1242,7 +1247,9 @@ Page({
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
           featureCode: normalized.featureCode,
           flpValue: normalized.flpValue,
-          inviteCode: normalized.inviteCode
+          inviteCode: normalized.inviteCode,
+          vip: normalized.vip,
+          memberExpireDate: normalized.memberExpireDate
         });
         this.applyProfileSnapshot(normalized);
       })
@@ -1263,6 +1270,7 @@ Page({
         : null;
     const featureCode = ensureFeatureCode(profile.featureCode || this.data.currentFeatureCode || "");
     this.setData({
+      isVip: isMembershipActive(profile),
       currentFeatureCode: featureCode,
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(profile)
     });
@@ -1458,7 +1466,11 @@ Page({
         updatedProfile.avatarUrl ||
         this._storedProfileCache?.avatarUrl,
       featureCode: updatedProfile.featureCode || this._storedProfileCache?.featureCode,
-      flpValue: balance
+      flpValue: balance,
+      inviteCode: updatedProfile.inviteCode || this._storedProfileCache?.inviteCode,
+      vip: updatedProfile.vip ?? this._storedProfileCache?.vip,
+      memberExpireDate:
+        updatedProfile.memberExpireDate || this._storedProfileCache?.memberExpireDate || ""
     });
     this.applyProfileSnapshot(updatedProfile);
   },
@@ -3621,7 +3633,9 @@ Page({
         label: "导出KML",
         icon: "",
         enabled: exportKmlEnabled,
-        note: exportKmlNote
+        note: exportKmlNote,
+        vipOnly: true,
+        vipFeature: "kml-export"
       }
     ];
     return options;
@@ -3696,6 +3710,10 @@ Page({
       if (option.note) {
         wx.showToast({ title: option.note, icon: "none" });
       }
+      return;
+    }
+    if (option?.vipOnly && !this.data.isVip) {
+      this.openVipGatePopup(option.vipFeature || action);
       return;
     }
     if (action === "publish") {
@@ -4531,6 +4549,10 @@ Page({
 
   onPinCreateKml() {
     if (this.data.kmlImporting) return;
+    if (!this.data.isVip) {
+      this.openVipGatePopup("kml-import");
+      return;
+    }
     this.setData({ showPinCreateSheet: false }, () => {
       this.onKmlImportTap();
     });
@@ -4538,6 +4560,10 @@ Page({
 
   onKmlImportTap() {
     if (this.data.kmlImporting) return;
+    if (!this.data.isVip) {
+      this.openVipGatePopup("kml-import");
+      return;
+    }
     const resolveFileName = (file, path) => {
       const rawName = `${file?.name || file?.fileName || ""}`.trim();
       if (rawName) return rawName;
@@ -4903,6 +4929,17 @@ Page({
           .map((item) => item.tempFilePath || item.path)
           .filter(Boolean);
         const videoFiles = files.filter((item) => `${item?.fileType || ""}` === "video");
+        if (videoFiles.length && !this.data.isVip) {
+          const nextImageSlots = Math.max(
+            0,
+            PIN_MEDIA_MAX_COUNT - (this.data.myPinForm.video ? 1 : 0) - imageCount
+          );
+          if (images.length) {
+            this.uploadFiles("pinImages", images.slice(0, nextImageSlots));
+          }
+          this.openVipGatePopup("hd-video");
+          return;
+        }
         const videos = videoFiles
           .map((item) => item.tempFilePath || item.path)
           .filter(Boolean);
@@ -4928,6 +4965,37 @@ Page({
           });
       }
     });
+  },
+
+  onVideoVipHintTap() {
+    if (this.data.isVip) return;
+    this.openVipGatePopup("hd-video");
+  },
+
+  openVipGatePopup(feature = "") {
+    this.setData({
+      vipGatePopupVisible: true,
+      vipGatePopupFeature: `${feature || ""}`
+    });
+  },
+
+  onVipGatePopupClose() {
+    this.setData({
+      vipGatePopupVisible: false,
+      vipGatePopupFeature: ""
+    });
+  },
+
+  onVipGatePopupConfirm() {
+    this.setData({
+      vipGatePopupVisible: false,
+      vipGatePopupFeature: ""
+    });
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/packages/member/index/index" });
   },
 
   validatePinVideoSizes(files = [], uploadPolicy = {}) {

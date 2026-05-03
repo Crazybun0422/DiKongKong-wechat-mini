@@ -480,6 +480,7 @@
 
   <drone-picker-sheet
     visible="{{dronePickerVisible}}"
+    user-vip="{{isVip}}"
     wide-layout="{{isWideLayout}}"
     show-back-float="{{true}}"
     back-hole-top="{{backHoleTop}}"
@@ -490,6 +491,7 @@
     bind:backtap="onBackTap"
     bind:close="closeDronePicker"
     bind:confirm="confirmDronePicker"
+    bind:vipgateconfirm="onDronePickerVipGateConfirm"
     bind:selectcategory="onSelectDroneCategory"
     bind:selectoption="onSelectDroneOption"
   />

@@ -1,0 +1,11 @@
+<view wx:if="{{visible}}" class="vip-gate-overlay" catchtap="onMaskTap">
+  <view class="vip-gate-dialog" catchtap="noop">
+    <view class="vip-gate-close" bindtap="onCloseTap">
+      <image class="vip-gate-close-icon" src="/assets/marker-detail-close.png" mode="aspectFit" />
+    </view>
+    <image class="vip-gate-badge" src="/assets/vip/vip-user.png" mode="aspectFit" />
+    <text class="vip-gate-title">{{title}}</text>
+    <text class="vip-gate-desc">{{desc}}</text>
+    <button class="vip-gate-action" bindtap="onConfirmTap">{{actionText}}</button>
+  </view>
+</view>

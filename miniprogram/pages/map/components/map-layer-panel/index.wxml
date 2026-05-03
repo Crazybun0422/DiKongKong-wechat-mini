@@ -267,4 +267,9 @@
       <view wx:if="{{vipGateToastVisible}}" class="layer-vip-gate-toast">请先开通会员</view>
     </view>
   </view>
+  <vip-gate-popup
+    visible="{{vipGatePopupVisible}}"
+    bind:close="onVipGatePopupClose"
+    bind:confirm="onVipGatePopupConfirm"
+  />
 </view>
