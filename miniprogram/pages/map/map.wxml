@@ -285,7 +285,6 @@
       pending-drone-index="{{pendingDroneIndex}}"
       bind:close="closeDronePicker"
       bind:confirm="confirmDronePicker"
-      bind:vipgateconfirm="onLayerVipGateConfirm"
       bind:selectcategory="onSelectDroneCategory"
       bind:selectoption="onSelectDroneOption"
     />
@@ -421,7 +420,6 @@
       bind:provincecitytreeexpandtap="onProvinceCityTreeExpandTap"
       bind:provincecitytreeselecttap="onProvinceCityTreeSelectTap"
       bind:mapelementtoggle="onMapElementToggle"
-      bind:vipgateconfirm="onLayerVipGateConfirm"
     />
 
     <block wx:if="{{callSheetVisible}}">

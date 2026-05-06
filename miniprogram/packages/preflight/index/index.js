@@ -1127,14 +1127,6 @@ Page({
     this.closeDronePicker();
   },
 
-  onDronePickerVipGateConfirm() {
-    if (typeof wx.navigateTo !== "function") {
-      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
-      return;
-    }
-    wx.navigateTo({ url: "/packages/member/index/index" });
-  },
-
   loadDroneList() {
     this.setData({ dronePickerLabel: "加载中" });
     fetchDrones()

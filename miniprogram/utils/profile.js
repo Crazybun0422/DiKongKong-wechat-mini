@@ -332,9 +332,15 @@ function normalizeProfileData(raw = {}, options = {}) {
     stored.avatarFileName ||
     stored.avatarUrl ||
     "";
+  const normalizedAvatarCandidate =
+    typeof avatarCandidate === "string" ? avatarCandidate.trim().replace(/^\.\//, "") : "";
   const avatarFileName = extractAvatarFileName(avatarCandidate);
   let displayAvatar = DEFAULT_AVATAR_PATH;
-  if (avatarFileName) {
+  if (/^\/?assets\//.test(normalizedAvatarCandidate)) {
+    displayAvatar = normalizedAvatarCandidate.startsWith("/")
+      ? normalizedAvatarCandidate
+      : `/${normalizedAvatarCandidate}`;
+  } else if (avatarFileName) {
     displayAvatar = buildAvatarDownloadUrl(avatarFileName, options);
   } else if (typeof avatarCandidate === "string" && /^https?:\/\//.test(avatarCandidate)) {
     displayAvatar = avatarCandidate;
@@ -372,6 +378,16 @@ function normalizeProfileData(raw = {}, options = {}) {
     ""
   );
   const checkinQuota = normalizeCheckinQuota(raw.checkinQuota || nestedProfile.checkinQuota || stored.checkinQuota || {});
+  const policyAccessRecords =
+    raw.policyAccessRecords ||
+    nestedProfile.policyAccessRecords ||
+    stored.policyAccessRecords ||
+    null;
+  const policyAccessRecord =
+    raw.policyAccessRecord ||
+    nestedProfile.policyAccessRecord ||
+    stored.policyAccessRecord ||
+    null;
   const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
     raw.selectedVoicePackDirectoryName ||
     raw.voicePackDirectoryName ||
@@ -395,6 +411,8 @@ function normalizeProfileData(raw = {}, options = {}) {
     memberExpireDate,
     selectedVoicePackDirectoryName,
     checkinQuota,
+    policyAccessRecords,
+    policyAccessRecord,
     flpDisplay: typeof flpValue === "number" && isFinite(flpValue) ? flpValue.toFixed(2) : "--"
   };
 }
@@ -548,6 +566,14 @@ function persistProfileLocally(profile = {}) {
     ""
   );
   const checkinQuota = normalizeCheckinQuota(profile.checkinQuota || existing.checkinQuota || {});
+  const policyAccessRecords =
+    Object.prototype.hasOwnProperty.call(profile, "policyAccessRecords")
+      ? profile.policyAccessRecords
+      : (existing.policyAccessRecords || null);
+  const policyAccessRecord =
+    Object.prototype.hasOwnProperty.call(profile, "policyAccessRecord")
+      ? profile.policyAccessRecord
+      : (existing.policyAccessRecord || null);
   const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
     Object.prototype.hasOwnProperty.call(profile, "selectedVoicePackDirectoryName")
       ? profile.selectedVoicePackDirectoryName
@@ -572,7 +598,9 @@ function persistProfileLocally(profile = {}) {
     member: vip,
     memberExpireDate,
     selectedVoicePackDirectoryName,
-    checkinQuota
+    checkinQuota,
+    policyAccessRecords,
+    policyAccessRecord
   };
 
   const app = getAppInstance();
@@ -629,7 +657,9 @@ function loadStoredProfile() {
       member: vip,
       memberExpireDate: normalizeInviteCodeValue(memberExpireDateFromGlobal),
       selectedVoicePackDirectoryName: normalizeInviteCodeValue(selectedVoicePackFromGlobal),
-      checkinQuota: normalizeCheckinQuota(globalData?.userCheckinQuota || cached.checkinQuota || {})
+      checkinQuota: normalizeCheckinQuota(globalData?.userCheckinQuota || cached.checkinQuota || {}),
+      policyAccessRecords: cached.policyAccessRecords || null,
+      policyAccessRecord: cached.policyAccessRecord || null
     };
   }
 
@@ -670,7 +700,9 @@ function loadStoredProfile() {
       member: vip,
       memberExpireDate,
       selectedVoicePackDirectoryName,
-      checkinQuota
+      checkinQuota,
+      policyAccessRecords: cached.policyAccessRecords || null,
+      policyAccessRecord: cached.policyAccessRecord || null
     };
   }
 
@@ -685,7 +717,9 @@ function loadStoredProfile() {
     member: false,
     memberExpireDate: "",
     selectedVoicePackDirectoryName: "",
-    checkinQuota: normalizeCheckinQuota()
+    checkinQuota: normalizeCheckinQuota(),
+    policyAccessRecords: null,
+    policyAccessRecord: null
   };
 }
 

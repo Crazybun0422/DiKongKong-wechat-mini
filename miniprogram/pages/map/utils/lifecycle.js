@@ -2,6 +2,10 @@ const { applyMapStatusBarStyle } = require("./map-shared");
 
 function onShow(page) {
   applyMapStatusBarStyle();
+  const app = typeof getApp === "function" ? getApp() : null;
+  if (app && typeof app.markMapReadyForStartVoice === "function") {
+    app.markMapReadyForStartVoice();
+  }
   page.startMyLocationDirectionTracking();
   page.refreshResponsiveLayout({ force: true });
   page.syncUserMembershipState();
@@ -15,7 +19,6 @@ function onShow(page) {
       showDashboardPanel: !!page.data.airBoardEnabled
     });
   }
-  const app = typeof getApp === "function" ? getApp() : null;
   if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
     page.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
   }

@@ -1,7 +1,4 @@
 {
   "navigationBarTitleText": "创作中心",
-  "enablePullDownRefresh": false,
-  "usingComponents": {
-    "vip-gate-popup": "../../components/vip-gate-popup/index"
-  }
+  "enablePullDownRefresh": false
 }

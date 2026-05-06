@@ -45,7 +45,6 @@ Page({
     appliedCharacterId: "",
     stripScrollIntoView: "",
     confirmVisible: false,
-    vipGatePopupVisible: false,
     assets: {
       vipUser: "/assets/vip/vip-user.png"
     }
@@ -221,7 +220,7 @@ Page({
     const selectedCharacter = this.data.selectedCharacter;
     if (!selectedCharacter || !selectedCharacter.avatarPath) return;
     if (!this.data.isVip) {
-      this.setData({ vipGatePopupVisible: true });
+      this.navigateToMemberPage();
       return;
     }
     const apiBase = resolveApiBase();
@@ -299,12 +298,7 @@ Page({
       });
   },
 
-  onVipGatePopupClose() {
-    this.setData({ vipGatePopupVisible: false });
-  },
-
-  onVipGatePopupConfirm() {
-    this.setData({ vipGatePopupVisible: false });
+  navigateToMemberPage() {
     if (typeof wx.navigateTo !== "function") {
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;

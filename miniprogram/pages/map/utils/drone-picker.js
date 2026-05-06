@@ -1,4 +1,6 @@
 const { fetchDrones } = require("../../../utils/drones");
+const NON_VIP_DEFAULT_DRONE_NAME = "DJI MAVIC 3";
+const NON_VIP_DEFAULT_DRONE_FALLBACK_NAME = "MAVIC 3";
 
 const resolveEventIndex = (event = {}) => {
   const currentIndex = Number(event?.currentTarget?.dataset?.index);
@@ -48,6 +50,25 @@ function resolveDroneIndexByModel(page, model) {
   if (index >= 0) return index;
   const lower = normalized.toLowerCase();
   return list.findIndex((item) => (item.name || "").toLowerCase() === lower);
+}
+
+function resolveNonVipDefaultDroneIndex(page) {
+  const list = getDroneList(page);
+  if (!Array.isArray(list) || !list.length) return -1;
+  const exactCandidates = [
+    NON_VIP_DEFAULT_DRONE_NAME,
+    NON_VIP_DEFAULT_DRONE_FALLBACK_NAME
+  ];
+  for (let i = 0; i < exactCandidates.length; i += 1) {
+    const index = resolveDroneIndexByModel(page, exactCandidates[i]);
+    if (index >= 0) return index;
+  }
+  const fallbackLower = NON_VIP_DEFAULT_DRONE_FALLBACK_NAME.toLowerCase();
+  return list.findIndex((item) => {
+    const name = `${item?.name || ""}`.trim().toLowerCase();
+    const slug = `${item?.slug || ""}`.trim().toLowerCase();
+    return name.includes(fallbackLower) || slug.includes("mavic-3") || slug.includes("mavic3");
+  });
 }
 
 function resolveDroneCategoryId(_page, item = {}) {
@@ -344,10 +365,58 @@ function confirmDronePicker(page) {
   closeDronePicker(page);
 }
 
+function ensureNonVipDefaultDrone(page, options = {}) {
+  if (page.data.userVip) {
+    return Promise.resolve(false);
+  }
+  if (page._nonVipDefaultDronePromise) {
+    return page._nonVipDefaultDronePromise;
+  }
+  const loadPromise = getDroneList(page).length
+    ? Promise.resolve(getDroneList(page))
+    : loadDronesFromApi(page).then(() => getDroneList(page));
+  page._nonVipDefaultDronePromise = loadPromise
+    .then((list) => {
+      if (page.data.userVip) {
+        return false;
+      }
+      if (!Array.isArray(list) || !list.length) {
+        return false;
+      }
+      const targetIndex = resolveNonVipDefaultDroneIndex(page);
+      if (targetIndex < 0) {
+        console.warn("Failed to resolve non-vip default drone", {
+          targetName: NON_VIP_DEFAULT_DRONE_NAME
+        });
+        return false;
+      }
+      const target = list[targetIndex];
+      if (!target || !target.slug) {
+        return false;
+      }
+      if (page.data.selectedDrone !== target.slug) {
+        applyDroneByIndex(page, targetIndex, { persist: false });
+      }
+      if (options.persist !== false) {
+        page.persistMapLayerSettings();
+      }
+      return true;
+    })
+    .catch((err) => {
+      console.warn("Failed to enforce non-vip default drone", err);
+      return false;
+    })
+    .finally(() => {
+      page._nonVipDefaultDronePromise = null;
+    });
+  return page._nonVipDefaultDronePromise;
+}
+
 module.exports = {
   computeDronePickerLabel,
   normalizeAircraftModel,
   resolveDroneIndexByModel,
+  resolveNonVipDefaultDroneIndex,
   applyAircraftModelSetting,
   getDroneList,
   resolveDroneCategoryId,
@@ -359,5 +428,6 @@ module.exports = {
   onSelectDroneCategory,
   onSelectDroneOption,
   confirmDronePicker,
-  applyDroneByIndex
+  applyDroneByIndex,
+  ensureNonVipDefaultDrone
 };

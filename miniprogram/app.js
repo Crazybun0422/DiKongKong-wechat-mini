@@ -11,11 +11,16 @@ const {
   persistProfileLocally
 } = require("./utils/profile");
 const {
+  prepareSelectedVoicePack,
+  playVoicePackEvent
+} = require("./utils/voice-pack");
+const {
   fetchSubscriptions,
   updateSubscriptions,
   extractAcceptedTemplateIdsFromWxSetting,
   areTemplateIdSetsEqual
 } = require("./utils/subscriptions");
+const { fetchMapLayerSettings } = require("./utils/map-layer-settings");
 const { prefetchMapKey } = require("./utils/map-key");
 const { prefetchFontFileConfig } = require("./utils/font-config");
 
@@ -61,6 +66,13 @@ function resolveGuideAssetBase() {
 
 const API_BASE_URL = resolveApiBase();
 const GUIDE_ASSET_BASE_URL = resolveGuideAssetBase();
+const VOICE_PACK_STARTUP_LOG_PREFIX = "[voice-pack-startup]";
+const MAP_LAYER_VOICE_PACK_KEYS = [
+  "selectedVoicePackDirectoryName",
+  "voicePackDirectoryName",
+  "voicePack",
+  "selectedVoicePack"
+];
 
 function decodeParamValue(value) {
   if (value === undefined || value === null) return "";
@@ -71,6 +83,25 @@ function decodeParamValue(value) {
   } catch (err) {
     return text;
   }
+}
+
+function normalizeVoicePackDirectoryName(value) {
+  if (value === undefined || value === null) return "";
+  return `${value}`.trim();
+}
+
+function resolveVoicePackDirectoryNameFromMapLayerSettings(settings = {}) {
+  const extraConfig =
+    settings && typeof settings.extraConfig === "object" && settings.extraConfig
+      ? settings.extraConfig
+      : {};
+  for (let i = 0; i < MAP_LAYER_VOICE_PACK_KEYS.length; i += 1) {
+    const key = MAP_LAYER_VOICE_PACK_KEYS[i];
+    if (Object.prototype.hasOwnProperty.call(extraConfig, key)) {
+      return normalizeVoicePackDirectoryName(extraConfig[key]);
+    }
+  }
+  return "";
 }
 
 function parseSceneParams(scene) {
@@ -164,7 +195,9 @@ App({
     subscriptionAcceptedTemplateIds: [],
     subscriptionSettingsReady: false,
     subscriptionMainSwitch: true,
-    showSubscribeWaitOverlay: false
+    showSubscribeWaitOverlay: false,
+    mapReadyForStartVoice: false,
+    startVoicePlayed: false
   },
 
   onLaunch(options = {}) {
@@ -522,5 +555,104 @@ App({
         }
       });
     });
+  },
+
+  preloadVoicePackInBackground(profile = {}) {
+    if (this._voicePackPreloadPromise) {
+      console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} reuse in-flight preload`);
+      return this._voicePackPreloadPromise;
+    }
+    const apiBase = this.globalData.apiBase || API_BASE_URL;
+    const storedProfile = loadStoredProfile() || {};
+    const normalized = normalizeProfileData(profile, {
+      storedProfile,
+      apiBase
+    });
+    const token = this.globalData.token;
+    console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} schedule preload`, {
+      hasToken: !!token,
+      selectedVoicePackDirectoryName: normalized?.selectedVoicePackDirectoryName || "",
+      vip: !!normalized?.vip,
+      memberExpireDate: normalized?.memberExpireDate || ""
+    });
+    if (!token) {
+      console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} skip preload: missing token`);
+      return Promise.resolve(null);
+    }
+    const ensureVoicePackProfile = normalized.selectedVoicePackDirectoryName
+      ? Promise.resolve(normalized)
+      : fetchMapLayerSettings({ apiBase, token })
+        .then((settings = {}) => {
+          const directoryName = resolveVoicePackDirectoryNameFromMapLayerSettings(settings);
+          console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} fetched map layer voice pack`, {
+            directoryName
+          });
+          if (!directoryName) {
+            return normalized;
+          }
+          return persistProfileLocally(Object.assign({}, normalized, {
+            selectedVoicePackDirectoryName: directoryName,
+            voicePackDirectoryName: directoryName,
+            voicePack: directoryName
+          }));
+        })
+        .catch((err) => {
+          console.warn(`${VOICE_PACK_STARTUP_LOG_PREFIX} fetch map layer settings failed`, err);
+          return normalized;
+        });
+    this._voicePackPreloadPromise = ensureVoicePackProfile
+      .then((resolvedProfile) => {
+        console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} preload with profile`, {
+          selectedVoicePackDirectoryName: resolvedProfile?.selectedVoicePackDirectoryName || "",
+          vip: !!resolvedProfile?.vip
+        });
+        return prepareSelectedVoicePack(resolvedProfile, {
+          apiBase,
+          token
+        });
+      })
+      .then((pack) => {
+        console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} preload finished`, {
+          hasPack: !!pack,
+          directoryName: pack?.directoryName || ""
+        });
+        if (pack) {
+          this.tryPlayStartVoice();
+        }
+        return pack || null;
+      })
+      .catch((err) => {
+        console.warn(`${VOICE_PACK_STARTUP_LOG_PREFIX} preload failed`, err);
+        return null;
+      })
+      .finally(() => {
+        console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} preload settled`);
+        this._voicePackPreloadPromise = null;
+      });
+    return this._voicePackPreloadPromise;
+  },
+
+  markMapReadyForStartVoice() {
+    this.globalData.mapReadyForStartVoice = true;
+    console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} map ready for start voice`);
+    this.tryPlayStartVoice();
+  },
+
+  tryPlayStartVoice() {
+    if (!this.globalData.mapReadyForStartVoice || this.globalData.startVoicePlayed) {
+      console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} skip start voice`, {
+        mapReadyForStartVoice: !!this.globalData.mapReadyForStartVoice,
+        startVoicePlayed: !!this.globalData.startVoicePlayed
+      });
+      return false;
+    }
+    const played = playVoicePackEvent("start");
+    console.log(`${VOICE_PACK_STARTUP_LOG_PREFIX} try play start voice`, {
+      played
+    });
+    if (played) {
+      this.globalData.startVoicePlayed = true;
+    }
+    return played;
   }
 });

@@ -2,11 +2,11 @@ const {
   fetchUserProfile,
   loadStoredProfile,
   normalizeProfileData,
+  persistProfileLocally,
   resolveApiBase
 } = require("../../utils/profile");
 const { fetchMapLayerSettings } = require("../../utils/map-layer-settings");
 const { shouldShowGuide } = require("../../utils/policies");
-const { prepareSelectedVoicePack, playVoicePackEvent } = require("../../utils/voice-pack");
 
 const DEFAULT_ERROR = "初始化失败，请重试";
 
@@ -124,12 +124,12 @@ Page({
     this.prepareLaunchOptions();
     const preloadGuide = this.preloadGuideSubpackage();
     this.ensureProfile()
-      .then((profile = {}) =>
-        Promise.all([
-          this.preloadInitialMapLocationMode(),
-          this.preloadVoicePack(profile)
-        ]).then(() => profile)
-      )
+      .then((profile = {}) => {
+        this.preloadVoicePack(profile);
+        return Promise.all([
+          this.preloadInitialMapLocationMode()
+        ]).then(() => profile);
+      })
       .then((profile = {}) => {
         if (this._navigating) return;
         if (shouldShowGuide(profile)) {
@@ -194,6 +194,19 @@ Page({
   ensureProfile() {
     const app = typeof getApp === "function" ? getApp() : null;
     const apiBase = resolveApiBase();
+    const persistResolvedProfile = (profile = {}) => {
+      const stored = loadStoredProfile() || {};
+      const normalized = normalizeProfileData(profile, {
+        storedProfile: stored,
+        apiBase
+      });
+      const persisted = persistProfileLocally(normalized);
+      if (app && app.globalData) {
+        app.globalData.latestUserProfile = persisted;
+        app.globalData.latestUserProfileAt = Date.now();
+      }
+      return persisted;
+    };
     const fetchProfile = () =>
       fetchUserProfile({
         apiBase,
@@ -201,13 +214,7 @@ Page({
       });
     return this.ensureAccessToken()
       .then(fetchProfile)
-      .then((profile = {}) => {
-        if (app && app.globalData) {
-          app.globalData.latestUserProfile = profile;
-          app.globalData.latestUserProfileAt = Date.now();
-        }
-        return profile;
-      })
+      .then((profile = {}) => persistResolvedProfile(profile))
       .catch((err) => {
         if (this._profileRetry) {
           throw err;
@@ -216,13 +223,7 @@ Page({
         if (app && typeof app.loginWithProfile === "function") {
           return app.loginWithProfile(loadStoredProfile())
             .then(fetchProfile)
-            .then((profile = {}) => {
-              if (app && app.globalData) {
-                app.globalData.latestUserProfile = profile;
-                app.globalData.latestUserProfileAt = Date.now();
-              }
-              return profile;
-            });
+            .then((profile = {}) => persistResolvedProfile(profile));
         }
         throw err;
       });
@@ -258,21 +259,16 @@ Page({
 
   preloadVoicePack(profile = {}) {
     const app = typeof getApp === "function" ? getApp() : null;
-    const apiBase = app?.globalData?.apiBase || resolveApiBase();
-    const normalized = normalizeProfileData(profile, {
-      storedProfile: loadStoredProfile(),
-      apiBase
+    if (!app || typeof app.preloadVoicePackInBackground !== "function") {
+      return Promise.resolve();
+    }
+    console.log("[voice-pack-startup] start preload after profile ready", {
+      selectedVoicePackDirectoryName: profile?.selectedVoicePackDirectoryName || "",
+      vip: !!profile?.vip,
+      memberExpireDate: profile?.memberExpireDate || ""
     });
-    return prepareSelectedVoicePack(normalized, {
-      apiBase,
-      token: app?.globalData?.token
-    })
-      .then((pack) => {
-        if (pack) playVoicePackEvent("start");
-      })
-      .catch((err) => {
-        console.warn("entry preload voice pack failed", err);
-      });
+    app.preloadVoicePackInBackground(profile);
+    return Promise.resolve();
   },
 
   goGuide() {

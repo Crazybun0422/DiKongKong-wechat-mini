@@ -491,7 +491,6 @@
     bind:backtap="onBackTap"
     bind:close="closeDronePicker"
     bind:confirm="confirmDronePicker"
-    bind:vipgateconfirm="onDronePickerVipGateConfirm"
     bind:selectcategory="onSelectDroneCategory"
     bind:selectoption="onSelectDroneOption"
   />

@@ -7,11 +7,18 @@ const { fetchVoicePackVersion, downloadVoicePack } = require("./file-packs");
 
 const VOICE_PACK_CACHE_KEY = "voicePackCache";
 const VOICE_PACK_EXTRACT_DIR_NAME = "voice-packs";
+const VOICE_PACK_LOG_PREFIX = "[voice-pack]";
 const VOICE_PACK_EVENTS = {
   start: ["start.wav"],
   first_drag_map: ["first_drag_map.wav"],
   sign_in: ["sign_in.wav", "sign_in_success.wav"]
 };
+
+function logVoicePack(event, detail = {}) {
+  try {
+    console.log(VOICE_PACK_LOG_PREFIX, event, detail);
+  } catch (err) {}
+}
 
 function getAppInstance() {
   try {
@@ -274,13 +281,25 @@ function parseVoicePackagesYml(content = "", rootPath = "") {
 function resolveVoiceZip(fileName, version, options = {}) {
   const cache = readStoredPackCache();
   const cachedZip = cache.fileName === fileName && cache.version === version ? cache.zipPath : "";
+  logVoicePack("resolve-zip:start", {
+    fileName,
+    version,
+    cachedZip,
+    cacheFileName: cache.fileName || "",
+    cacheVersion: cache.version || ""
+  });
   return fileExists(cachedZip)
     .then((exists) => {
-      if (exists) return cachedZip;
+      if (exists) {
+        logVoicePack("resolve-zip:reuse-cached-zip", { cachedZip });
+        return cachedZip;
+      }
+      logVoicePack("resolve-zip:download", { fileName, version });
       return downloadVoicePack(fileName, options)
         .then((tempPath) => saveTempFile(tempPath))
         .then((zipPath) => {
           writeStoredPackCache(Object.assign({}, cache, { fileName, version, zipPath }));
+          logVoicePack("resolve-zip:downloaded", { zipPath, fileName, version });
           return zipPath;
         });
     });
@@ -315,20 +334,40 @@ function prepareVoicePackCatalog(options = {}) {
       cache.fileName === fileName &&
       cache.version === version &&
       cache.extractPath === targetPath;
+    logVoicePack("catalog:version", {
+      fileName,
+      version,
+      targetPath,
+      cacheFileName: cache.fileName || "",
+      cacheVersion: cache.version || "",
+      cacheExtractPath: cache.extractPath || "",
+      canReuseExtract
+    });
     const loadExisting = canReuseExtract
       ? fileExists(`${targetPath}/packages.yml`).then((exists) =>
         exists ? loadVoiceCatalogFromExtract(targetPath, versionInfo) : null
       )
       : Promise.resolve(null);
     return loadExisting.then((existingCatalog) => {
-      if (existingCatalog) return existingCatalog;
+      if (existingCatalog) {
+        logVoicePack("catalog:reuse-extract", {
+          targetPath,
+          packageCount: Array.isArray(existingCatalog.packages) ? existingCatalog.packages.length : 0
+        });
+        return existingCatalog;
+      }
+      logVoicePack("catalog:refresh-extract", { fileName, version, targetPath });
       return resolveVoiceZip(fileName, version, options)
         .then((zipPath) =>
           removeDir(targetPath)
             .then(() => ensureDir(targetPath))
-            .then(() => unzipArchive(zipPath, targetPath))
+            .then(() => {
+              logVoicePack("catalog:unzip", { zipPath, targetPath });
+              return unzipArchive(zipPath, targetPath);
+            })
             .then(() => {
               writeStoredPackCache({ fileName, version, zipPath, extractPath: targetPath });
+              logVoicePack("catalog:unzipped", { targetPath, fileName, version });
               return loadVoiceCatalogFromExtract(targetPath, versionInfo);
             })
         );
@@ -353,16 +392,27 @@ function setActiveVoicePack(pack = null) {
 
 function prepareSelectedVoicePack(profile = {}, options = {}) {
   if (!isMembershipActive(profile)) {
+    logVoicePack("prepare-selected:skip-inactive-membership", {
+      vip: !!profile?.vip,
+      memberExpireDate: profile?.memberExpireDate || ""
+    });
     setActiveVoicePack(null);
     return Promise.resolve(null);
   }
   const directoryName = getSelectedVoicePackDirectoryName(profile);
   if (!directoryName) {
+    logVoicePack("prepare-selected:skip-empty-directory");
     setActiveVoicePack(null);
     return Promise.resolve(null);
   }
+  logVoicePack("prepare-selected:start", { directoryName });
   return prepareVoicePackCatalog(options).then((catalog) => {
     const pack = findVoicePack(catalog, directoryName);
+    logVoicePack("prepare-selected:resolved", {
+      directoryName,
+      found: !!pack,
+      packageCount: Array.isArray(catalog.packages) ? catalog.packages.length : 0
+    });
     setActiveVoicePack(pack);
     return pack;
   });
@@ -451,11 +501,30 @@ function playVoicePackFile(pack = null, fileName = "") {
 
 function playVoicePackEvent(eventName = "") {
   const pack = getActiveVoicePack();
-  if (!pack) return false;
-  const candidates = VOICE_PACK_EVENTS[eventName] || [];
-  for (let i = 0; i < candidates.length; i += 1) {
-    if (playVoicePackFile(pack, candidates[i])) return true;
+  if (!pack) {
+    logVoicePack("play-event:skip-no-pack", { eventName });
+    return false;
   }
+  const candidates = VOICE_PACK_EVENTS[eventName] || [];
+  logVoicePack("play-event:start", {
+    eventName,
+    directoryName: pack.directoryName || "",
+    candidates
+  });
+  for (let i = 0; i < candidates.length; i += 1) {
+    if (playVoicePackFile(pack, candidates[i])) {
+      logVoicePack("play-event:success", {
+        eventName,
+        fileName: candidates[i],
+        directoryName: pack.directoryName || ""
+      });
+      return true;
+    }
+  }
+  logVoicePack("play-event:miss", {
+    eventName,
+    directoryName: pack.directoryName || ""
+  });
   return false;
 }
 

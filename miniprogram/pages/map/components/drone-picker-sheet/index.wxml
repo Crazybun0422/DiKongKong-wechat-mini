@@ -53,9 +53,4 @@
       </scroll-view>
     </view>
   </view>
-  <vip-gate-popup
-    visible="{{vipGatePopupVisible}}"
-    bind:close="onVipGatePopupClose"
-    bind:confirm="onVipGatePopupConfirm"
-  />
 </block>

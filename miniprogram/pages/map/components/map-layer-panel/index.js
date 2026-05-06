@@ -25,8 +25,7 @@ Component({
   },
 
   data: {
-    activeSettingsTab: "common",
-    vipGatePopupVisible: false
+    activeSettingsTab: "common"
   },
 
   methods: {
@@ -59,7 +58,7 @@ Component({
     onMapLayerSelect(event = {}) {
       const type = event?.currentTarget?.dataset?.type || "";
       if ((type === "satellite" || type === "tianditu") && !this.properties.userVip) {
-        this.showVipGatePopup();
+        this.navigateToMemberPage();
         return;
       }
       this.emitDataset("maplayerselect", event);
@@ -76,7 +75,7 @@ Component({
     onLocationIconTap(event = {}) {
       const mode = event?.currentTarget?.dataset?.mode || "default";
       if (mode !== "default" && !this.properties.userVip) {
-        this.showVipGatePopup();
+        this.navigateToMemberPage();
         return;
       }
       this.triggerEvent("mylocationiconselect", { dataset: { type: mode } });
@@ -85,7 +84,7 @@ Component({
     onCenterPinIconTap(event = {}) {
       const type = event?.currentTarget?.dataset?.type || "default";
       if (type !== "default" && !this.properties.userVip) {
-        this.showVipGatePopup();
+        this.navigateToMemberPage();
         return;
       }
       this.triggerEvent("centerpiniconselect", { dataset: { type } });
@@ -93,21 +92,16 @@ Component({
 
     onVipFeatureTap() {
       if (!this.properties.userVip) {
-        this.showVipGatePopup();
+        this.navigateToMemberPage();
       }
     },
 
-    showVipGatePopup() {
-      this.setData({ vipGatePopupVisible: true });
-    },
-
-    onVipGatePopupClose() {
-      this.setData({ vipGatePopupVisible: false });
-    },
-
-    onVipGatePopupConfirm() {
-      this.setData({ vipGatePopupVisible: false });
-      this.triggerEvent("vipgateconfirm");
+    navigateToMemberPage() {
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/packages/member/index/index" });
     },
 
     onAirBoardSwitchChange(event = {}) {

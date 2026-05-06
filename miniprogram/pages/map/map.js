@@ -1187,7 +1187,12 @@ Page({
         if (this.data.myLocationIconType === "avatar") {
           this.ensureMyLocationAvatarIcon({ force: avatarChanged });
         }
+        if (!userVip) {
+          this.ensureNonVipDefaultDrone({ persist: !!this._mapLayerSettingsLoaded });
+        }
       });
+    } else if (!userVip) {
+      this.ensureNonVipDefaultDrone({ persist: !!this._mapLayerSettingsLoaded });
     }
     return userVip;
   },
@@ -1425,6 +1430,10 @@ Page({
     return dronePickerUtils.resolveDroneIndexByModel(this, model);
   },
 
+  resolveNonVipDefaultDroneIndex() {
+    return dronePickerUtils.resolveNonVipDefaultDroneIndex(this);
+  },
+
   applyAircraftModelSetting(model, options = {}) {
     return dronePickerUtils.applyAircraftModelSetting(this, model, options);
   },
@@ -1447,6 +1456,10 @@ Page({
 
   loadDronesFromApi() {
     return dronePickerUtils.loadDronesFromApi(this);
+  },
+
+  ensureNonVipDefaultDrone(options = {}) {
+    return dronePickerUtils.ensureNonVipDefaultDrone(this, options);
   },
 
   onSearchTap() {
@@ -1531,14 +1544,6 @@ Page({
 
   onCenterPinIconSelect(event = {}) {
     return layerPanelUtils.onCenterPinIconSelect(this, event);
-  },
-
-  onLayerVipGateConfirm() {
-    if (typeof wx.navigateTo !== "function") {
-      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
-      return;
-    }
-    wx.navigateTo({ url: "/packages/member/index/index" });
   },
 
   onCenterTargetLinkSwitchChange(event = {}) {

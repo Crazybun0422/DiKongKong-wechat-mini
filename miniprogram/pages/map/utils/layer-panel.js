@@ -55,6 +55,14 @@ const resolveEventDataset = (event = {}) => {
   return {};
 };
 
+function navigateToMemberPage() {
+  if (typeof wx.navigateTo !== "function") {
+    wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+    return;
+  }
+  wx.navigateTo({ url: "/packages/member/index/index" });
+}
+
 function onLayerButtonTap(page) {
   if (typeof page.syncUserMembershipState === "function") {
     page.syncUserMembershipState();
@@ -96,9 +104,7 @@ function onMapLayerSelect(page, event = {}) {
   const type = resolveEventDataset(event).type || "";
   const nextType = type === "satellite" || type === "tianditu" ? type : "standard";
   if ((nextType === "satellite" || nextType === "tianditu") && !page.data.userVip) {
-    if (typeof wx !== "undefined" && typeof wx.showToast === "function") {
-      wx.showToast({ title: "请先开通会员", icon: "none" });
-    }
+    navigateToMemberPage();
     return;
   }
   const enableSatellite = nextType === "satellite" || nextType === "tianditu";
@@ -131,7 +137,7 @@ function onUsePlanetCenterPointSwitchChange(page, event = {}) {
 function onMyLocationIconSelect(page, event = {}) {
   const type = normalizeMyLocationIconType(resolveEventDataset(event).type);
   if (type !== MY_LOCATION_ICON_TYPES.DEFAULT && !page.data.userVip) {
-    wx.showToast({ title: "请先开通会员", icon: "none" });
+    navigateToMemberPage();
     return;
   }
   applyMyLocationIconType(page, type);
@@ -159,7 +165,7 @@ function applyMyLocationIconType(page, type) {
 function onCenterPinIconSelect(page, event = {}) {
   const type = normalizeCenterPinIconType(resolveEventDataset(event).type);
   if (type !== CENTER_PIN_ICON_TYPES.DEFAULT && !page.data.userVip) {
-    wx.showToast({ title: "请先开通会员", icon: "none" });
+    navigateToMemberPage();
     return;
   }
   page.setData(
@@ -848,6 +854,9 @@ function loadMapLayerSettings(page, force = false) {
               if (page.data.selectedDrone) {
                 page.persistMapLayerSettings();
               }
+            }
+            if (!page.data.userVip && typeof page.ensureNonVipDefaultDrone === "function") {
+              page.ensureNonVipDefaultDrone({ persist: true });
             }
           }
         });

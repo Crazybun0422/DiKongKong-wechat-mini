@@ -772,9 +772,7 @@ Page({
     planetCreationGuideReady: false,
     pinVideoUploadFlpLimit: null,
     pinVideoUploadFlpLimitDisplay: "",
-    isVip: false,
-    vipGatePopupVisible: false,
-    vipGatePopupFeature: ""
+    isVip: false
   },
 
   onLoad(options = {}) {
@@ -4972,25 +4970,7 @@ Page({
     this.openVipGatePopup("hd-video");
   },
 
-  openVipGatePopup(feature = "") {
-    this.setData({
-      vipGatePopupVisible: true,
-      vipGatePopupFeature: `${feature || ""}`
-    });
-  },
-
-  onVipGatePopupClose() {
-    this.setData({
-      vipGatePopupVisible: false,
-      vipGatePopupFeature: ""
-    });
-  },
-
-  onVipGatePopupConfirm() {
-    this.setData({
-      vipGatePopupVisible: false,
-      vipGatePopupFeature: ""
-    });
+  openVipGatePopup(_feature = "") {
     if (typeof wx.navigateTo !== "function") {
       wx.showToast({ title: "当前版本暂不支持", icon: "none" });
       return;

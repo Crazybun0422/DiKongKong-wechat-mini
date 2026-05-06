@@ -37,11 +37,42 @@ paths:
                 $ref: '#/components/schemas/ApiResponseMemberRechargeConfig'
         '401':
           description: 未授权或非管理员
+  /api/config/member-invite-reward:
+    get:
+      tags: [Config]
+      summary: 获取会员邀请奖励配置（客户端读取）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMemberInviteRewardConfig'
+    put:
+      tags: [Config]
+      summary: 更新会员邀请奖励配置（仅管理端）
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberInviteRewardConfigRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMemberInviteRewardConfig'
+        '401':
+          description: 未授权或非管理员
   /api/user/member/recharge:
     post:
       tags: [User]
       summary: 会员充值（支持微信与FLP）
-      description: 支付成功后刷新会员状态和会员到期日。
+      description: 支付成功后刷新会员状态和会员到期日；若该会员来自邀请关系，则每次充值都会给邀请人发放FLP奖励并生成奖励日志。
       security:
         - bearerAuth: []
       requestBody:
@@ -59,6 +90,35 @@ paths:
                 $ref: '#/components/schemas/ApiResponseAny'
         '400':
           description: 参数错误
+        '401':
+          description: 未授权
+  /api/user/member/logs:
+    get:
+      tags: [User]
+      summary: 分页获取当前用户会员日志
+      description: 返回当前登录用户的会员订单日志，包含微信人民币充值与 FLP 充值记录。
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量，默认 20。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
         '401':
           description: 未授权
   /api/user/profile:
@@ -89,6 +149,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/MemberRechargeConfigResponse'
+    ApiResponseMemberInviteRewardConfig:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/MemberInviteRewardConfigResponse'
     ApiResponseAny:
       type: object
       properties:
@@ -112,6 +183,7 @@ components:
         - monthlyWechatListPrice
         - monthlyFlpNetPrice
         - monthlyFlpListPrice
+        - cashPaymentEnabled
       properties:
         yearlyWechatNetPrice:
           type: number
@@ -145,9 +217,33 @@ components:
           type: number
           format: double
           description: 月度会员FLP划线价（FLP）
+        cashPaymentEnabled:
+          type: boolean
+          description: 会员现金支付是否开启
     MemberRechargeConfigResponse:
       allOf:
         - $ref: '#/components/schemas/MemberRechargeConfigRequest'
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+              description: 配置更新时间
+    MemberInviteRewardConfigRequest:
+      type: object
+      required: [yearlyRewardFlp, monthlyRewardFlp]
+      properties:
+        yearlyRewardFlp:
+          type: number
+          format: double
+          description: 年度会员邀请奖励（默认30 FLP）
+        monthlyRewardFlp:
+          type: number
+          format: double
+          description: 月度会员邀请奖励（默认3 FLP）
+    MemberInviteRewardConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/MemberInviteRewardConfigRequest'
         - type: object
           properties:
             updatedAt:

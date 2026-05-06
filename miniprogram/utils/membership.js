@@ -50,6 +50,7 @@ function normalizeMemberRechargeConfig(raw = {}) {
     const value = Number(raw[key]);
     config[key] = isFinite(value) ? value : 0;
   });
+  config.cashPaymentEnabled = raw.cashPaymentEnabled === true;
   config.updatedAt = raw.updatedAt || "";
   return config;
 }

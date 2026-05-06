@@ -18,6 +18,22 @@ const PAYMENT_MODES = [
   { id: MEMBER_PAYMENT_MODES.FLP, label: "FLP兑换" }
 ];
 
+function resolveVisiblePaymentModes(config = {}) {
+  const cashPaymentEnabled = config?.cashPaymentEnabled === true;
+  return PAYMENT_MODES.filter((item) =>
+    item.id !== MEMBER_PAYMENT_MODES.WECHAT || cashPaymentEnabled
+  );
+}
+
+function resolveDefaultPaymentMode(config = {}, currentMode = "") {
+  const visibleModes = resolveVisiblePaymentModes(config);
+  const normalizedCurrent = `${currentMode || ""}`.trim().toUpperCase();
+  if (visibleModes.some((item) => item.id === normalizedCurrent)) {
+    return normalizedCurrent;
+  }
+  return visibleModes[0]?.id || MEMBER_PAYMENT_MODES.FLP;
+}
+
 const CYCLES = [
   {
     cycle: MEMBER_CYCLES.YEARLY,
@@ -114,9 +130,13 @@ Component({
     noop() {},
 
     preparePopup() {
+      const rechargeConfig = this.data.rechargeConfig || {};
+      const paymentMode = resolveDefaultPaymentMode(rechargeConfig, this.data.paymentMode);
       this.setData({
         successVisible: false,
-        plans: this.buildPlans(this.data.rechargeConfig || {}, this.data.paymentMode)
+        paymentModes: resolveVisiblePaymentModes(rechargeConfig),
+        paymentMode,
+        plans: this.buildPlans(rechargeConfig, paymentMode)
       });
       if (!this.data.rechargeConfig && !this._configPromise) {
         this.loadRechargeConfig();
@@ -126,15 +146,24 @@ Component({
     loadRechargeConfig() {
       this._configPromise = fetchMemberRechargeConfig()
         .then((config = {}) => {
+          const paymentMode = resolveDefaultPaymentMode(config, this.data.paymentMode);
           this.setData({
             rechargeConfig: config,
-            plans: this.buildPlans(config, this.data.paymentMode)
+            paymentModes: resolveVisiblePaymentModes(config),
+            paymentMode,
+            plans: this.buildPlans(config, paymentMode)
           });
           return config;
         })
         .catch((err) => {
           console.warn("load member recharge config failed", err);
-          this.setData({ plans: this.buildPlans({}, this.data.paymentMode) });
+          const fallbackConfig = {};
+          const paymentMode = resolveDefaultPaymentMode(fallbackConfig, this.data.paymentMode);
+          this.setData({
+            paymentModes: resolveVisiblePaymentModes(fallbackConfig),
+            paymentMode,
+            plans: this.buildPlans(fallbackConfig, paymentMode)
+          });
           return null;
         })
         .finally(() => {

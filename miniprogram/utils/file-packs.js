@@ -48,6 +48,20 @@ function parseUploadResponse(res = {}) {
   throw new Error(body?.message || res.errMsg || `status-${res.statusCode || 0}`);
 }
 
+function resolveFilePackDownloadBase(explicitBase) {
+  if (explicitBase) return explicitBase;
+  try {
+    const app = typeof getApp === "function" ? getApp() : null;
+    const base = app?.globalData?.guideAssetBase || app?.globalData?.apiBase || "";
+    if (typeof base === "string" && base.trim()) {
+      return base.trim();
+    }
+  } catch (err) {
+    console.warn("resolve file pack download base failed", err);
+  }
+  return resolveApiBase();
+}
+
 function fetchFilePackVersion(packType, options = {}) {
   const config = resolvePackConfig(packType);
   return authorizedRequest({
@@ -93,23 +107,49 @@ function uploadFilePack(packType, filePath, options = {}) {
 function downloadFilePack(packType, objectName, options = {}) {
   const config = resolvePackConfig(packType);
   const apiBase = resolveApiBase(options.apiBase);
+  const downloadBase = resolveFilePackDownloadBase(options.downloadBase);
   const token = options.token || getAuthToken();
   const normalizedObjectName = `${objectName || ""}`.trim();
   if (!apiBase) return Promise.reject(new Error("missing-api-base"));
+  if (!downloadBase) return Promise.reject(new Error("missing-download-base"));
   if (!token) return Promise.reject(new Error("missing-token"));
   if (!normalizedObjectName) return Promise.reject(new Error("missing-object-name"));
   return new Promise((resolve, reject) => {
+    const url = `${downloadBase}${config.basePath}/download/${encodeURIComponent(normalizedObjectName)}`;
+    console.log("[file-pack] download start", {
+      packType,
+      objectName: normalizedObjectName,
+      url
+    });
     wx.downloadFile({
-      url: `${apiBase}${config.basePath}/download/${encodeURIComponent(normalizedObjectName)}`,
+      url,
       header: Object.assign({ Authorization: `Bearer ${token}` }, options.header || {}),
       success: (res = {}) => {
         if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+          console.log("[file-pack] download success", {
+            packType,
+            objectName: normalizedObjectName,
+            statusCode: res.statusCode
+          });
           resolve(res.tempFilePath);
           return;
         }
+        console.warn("[file-pack] download failed", {
+          packType,
+          objectName: normalizedObjectName,
+          statusCode: res.statusCode,
+          errMsg: res.errMsg || ""
+        });
         reject(new Error(res.errMsg || `status-${res.statusCode || 0}`));
       },
-      fail: (err) => reject(err)
+      fail: (err) => {
+        console.warn("[file-pack] download request failed", {
+          packType,
+          objectName: normalizedObjectName,
+          err
+        });
+        reject(err);
+      }
     });
   });
 }

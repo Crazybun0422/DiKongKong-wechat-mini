@@ -15,10 +15,6 @@ Component({
     pendingDroneIndex: { type: Number, value: null }
   },
 
-  data: {
-    vipGatePopupVisible: false
-  },
-
   methods: {
     noop() {},
 
@@ -32,19 +28,18 @@ Component({
 
     onConfirmTap() {
       if (!this.properties.userVip) {
-        this.setData({ vipGatePopupVisible: true });
+        this.navigateToMemberPage();
         return;
       }
       this.triggerEvent("confirm");
     },
 
-    onVipGatePopupClose() {
-      this.setData({ vipGatePopupVisible: false });
-    },
-
-    onVipGatePopupConfirm() {
-      this.setData({ vipGatePopupVisible: false });
-      this.triggerEvent("vipgateconfirm");
+    navigateToMemberPage() {
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/packages/member/index/index" });
     },
 
     onSelectCategory(event = {}) {
