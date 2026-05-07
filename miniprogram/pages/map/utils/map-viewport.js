@@ -48,6 +48,14 @@ function updateMapGestureState(page, detail = {}) {
   }
 }
 
+function updateCenterPinDraggingState(page, dragging) {
+  const next = dragging === true;
+  if (!!page.data.centerPinDragging === next) {
+    return;
+  }
+  page.setData({ centerPinDragging: next });
+}
+
 function syncCompassState(page, detail = {}) {
   const rotateValue = Object.prototype.hasOwnProperty.call(detail, "rotate")
     ? detail.rotate
@@ -235,8 +243,12 @@ function onRegionChange(page, e) {
     return;
   }
   const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
+  const normalizedCause = `${cause || ""}`.toLowerCase();
   const detail = e?.detail || {};
-  if (e.type !== "end") {
+  const phase = `${e?.type || e?.detail?.type || ""}`.toLowerCase();
+  const isEnd = phase === "end";
+  updateCenterPinDraggingState(page, !isEnd && (normalizedCause === "drag" || normalizedCause === "gesture"));
+  if (!isEnd) {
     updateMapGestureState(page, detail);
     if (
       !page._centerPinWelcomeBubbleDismissedInGesture &&
@@ -276,7 +288,7 @@ function onRegionChange(page, e) {
     return;
   }
   page._centerPinWelcomeBubbleDismissedInGesture = false;
-  if (!page._voiceFirstDragPlayed && `${cause || ""}`.toLowerCase() === "drag") {
+  if (!page._voiceFirstDragPlayed && normalizedCause === "drag") {
     page._voiceFirstDragPlayed = true;
     playVoicePackEvent("first_drag_map");
   }

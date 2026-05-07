@@ -181,6 +181,7 @@ Page({
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     centerPinTitle: "",
+    centerPinDragging: false,
     centerPinFollowActive: false,
     centerPinFollowTipText: CENTER_PIN_FOLLOW_TIP_TEXT,
     centerPinWelcomeBubbleDismissToken: 0,

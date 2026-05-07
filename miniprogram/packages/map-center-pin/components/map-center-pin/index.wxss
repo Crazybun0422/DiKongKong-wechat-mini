@@ -31,6 +31,10 @@
   transition: transform 120ms ease, opacity 120ms ease;
 }
 
+.center-pin.is-hidden {
+  opacity: 0;
+}
+
 .center-pin--default {
   filter: brightness(0) saturate(100%);
 }
@@ -38,6 +42,64 @@
 .center-pin--custom {
   width: 64rpx;
   height: 64rpx;
+}
+
+.center-pin-bamboo-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64rpx;
+  height: 64rpx;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.center-pin-bamboo-spin-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 64rpx;
+  height: 64rpx;
+  overflow: visible;
+  perspective: 320rpx;
+  perspective-origin: center center;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.center-pin-bamboo-spin-rotor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 64rpx;
+  height: 64rpx;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  transform: translateZ(0);
+  will-change: transform;
+  animation: center-pin-bamboo-y-spin 110ms linear infinite;
+}
+
+.center-pin-bamboo-spin-face {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 64rpx;
+  height: 64rpx;
+  display: block;
+  pointer-events: none;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.center-pin-bamboo-spin-face--front {
+  transform: translateZ(0.1px);
+}
+
+.center-pin-bamboo-spin-face--back {
+  transform: rotateY(180deg) translateZ(0.1px);
 }
 
 .center-pin--satellite {
@@ -393,6 +455,15 @@
   100% {
     transform: translate(-50%, -50%) scale(2.5);
     opacity: 0;
+  }
+}
+
+@keyframes center-pin-bamboo-y-spin {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(360deg);
   }
 }
 
