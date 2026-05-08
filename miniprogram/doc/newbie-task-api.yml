@@ -240,6 +240,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/newbie-tasks/member-reward:
+    post:
+      summary: Claim 7-day member reward
+      description: User only. Requires rewardAvailable=true and rewardClaimed=false.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseNewbieTaskMemberRewardResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -291,6 +321,18 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/NewbieTaskRewardResponse'
+
+    ApiResponseNewbieTaskMemberRewardResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/NewbieTaskMemberRewardResponse'
     ApiResponseNewbieTaskPopupResponse:
       type: object
       properties:
@@ -461,3 +503,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NetdiskLinkResponse'
+
+    NewbieTaskMemberRewardResponse:
+      type: object
+      properties:
+        member:
+          type: boolean
+          description: Whether user is member after claiming reward.
+        memberExpireDate:
+          type: string
+          format: date
+          nullable: true
+          description: Member expiry date after adding 7 days.

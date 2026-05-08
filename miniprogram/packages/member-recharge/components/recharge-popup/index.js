@@ -221,6 +221,14 @@ Component({
       if (this.data.submitting) return;
       const cycle = this.data.selectedCycle || MEMBER_CYCLES.YEARLY;
       const paymentMode = this.data.paymentMode || MEMBER_PAYMENT_MODES.WECHAT;
+      let loadingClosed = false;
+      const closeLoading = () => {
+        if (loadingClosed) return;
+        loadingClosed = true;
+        if (typeof wx.hideLoading === "function") {
+          wx.hideLoading();
+        }
+      };
       this.setData({ submitting: true });
       if (typeof wx.showLoading === "function") {
         wx.showLoading({
@@ -239,18 +247,18 @@ Component({
         })
         .then(() => this.refreshProfile())
         .then((profile) => {
+          closeLoading();
           this.setData({ successVisible: true });
           this.triggerEvent("success", { profile });
         })
         .catch((err) => {
           console.warn("member recharge failed", err);
+          closeLoading();
           const message = normalizeRechargeErrorMessage(err);
-          wx.showToast({ title: message, icon: "none" });
+          wx.showToast({ title: message, icon: "none", duration: 2500 });
         })
         .finally(() => {
-          if (typeof wx.hideLoading === "function") {
-            wx.hideLoading();
-          }
+          closeLoading();
           this.setData({ submitting: false });
         });
     },

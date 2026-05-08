@@ -81,6 +81,23 @@ paths:
             type: string
             enum: [ASC, DESC]
           description: 按 FLP 余额排序方向，传入时会覆盖注册时间排序，默认不排序。
+        - in: query
+          name: member
+          schema:
+            type: boolean
+          description: 会员筛选。true=仅会员，false=仅非会员，不传=全部。
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: 注册日期开始（含），格式 yyyy-MM-dd。
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: 注册日期结束（含），格式 yyyy-MM-dd。
       responses:
         '200':
           description: OK
@@ -135,6 +152,23 @@ paths:
             type: string
             enum: [ASC, DESC]
           description: 按 FLP 余额排序方向，传入时会覆盖注册时间排序，默认不排序。
+        - in: query
+          name: member
+          schema:
+            type: boolean
+          description: 会员筛选。true=仅会员，false=仅非会员，不传=全部。
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: 注册日期开始（含），格式 yyyy-MM-dd。
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: 注册日期结束（含），格式 yyyy-MM-dd。
       responses:
         '200':
           description: OK
@@ -228,6 +262,76 @@ paths:
                 $ref: '#/components/schemas/ApiResponseNewbieTaskStatusPageResponse'
         '400':
           description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/users/member/logs:
+    get:
+      summary: 分页获取会员订单日志
+      description: 仅管理员可调用，返回会员订单日志（包含微信人民币充值与 FLP 充值）。
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 0
+          description: 页码，从 0 开始。
+        - in: query
+          name: size
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页数量，默认 20。
+        - in: query
+          name: featureCode
+          schema:
+            type: string
+          description: 可选，按用户 featureCode 过滤会员日志。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/admin/users/member/increase-days:
+    post:
+      summary: 增加会员天数（仅已完成新手任务的会员）
+      description: 仅管理员可调用。仅当目标用户已完成全部新手任务时，才会增加会员到期日；若原本非会员会自动升级为会员。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminIncreaseMemberDaysRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserSummaryResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
           content:
             application/json:
               schema:
@@ -348,7 +452,7 @@ paths:
   /api/user/profile/voice-pack:
     put:
       summary: 设置VIP语音包
-      description: 仅会员可设置当前使用的语音包目录名称（来自语音包 yml 的顶层 key），数据存储在 profile kv 中。
+      description: 仅会员可设置当前使用的语音包目录名称（来自语音包 yml 的顶层 key），数据存储在 profile kv 中。传空字符串可清空已设置语音包。
       requestBody:
         required: true
         content:
@@ -760,7 +864,7 @@ components:
       properties:
         voicePackDirectoryName:
           type: string
-          description: 语音包目录名称，例如 xiao_xing_voice_pack。
+          description: 语音包目录名称，例如 xiao_xing_voice_pack；传空字符串表示清空当前设置。
     UserLocationReportingEnabledResponse:
       type: object
       properties:
@@ -935,6 +1039,14 @@ components:
           type: string
         status:
           type: string
+        member:
+          type: boolean
+          description: 是否会员。
+        memberExpireDate:
+          type: string
+          format: date
+          nullable: true
+          description: 会员到期日，非会员为空。
         createdAt:
           type: string
           format: date-time
@@ -948,6 +1060,19 @@ components:
           additionalProperties:
             $ref: '#/components/schemas/UserPolicyAccessRecordResponse'
           description: 用户各协议类型最新访问记录，key 为 privacy 或 terms。
+    AdminIncreaseMemberDaysRequest:
+      type: object
+      required: [featureCode, days]
+      properties:
+        featureCode:
+          type: string
+          description: 用户特征码。
+          example: ABC123
+        days:
+          type: integer
+          minimum: 1
+          description: 增加会员天数，必须大于 0。
+          example: 30
     UserSummaryPageResponse:
       type: object
       properties:
@@ -1121,6 +1246,17 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/UserSummaryPageResponse'
+    ApiResponseUserSummaryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserSummaryResponse'
     ApiResponseCheckinStatsPageResponse:
       type: object
       properties:

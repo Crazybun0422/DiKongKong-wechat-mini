@@ -16,6 +16,11 @@ const {
   requestNewbieTaskPopupOpen
 } = require("../../../utils/newbie-tasks");
 const {
+  appendInviteCodeToPath,
+  appendInviteCodeToQuery,
+  getShareInviteCode
+} = require("../../../utils/share");
+const {
   clearSelectedVoicePack,
   getSelectedVoicePackDirectoryName,
   isMembershipActive,
@@ -47,6 +52,8 @@ const CENTER_PIN_ICON_TYPES = {
   BAMBOO_1: "bamboo1",
   BAMBOO_2: "bamboo2"
 };
+const MEMBER_PAGE_PATH = "/packages/member/index/index";
+const MEMBER_SHARE_TITLE = "加入高级会员，完整体验低空星球~";
 
 function normalizeVoicePackDirectoryName(value) {
   if (value === undefined || value === null) return "";
@@ -325,6 +332,9 @@ Page({
   },
 
   onLoad() {
+    if (typeof wx !== "undefined" && typeof wx.showShareMenu === "function") {
+      wx.showShareMenu({ menus: ["shareAppMessage", "shareTimeline"] });
+    }
     setVoicePackAudioEndedHandler(() => {
       if (this.data.playingVoiceKey) {
         this.setData({ playingVoiceKey: "" });
@@ -340,6 +350,27 @@ Page({
   onUnload() {
     setVoicePackAudioEndedHandler(null);
     stopVoicePackAudio();
+  },
+
+  getShareInviteCodeValue() {
+    const profileInviteCode = `${this.data.profile?.inviteCode || ""}`.trim();
+    return profileInviteCode || getShareInviteCode();
+  },
+
+  onShareAppMessage() {
+    const inviteCode = this.getShareInviteCodeValue();
+    return {
+      title: MEMBER_SHARE_TITLE,
+      path: appendInviteCodeToPath(MEMBER_PAGE_PATH, { inviteCode })
+    };
+  },
+
+  onShareTimeline() {
+    const inviteCode = this.getShareInviteCodeValue();
+    return {
+      title: MEMBER_SHARE_TITLE,
+      query: appendInviteCodeToQuery("", { inviteCode })
+    };
   },
 
   initPage() {

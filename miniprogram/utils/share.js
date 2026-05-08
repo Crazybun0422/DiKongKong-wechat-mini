@@ -81,8 +81,18 @@ function triggerInviteFetchIfNeeded() {
   return pendingInviteRefresh;
 }
 
-function appendInviteCodeToPath(path = "") {
-  const inviteCode = getShareInviteCode();
+function resolveShareInviteCode(options = {}) {
+  if (typeof options === "string") {
+    return normalizeInviteCode(options) || getShareInviteCode();
+  }
+  const explicitInviteCode = normalizeInviteCode(
+    options?.inviteCode ?? options?.ic ?? options?.invitationCode ?? ""
+  );
+  return explicitInviteCode || getShareInviteCode();
+}
+
+function appendInviteCodeToPath(path = "", options = {}) {
+  const inviteCode = resolveShareInviteCode(options);
   if (!inviteCode) return path || "";
   const safePath = path || "";
   if (PATH_PARAM_PATTERN.test(safePath)) {
@@ -92,8 +102,8 @@ function appendInviteCodeToPath(path = "") {
   return `${safePath}${delimiter}${INVITE_QUERY_KEY}=${encodeURIComponent(inviteCode)}`;
 }
 
-function appendInviteCodeToQuery(query = "") {
-  const inviteCode = getShareInviteCode();
+function appendInviteCodeToQuery(query = "", options = {}) {
+  const inviteCode = resolveShareInviteCode(options);
   if (!inviteCode) return query || "";
   const safeQuery = query || "";
   if (QUERY_PARAM_PATTERN.test(safeQuery)) {

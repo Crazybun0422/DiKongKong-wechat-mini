@@ -1300,7 +1300,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
-  /api/config/flp-no-ads-threshold:
+  /api/config/member-no-ads:
     get:
       summary: 获取免播广告 FLP 阈值配置
       description: 仅 ADMIN 角色管理员可调用，读取免播广告所需的最小 FLP 阈值。
@@ -1367,7 +1367,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
-  /api/config/flp-no-ads-threshold/sync-now:
+  /api/config/member-no-ads/sync-now:
     post:
       summary: 立即执行免广告人群同步任务
       description: 仅 ADMIN 角色管理员可调用，立即执行一次 WeData 免广告人群同步，并返回本次执行记录。
@@ -1398,7 +1398,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
-  /api/config/flp-no-ads-threshold/last-crowd:
+  /api/config/member-no-ads/last-crowd:
     get:
       summary: 获取上一次免广告人群记录
       description: 仅 ADMIN 角色管理员可调用，返回最近一次免广告人群同步记录（系统仅保存这一条最新记录，含成员详情）。
@@ -2497,14 +2497,14 @@ components:
         threshold:
           type: number
           format: double
-          description: 免播广告所需的 FLP 最小阈值，包含边界。
+          description: 免播广告所需的 会员状态，包含边界。
     FlpNoAdsThresholdResponse:
       type: object
       properties:
         threshold:
           type: number
           format: double
-          description: 免播广告所需的 FLP 最小阈值，包含边界。
+          description: 免播广告所需的 会员状态，包含边界。
     ApiResponseFlpNoAdsThresholdResponse:
       type: object
       properties:
