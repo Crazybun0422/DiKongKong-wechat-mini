@@ -92,11 +92,86 @@ function replaceTag(html, fromTag, toTag, baseClass) {
   return output;
 }
 
+function extractInlineableClassStyles(html = "") {
+  const styleMap = {};
+  const styleRegex = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+  html.replace(styleRegex, (match, cssText = "") => {
+    const ruleRegex = /\.([a-zA-Z0-9_-]+)\s*\{([^}]*)\}/g;
+    let ruleMatch;
+    while ((ruleMatch = ruleRegex.exec(cssText))) {
+      const className = ruleMatch[1];
+      const body = ruleMatch[2] || "";
+      const declarations = body
+        .split(";")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const allowed = declarations.filter((item) => {
+        const key = item.split(":")[0]?.trim().toLowerCase();
+        return [
+          "color",
+          "background",
+          "background-color",
+          "font-weight",
+          "font-style",
+          "text-decoration"
+        ].includes(key);
+      });
+      if (!allowed.length) continue;
+      styleMap[className] = allowed.join(";");
+    }
+    return match;
+  });
+  return styleMap;
+}
+
+function inlineClassStyles(html = "", styleMap = {}) {
+  if (!html || !Object.keys(styleMap).length) return html;
+  return html.replace(/<([a-zA-Z0-9-]+)\b([^>]*)>/g, (match, tagName, attrs = "") => {
+    if (/^\s*style\b/i.test(tagName) || /^style$/i.test(tagName)) {
+      return match;
+    }
+    const classMatch = attrs.match(/\bclass=['"]([^'"]*)['"]/i);
+    if (!classMatch || !classMatch[1]) return match;
+    const classes = classMatch[1].split(/\s+/).filter(Boolean);
+    const styles = classes
+      .map((name) => styleMap[name])
+      .filter(Boolean);
+    if (!styles.length) return match;
+    const styleMatch = attrs.match(/\bstyle=['"]([^'"]*)['"]/i);
+    const existingStyle = styleMatch && styleMatch[1] ? styleMatch[1].trim() : "";
+    const mergedStyle = [existingStyle].concat(styles).filter(Boolean).join(";");
+    let nextAttrs = attrs;
+    if (styleMatch) {
+      nextAttrs = nextAttrs.replace(/\bstyle=['"][^'"]*['"]/i, `style="${mergedStyle}"`);
+    } else {
+      nextAttrs = `${nextAttrs} style="${mergedStyle}"`;
+    }
+    return `<${tagName}${nextAttrs}>`;
+  });
+}
+
 function transformHtmlContent(html = "", options = {}) {
   if (!html || typeof html !== "string") {
     return "";
   }
   let output = html;
+  const classStyleMap = extractInlineableClassStyles(output);
+  output = output.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+  output = inlineClassStyles(output, classStyleMap);
+
+  output = output.replace(/<font\b([^>]*)>/gi, (match, attrs = "") => {
+    const colorMatch = attrs.match(/\bcolor=['"]?([^'"\s>]+)['"]?/i);
+    const styleMatch = attrs.match(/\bstyle=['"]([^'"]*)['"]/i);
+    const color = colorMatch && colorMatch[1] ? colorMatch[1].trim() : "";
+    const style = styleMatch && styleMatch[1] ? styleMatch[1].trim() : "";
+    const mergedStyle = []
+      .concat(style ? [style] : [])
+      .concat(color ? [`color:${color}`] : [])
+      .filter(Boolean)
+      .join(";");
+    return mergedStyle ? `<span style="${mergedStyle}">` : "<span>";
+  });
+  output = output.replace(/<\/font>/gi, "</span>");
 
   output = output.replace(/<input\b[^>]*type=['"]?checkbox['"]?[^>]*>/gi, (tag) => {
     const checked = /\bchecked\b/i.test(tag);

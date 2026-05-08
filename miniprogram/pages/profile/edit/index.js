@@ -8,6 +8,12 @@ const {
   prepareAvatarForUpload,
   uploadAvatarFile
 } = require("../../../utils/profile");
+const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../../utils/map-layer-settings");
+
+const MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY = "selectedCyberPilotCharacterId";
 
 const NICKNAME_MAX_UNITS = 16;
 const NICKNAME_CJK_RE = /[\u4e00-\u9fff]/;
@@ -26,6 +32,26 @@ function truncateNicknameByUnits(value, maxUnits = NICKNAME_MAX_UNITS) {
 
 function normalizeNicknameInput(value) {
   return truncateNicknameByUnits((value || "").trimStart());
+}
+
+function clearCyberPilotCharacterIdFromMapLayer() {
+  const apiBase = resolveApiBase();
+  return fetchMapLayerSettings({ apiBase })
+    .catch(() => ({}))
+    .then((settings = {}) => {
+      const existing =
+        settings && typeof settings.extraConfig === "object" && settings.extraConfig
+          ? settings.extraConfig
+          : {};
+      const extraConfig = Object.assign({}, existing, {
+        [MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY]: null
+      });
+      return updateMapLayerSettings({ extraConfig }, { apiBase });
+    })
+    .catch((err) => {
+      console.warn("clear cyber pilot character id failed", err);
+      return null;
+    });
 }
 
 Page({
@@ -117,6 +143,10 @@ Page({
           ),
           { apiBase }
         ).then((remote) => ({ remote, uploadedFileName }))
+      )
+      .then(({ remote, uploadedFileName }) =>
+        (uploadedFileName ? clearCyberPilotCharacterIdFromMapLayer() : Promise.resolve(null))
+          .then(() => ({ remote, uploadedFileName }))
       )
       .then(({ remote, uploadedFileName }) => {
         const baseProfile = Object.assign(

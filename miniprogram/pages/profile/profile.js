@@ -10,6 +10,7 @@
   uploadAvatarFile,
   updateUserProfile
 } = require("../../utils/profile");
+const { isMembershipActive } = require("../../utils/voice-pack");
 const { fetchMyLikes } = require("../../utils/likes");
 const {
   fetchLatestSubscriptionPush,
@@ -25,6 +26,12 @@ const {
   normalizeVersion
 } = require("../../utils/latest-items");
 const { fetchCheckinDetail } = require("../../utils/checkin");
+const {
+  fetchMapLayerSettings,
+  updateMapLayerSettings
+} = require("../../utils/map-layer-settings");
+
+const MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY = "selectedCyberPilotCharacterId";
 
 const NICKNAME_MAX_UNITS = 16;
 const NICKNAME_CJK_RE = /[\u4e00-\u9fff]/;
@@ -67,6 +74,28 @@ function resolveNicknameUpdateErrorMessage(err) {
   return err?.displayMessage || err?.message || "更新失败，请稍后重试";
 }
 
+function clearCyberPilotCharacterIdFromMapLayer(options = {}) {
+  const apiBase = resolveApiBase();
+  return fetchMapLayerSettings({ apiBase })
+    .catch(() => ({}))
+    .then((settings = {}) => {
+      const existing =
+        settings && typeof settings.extraConfig === "object" && settings.extraConfig
+          ? settings.extraConfig
+          : {};
+      const extraConfig = Object.assign({}, existing, {
+        [MAP_LAYER_EXTRA_CONFIG_CYBER_PILOT_CHARACTER_ID_KEY]: null
+      });
+      return updateMapLayerSettings({ extraConfig }, { apiBase });
+    })
+    .catch((err) => {
+      if (options.silent !== true) {
+        console.warn("clear cyber pilot character id failed", err);
+      }
+      throw err;
+    });
+}
+
 Page({
   data: {
     loading: true,
@@ -83,6 +112,8 @@ Page({
     showSubscribeWaitOverlay: false,
     checkinTodaySigned: false,
     statusBadgeStyle: "",
+    avatarActionSheetVisible: false,
+    cyberpunkPilotVipEnabled: false,
     showCheckinGuideProfile: false,
     checkinGuideOverlayStyle: "",
     checkinGuideMask: {
@@ -154,6 +185,7 @@ Page({
       profile: normalized,
       loading: true,
       error: "",
+      cyberpunkPilotVipEnabled: isMembershipActive(normalized),
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
       nicknameInput: normalized.nickname
     });
@@ -230,12 +262,16 @@ Page({
           avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
           featureCode: normalized.featureCode,
           flpValue: normalized.flpValue,
-          inviteCode: normalized.inviteCode
+          inviteCode: normalized.inviteCode,
+          vip: normalized.vip,
+          memberExpireDate: normalized.memberExpireDate,
+          checkinQuota: normalized.checkinQuota
         });
         this.setData({
           profile: normalized,
           loading: false,
           error: "",
+          cyberpunkPilotVipEnabled: isMembershipActive(normalized),
           customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
           nicknameInput: this.data.nicknameEditing ? this.data.nicknameInput : normalized.nickname
         });
@@ -289,10 +325,41 @@ Page({
     this.startNicknameEdit();
   },
 
+  openAvatarActionSheet() {
+    this.setData({ avatarActionSheetVisible: true });
+  },
+
+  closeAvatarActionSheet() {
+    this.setData({ avatarActionSheetVisible: false });
+  },
+
   onChooseAvatar(e) {
     const avatarUrl = e?.detail?.avatarUrl;
     if (!avatarUrl) return;
+    if (this.data.avatarActionSheetVisible) {
+      this.setData({ avatarActionSheetVisible: false });
+    }
     this.handleAvatarSelection(avatarUrl);
+  },
+
+  onCyberpunkPilotTap() {
+    this.setData({ avatarActionSheetVisible: false });
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({
+      url: "/pages/profile/cyberpunk-pilot/index",
+      events: {
+        profileUpdated: (payload = {}) => {
+          if (payload && payload.profile) {
+            this.handleProfileUpdateResult(payload.profile, {});
+          } else {
+            this.reloadProfile();
+          }
+        }
+      }
+    });
   },
 
   handleAvatarSelection(tempPath) {
@@ -311,6 +378,11 @@ Page({
             wrapped._uploadedFileName = fileName;
             throw wrapped;
           })
+      )
+      .then(({ remote, fileName }) =>
+        clearCyberPilotCharacterIdFromMapLayer({ silent: true })
+          .catch(() => null)
+          .then(() => ({ remote, fileName }))
       )
       .then(({ remote, fileName }) => {
         hideLoading();
@@ -487,7 +559,10 @@ Page({
       nickname: merged.nickname || current.nickname || "",
       avatarUrl: merged.avatarFileName || merged.avatarUrl || current.avatarFileName || "",
       featureCode: merged.featureCode,
-      flpValue: merged.flpValue
+      flpValue: merged.flpValue,
+      vip: merged.vip ?? merged.member ?? current.vip ?? false,
+      memberExpireDate: merged.memberExpireDate || current.memberExpireDate || "",
+      checkinQuota: merged.checkinQuota || current.checkinQuota || {}
     });
     this._storedProfileCache = persisted;
     const normalized = normalizeProfileData(merged, {
@@ -496,6 +571,7 @@ Page({
     });
     this.setData({
       profile: normalized,
+      cyberpunkPilotVipEnabled: isMembershipActive(normalized),
       customerServiceSessionFrom: this.composeCustomerServiceSessionFrom(normalized),
       nicknameInput: this.data.nicknameEditing ? this.data.nicknameInput : normalized.nickname
     });
@@ -535,6 +611,14 @@ Page({
     const balance = this.data.profile?.flpDisplay || "0.00";
     const query = encodeURIComponent(balance);
     wx.navigateTo({ url: `/pages/profile/flp/index?balance=${query}` });
+  },
+
+  onMemberCenterTap() {
+    if (typeof wx.navigateTo !== "function") {
+      wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+      return;
+    }
+    wx.navigateTo({ url: "/packages/member/index/index" });
   },
 
   onListItemTap(e) {

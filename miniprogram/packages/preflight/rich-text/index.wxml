@@ -1,0 +1,44 @@
+<view class="preflight-rich-page">
+  <scroll-view scroll-y="true" class="preflight-rich-scroll">
+    <block wx:if="{{loading}}">
+      <view class="preflight-rich-loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="preflight-rich-error">
+        <text>{{error}}</text>
+        <button class="preflight-rich-retry" bindtap="onRetryTap">重试</button>
+      </view>
+    </block>
+    <block wx:else>
+      <block wx:if="{{contentSegments.length}}">
+        <block wx:for="{{contentSegments}}" wx:key="index">
+          <rich-text
+            wx:if="{{item.type === 'rich'}}"
+            class="preflight-rich-content"
+            nodes="{{item.nodes}}"
+            space="nbsp"
+            selectable="true"
+            bindtap="onRichTextTap"
+          />
+          <image
+            wx:elif="{{item.type === 'image'}}"
+            class="preflight-rich-image"
+            src="{{item.src}}"
+            mode="widthFix"
+            show-menu-by-longpress="true"
+            data-index="{{item.index}}"
+            bindtap="onImageTap"
+          />
+        </block>
+      </block>
+      <rich-text
+        wx:else
+        class="preflight-rich-content"
+        nodes="{{contentNodes}}"
+        space="nbsp"
+        selectable="true"
+        bindtap="onRichTextTap"
+      />
+    </block>
+  </scroll-view>
+</view>

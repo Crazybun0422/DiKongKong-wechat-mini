@@ -1,0 +1,64 @@
+<view class="cyber-page">
+  <view class="cyber-noise"></view>
+  <view class="cyber-topbar">
+    <button class="cyber-back" bindtap="onBackTap">
+      <image class="cyber-back-image" src="./assets/return.png" mode="aspectFit" />
+    </button>
+  </view>
+
+  <view wx:if="{{loading}}" class="cyber-state cyber-state--loading">
+    <view class="cyber-state-ring"></view>
+    <text class="cyber-state-text">{{loadingText}}</text>
+  </view>
+
+  <view wx:elif="{{error}}" class="cyber-state cyber-state--error">
+    <text class="cyber-state-text">{{error}}</text>
+    <button class="cyber-retry" bindtap="onRetryTap">重新加载</button>
+  </view>
+
+  <view wx:else class="cyber-content">
+    <view class="cyber-strip-shell">
+      <scroll-view
+        class="cyber-strip"
+        scroll-x
+        enhanced
+        show-scrollbar="{{false}}"
+        scroll-into-view="{{stripScrollIntoView}}"
+      >
+        <view class="cyber-strip-track">
+          <block wx:for="{{characters}}" wx:key="id">
+            <view
+              id="cyber-avatar-{{item.id}}"
+              class="cyber-avatar-card {{selectedCharacterId === item.id ? 'is-selected' : ''}}"
+              data-id="{{item.id}}"
+              bindtap="onCharacterTap"
+            >
+              <text wx:if="{{appliedCharacterId === item.id}}" class="cyber-avatar-status">使用中</text>
+              <view class="cyber-avatar-frame">
+                <image class="cyber-avatar-image" src="{{item.avatarPath}}" mode="aspectFill" />
+              </view>
+            </view>
+          </block>
+        </view>
+      </scroll-view>
+
+      <view wx:if="{{confirmVisible && selectedCharacter}}" class="cyber-confirm-wrap">
+        <button
+          class="cyber-confirm-btn"
+          bindtap="onConfirmTap"
+          disabled="{{submitting}}"
+        >
+          <image class="cyber-confirm-vip" src="{{assets.vipUser}}" mode="aspectFit" />
+          <text>确认使用</text>
+        </button>
+      </view>
+    </view>
+
+    <view wx:if="{{selectedCharacter}}" class="cyber-preview">
+      <image class="cyber-preview-bg" src="{{selectedCharacter.quoteCardPath}}" mode="aspectFill" />
+      <view class="cyber-preview-stage">
+        <image class="cyber-preview-image" src="{{selectedCharacter.quoteCardPath}}" mode="aspectFit" />
+      </view>
+    </view>
+  </view>
+</view>

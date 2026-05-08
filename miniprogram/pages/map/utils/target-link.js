@@ -8,11 +8,158 @@ const {
   shouldRemoveMapTapTarget
 } = require("../../../utils/map-target-link");
 const { computeGreatCircleDistance } = require("../../../utils/distance");
+const { fetchElevationSnapshot, distanceBetweenCenters } = require("../../../utils/elevation");
 const { hasValidCoordinate } = require("./map-shared");
 const { cloneMarkerDetail } = require("./marker-shared");
 
 const SEARCH_LINK_OWNER_SEARCH = "search";
 const SEARCH_LINK_OWNER_MAP_TAP = "map-tap";
+const SEARCH_LINK_ELEVATION_MATCH_METERS = 20;
+
+function isSameSearchLinkPoint(pointA = {}, pointB = {}) {
+  const distance = distanceBetweenCenters(pointA, pointB);
+  return Number.isFinite(distance) && distance <= SEARCH_LINK_ELEVATION_MATCH_METERS;
+}
+
+function formatSearchLinkElevationDiff(diffMeters) {
+  const numeric = Number(diffMeters);
+  if (!Number.isFinite(numeric)) {
+    return "";
+  }
+  const rounded = Math.round(numeric);
+  const prefix = rounded > 0 ? "+" : "";
+  return `${prefix}${rounded}m`;
+}
+
+function computeCenterPinLinkBearing(center = {}, target = {}) {
+  const lat1 = Number(center?.latitude) * Math.PI / 180;
+  const lng1 = Number(center?.longitude) * Math.PI / 180;
+  const lat2 = Number(target?.latitude) * Math.PI / 180;
+  const lng2 = Number(target?.longitude) * Math.PI / 180;
+  if (![lat1, lng1, lat2, lng2].every((value) => Number.isFinite(value))) {
+    return NaN;
+  }
+  const y = Math.sin(lng2 - lng1) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function formatCenterPinLinkDirection(center = {}, target = {}) {
+  const bearing = computeCenterPinLinkBearing(center, target);
+  if (!Number.isFinite(bearing)) return "";
+  const rounded = Math.round(bearing) % 360;
+  if (rounded === 0) return "方位0°（正北）";
+  if (rounded === 90) return "方位90°（正东）";
+  if (rounded === 180) return "方位180°（正南）";
+  if (rounded === 270) return "方位270°（正西）";
+  if (rounded > 0 && rounded < 90) {
+    return `方位${rounded}°（北偏东${rounded}°）`;
+  }
+  if (rounded > 90 && rounded < 180) {
+    return `方位${rounded}°（东偏南${rounded - 90}°）`;
+  }
+  if (rounded > 180 && rounded < 270) {
+    return `方位${rounded}°（南偏西${rounded - 180}°）`;
+  }
+  return `方位${rounded}°（西偏北${rounded - 270}°）`;
+}
+
+function buildCenterPinLinkTipText(distanceText = "", elevationDiffText = "", directionText = "") {
+  if (!distanceText) {
+    return "";
+  }
+  const prefix = directionText ? `${directionText}，` : "";
+  return elevationDiffText
+    ? `${prefix}距离${distanceText}，高差${elevationDiffText}，长按解除`
+    : `${prefix}距离${distanceText}，长按解除`;
+}
+
+function resetSearchLinkElevationDiff(page) {
+  page._searchLinkElevationDiffState = null;
+  page._searchLinkElevationDiffRequestKey = "";
+}
+
+function readSearchLinkElevationDiffText(page, center, target) {
+  const state = page._searchLinkElevationDiffState;
+  if (!state) {
+    return "";
+  }
+  if (!isSameSearchLinkPoint(state.center, center) || !isSameSearchLinkPoint(state.target, target)) {
+    return "";
+  }
+  return `${state.diffText || ""}`.trim();
+}
+
+function resolveCenterElevationSnapshot(page, center = {}) {
+  const snapshot = page._elevationSnapshot;
+  if (
+    !snapshot ||
+    !hasValidCoordinate(snapshot.center?.latitude, snapshot.center?.longitude) ||
+    !isSameSearchLinkPoint(snapshot.center, center)
+  ) {
+    return Promise.resolve(null);
+  }
+  return Promise.resolve(snapshot);
+}
+
+function requestSearchLinkElevationDiff(page, target = {}, options = {}) {
+  const center = options.center || page.data.searchLinkCenter || page._centerOverride || page.data.center;
+  if (
+    !hasValidCoordinate(center?.latitude, center?.longitude) ||
+    !hasValidCoordinate(target?.latitude, target?.longitude)
+  ) {
+    resetSearchLinkElevationDiff(page);
+    return Promise.resolve(null);
+  }
+  const requestKey = `${Number(center.latitude).toFixed(6)},${Number(center.longitude).toFixed(6)}|${Number(target.latitude).toFixed(6)},${Number(target.longitude).toFixed(6)}`;
+  page._searchLinkElevationDiffRequestKey = requestKey;
+  const centerPromise = resolveCenterElevationSnapshot(page, center)
+    .then((snapshot) => snapshot || fetchElevationSnapshot(center));
+  const targetPromise = fetchElevationSnapshot(target);
+  return Promise.all([centerPromise, targetPromise])
+    .then(([centerSnapshot, targetSnapshot]) => {
+      if (page._searchLinkElevationDiffRequestKey !== requestKey) {
+        return null;
+      }
+      const centerElevation = Number(centerSnapshot?.elevationMeters);
+      const targetElevation = Number(targetSnapshot?.elevationMeters);
+      if (!Number.isFinite(centerElevation) || !Number.isFinite(targetElevation)) {
+        resetSearchLinkElevationDiff(page);
+        return null;
+      }
+      page._searchLinkElevationDiffState = {
+        center: {
+          latitude: Number(center.latitude),
+          longitude: Number(center.longitude)
+        },
+        target: {
+          latitude: Number(target.latitude),
+          longitude: Number(target.longitude)
+        },
+        diffText: formatSearchLinkElevationDiff(centerElevation - targetElevation)
+      };
+      const linkState = buildCenterPinLinkState(page, page.data.searchLinkCenter || center, {
+        target: page.data.searchLinkTarget || target,
+        visible: page.data.searchLinkVisible === true,
+        owner: page._searchLinkOwner
+      });
+      if (linkState.centerPinLinkActive) {
+        page.setData({
+          centerPinLinkActive: true,
+          centerPinLinkTipText: linkState.centerPinLinkTipText
+        });
+      }
+      return page._searchLinkElevationDiffState;
+    })
+    .catch(() => null)
+    .finally(() => {
+      if (page._searchLinkElevationDiffRequestKey === requestKey) {
+        page._searchLinkElevationDiffRequestKey = "";
+      }
+    });
+}
 
 function applySearchMarkers(page, markers) {
   page._searchMarkers = Array.isArray(markers)
@@ -63,9 +210,11 @@ function buildCenterPinLinkState(page, center, options = {}) {
     };
   }
   const distanceText = formatCenterPinLinkDistance(distanceMeters);
+  const elevationDiffText = readSearchLinkElevationDiffText(page, center, target);
+  const directionText = formatCenterPinLinkDirection(center, target);
   return {
     centerPinLinkActive: true,
-    centerPinLinkTipText: `距离${distanceText}，长按解除`
+    centerPinLinkTipText: buildCenterPinLinkTipText(distanceText, elevationDiffText, directionText)
   };
 }
 
@@ -97,6 +246,7 @@ function applySearchLinkTarget(page, target, options = {}) {
   const longitude = Number(target?.longitude);
   const hasTarget = Number.isFinite(latitude) && Number.isFinite(longitude);
   const nextTarget = hasTarget ? { latitude, longitude } : null;
+  resetSearchLinkElevationDiff(page);
   page._searchLinkOwner = owner;
   const linkState = buildCenterPinLinkState(page, page.data.searchLinkCenter, {
     target: nextTarget,
@@ -107,6 +257,12 @@ function applySearchLinkTarget(page, target, options = {}) {
     searchLinkTarget: nextTarget,
     searchLinkVisible: hasTarget && options.visible !== false,
     ...linkState
+  }, () => {
+    if (hasTarget) {
+      requestSearchLinkElevationDiff(page, nextTarget, {
+        center: page.data.searchLinkCenter || page._centerOverride || page.data.center || null
+      });
+    }
   });
 }
 
@@ -132,6 +288,7 @@ function clearSearchLinkOverlay(page, options = {}) {
     page._searchLinkOwner
   ) {
     page._searchLinkOwner = "";
+    resetSearchLinkElevationDiff(page);
     page.setData({
       searchLinkTarget: null,
       searchLinkVisible: false,
@@ -141,6 +298,7 @@ function clearSearchLinkOverlay(page, options = {}) {
     return true;
   }
   page._searchLinkOwner = "";
+  resetSearchLinkElevationDiff(page);
   return true;
 }
 
@@ -201,7 +359,7 @@ function onMapTap(page, event = {}) {
   if (!point) return;
   const now = Date.now();
   if (!canReplaceMapTapTarget(page._mapTapTargetTapAt, now)) {
-    wx.showToast({ title: "请2秒后再选下一个目标点", icon: "none" });
+    wx.showToast({ title: "请5秒后再选下一个目标点", icon: "none" });
     return;
   }
   page.clearSearchSelectionVisuals();
@@ -230,6 +388,7 @@ module.exports = {
   isMapTapTargetMarker,
   applySearchMarkers,
   formatCenterPinLinkDistance,
+  requestSearchLinkElevationDiff,
   buildCenterPinLinkState,
   clearCenterPinLinkState,
   clearActiveCenterTargetLink,

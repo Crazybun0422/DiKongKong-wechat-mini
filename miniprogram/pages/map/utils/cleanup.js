@@ -13,6 +13,14 @@ function onHide(page) {
     clearTimeout(page._mapGraphicsSyncTimer);
     page._mapGraphicsSyncTimer = null;
   }
+  if (page._weatherFetchTimer) {
+    clearTimeout(page._weatherFetchTimer);
+    page._weatherFetchTimer = null;
+  }
+  if (page._elevationFetchTimer) {
+    clearTimeout(page._elevationFetchTimer);
+    page._elevationFetchTimer = null;
+  }
   page._pendingMapGraphicsSync = null;
 }
 
@@ -24,6 +32,9 @@ function onUnload(page) {
   page._mapGraphicsSyncTimer = null;
   page._pendingMapGraphicsSync = null;
   if (page._markersFetchTimer) clearTimeout(page._markersFetchTimer);
+  if (page._pinsFetchTimer) clearTimeout(page._pinsFetchTimer);
+  if (page._weatherFetchTimer) clearTimeout(page._weatherFetchTimer);
+  if (page._elevationFetchTimer) clearTimeout(page._elevationFetchTimer);
   if (page._pendingCenterActionShareTimer) clearTimeout(page._pendingCenterActionShareTimer);
   if (page._centerShareLaunchLockTimer) clearTimeout(page._centerShareLaunchLockTimer);
   if (page._subscribeWaitTimer) clearTimeout(page._subscribeWaitTimer);
@@ -42,7 +53,14 @@ function onUnload(page) {
   if (page._uomPluginInitTimer) clearTimeout(page._uomPluginInitTimer);
   if (page._djiLayerInitTimer) clearTimeout(page._djiLayerInitTimer);
   if (page._temporaryNoFlyLayerInitTimer) clearTimeout(page._temporaryNoFlyLayerInitTimer);
+  if (page._tiandituSatelliteLayerInitTimer) clearTimeout(page._tiandituSatelliteLayerInitTimer);
   page._activeMarkersRequest = null;
+  page._activePinsRequest = null;
+  page._activeWeatherRequest = null;
+  page._activeElevationRequest = null;
+  page._centerPinLinkElevationState = null;
+  page._centerPinLinkElevationRequestKey = "";
+  page._pointElevationCache = null;
   if (page._uomPlugin && typeof page._uomPlugin.destroy === "function") {
     page._uomPlugin.destroy();
   }
@@ -52,6 +70,11 @@ function onUnload(page) {
   if (page._temporaryNoFlyLayer && typeof page._temporaryNoFlyLayer.destroy === "function") {
     page._temporaryNoFlyLayer.destroy();
   }
+  if (page._tiandituSatelliteLayer && typeof page._tiandituSatelliteLayer.destroy === "function") {
+    page._tiandituSatelliteLayer.destroy();
+  }
+  page._pendingTiandituSatelliteLayerEnabled = null;
+  page._pendingTiandituSatelliteLayerViewport = null;
 }
 
 module.exports = {

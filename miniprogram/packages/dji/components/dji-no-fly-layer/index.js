@@ -54,6 +54,7 @@ Component({
         djiTone: "neutral",
         djiColor: "",
         djiMsg: "",
+        djiAreaLevel: null,
         loadingDji: false,
         djiReady: false,
         djiEnabled: true
@@ -107,6 +108,7 @@ Component({
           djiTone: "warn",
           djiColor: this.softenPanelColor("#F59E0B"),
           djiMsg: "",
+          djiAreaLevel: null,
           loadingDji: false,
           djiReady: false,
           djiEnabled: false
@@ -211,6 +213,13 @@ Component({
         )
         : true;
       if (!force && !moved && !radiusDiff && !rectChanged) {
+        const status = this.describeDjiStatus(this._lastAreas);
+        this.emitStatusChange(Object.assign({}, status, {
+          djiMsg: this._status?.djiMsg || "",
+          loadingDji: false,
+          djiReady: Array.isArray(this._lastAreas),
+          djiEnabled: true
+        }));
         return;
       }
 

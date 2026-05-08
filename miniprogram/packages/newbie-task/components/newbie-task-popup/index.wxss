@@ -62,7 +62,7 @@
 .newbie-task-title-only {
   font-size: 36rpx;
   font-weight: 500;
-  color: #000000;
+  color: #f59e0b;
   line-height: 1.1;
 }
 

@@ -1,8 +1,26 @@
-const { fetchUserProfile, loadStoredProfile, resolveApiBase } = require("../../utils/profile");
+const {
+  fetchUserProfile,
+  loadStoredProfile,
+  normalizeProfileData,
+  persistProfileLocally,
+  resolveApiBase
+} = require("../../utils/profile");
 const { fetchMapLayerSettings } = require("../../utils/map-layer-settings");
 const { shouldShowGuide } = require("../../utils/policies");
 
 const DEFAULT_ERROR = "初始化失败，请重试";
+
+function normalizeInitialMyLocationIconType(settings = {}) {
+  const extraConfig =
+    settings && typeof settings.extraConfig === "object" && settings.extraConfig
+      ? settings.extraConfig
+      : {};
+  const raw = `${extraConfig.myLocationIconType || ""}`.trim();
+  if (raw === "avatar" || raw === "highlight") {
+    return raw;
+  }
+  return settings.useDefaultCenterPoint === false ? "highlight" : "default";
+}
 
 function safeStringify(value) {
   const seen = new WeakSet();
@@ -106,9 +124,12 @@ Page({
     this.prepareLaunchOptions();
     const preloadGuide = this.preloadGuideSubpackage();
     this.ensureProfile()
-      .then((profile = {}) =>
-        this.preloadInitialMapLocationMode().then(() => profile)
-      )
+      .then((profile = {}) => {
+        this.preloadVoicePack(profile);
+        return Promise.all([
+          this.preloadInitialMapLocationMode()
+        ]).then(() => profile);
+      })
       .then((profile = {}) => {
         if (this._navigating) return;
         if (shouldShowGuide(profile)) {
@@ -173,6 +194,19 @@ Page({
   ensureProfile() {
     const app = typeof getApp === "function" ? getApp() : null;
     const apiBase = resolveApiBase();
+    const persistResolvedProfile = (profile = {}) => {
+      const stored = loadStoredProfile() || {};
+      const normalized = normalizeProfileData(profile, {
+        storedProfile: stored,
+        apiBase
+      });
+      const persisted = persistProfileLocally(normalized);
+      if (app && app.globalData) {
+        app.globalData.latestUserProfile = persisted;
+        app.globalData.latestUserProfileAt = Date.now();
+      }
+      return persisted;
+    };
     const fetchProfile = () =>
       fetchUserProfile({
         apiBase,
@@ -180,13 +214,7 @@ Page({
       });
     return this.ensureAccessToken()
       .then(fetchProfile)
-      .then((profile = {}) => {
-        if (app && app.globalData) {
-          app.globalData.latestUserProfile = profile;
-          app.globalData.latestUserProfileAt = Date.now();
-        }
-        return profile;
-      })
+      .then((profile = {}) => persistResolvedProfile(profile))
       .catch((err) => {
         if (this._profileRetry) {
           throw err;
@@ -195,13 +223,7 @@ Page({
         if (app && typeof app.loginWithProfile === "function") {
           return app.loginWithProfile(loadStoredProfile())
             .then(fetchProfile)
-            .then((profile = {}) => {
-              if (app && app.globalData) {
-                app.globalData.latestUserProfile = profile;
-                app.globalData.latestUserProfileAt = Date.now();
-              }
-              return profile;
-            });
+            .then((profile = {}) => persistResolvedProfile(profile));
         }
         throw err;
       });
@@ -216,19 +238,37 @@ Page({
     const token = app.globalData.token;
     if (!apiBase || !token) {
       app.globalData.initialUsePlanetCenterPoint = false;
+      app.globalData.initialMyLocationIconType = "default";
       return Promise.resolve(false);
     }
     return fetchMapLayerSettings({ apiBase, token })
       .then((settings = {}) => {
-        const usePlanetCenterPoint = settings.useDefaultCenterPoint === false;
+        const initialMyLocationIconType = normalizeInitialMyLocationIconType(settings);
+        const usePlanetCenterPoint = initialMyLocationIconType !== "default";
         app.globalData.initialUsePlanetCenterPoint = usePlanetCenterPoint;
+        app.globalData.initialMyLocationIconType = initialMyLocationIconType;
         return usePlanetCenterPoint;
       })
       .catch((err) => {
         console.warn("entry preload map layer settings failed", err);
         app.globalData.initialUsePlanetCenterPoint = false;
+        app.globalData.initialMyLocationIconType = "default";
         return false;
       });
+  },
+
+  preloadVoicePack(profile = {}) {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || typeof app.preloadVoicePackInBackground !== "function") {
+      return Promise.resolve();
+    }
+    console.log("[voice-pack-startup] start preload after profile ready", {
+      selectedVoicePackDirectoryName: profile?.selectedVoicePackDirectoryName || "",
+      vip: !!profile?.vip,
+      memberExpireDate: profile?.memberExpireDate || ""
+    });
+    app.preloadVoicePackInBackground(profile);
+    return Promise.resolve();
   },
 
   goGuide() {

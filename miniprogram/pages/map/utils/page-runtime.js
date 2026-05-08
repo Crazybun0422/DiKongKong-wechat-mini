@@ -219,7 +219,7 @@ function ensureProfileAuthenticated(page) {
     return Promise.resolve(loadStoredProfile());
   }
   const showLoading = typeof wx.showLoading === "function";
-  const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => {};
+  const hideLoading = typeof wx.hideLoading === "function" ? () => wx.hideLoading() : () => { };
   const profile = loadStoredProfile() || {};
   if (showLoading) wx.showLoading({ title: "登录中...", mask: true });
   return ensureAccessToken(page, { profileOverride: profile })
@@ -378,6 +378,14 @@ function consumeInitialUsePlanetCenterPoint() {
   return value;
 }
 
+function consumeInitialMyLocationIconType() {
+  const app = typeof getApp === "function" ? getApp() : null;
+  if (!app?.globalData) return "";
+  const value = `${app.globalData.initialMyLocationIconType || ""}`.trim();
+  app.globalData.initialMyLocationIconType = "";
+  return value;
+}
+
 function resolveWindowMetrics(event = {}) {
   const metrics = getWindowMetrics();
   const resize = readResizeWindowSize(event);
@@ -423,11 +431,14 @@ function refreshResponsiveLayout(page, options = {}) {
   const subscriptionBannerLeftPx = roundAnchorPx(16);
   const preflightLeftPx = roundAnchorPx(16);
   const scaleControlsLeftPx = roundAnchorPx(32);
-  const scaleControlsBottomPx = roundAnchorPx(240);
-  const compassBottomPx = roundAnchorPx(490);
+  const scaleControlsBottomPx = roundAnchorPx(335);
+  const compassBottomPx = roundAnchorPx(660);
   const floatingControlsRightPx = roundAnchorPx(32);
   const floatingControlsBottomPx = roundAnchorPx(262);
   const bottomNavBottomPx = roundAnchorPx(42);
+  const weatherWidgetLeftPx = roundAnchorPx(22);
+  const weatherWidgetWidthPx = roundAnchorPx(262);
+  const weatherWidgetBottomPx = roundAnchorPx(220);
   if (page.data.subscriptionBannerLeftPx !== subscriptionBannerLeftPx) {
     updates.subscriptionBannerLeftPx = subscriptionBannerLeftPx;
   }
@@ -452,27 +463,33 @@ function refreshResponsiveLayout(page, options = {}) {
   if (page.data.bottomNavBottomPx !== bottomNavBottomPx) {
     updates.bottomNavBottomPx = bottomNavBottomPx;
   }
+  if (page.data.weatherWidgetLeftPx !== weatherWidgetLeftPx) {
+    updates.weatherWidgetLeftPx = weatherWidgetLeftPx;
+  }
+  if (page.data.weatherWidgetWidthPx !== weatherWidgetWidthPx) {
+    updates.weatherWidgetWidthPx = weatherWidgetWidthPx;
+  }
+  if (page.data.weatherWidgetBottomPx !== weatherWidgetBottomPx) {
+    updates.weatherWidgetBottomPx = weatherWidgetBottomPx;
+  }
   const windowHeight = Number(metrics.windowHeight);
-  if (Number.isFinite(windowHeight) && windowHeight > 0) {
-    const pxPerRpx = page._pxPerRpx || ((metrics.windowWidth || 375) / 750) || 0.5;
-    const panelMaxHeightPx = Math.max(280, Math.floor(windowHeight * 0.8));
-    const bodyMaxHeightPx = Math.max(180, panelMaxHeightPx - Math.round(124 * pxPerRpx));
-    if (page.data.layerPanelMaxHeightPx !== panelMaxHeightPx) {
-      updates.layerPanelMaxHeightPx = panelMaxHeightPx;
-    }
-    if (page.data.layerPanelBodyMaxHeightPx !== bodyMaxHeightPx) {
-      updates.layerPanelBodyMaxHeightPx = bodyMaxHeightPx;
-    }
-  }
-  if (Object.keys(updates).length) {
-    page.setData(updates, () => {
-      if (page.data.layerPanelVisible) {
-        page.scheduleLayerPanelLayoutMeasure(0);
+    if (Number.isFinite(windowHeight) && windowHeight > 0) {
+      const pxPerRpx = page._pxPerRpx || ((metrics.windowWidth || 375) / 750) || 0.5;
+      const panelMaxHeightPx = Math.max(280, Math.floor(windowHeight * 0.8));
+      const bodyMaxHeightPx = Math.max(180, panelMaxHeightPx - Math.round(124 * pxPerRpx));
+      if (page.data.layerPanelMaxHeightPx !== panelMaxHeightPx) {
+        updates.layerPanelMaxHeightPx = panelMaxHeightPx;
       }
-    });
-  } else if (page.data.layerPanelVisible) {
-    page.scheduleLayerPanelLayoutMeasure(0);
-  }
+      if (page.data.layerPanelBodyMaxHeightPx !== bodyMaxHeightPx) {
+        updates.layerPanelBodyMaxHeightPx = bodyMaxHeightPx;
+      }
+      if (page.data.layerPanelBodyHeightPx !== bodyMaxHeightPx) {
+        updates.layerPanelBodyHeightPx = bodyMaxHeightPx;
+      }
+    }
+    if (Object.keys(updates).length) {
+      page.setData(updates);
+    }
   if (options.refreshScaleBar === false) {
     return;
   }
@@ -532,6 +549,7 @@ module.exports = {
   queueRegionUpdateSkip,
   consumePendingLaunchOptions,
   consumeInitialUsePlanetCenterPoint,
+  consumeInitialMyLocationIconType,
   resolveWindowMetrics,
   refreshResponsiveLayout,
   registerWindowResizeListener,

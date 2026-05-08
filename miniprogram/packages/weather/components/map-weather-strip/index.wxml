@@ -1,0 +1,46 @@
+<view
+  wx:if="{{visible}}"
+  class="weather-strip {{satellite ? 'weather-strip--satellite' : ''}}"
+  style="{{containerStyle}}"
+  catchtap="onTap"
+>
+  <view class="weather-strip-shell {{loading ? 'weather-strip-shell--loading' : ''}}">
+    <view wx:if="{{loading}}" class="weather-strip-skeleton">
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--sm"></view>
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--lg"></view>
+    </view>
+
+    <view wx:elif="{{error && !currentItem}}" class="weather-strip-state">
+      <text class="weather-strip-state-text">{{error}}</text>
+    </view>
+
+    <view wx:elif="{{currentItem}}" class="weather-strip-main">
+      <view class="weather-strip-icon-shell">
+        <image class="weather-strip-icon" src="{{currentItem.iconPath}}" mode="aspectFit" />
+      </view>
+      <view class="weather-strip-copy">
+        <text class="weather-strip-weather">{{currentItem.weatherLabel}}</text>
+        <view class="weather-strip-meta">
+          <view class="weather-strip-speed-stack">
+            <text class="weather-strip-speed">{{currentItem.windSpeedValueText}}</text>
+            <text class="weather-strip-force">{{currentItem.windForceText}}</text>
+          </view>
+          <view class="weather-strip-pointer-badge">
+            <view
+              class="weather-strip-pointer {{satellite ? 'weather-strip-pointer--light' : 'weather-strip-pointer--dark'}}"
+              style="transform: rotate({{currentItem.directionRotation}}deg);"
+            >
+              <view class="weather-strip-pointer-line"></view>
+              <view class="weather-strip-pointer-head"></view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:else class="weather-strip-skeleton">
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--sm"></view>
+      <view class="weather-strip-skeleton-line weather-strip-skeleton-line--lg"></view>
+    </view>
+  </view>
+</view>

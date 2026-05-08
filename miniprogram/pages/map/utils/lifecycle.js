@@ -2,8 +2,13 @@ const { applyMapStatusBarStyle } = require("./map-shared");
 
 function onShow(page) {
   applyMapStatusBarStyle();
+  const app = typeof getApp === "function" ? getApp() : null;
+  if (app && typeof app.markMapReadyForStartVoice === "function") {
+    app.markMapReadyForStartVoice();
+  }
   page.startMyLocationDirectionTracking();
   page.refreshResponsiveLayout({ force: true });
+  page.syncUserMembershipState();
   page.updateMapCheckinEntryStyle();
   page.updateSubscriptionBannerLayout();
   page.scheduleMapCheckinEntryStyleRefresh();
@@ -14,7 +19,6 @@ function onShow(page) {
       showDashboardPanel: !!page.data.airBoardEnabled
     });
   }
-  const app = typeof getApp === "function" ? getApp() : null;
   if (app && app.globalData && typeof app.globalData.subscriptionFeedHasUpdate === "boolean") {
     page.setData({ showProfileRedDot: app.globalData.subscriptionFeedHasUpdate });
   }
@@ -23,6 +27,9 @@ function onShow(page) {
     page.promptJoinWorkGroup(page.data.joinInvitePrompt);
   }
   page.resumeCenterPinLocationFollow();
+  page.hydrateWeatherFromCache({ center: page._centerOverride || page.data.center });
+  page.scheduleFetchWeather(0, { center: page._centerOverride || page.data.center });
+  page.scheduleFetchElevation(2000, { center: page._centerOverride || page.data.center });
   if (page._skipPendingFocusOnShow) {
     page._skipPendingFocusOnShow = false;
   } else {
@@ -56,6 +63,7 @@ function onReady(page) {
     page.ensureUomPluginReady();
     page.ensureDjiLayerReady();
     page.ensureTemporaryNoFlyLayerReady();
+    page.ensureTiandituSatelliteLayerReady();
   }
 }
 

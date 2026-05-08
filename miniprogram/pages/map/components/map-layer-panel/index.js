@@ -16,7 +16,16 @@ Component({
     provinceCityTree: { type: Array, value: [] },
     provinceCityHighlightLoading: { type: Boolean, value: false },
     provinceCityHighlightError: { type: String, value: "" },
-    mapElementOptions: { type: Array, value: [] }
+    mapElementOptions: { type: Array, value: [] },
+    userVip: { type: Boolean, value: false },
+    userAvatarUrl: { type: String, value: "" },
+    myLocationIconType: { type: String, value: "default" },
+    myLocationAvatarIconPath: { type: String, value: "" },
+    centerPinIconType: { type: String, value: "default" }
+  },
+
+  data: {
+    activeSettingsTab: "common"
   },
 
   methods: {
@@ -47,7 +56,52 @@ Component({
     },
 
     onMapLayerSelect(event = {}) {
+      const type = event?.currentTarget?.dataset?.type || "";
+      if ((type === "satellite" || type === "tianditu") && !this.properties.userVip) {
+        this.navigateToMemberPage();
+        return;
+      }
       this.emitDataset("maplayerselect", event);
+    },
+
+    onSettingsTabTap(event = {}) {
+      const tab = event?.currentTarget?.dataset?.tab || "";
+      if (!tab || tab === this.data.activeSettingsTab) return;
+      this.setData({ activeSettingsTab: tab }, () => {
+        this.triggerEvent("layoutchange");
+      });
+    },
+
+    onLocationIconTap(event = {}) {
+      const mode = event?.currentTarget?.dataset?.mode || "default";
+      if (mode !== "default" && !this.properties.userVip) {
+        this.navigateToMemberPage();
+        return;
+      }
+      this.triggerEvent("mylocationiconselect", { dataset: { type: mode } });
+    },
+
+    onCenterPinIconTap(event = {}) {
+      const type = event?.currentTarget?.dataset?.type || "default";
+      if (type !== "default" && !this.properties.userVip) {
+        this.navigateToMemberPage();
+        return;
+      }
+      this.triggerEvent("centerpiniconselect", { dataset: { type } });
+    },
+
+    onVipFeatureTap() {
+      if (!this.properties.userVip) {
+        this.navigateToMemberPage();
+      }
+    },
+
+    navigateToMemberPage() {
+      if (typeof wx.navigateTo !== "function") {
+        wx.showToast({ title: "当前版本暂不支持", icon: "none" });
+        return;
+      }
+      wx.navigateTo({ url: "/packages/member/index/index" });
     },
 
     onAirBoardSwitchChange(event = {}) {

@@ -5,18 +5,23 @@
   <view class="preflight-card">
     <view
       wx:if="{{!stealthModeActive}}"
-      class="preflight-entry"
+      class="preflight-entry {{isIOS ? 'preflight-entry--ios' : ''}}"
       hover-class="preflight-entry--hover"
       hover-start-time="10"
       hover-stay-time="80"
       bindtap="onPreflightEntryTap"
     >
-      <canvas
-        id="preflightEntryGlowCanvas"
-        type="2d"
-        class="preflight-entry-glow-canvas"
-        style="{{preflightGlowCanvasStyle}}"
-      ></canvas>
+      <view class="preflight-entry-surface" id="preflightEntrySurface">
+        <!-- 光轨暂时停用，仅注释显示，保留实现 -->
+        <!--
+        <canvas
+          id="preflightEntryGlowCanvas"
+          type="2d"
+          class="preflight-entry-glow-canvas"
+          style="{{preflightGlowCanvasStyle}}"
+        ></canvas>
+        -->
+      </view>
       <image class="preflight-entry-icon" src="/assets/preflight-save.png" mode="aspectFit" />
       <text class="preflight-entry-text">飞前安全准备</text>
       <view class="preflight-entry-chevron-group" aria-hidden="true">
@@ -56,19 +61,24 @@
       <view class="search-stack">
         <view class="search-pill">
           <view class="search-input-wrap">
-            <view class="search-display {{keyword ? '' : 'search-display--placeholder'}}">
+            <view
+              wx:if="{{!searchFieldFocused}}"
+              class="search-display {{keyword ? '' : 'search-display--placeholder'}}"
+            >
               {{keyword || '地址或经纬度'}}
             </view>
-          <input
-            class="search-field"
-            type="text"
-            placeholder=""
-            cursor-color="#ffffff"
-            value="{{keyword}}"
-            bindinput="onKeywordInput"
-            confirm-type="search"
-            bindconfirm="onSearchConfirm"
-          />
+            <input
+              class="search-field {{searchFieldFocused ? 'search-field--focused' : ''}}"
+              type="text"
+              placeholder=""
+              cursor-color="#FFFFFF"
+              value="{{keyword}}"
+              bindfocus="onSearchFocus"
+              bindblur="onSearchBlur"
+              bindinput="onKeywordInput"
+              confirm-type="search"
+              bindconfirm="onSearchConfirm"
+            />
           </view>
           <button
             class="search-btn"
@@ -120,7 +130,7 @@
     >
       <image class="temporary-notice-card-icon" src="/assets/speaker.png" mode="aspectFit" />
       <view class="temporary-notice-card-body">
-        <text class="temporary-notice-card-title">查看临时禁飞区公告</text>
+        <text class="temporary-notice-card-title">查临时禁飞区公告</text>
       </view>
       <text class="temporary-notice-card-arrow">></text>
     </view>

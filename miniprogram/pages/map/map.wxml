@@ -29,18 +29,19 @@
       bindmarkertap="onMarkerTap"
       bindcallouttap="onMarkerCalloutTap"
     />
+    <tianditu-satellite-layer id="tianditu-satellite-layer" />
     <map-search-link
       center="{{searchLinkCenter}}"
       target="{{searchLinkTarget}}"
       visible="{{mapCenterReady && searchLinkVisible && centerTargetLinkEnabled}}"
-      satellite="{{mapLayerType === 'satellite'}}"
+      satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
       bind:graphicschange="onSearchLinkGraphicsChange"
     />
     <map-center-pin
       wx:if="{{mapCenterReady}}"
       top-offset-px="{{centerPinOffsetPx}}"
       ui-scale="{{mapUiScale}}"
-      satellite="{{mapLayerType === 'satellite'}}"
+      satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
       sneaking-active="{{stealthModeActive}}"
       sneaking-tip-text="专注中，长按解除"
       link-active="{{centerPinLinkActive}}"
@@ -50,6 +51,9 @@
       follow-tip-text="{{centerPinFollowTipText}}"
       welcome-bubble-dismiss-token="{{centerPinWelcomeBubbleDismissToken}}"
       suppress-welcome-bubble="{{(keyword && keyword.length > 0) || searchSuggestLoading || (searchSuggestions && searchSuggestions.length > 0) || (searchSuggestError && searchSuggestError.length > 0) || searchLinkVisible}}"
+      dragging="{{centerPinDragging}}"
+      icon-src="{{centerPinIconPath}}"
+      icon-type="{{centerPinIconType}}"
       bind:tap="onCenterPinTap"
       bind:longpress="onCenterPinLongPress"
       bind:close="onCenterPinSheetClose"
@@ -120,19 +124,19 @@
       </button>
     </view>
     <view
-      class="map-compass-anchor map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-compass-anchor--satellite' : ''}}"
+      class="map-compass-anchor map-ui-scale-left {{(mapLayerType === 'satellite' || mapLayerType === 'tianditu') ? 'map-compass-anchor--satellite' : ''}}"
       wx:if="{{compassVisible}}"
       style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{compassBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
     >
       <map-compass
         rotate="{{compassRotate}}"
         skew="{{compassSkew}}"
-        satellite="{{mapLayerType === 'satellite'}}"
+        satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
         bind:compasstap="onCompassTap"
       />
     </view>
     <view
-      class="map-scale-container map-ui-scale-left {{mapLayerType === 'satellite' ? 'map-scale-container--satellite' : ''}}"
+      class="map-scale-container map-ui-scale-left {{(mapLayerType === 'satellite' || mapLayerType === 'tianditu') ? 'map-scale-container--satellite' : ''}}"
       wx:if="{{scaleBarVisible}}"
       style="left: {{scaleControlsLeftPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{scaleControlsBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
     >
@@ -143,6 +147,10 @@
           <view class="map-scale-tick map-scale-tick-start"></view>
           <view class="map-scale-tick map-scale-tick-end"></view>
         </view>
+      </view>
+      <view class="map-center-elevation" wx:if="{{centerElevationText}}">
+        <text class="map-center-elevation-label">海拔</text>
+        <text class="map-center-elevation-value">{{centerElevationText}}</text>
       </view>
       <view
         class="map-center-coords"
@@ -198,6 +206,7 @@
       city-report-dialog-visible="{{cityReportDialogVisible}}"
       city-report-dialog-text="{{cityReportDialogText}}"
       bind:opendronepicker="openDronePicker"
+      bind:preflightentrytap="onPreflightEntryTap"
       bind:temporarynoticeentrytap="onTemporaryNoticeEntryTap"
       bind:temporaryzonelinktap="onTemporaryZoneLinkTap"
       bind:centerpinindicatortap="onCenterPinIndicatorTap"
@@ -244,6 +253,16 @@
       bind:markerbuttontap="onMarkerButtonTap"
       bind:locatetap="onLocateTap"
     />
+    <map-weather-strip
+      visible="{{weatherFeatureEnabled && activeTab === 'home' && !stealthModeActive}}"
+      container-style="left: {{weatherWidgetLeftPx}}px; min-width: {{weatherWidgetWidthPx}}px; bottom: calc(env(safe-area-inset-bottom) + {{weatherWidgetBottomPx}}px); {{mapUiScaleStyle}} transform-origin: left bottom;"
+      satellite="{{mapLayerType === 'satellite' || mapLayerType === 'tianditu'}}"
+      loading="{{weatherLoading}}"
+      error="{{weatherError}}"
+      updated-at-text="{{weatherUpdatedAtText}}"
+      items="{{weatherSummaryItems}}"
+      bind:weathertap="onWeatherWidgetTap"
+    />
 
     <map-bottom-nav
       id="map-bottom-nav"
@@ -259,6 +278,7 @@
     />
     <drone-picker-sheet
       visible="{{dronePickerVisible}}"
+      user-vip="{{userVip}}"
       wide-layout="{{isWideLayout}}"
       drone-categories="{{droneCategories}}"
       active-drone-category-index="{{activeDroneCategoryIndex}}"
@@ -383,10 +403,18 @@
       province-city-highlight-loading="{{provinceCityHighlightLoading}}"
       province-city-highlight-error="{{provinceCityHighlightError}}"
       map-element-options="{{mapElementOptions}}"
+      user-vip="{{userVip}}"
+      user-avatar-url="{{userAvatarUrl}}"
+      my-location-icon-type="{{myLocationIconType}}"
+      my-location-avatar-icon-path="{{myLocationAvatarIconPath}}"
+      center-pin-icon-type="{{centerPinIconType}}"
       bind:masktap="onLayerPanelMaskTap"
       bind:close="onLayerPanelClose"
+      bind:layoutchange="onLayerPanelLayoutChange"
       bind:maplayerselect="onMapLayerSelect"
       bind:airboardswitchchange="onAirBoardSwitchChange"
+      bind:mylocationiconselect="onMyLocationIconSelect"
+      bind:centerpiniconselect="onCenterPinIconSelect"
       bind:useplanetcenterpointswitchchange="onUsePlanetCenterPointSwitchChange"
       bind:centertargetlinkswitchchange="onCenterTargetLinkSwitchChange"
       bind:provincecityhighlightswitchchange="onProvinceCityHighlightSwitchChange"

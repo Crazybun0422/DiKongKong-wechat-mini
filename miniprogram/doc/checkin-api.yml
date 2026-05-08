@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: Checkin APIs
-  description: User check-in APIs for weekly detail and check-in actions.
+  description: 用户签到、补签、助签接口。
   version: 1.0.0
 servers:
   - url: /api
@@ -28,7 +28,64 @@ paths:
   /api/checkins:
     post:
       summary: Check in
-      description: Auth required. Returns weekly detail and consecutive days after check-in. Rewards are 0.01 FLP on Monday, Tuesday, Thursday, Friday and 0.02 FLP on Wednesday, Saturday, Sunday.
+      description: Auth required. 正常签到。奖励为周三、周六 0.2 FLP，其余日期 0.1 FLP。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinDetailResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/checkins/makeup:
+    post:
+      summary: 补签
+      description: |
+        Auth required. 每周最多两次补签机会。
+        - 第一次补签：直接成功，签到时间固定写入 11:22:33，signedDays 对应日期 makeup=true。
+        - 第二次补签：该接口返回失败（MAKEUP_SECOND_NEEDS_ASSIST），需走助签接口。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MakeupCheckinRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCheckinDetailResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/checkins/assist:
+    post:
+      summary: 助签
+      description: |
+        Auth required. 每个用户每周 1 次助签机会。
+        由被邀请人提交目标用户 featureCode 和目标日期，为对方完成第二次补签。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssistCheckinRequest'
       responses:
         '200':
           description: OK
@@ -102,3 +159,23 @@ components:
         weekday:
           type: string
           description: Weekday label (e.g., Monday, Tuesday).
+        makeup:
+          type: boolean
+          description: Whether this signed day was completed by make-up/assist.
+    MakeupCheckinRequest:
+      type: object
+      required: [date]
+      properties:
+        date:
+          type: string
+          description: 目标补签日期，格式 YYYY-MM-DD（仅支持当前自然周）。
+    AssistCheckinRequest:
+      type: object
+      required: [featureCode, date]
+      properties:
+        featureCode:
+          type: string
+          description: 被助签用户的 featureCode。
+        date:
+          type: string
+          description: 被助签目标日期，格式 YYYY-MM-DD（仅支持当前自然周）。

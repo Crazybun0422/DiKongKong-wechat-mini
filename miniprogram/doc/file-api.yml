@@ -15,6 +15,7 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required: [file]
               properties:
                 file:
                   type: string
@@ -119,6 +120,379 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/avatar-packs/upload:
+    post:
+      summary: 上传头像包（管理员）
+      description: 仅管理员 token 可上传头像包文件。
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {admin_token}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePrivateUpload'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/avatar-packs/download/{objectName}:
+    get:
+      summary: 下载头像包（用户）
+      description: 管理员或普通用户 token 均可下载。
+      parameters:
+        - in: path
+          name: objectName
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      responses:
+        '200':
+          description: 文件内容
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/avatar-packs/version:
+    get:
+      summary: 查询头像包版本
+      description: 管理员或普通用户 token 均可查询当前头像包版本与文件名。
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePackVersion'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: 尚未配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/voice-packs/upload:
+    post:
+      summary: 上传语音包（管理员）
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, version]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                version:
+                  type: string
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePrivateUpload'
+  /api/voice-packs/version:
+    get:
+      summary: 查询语音包版本
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePackVersion'
+  /api/voice-packs/download/{objectName}:
+    get:
+      summary: 下载语音包
+      parameters:
+        - in: path
+          name: objectName
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 文件内容
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+
+  /api/background-image-packs/upload:
+    post:
+      summary: 上传背景图片包（管理员）
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, version]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                version:
+                  type: string
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePrivateUpload'
+  /api/background-image-packs/version:
+    get:
+      summary: 查询背景图片包版本
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePackVersion'
+  /api/background-image-packs/download/{objectName}:
+    get:
+      summary: 下载背景图片包
+      parameters:
+        - in: path
+          name: objectName
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 文件内容
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+
+  /api/user/credentials/upload:
+    post:
+      summary: 上传用户资质文件
+      description: 需要通过 Authorization Bearer Token 验证。type 建议传枚举编码：OPERATION_THEORY_CERT、CAAC_LICENSE、OPERATION_CERT、AIRCRAFT_INSURANCE（兼容中文值）。
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  description: OPERATION_THEORY_CERT | CAAC_LICENSE | OPERATION_CERT | AIRCRAFT_INSURANCE
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserCredentialUpload'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/credentials:
+    get:
+      summary: 获取当前用户全部资质文件
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserCredentialsMap'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/user/credentials/item:
+    get:
+      summary: 按类型获取当前用户资质文件
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            description: OPERATION_THEORY_CERT | CAAC_LICENSE | OPERATION_CERT | AIRCRAFT_INSURANCE
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserCredential'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      summary: 按类型删除当前用户资质文件
+      parameters:
+        - in: header
+          name: Authorization
+          required: true
+          schema:
+            type: string
+          description: Bearer {token}
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            description: OPERATION_THEORY_CERT | CAAC_LICENSE | OPERATION_CERT | AIRCRAFT_INSURANCE
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/tencent-cos/config:
     get:
       summary: 读取腾讯 COS 配置
@@ -195,6 +569,19 @@ components:
             type: string
         data:
           type: string
+    ApiResponsePackVersion:
+      type: object
+      properties:
+        success: { type: boolean }
+        message:
+          type: object
+          additionalProperties: { type: string }
+        data:
+          type: object
+          properties:
+            fileName: { type: string }
+            version: { type: string }
+
     ApiResponseObject:
       type: object
       properties:
@@ -222,6 +609,69 @@ components:
               type: string
             location:
               type: string
+
+    UserCredentialUploadResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        displayName:
+          type: string
+        objectName:
+          type: string
+        location:
+          type: string
+    UserCredentialResponse:
+      type: object
+      properties:
+        type:
+          type: string
+        displayName:
+          type: string
+        objectName:
+          type: string
+        location:
+          type: string
+        originalFilename:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    ApiResponseUserCredentialUpload:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserCredentialUploadResponse'
+    ApiResponseUserCredential:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/UserCredentialResponse'
+    ApiResponseUserCredentialsMap:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/UserCredentialResponse'
     TencentCosConfigResponse:
       type: object
       properties:

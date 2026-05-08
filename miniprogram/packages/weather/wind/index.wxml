@@ -1,0 +1,74 @@
+<view class="wind-page wind-page--{{weatherScene}}">
+  <view class="wind-background">
+    <view class="wind-background-grid"></view>
+    <view class="wind-background-orb wind-background-orb--a"></view>
+    <view class="wind-background-orb wind-background-orb--b"></view>
+  </view>
+  <view class="wind-background-mask"></view>
+
+  <view wx:if="{{loading && !pageReady}}" class="wind-screen">
+    <text class="wind-screen-title">风速预告同步中</text>
+    <text class="wind-screen-copy">正在整理对应时间点的空域风场。</text>
+  </view>
+
+  <view wx:elif="{{error && !windCards.length}}" class="wind-screen">
+    <text class="wind-screen-title">风速预告暂不可用</text>
+    <text class="wind-screen-copy">{{error}}</text>
+  </view>
+
+  <scroll-view wx:else class="wind-scroll" scroll-y enhanced="true">
+    <view class="wind-hero-card">
+      <view class="wind-hero-top">
+        <view class="wind-hero-head">
+          <text class="wind-hero-date">{{slotDateLabel}} {{slotWeekdayLabel}}</text>
+          <text class="wind-hero-time">{{slotTimeLabel}}</text>
+        </view>
+        <view class="wind-hero-location">
+          <text wx:if="{{centerAddressText}}" class="wind-hero-address">{{centerAddressText}}</text>
+        </view>
+      </view>
+
+      <view class="wind-hero-main">
+        <image class="wind-hero-icon" src="{{slotWeatherIconPath}}" mode="aspectFit" />
+        <view class="wind-hero-copy">
+          <text class="wind-hero-title">风速预告</text>
+          <text class="wind-hero-subtitle">{{slotWeatherLabel}}</text>
+        </view>
+      </view>
+
+      <view class="wind-summary-row">
+        <block wx:for="{{summaryCards}}" wx:key="key">
+          <view class="wind-summary-card">
+            <text class="wind-summary-label">{{item.label}}</text>
+            <text class="wind-summary-value">{{item.value}}</text>
+          </view>
+        </block>
+      </view>
+    </view>
+
+    <view class="wind-card-grid">
+      <block wx:for="{{windCards}}" wx:key="key">
+        <view class="wind-card">
+          <view class="wind-card-top">
+            <image wx:if="{{item.iconPath}}" class="wind-card-icon" src="{{item.iconPath}}" mode="aspectFit" />
+            <view class="wind-card-copy">
+              <text class="wind-card-title">{{item.title}}</text>
+              <text class="wind-card-height">{{item.heightLabel}}</text>
+            </view>
+          </view>
+          <text class="wind-card-speed">{{item.speedDisplay}}</text>
+          <view class="wind-card-direction-row">
+            <view class="wind-card-arrow" style="transform: rotate({{item.rotation}}deg);">
+              <view class="wind-card-arrow-line"></view>
+              <view class="wind-card-arrow-head"></view>
+            </view>
+            <view class="wind-card-direction-copy">
+              <text class="wind-card-direction">{{item.directionDisplay}}</text>
+              <text class="wind-card-degree">{{item.degreeText}}</text>
+            </view>
+          </view>
+        </view>
+      </block>
+    </view>
+  </scroll-view>
+</view>

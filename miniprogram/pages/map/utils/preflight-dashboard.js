@@ -269,6 +269,10 @@ function onCloseSearchCoordinateTipsDialog(page) {
   page.setData({ searchCoordinateTipsVisible: false });
 }
 
+function onPreflightEntryTapLegacy(page) {
+  page.showPlaceholderToast("小主莫急，在开发中了~");
+}
+
 function onTemporaryZoneLinkTap(page, event = {}) {
   const info = page.data.temporaryNoFlyZoneInfo;
   if (!info || !info.hasLink) {
@@ -677,6 +681,19 @@ function onSuggestionTap(page, event = {}) {
   });
 }
 
+function onPreflightEntryTap(page) {
+  const center = page._centerOverride || page.data.center || {};
+  const latitude = Number(center.latitude);
+  const longitude = Number(center.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    page.showPlaceholderToast("当前位置不可用");
+    return;
+  }
+  wx.navigateTo({
+    url: `/packages/preflight/index/index?lat=${encodeURIComponent(latitude.toFixed(6))}&lng=${encodeURIComponent(longitude.toFixed(6))}&drone=${encodeURIComponent(page.data.selectedDrone || "")}`
+  });
+}
+
 module.exports = {
   fillPinSuggestionAddresses,
   updatePreflightOverlayTop,
@@ -695,6 +712,7 @@ module.exports = {
   onSearchTap,
   onSearchCoordinateTipsTap,
   onCloseSearchCoordinateTipsDialog,
+  onPreflightEntryTap,
   onTemporaryNoticeEntryTap,
   onTemporaryZoneLinkTap,
   onCenterPinIndicatorTap,

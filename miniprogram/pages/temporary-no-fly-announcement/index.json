@@ -1,3 +1,7 @@
 {
-  "navigationBarTitleText": "临时禁飞区公告"
+  "navigationBarTitleText": "临时禁飞通告",
+  "navigationBarBackgroundColor": "#FFFFFF",
+  "navigationBarTextStyle": "black",
+  "backgroundColor": "#FFFFFF",
+  "enablePullDownRefresh": true
 }

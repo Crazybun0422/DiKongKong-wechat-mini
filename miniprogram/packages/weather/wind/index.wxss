@@ -1,0 +1,340 @@
+.wind-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #0f1726;
+}
+
+.wind-page--clear {
+  background: linear-gradient(180deg, #dff1ff 0%, #7fc4ff 44%, #0d2135 100%);
+}
+
+.wind-page--overcast {
+  background: linear-gradient(180deg, #8ea0b2 0%, #607284 42%, #14202d 100%);
+}
+
+.wind-page--rain {
+  background: linear-gradient(180deg, #4f6b82 0%, #263f52 42%, #0d1824 100%);
+}
+
+.wind-page--snow {
+  background: linear-gradient(180deg, #eef6fd 0%, #cbddee 48%, #95abc4 100%);
+}
+
+.wind-page--fog {
+  background: linear-gradient(180deg, #dbe3ea 0%, #b9c5cf 44%, #758391 100%);
+}
+
+.wind-page--storm {
+  background: linear-gradient(180deg, #26324a 0%, #161f31 42%, #090d15 100%);
+}
+
+.wind-background,
+.wind-background-mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.wind-background-grid {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1rpx, transparent 1rpx),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1rpx, transparent 1rpx);
+  background-size: 56rpx 56rpx;
+  opacity: 0.18;
+}
+
+.wind-background-orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.4;
+  filter: blur(12rpx);
+}
+
+.wind-background-orb--a {
+  width: 420rpx;
+  height: 420rpx;
+  top: 100rpx;
+  left: -90rpx;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 74%);
+}
+
+.wind-background-orb--b {
+  width: 520rpx;
+  height: 520rpx;
+  right: -140rpx;
+  bottom: 160rpx;
+  background: radial-gradient(circle, rgba(125, 216, 255, 0.22) 0%, rgba(125, 216, 255, 0) 76%);
+}
+
+.wind-background-mask {
+  background: linear-gradient(180deg, rgba(7, 15, 28, 0.08) 0%, rgba(7, 15, 28, 0.24) 56%, rgba(7, 15, 28, 0.44) 100%);
+}
+
+.wind-scroll,
+.wind-screen {
+  position: relative;
+  z-index: 2;
+}
+
+.wind-scroll {
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 28rpx 28rpx calc(env(safe-area-inset-bottom) + 36rpx);
+}
+
+.wind-screen {
+  min-height: 100vh;
+  padding: 0 56rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #f8fafc;
+}
+
+.wind-screen-title {
+  font-size: 40rpx;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.wind-screen-copy {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: rgba(248, 250, 252, 0.78);
+}
+
+.wind-hero-card,
+.wind-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 34rpx;
+  background: rgba(7, 18, 30, 0.46);
+  border: 1rpx solid rgba(160, 219, 255, 0.14);
+  box-shadow: 0 20rpx 48rpx rgba(2, 8, 23, 0.26);
+  backdrop-filter: blur(16rpx);
+}
+
+.wind-hero-card {
+  padding: 24rpx;
+}
+
+.wind-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.wind-hero-head,
+.wind-hero-location {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.wind-hero-location {
+  align-items: flex-end;
+}
+
+.wind-hero-date,
+.wind-hero-address,
+.wind-hero-center {
+  font-size: 20rpx;
+  line-height: 1.5;
+  color: rgba(248, 250, 252, 0.72);
+}
+
+.wind-hero-address,
+.wind-hero-center {
+  text-align: right;
+  word-break: break-all;
+}
+
+.wind-hero-time {
+  font-size: 40rpx;
+  line-height: 1;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.wind-hero-main {
+  margin-top: 18rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.wind-hero-icon {
+  width: 88rpx;
+  height: 88rpx;
+  flex-shrink: 0;
+}
+
+.wind-hero-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.wind-hero-title {
+  font-size: 50rpx;
+  line-height: 1;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.wind-hero-subtitle {
+  font-size: 22rpx;
+  line-height: 1.4;
+  color: rgba(248, 250, 252, 0.72);
+}
+
+.wind-summary-row {
+  margin-top: 18rpx;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.wind-summary-card {
+  border-radius: 22rpx;
+  padding: 14rpx 16rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1rpx solid rgba(255, 255, 255, 0.1);
+}
+
+.wind-summary-label {
+  font-size: 18rpx;
+  line-height: 1.2;
+  color: rgba(248, 250, 252, 0.58);
+}
+
+.wind-summary-value {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.2;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.wind-card-grid {
+  margin-top: 22rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+}
+
+.wind-card {
+  padding: 20rpx 20rpx 22rpx;
+}
+
+.wind-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.wind-card-icon {
+  width: 34rpx;
+  height: 34rpx;
+  flex-shrink: 0;
+}
+
+.wind-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.wind-card-title {
+  font-size: 26rpx;
+  line-height: 1.2;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.wind-card-height {
+  font-size: 18rpx;
+  line-height: 1.2;
+  color: rgba(248, 250, 252, 0.56);
+}
+
+.wind-card-speed {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 34rpx;
+  line-height: 1.1;
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.wind-card-direction-row {
+  margin-top: 16rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.wind-card-arrow {
+  position: relative;
+  width: 34rpx;
+  height: 34rpx;
+  flex-shrink: 0;
+}
+
+.wind-card-arrow-line {
+  position: absolute;
+  left: 50%;
+  top: 9rpx;
+  width: 2rpx;
+  height: 16rpx;
+  transform: translateX(-50%);
+  border-radius: 999rpx;
+  background: linear-gradient(180deg, rgba(145, 244, 255, 0.12) 0%, rgba(145, 244, 255, 0.92) 100%);
+}
+
+.wind-card-arrow-head {
+  position: absolute;
+  left: 50%;
+  top: 2rpx;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 6rpx solid transparent;
+  border-right: 6rpx solid transparent;
+  border-bottom: 12rpx solid rgba(145, 244, 255, 0.96);
+}
+
+.wind-card-direction-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.wind-card-direction {
+  font-size: 22rpx;
+  line-height: 1.2;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.wind-card-degree {
+  font-size: 18rpx;
+  line-height: 1.2;
+  color: rgba(248, 250, 252, 0.58);
+}

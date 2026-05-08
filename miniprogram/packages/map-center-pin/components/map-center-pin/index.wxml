@@ -23,10 +23,34 @@
     </view>
 
     <image
-      class="center-pin {{satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}}"
-      src="/assets/position.png"
+      class="center-pin {{iconType === 'default' ? 'center-pin--default' : 'center-pin--custom'}} {{iconType === 'default' && satellite ? 'center-pin--satellite' : ''}} {{triggered ? 'is-triggered' : ''}} {{(iconType === 'bamboo1' || iconType === 'bamboo2') && dragging ? 'is-hidden' : ''}}"
+      src="{{iconSrc || '/assets/position.png'}}"
       mode="widthFix"
     />
+    <view
+      wx:if="{{(iconType === 'bamboo1' || iconType === 'bamboo2') && dragging}}"
+      class="center-pin-bamboo-overlay"
+    >
+      <view class="center-pin-bamboo-trail-stage">
+        <view class="center-pin-bamboo-trail center-pin-bamboo-trail--outer"></view>
+        <view class="center-pin-bamboo-trail center-pin-bamboo-trail--mid"></view>
+        <view class="center-pin-bamboo-trail center-pin-bamboo-trail--inner"></view>
+      </view>
+      <view class="center-pin-bamboo-spin-stage">
+        <view class="center-pin-bamboo-spin-rotor">
+          <image
+            class="center-pin center-pin--custom center-pin-bamboo-spin-face center-pin-bamboo-spin-face--front"
+            src="{{iconSrc || '/assets/position.png'}}"
+            mode="widthFix"
+          />
+          <image
+            class="center-pin center-pin--custom center-pin-bamboo-spin-face center-pin-bamboo-spin-face--back"
+            src="{{iconSrc || '/assets/position.png'}}"
+            mode="widthFix"
+          />
+        </view>
+      </view>
+    </view>
     <view class="center-pin-ring {{triggered ? 'is-visible' : ''}}"></view>
   </view>
 </view>

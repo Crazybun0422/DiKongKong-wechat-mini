@@ -16,6 +16,7 @@ const {
   resolvePinPointIconPath,
   buildPinPointCalloutContent
 } = require("./marker-shared");
+const { pinContainsPoint } = require("./center-hit");
 const MY_LOCATION_MARKER_ID = 991001;
 const MY_LOCATION_MARKER_ICON_PATH = "/assets/p-point.png";
 const MY_LOCATION_MARKER_SIZE = 40;
@@ -237,11 +238,16 @@ function buildMyLocationMarker(page, point = {}) {
   const longitude = Number(point?.longitude);
   if (!hasValidCoordinate(latitude, longitude)) return null;
   const rotate = page.normalizeCompassDirection(page._myLocationDirection);
+  const iconType = `${page.data.myLocationIconType || ""}`.trim();
+  const iconPath =
+    iconType === "avatar" && page.data.myLocationAvatarIconPath
+      ? page.data.myLocationAvatarIconPath
+      : MY_LOCATION_MARKER_ICON_PATH;
   return {
     id: MY_LOCATION_MARKER_ID,
     latitude,
     longitude,
-    iconPath: MY_LOCATION_MARKER_ICON_PATH,
+    iconPath,
     width: MY_LOCATION_MARKER_SIZE,
     height: MY_LOCATION_MARKER_SIZE,
     alpha: 1,
@@ -372,6 +378,15 @@ function buildPinPreviewZone(page, shape = {}) {
   return { type: "POLYGON", coordinates };
 }
 
+function buildPinPreviewZones(page, payload = {}) {
+  const shapes = Array.isArray(payload?.shapes) && payload.shapes.length
+    ? payload.shapes
+    : (payload?.shape ? [payload.shape] : []);
+  return shapes
+    .map((shape) => buildPinPreviewZone(page, shape))
+    .filter(Boolean);
+}
+
 function buildPinPreviewMarker(page, payload = {}) {
   const location = payload.location || {};
   const lat = Number(location.latitude);
@@ -438,28 +453,88 @@ function computePinPreviewCenter(page, shape = {}, payload = {}) {
   return null;
 }
 
+function buildPreviewTemporaryNoFlyOverride(info = null) {
+  if (!info) return null;
+  return {
+    temporaryNoFlyZoneInfo: info,
+    temporaryNoFlyText: info.displayName || info.name || "",
+    temporaryNoFlyTone: info.effective === false ? "warn" : "alert"
+  };
+}
+
+function shouldShowPreviewTemporaryNoFly(page, centerOverride) {
+  const payload = page._previewTemporaryNoFlyPayload;
+  if (!payload || !payload.temporaryNoFlyZoneInfo) return false;
+  const center = centerOverride || page._centerOverride || page.data.center;
+  if (!center || !hasValidCoordinate(center.latitude, center.longitude)) return false;
+  const zones = buildPinPreviewZones(page, payload);
+  if (!zones.length) return false;
+  return zones.some((zone) => pinContainsPoint(page, { shape: zone }, center));
+}
+
+function syncPreviewTemporaryNoFlyState(page, centerOverride) {
+  if (!page._previewTemporaryNoFlyPayload || !page._previewTemporaryNoFlyOverride) return false;
+  if (shouldShowPreviewTemporaryNoFly(page, centerOverride)) {
+    page.setData(page._previewTemporaryNoFlyOverride);
+    return true;
+  }
+  if (page._liveTemporaryNoFlyStatus) {
+    page.setData(page._liveTemporaryNoFlyStatus);
+  } else if (page._previewTemporaryNoFlyStatus) {
+    page.setData(page._previewTemporaryNoFlyStatus);
+  }
+  return false;
+}
+
 function clearPinPreview(page) {
   page._previewPolygons = [];
   page._previewCircles = [];
   page._previewMarker = null;
   page._previewPinId = null;
+  page._previewTemporaryNoFlyPayload = null;
+  page._previewTemporaryNoFlyOverride = null;
+  if (page._previewTemporaryNoFlyStatus) {
+    page.setData(page._liveTemporaryNoFlyStatus || page._previewTemporaryNoFlyStatus);
+    page._previewTemporaryNoFlyStatus = null;
+  }
   page.updateOverlayGraphics();
   page.syncAllMarkers();
   page.updateCenterPinIndicator();
 }
 
+function shouldBuildPreviewMarker(payload = {}) {
+  if (payload?.suppressCenterMarker === true) {
+    return false;
+  }
+  const shapeType = `${payload?.shape?.type || ""}`.trim().toUpperCase();
+  if (!shapeType) {
+    return true;
+  }
+  return !["POLYGON", "RECTANGLE", "CIRCLE", "PATH", "LINE"].includes(shapeType);
+}
+
 function applyPinPreview(page, payload = {}) {
-  if (!payload || !payload.shape) return;
+  if (!payload || (!payload.shape && !(Array.isArray(payload.shapes) && payload.shapes.length))) return;
   clearPinPreview(page);
   page._previewPinId = payload.id || "";
   const center = computePinPreviewCenter(page, payload.shape, payload);
-  const zone = buildPinPreviewZone(page, payload.shape);
-  if (zone) {
-    const graphics = buildNoFlyZoneGraphics([zone], { color: "#D3A05B" });
+  const zones = buildPinPreviewZones(page, payload);
+  if (zones.length) {
+    const graphics = buildNoFlyZoneGraphics(zones, { color: payload.previewColor || "#D3A05B" });
     page._previewPolygons = Array.isArray(graphics.polygons) ? graphics.polygons : [];
     page._previewCircles = Array.isArray(graphics.circles) ? graphics.circles : [];
   }
-  const marker = buildPinPreviewMarker(page, payload);
+  if (payload.temporaryNoFlyZoneInfo) {
+    page._previewTemporaryNoFlyPayload = payload;
+    page._previewTemporaryNoFlyStatus = {
+      temporaryNoFlyZoneInfo: page.data.temporaryNoFlyZoneInfo || null,
+      temporaryNoFlyText: page.data.temporaryNoFlyText || "",
+      temporaryNoFlyTone: page.data.temporaryNoFlyTone || "neutral"
+    };
+    page._previewTemporaryNoFlyOverride = buildPreviewTemporaryNoFlyOverride(payload.temporaryNoFlyZoneInfo);
+    syncPreviewTemporaryNoFlyState(page, center);
+  }
+  const marker = shouldBuildPreviewMarker(payload) ? buildPinPreviewMarker(page, payload) : null;
   if (marker) {
     marker.extData = Object.assign({}, marker.extData, { source: "pin-preview", raw: payload });
     page._previewMarker = marker;
@@ -729,10 +804,12 @@ module.exports = {
   ensurePinAddress,
   clearPinPreview,
   buildPinPreviewZone,
+  buildPinPreviewZones,
   buildPinPreviewMarker,
   computePinPreviewCenter,
   normalizePreviewCoordinate,
   normalizePreviewCoordinateList,
+  syncPreviewTemporaryNoFlyState,
   lookupPinAddress,
   extractAddressFromGeocode,
   requestPinAddress,

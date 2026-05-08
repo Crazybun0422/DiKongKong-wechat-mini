@@ -1,4 +1,5 @@
 const { haversineMeters } = require("../../../utils/coords");
+const { playVoicePackEvent } = require("../../../utils/voice-pack");
 const EARTH_RADIUS_METERS = 6378137;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * EARTH_RADIUS_METERS;
 const WEB_TILE_SIZE = 256;
@@ -45,6 +46,14 @@ function updateMapGestureState(page, detail = {}) {
   if (Number.isFinite(skew) || Number.isFinite(rotate)) {
     syncCompassState(page, { rotate, skew });
   }
+}
+
+function updateCenterPinDraggingState(page, dragging) {
+  const next = dragging === true;
+  if (!!page.data.centerPinDragging === next) {
+    return;
+  }
+  page.setData({ centerPinDragging: next });
 }
 
 function syncCompassState(page, detail = {}) {
@@ -186,6 +195,7 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
     page.ensureUomPluginReady();
     page.ensureDjiLayerReady();
     page.ensureTemporaryNoFlyLayerReady();
+    page.ensureTiandituSatelliteLayerReady();
     if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
       page._uomPlugin.handleRegionChange({
         center: point,
@@ -207,7 +217,18 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
       force: true
     };
     page.requestNearbyMarkers(fetchOptions);
+    page.scheduleFetchWeather(200, {
+      center: point,
+      region: page._lastRegion,
+      scale: targetScale
+    });
+    page.scheduleFetchElevation(2000, {
+      center: point,
+      region: page._lastRegion,
+      scale: targetScale
+    });
     page.syncTemporaryNoFlyLayerViewport(fetchOptions);
+    page.syncTiandituSatelliteLayerViewport(fetchOptions);
     page.syncDjiLayerViewport({
       center: point,
       region: page._lastRegion,
@@ -222,8 +243,12 @@ function onRegionChange(page, e) {
     return;
   }
   const cause = e?.causedBy || e?.detail?.cause || e?.detail?.causedBy || "";
+  const normalizedCause = `${cause || ""}`.toLowerCase();
   const detail = e?.detail || {};
-  if (e.type !== "end") {
+  const phase = `${e?.type || e?.detail?.type || ""}`.toLowerCase();
+  const isEnd = phase === "end";
+  updateCenterPinDraggingState(page, !isEnd && (normalizedCause === "drag" || normalizedCause === "gesture"));
+  if (!isEnd) {
     updateMapGestureState(page, detail);
     if (
       !page._centerPinWelcomeBubbleDismissedInGesture &&
@@ -263,6 +288,10 @@ function onRegionChange(page, e) {
     return;
   }
   page._centerPinWelcomeBubbleDismissedInGesture = false;
+  if (!page._voiceFirstDragPlayed && normalizedCause === "drag") {
+    page._voiceFirstDragPlayed = true;
+    playVoicePackEvent("first_drag_map");
+  }
   if (page._uomPlugin && typeof page._uomPlugin.stopFollow === "function") {
     page._uomPlugin.stopFollow();
   }
@@ -367,7 +396,24 @@ function onRegionChange(page, e) {
         scale,
         force: !!forceRefresh
       });
+      page.scheduleFetchWeather(2000, {
+        center: newCenter,
+        region,
+        scale,
+        showLoading: true
+      });
+      page.scheduleFetchElevation(2000, {
+        center: newCenter,
+        region,
+        scale
+      });
       page.syncTemporaryNoFlyLayerViewport({
+        center: newCenter,
+        region,
+        scale,
+        force: !!forceRefresh
+      });
+      page.syncTiandituSatelliteLayerViewport({
         center: newCenter,
         region,
         scale,
@@ -471,7 +517,24 @@ function updateCenterAndRadius(page, detail) {
           scale,
           force: true
         });
+        page.scheduleFetchWeather(2000, {
+          center: newCenter,
+          region,
+          scale,
+          showLoading: true
+        });
+        page.scheduleFetchElevation(2000, {
+          center: newCenter,
+          region,
+          scale
+        });
         page.syncTemporaryNoFlyLayerViewport({
+          center: newCenter,
+          region,
+          scale,
+          force: true
+        });
+        page.syncTiandituSatelliteLayerViewport({
           center: newCenter,
           region,
           scale,

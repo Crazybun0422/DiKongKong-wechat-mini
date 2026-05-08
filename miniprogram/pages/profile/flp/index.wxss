@@ -104,6 +104,13 @@
   text-align: center;
 }
 
+.flp-right-vip-badge {
+  width: 136rpx;
+  height: 84rpx;
+  margin-bottom: -10rpx;
+  display: block;
+}
+
 .flp-right-item--placeholder {
   visibility: hidden;
 }
@@ -112,6 +119,12 @@
   width: 62rpx;
   height: 62rpx;
   margin-bottom: 14rpx;
+}
+
+.flp-right-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .flp-right-title {

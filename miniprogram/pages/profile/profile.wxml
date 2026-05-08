@@ -22,17 +22,18 @@
         <view class="profile-content">
         <view class="profile-header-card">
           <button
-            class="profile-avatar-button"
-            open-type="chooseAvatar"
-            bindchooseavatar="onChooseAvatar"
+            class="profile-avatar-button {{profile.vip ? 'is-vip' : ''}}"
+            bindtap="openAvatarActionSheet"
           >
-            <image
-              class="profile-avatar"
-              src="{{profile.avatarUrl || defaultAvatar}}"
-              mode="aspectFill"
-            />
-            <view class="avatar-overlay">
-              <text>更换</text>
+            <view class="profile-avatar-clip">
+              <image
+                class="profile-avatar"
+                src="{{profile.avatarUrl || defaultAvatar}}"
+                mode="aspectFill"
+              />
+              <view class="avatar-overlay">
+                <text>更换</text>
+              </view>
             </view>
           </button>
           <view class="profile-header-body" catchtap="onEditing">
@@ -52,7 +53,7 @@
                 />
               </block>
               <block wx:else>
-                <text class="profile-name" bindtap="startNicknameEdit">{{profile.nickname}}</text>
+                <text class="profile-name {{profile.vip ? 'is-vip' : ''}}" bindtap="startNicknameEdit">{{profile.nickname}}</text>
                 <text class="profile-name-edit" bindtap="startNicknameEdit">点击修改</text>
               </block>
             </view>
@@ -66,6 +67,18 @@
               <text class="profile-like-value">{{likeSummary.total}}</text>
             </view>
           </view>
+          <button
+            class="profile-member-button"
+            bindtap="onMemberCenterTap"
+            hover-class="profile-member-button-hover"
+            hover-stay-time="90"
+          >
+            <image
+              class="profile-member-image"
+              src="{{profile.vip ? '/assets/vip/vip-user.png' : '/assets/vip/regular-user.png'}}"
+              mode="aspectFit"
+            />
+          </button>
         </view>
 
         <view class="profile-card" id="profile-flp-card" bindtap="onFlpCardTap">
@@ -146,6 +159,34 @@
       </view>
     </block>
   </view>
+
+  <block wx:if="{{avatarActionSheetVisible}}">
+    <view class="avatar-action-mask" bindtap="closeAvatarActionSheet" catchtouchmove="noop"></view>
+    <view class="avatar-action-sheet" catchtap="noop" catchtouchmove="noop">
+      <view class="avatar-action-handle"></view>
+      <text class="avatar-action-title">更换头像</text>
+      <button
+        class="avatar-action-item"
+        open-type="chooseAvatar"
+        bindchooseavatar="onChooseAvatar"
+      >
+        <view class="avatar-action-icon avatar-action-icon--wechat"></view>
+        <view class="avatar-action-copy">
+          <text class="avatar-action-name">微信或照片</text>
+          <text class="avatar-action-desc">选择微信头像或本地照片</text>
+        </view>
+      </button>
+      <view class="avatar-action-item avatar-action-item--vip" bindtap="onCyberpunkPilotTap">
+        <view class="avatar-action-icon avatar-action-icon--cyber"></view>
+        <view class="avatar-action-copy">
+          <text class="avatar-action-name">赛博朋克飞手</text>
+          <text class="avatar-action-desc">会员专属飞手形象</text>
+        </view>
+        <image class="avatar-action-vip" src="/assets/vip/vip-user.png" mode="aspectFit" />
+      </view>
+      <view class="avatar-action-cancel" bindtap="closeAvatarActionSheet">取消</view>
+    </view>
+  </block>
 
   <view class="bottom-controls">
     <view class="bottom-menu">

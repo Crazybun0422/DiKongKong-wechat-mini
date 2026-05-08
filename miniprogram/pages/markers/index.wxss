@@ -232,6 +232,25 @@
   font-weight: 400;
 }
 
+.pin-video-vip-entry {
+  margin-top: 10rpx;
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.pin-video-vip-badge {
+  width: 92rpx;
+  height: 56rpx;
+  display: block;
+}
+
+.pin-video-vip-text {
+  font-size: 24rpx;
+  color: #111827;
+  line-height: 1.2;
+}
+
 .my-pin-media-grid {
   display: flex;
   gap: 16rpx;
@@ -1639,11 +1658,39 @@
   text-align: center;
 }
 
+.action-sheet-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.action-sheet-vip-badge {
+  width: 88rpx;
+  height: 54rpx;
+  display: block;
+  flex: 0 0 auto;
+}
+
 .action-sheet-note {
   font-size: 24rpx;
   color: #6b7280;
   margin-top: 0;
   text-align: center;
+}
+
+.pin-create-sheet-copy {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 0;
+}
+
+.pin-create-sheet-vip {
+  width: 92rpx;
+  height: 56rpx;
+  display: block;
+  flex: 0 0 auto;
 }
 
 .confirm-overlay {

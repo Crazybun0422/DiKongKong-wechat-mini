@@ -1,4 +1,6 @@
 ﻿const { SEARCH_COORDINATE_TIPS_TEXT } = require("../../utils/coordinate-search");
+const { composeAvatarLocationIcon } = require("../../utils/avatar-location-icon");
+const { buildAvatarDownloadUrl } = require("../../utils/profile");
 const { QQMAP_CUSTOM_STYLE_ID, MAP_DEBUG_PANEL_ENABLED } = require("../../utils/config");
 const { getMapKeySync } = require("../../utils/map-key");
 const cityReportUtils = require("./utils/city-report");
@@ -28,6 +30,8 @@ const markerDataUtils = require("./utils/marker-data");
 const pageRuntimeUtils = require("./utils/page-runtime");
 const mapViewportUtils = require("./utils/map-viewport");
 const nearbyFetchUtils = require("./utils/nearby-fetch");
+const weatherUtils = require("./utils/weather");
+const elevationUtils = require("./utils/elevation");
 const mapGeometryUtils = require("./utils/map-geometry");
 const nearbyGraphicsUtils = require("./utils/nearby-graphics");
 const targetLinkUtils = require("./utils/target-link");
@@ -52,6 +56,9 @@ const {
 
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
 const MARKER_SVIP_ICON_PATH = "/assets/svip2.png";
+const DEFAULT_AVATAR_PATH = "/assets/default-avatar.png";
+const DEFAULT_CENTER_PIN_ICON_PATH = "/assets/position.png";
+const USER_PROFILE_STORAGE_KEY = "userProfile";
 const MARKER_CERTIFICATION_INFO_ITEMS = [
   {
     id: "location",
@@ -72,6 +79,55 @@ const MARKER_CERTIFICATION_INFO_ITEMS = [
     description: "主页提供更丰富的案例、产品文档等展示"
   }
 ];
+
+function parseMemberExpireTime(value = "") {
+  const text = `${value || ""}`.trim();
+  if (!text) return 0;
+  const timestamp = Date.parse(text.includes("T") ? text : text.replace(/-/g, "/"));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isProfileMemberActive(profile = {}) {
+  if (!profile || !profile.vip) return false;
+  const expireAt = parseMemberExpireTime(
+    profile.memberExpireDate || profile.membershipExpireDate || profile.vipExpireDate || ""
+  );
+  return !expireAt || expireAt >= Date.now();
+}
+
+function normalizeMemberFlag(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["true", "1", "yes", "y", "vip", "svip", "member"].includes(normalized);
+  }
+  return false;
+}
+
+function readRawStoredUserProfile() {
+  if (typeof wx === "undefined" || typeof wx.getStorageSync !== "function") return {};
+  try {
+    const cached = wx.getStorageSync(USER_PROFILE_STORAGE_KEY);
+    return cached && typeof cached === "object" ? cached : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function resolveMapAvatarUrl(candidates = []) {
+  const app = typeof getApp === "function" ? getApp() : null;
+  const apiBase = app && app.globalData ? app.globalData.apiBase || "" : "";
+  for (let i = 0; i < candidates.length; i += 1) {
+    const text = `${candidates[i] || ""}`.trim();
+    if (!text) continue;
+    if (/^https?:\/\//.test(text) || text.startsWith("wxfile://") || text.startsWith("/")) {
+      return text;
+    }
+    return buildAvatarDownloadUrl(text, { apiBase });
+  }
+  return DEFAULT_AVATAR_PATH;
+}
 
 Page({
   data: {
@@ -125,6 +181,7 @@ Page({
     uomTileWarningVisible: false,
     uomTileWarningDismissed: false,
     centerPinTitle: "",
+    centerPinDragging: false,
     centerPinFollowActive: false,
     centerPinFollowTipText: CENTER_PIN_FOLLOW_TIP_TEXT,
     centerPinWelcomeBubbleDismissToken: 0,
@@ -132,6 +189,7 @@ Page({
     centerCoordinateLngText: "",
     centerCoordinateLatValue: null,
     centerCoordinateLngValue: null,
+    centerElevationText: "",
     coordinateSystem: "wgs84",
     coordinateSystemLabel: resolveCoordinateSystemDisplayLabel("wgs84"),
     coordinateSystemOptions: COORDINATE_SYSTEM_OPTIONS,
@@ -193,11 +251,19 @@ Page({
     preflightTopPx: 60,
     preflightLeftPx: 8,
     scaleControlsLeftPx: 16,
-    scaleControlsBottomPx: 120,
-    compassBottomPx: 245,
+    scaleControlsBottomPx: 160,
+    compassBottomPx: 330,
     floatingControlsRightPx: 16,
     floatingControlsBottomPx: 131,
     bottomNavBottomPx: 21,
+    weatherFeatureEnabled: weatherUtils.WEATHER_FEATURE_ENABLED === true,
+    weatherWidgetLeftPx: 3,
+    weatherWidgetWidthPx: 105,
+    weatherWidgetBottomPx: 110,
+    weatherLoading: false,
+    weatherError: "",
+    weatherUpdatedAtText: "",
+    weatherSummaryItems: [],
     policyUpdateVisible: false,
     policyUpdateType: "",
     policyUpdateTitle: "",
@@ -246,6 +312,12 @@ Page({
     markerCertificationSheetClosing: false,
     markerCertificationInfoItems: MARKER_CERTIFICATION_INFO_ITEMS,
     markerSvipIconPath: MARKER_SVIP_ICON_PATH,
+    userVip: false,
+    userAvatarUrl: DEFAULT_AVATAR_PATH,
+    myLocationIconType: "default",
+    myLocationAvatarIconPath: "",
+    centerPinIconType: "default",
+    centerPinIconPath: DEFAULT_CENTER_PIN_ICON_PATH,
     callSheetVisible: false,
     callSheetPhone: "",
     callSheetMarkerId: "",
@@ -303,6 +375,10 @@ Page({
 
   consumeInitialUsePlanetCenterPoint() {
     return pageRuntimeUtils.consumeInitialUsePlanetCenterPoint();
+  },
+
+  consumeInitialMyLocationIconType() {
+    return pageRuntimeUtils.consumeInitialMyLocationIconType();
   },
 
   resolveWindowMetrics(event = {}) {
@@ -386,6 +462,18 @@ Page({
     return mapPluginsUtils.onTemporaryNoFlyStatusChange(this, event);
   },
 
+  ensureTiandituSatelliteLayerReady(retry = 0) {
+    return mapPluginsUtils.ensureTiandituSatelliteLayerReady(this, retry);
+  },
+
+  syncTiandituSatelliteLayerViewport(options = {}) {
+    return mapPluginsUtils.syncTiandituSatelliteLayerViewport(this, options);
+  },
+
+  setTiandituSatelliteLayerEnabled(enabled, options = {}) {
+    return mapPluginsUtils.setTiandituSatelliteLayerEnabled(this, enabled, options);
+  },
+
   ensureMapMarkerId(value) {
     return markerDataUtils.ensureMapMarkerId(this, value);
   },
@@ -432,6 +520,40 @@ Page({
 
   refreshMyLocationGraphics(point = null) {
     return pinPreviewUtils.refreshMyLocationGraphics(this, point);
+  },
+
+  ensureMyLocationAvatarIcon(options = {}) {
+    const avatarUrl = this.data.userAvatarUrl || DEFAULT_AVATAR_PATH;
+    if (!avatarUrl) return Promise.resolve("");
+    const cacheKey = `${avatarUrl}`;
+    if (!options.force && this._myLocationAvatarIconCacheKey === cacheKey && this.data.myLocationAvatarIconPath) {
+      return Promise.resolve(this.data.myLocationAvatarIconPath);
+    }
+    if (!options.force && this._myLocationAvatarIconPromise) return this._myLocationAvatarIconPromise;
+    this._myLocationAvatarIconCacheKey = cacheKey;
+    this._myLocationAvatarIconPromise = composeAvatarLocationIcon({
+      avatarUrl,
+      framePath: "/assets/vip/vip-position.png",
+      size: 96
+    })
+      .then((iconPath) => {
+        if (this._myLocationAvatarIconCacheKey === cacheKey && iconPath) {
+          this.setData({ myLocationAvatarIconPath: iconPath }, () => {
+            if (this.data.myLocationIconType === "avatar") {
+              this.refreshMyLocationGraphics(this.data.myLocationPoint || this._lastKnownLocation || null);
+            }
+          });
+        }
+        return iconPath;
+      })
+      .catch((err) => {
+        console.warn("compose my location avatar icon failed", err);
+        return "";
+      })
+      .finally(() => {
+        this._myLocationAvatarIconPromise = null;
+      });
+    return this._myLocationAvatarIconPromise;
   },
 
   setMyLocationControlPoint(point = null, options = {}) {
@@ -500,6 +622,10 @@ Page({
 
   normalizePreviewCoordinateList(raw = []) {
     return pinPreviewUtils.normalizePreviewCoordinateList(raw);
+  },
+
+  syncPreviewTemporaryNoFlyState(centerOverride) {
+    return pinPreviewUtils.syncPreviewTemporaryNoFlyState(this, centerOverride);
   },
 
   lookupPinAddress(detail) {
@@ -1002,6 +1128,76 @@ Page({
     return lifecycleUtils.onShow(this);
   },
 
+  syncUserMembershipState() {
+    const stored = this.loadStoredProfile() || {};
+    const rawStored = readRawStoredUserProfile();
+    const rawProfile = rawStored && typeof rawStored.profile === "object" && rawStored.profile ? rawStored.profile : {};
+    let globalVip = false;
+    let globalExpireDate = "";
+    let globalAvatarUrl = "";
+    try {
+      const app = typeof getApp === "function" ? getApp() : null;
+      const globalData = app && app.globalData ? app.globalData : {};
+      globalVip = !!globalData.userVip;
+      globalExpireDate = globalData.userMemberExpireDate || "";
+      globalAvatarUrl = globalData.userProfile?.avatarUrl || "";
+    } catch (err) {
+      globalVip = false;
+    }
+    const profile = Object.assign({}, rawStored, stored, {
+      vip:
+        normalizeMemberFlag(stored.vip) ||
+        normalizeMemberFlag(stored.member) ||
+        normalizeMemberFlag(rawStored.vip) ||
+        normalizeMemberFlag(rawStored.member) ||
+        normalizeMemberFlag(rawStored.membership) ||
+        normalizeMemberFlag(rawProfile.vip) ||
+        normalizeMemberFlag(rawProfile.member) ||
+        normalizeMemberFlag(rawProfile.membership) ||
+        normalizeMemberFlag(globalVip),
+      memberExpireDate:
+        stored.memberExpireDate ||
+        stored.membershipExpireDate ||
+        stored.vipExpireDate ||
+        rawStored.memberExpireDate ||
+        rawStored.membershipExpireDate ||
+        rawStored.vipExpireDate ||
+        rawProfile.memberExpireDate ||
+        rawProfile.membershipExpireDate ||
+        rawProfile.vipExpireDate ||
+        globalExpireDate
+    });
+    const userVip = isProfileMemberActive(profile);
+    const userAvatarUrl = resolveMapAvatarUrl([
+      stored.avatarUrl,
+      stored.avatarFileName,
+      rawStored.avatarFileName,
+      rawStored.avatarUrl,
+      rawProfile.avatarFileName,
+      rawProfile.avatarUrl,
+      globalAvatarUrl
+    ]);
+    const avatarChanged = this.data.userAvatarUrl !== userAvatarUrl;
+    if (this.data.userVip !== userVip || avatarChanged) {
+      const updates = { userVip, userAvatarUrl };
+      if (avatarChanged) {
+        this._myLocationAvatarIconCacheKey = "";
+        updates.myLocationAvatarIconPath = "";
+      }
+      this.setData(updates, () => {
+        if (this.data.myLocationIconType === "avatar") {
+          this.ensureMyLocationAvatarIcon({ force: avatarChanged });
+        }
+        if (!userVip) {
+          this.ensureNonVipDefaultDrone({ persist: !!this._mapLayerSettingsLoaded });
+        }
+      });
+    } else if (!userVip) {
+      this.ensureNonVipDefaultDrone({ persist: !!this._mapLayerSettingsLoaded });
+    }
+    return userVip;
+  },
+
   onResize(event = {}) {
     return lifecycleUtils.onResize(this, event);
   },
@@ -1235,6 +1431,10 @@ Page({
     return dronePickerUtils.resolveDroneIndexByModel(this, model);
   },
 
+  resolveNonVipDefaultDroneIndex() {
+    return dronePickerUtils.resolveNonVipDefaultDroneIndex(this);
+  },
+
   applyAircraftModelSetting(model, options = {}) {
     return dronePickerUtils.applyAircraftModelSetting(this, model, options);
   },
@@ -1259,6 +1459,10 @@ Page({
     return dronePickerUtils.loadDronesFromApi(this);
   },
 
+  ensureNonVipDefaultDrone(options = {}) {
+    return dronePickerUtils.ensureNonVipDefaultDrone(this, options);
+  },
+
   onSearchTap() {
     return preflightDashboardUtils.onSearchTap(this);
   },
@@ -1277,6 +1481,10 @@ Page({
 
   onMapCheckinEntryTap() {
     return miscActionsUtils.onMapCheckinEntryTap(this);
+  },
+
+  onPreflightEntryTap() {
+    return preflightDashboardUtils.onPreflightEntryTap(this);
   },
 
   onTemporaryNoticeEntryTap() {
@@ -1315,6 +1523,10 @@ Page({
     return layerPanelUtils.closeLayerPanel(this);
   },
 
+  onLayerPanelLayoutChange() {
+    return null;
+  },
+
   onMapLayerSelect(event = {}) {
     return layerPanelUtils.onMapLayerSelect(this, event);
   },
@@ -1325,6 +1537,14 @@ Page({
 
   onUsePlanetCenterPointSwitchChange(event = {}) {
     return layerPanelUtils.onUsePlanetCenterPointSwitchChange(this, event);
+  },
+
+  onMyLocationIconSelect(event = {}) {
+    return layerPanelUtils.onMyLocationIconSelect(this, event);
+  },
+
+  onCenterPinIconSelect(event = {}) {
+    return layerPanelUtils.onCenterPinIconSelect(this, event);
   },
 
   onCenterTargetLinkSwitchChange(event = {}) {
@@ -1419,6 +1639,22 @@ Page({
     return layerPanelUtils.resolveProvinceCityHighlightSelectionId(this, settings);
   },
 
+  resolveMapBaseLayerType(settings = {}) {
+    return layerPanelUtils.resolveMapBaseLayerType(this, settings);
+  },
+
+  resolveMyLocationIconType(settings = {}) {
+    return layerPanelUtils.resolveMyLocationIconType(this, settings);
+  },
+
+  resolveCenterPinIconType(settings = {}) {
+    return layerPanelUtils.resolveCenterPinIconType(this, settings);
+  },
+
+  resolveCenterPinIconPath(type = "default") {
+    return layerPanelUtils.resolveCenterPinIconPath(type);
+  },
+
   buildMapLayerExtraConfigPayload() {
     return layerPanelUtils.buildMapLayerExtraConfigPayload(this);
   },
@@ -1445,14 +1681,6 @@ Page({
 
   applyCachedMapLocationFallback(options = {}) {
     return locationUtils.applyCachedMapLocationFallback(this, options);
-  },
-
-  loadCachedUsePlanetMyLocationPreference() {
-    return layerPanelUtils.loadCachedUsePlanetMyLocationPreference(this);
-  },
-
-  cacheUsePlanetMyLocationPreference(enabled) {
-    return layerPanelUtils.cacheUsePlanetMyLocationPreference(enabled);
   },
 
   syncMyLocationPoint(options = {}) {
@@ -1537,6 +1765,10 @@ Page({
 
   formatCenterPinLinkDistance(distanceMeters) {
     return targetLinkUtils.formatCenterPinLinkDistance(distanceMeters);
+  },
+
+  requestSearchLinkElevationDiff(target, options = {}) {
+    return targetLinkUtils.requestSearchLinkElevationDiff(this, target, options);
   },
 
   buildCenterPinLinkState(center, options = {}) {
@@ -2091,6 +2323,38 @@ Page({
 
   requestNearbyMarkers(options = {}) {
     return nearbyFetchUtils.requestNearbyMarkers(this, options);
+  },
+
+  applyWeatherSnapshot(snapshot = null, options = {}) {
+    return weatherUtils.applyWeatherSnapshot(this, snapshot, options);
+  },
+
+  applyElevationSnapshot(snapshot = null) {
+    return elevationUtils.applyElevationSnapshot(this, snapshot);
+  },
+
+  hydrateWeatherFromCache(options = {}) {
+    return weatherUtils.hydrateWeatherFromCache(this, options);
+  },
+
+  scheduleFetchWeather(delay = 0, options = {}) {
+    return weatherUtils.scheduleFetchWeather(this, delay, options);
+  },
+
+  scheduleFetchElevation(delay = 0, options = {}) {
+    return elevationUtils.scheduleFetchElevation(this, delay, options);
+  },
+
+  requestWeatherSummary(options = {}) {
+    return weatherUtils.requestWeatherSummary(this, options);
+  },
+
+  requestCenterElevation(options = {}) {
+    return elevationUtils.requestCenterElevation(this, options);
+  },
+
+  onWeatherWidgetTap() {
+    return weatherUtils.onWeatherWidgetTap(this);
   },
 
   updateOverlayGraphics() {

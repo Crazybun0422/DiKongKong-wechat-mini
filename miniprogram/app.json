@@ -26,7 +26,8 @@
         "flp/invite-guide/index",
         "open-platform/index",
         "subscription-feed/index",
-        "edit/index"
+        "edit/index",
+        "cyberpunk-pilot/index"
       ]
     },
     {
@@ -66,6 +67,18 @@
       ]
     },
     {
+      "root": "packages/member",
+      "pages": [
+        "index/index"
+      ]
+    },
+    {
+      "root": "packages/member-recharge",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/city-report",
       "pages": [
         "placeholder/index",
@@ -91,6 +104,26 @@
       "pages": [
         "placeholder/index"
       ]
+    },
+    {
+      "root": "packages/tianditu",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
+      "root": "packages/weather",
+      "pages": [
+        "index/index",
+        "wind/index"
+      ]
+    },
+    {
+      "root": "packages/preflight",
+      "pages": [
+        "index/index",
+        "rich-text/index"
+      ]
     }
   ],
   "window": {
@@ -103,7 +136,7 @@
   "lazyCodeLoading": "requiredComponents",
   "permission": {
     "scope.userLocation": {
-      "desc": "用于展示附近空域信息和服务"
+      "desc": "\u7528\u4e8e\u5c55\u793a\u9644\u8fd1\u7a7a\u57df\u4fe1\u606f\u548c\u670d\u52a1"
     }
   },
   "requiredPrivateInfos": [

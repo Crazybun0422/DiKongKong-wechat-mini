@@ -121,6 +121,7 @@ function updateCenterPinIndicator(page, centerOverride) {
       centerCoordinateLngText: "",
       centerCoordinateLatValue: null,
       centerCoordinateLngValue: null,
+      centerElevationText: "",
       searchLinkCenter: null,
       centerPinLinkActive: false,
       centerPinLinkTipText: "",
@@ -145,6 +146,9 @@ function updateCenterPinIndicator(page, centerOverride) {
     latitude: Number(center.latitude),
     longitude: Number(center.longitude)
   };
+  if (typeof page.syncPreviewTemporaryNoFlyState === "function") {
+    page.syncPreviewTemporaryNoFlyState(normalizedCenter);
+  }
   const linkState = page.buildCenterPinLinkState(normalizedCenter, {
     target: page.data.searchLinkTarget,
     visible: page.data.searchLinkVisible,
@@ -159,6 +163,16 @@ function updateCenterPinIndicator(page, centerOverride) {
     searchLinkCenter: normalizedCenter,
     cityReportCenter: normalizedCenter,
     ...linkState
+  }, () => {
+    if (
+      page.data.searchLinkVisible === true &&
+      hasValidCoordinate(page.data.searchLinkTarget?.latitude, page.data.searchLinkTarget?.longitude) &&
+      typeof page.requestSearchLinkElevationDiff === "function"
+    ) {
+      page.requestSearchLinkElevationDiff(page.data.searchLinkTarget, {
+        center: normalizedCenter
+      });
+    }
   });
 }
 

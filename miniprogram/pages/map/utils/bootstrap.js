@@ -15,15 +15,19 @@ const { normalizeLaunchCenterShareOptions } = require("./launch-shared");
 
 function onLoad(page, options = {}) {
   const initialUsePlanetCenterPoint = page.consumeInitialUsePlanetCenterPoint();
+  const initialMyLocationIconType = page.consumeInitialMyLocationIconType();
   if (typeof initialUsePlanetCenterPoint === "boolean") {
     page.data.usePlanetCenterPoint = initialUsePlanetCenterPoint;
-    page.data.myLocationModeResolved = true;
-  } else {
-    const cachedUsePlanetMyLocation = page.loadCachedUsePlanetMyLocationPreference();
-    if (typeof cachedUsePlanetMyLocation === "boolean") {
-      page.data.usePlanetCenterPoint = cachedUsePlanetMyLocation;
-      page.data.myLocationModeResolved = true;
+    if (
+      initialMyLocationIconType === "avatar" ||
+      initialMyLocationIconType === "highlight" ||
+      initialMyLocationIconType === "default"
+    ) {
+      page.data.myLocationIconType = initialMyLocationIconType;
+    } else {
+      page.data.myLocationIconType = initialUsePlanetCenterPoint ? "highlight" : "default";
     }
+    page.data.myLocationModeResolved = true;
   }
   const launchOptions = page.consumePendingLaunchOptions(options);
   const launchCenterPreset = normalizeLaunchCenterShareOptions(launchOptions);
@@ -48,6 +52,7 @@ function onLoad(page, options = {}) {
     page.data.myLocationVisible = true;
   }
   applyMapStatusBarStyle();
+  page.syncUserMembershipState();
   page.mapCtx = wx.createMapContext("main-map");
   page._isIOS = false;
   page.loadMapSubKey();
@@ -104,6 +109,8 @@ function onLoad(page, options = {}) {
   page._pendingAircraftModel = "";
   page._markersFetchTimer = null;
   page._pinsFetchTimer = null;
+  page._weatherFetchTimer = null;
+  page._elevationFetchTimer = null;
   page._pendingRegionUpdates = 0;
   page._mapSkew = 0;
   page._mapRotate = 0;
@@ -132,6 +139,11 @@ function onLoad(page, options = {}) {
   page._temporaryNoFlyLayerInitTimer = null;
   page._temporaryNoFlyLayerInitialized = false;
   page._temporaryNoFlyLayerInitLogged = false;
+  page._tiandituSatelliteLayer = null;
+  page._tiandituSatelliteLayerInitTimer = null;
+  page._tiandituSatelliteLayerInitialized = false;
+  page._pendingTiandituSatelliteLayerEnabled = null;
+  page._pendingTiandituSatelliteLayerViewport = null;
   page._djiPolygons = [];
   page._djiCircles = [];
   page._mapLayerSettingsInitPromise = null;
@@ -161,6 +173,12 @@ function onLoad(page, options = {}) {
   page._lastNearbyFetch = null;
   page._activePinsRequest = null;
   page._lastNearbyPinFetch = null;
+  page._activeWeatherRequest = null;
+  page._lastWeatherFetch = null;
+  page._weatherSnapshot = null;
+  page._activeElevationRequest = null;
+  page._lastElevationFetch = null;
+  page._elevationSnapshot = null;
   page._nearbyMarkersRaw = [];
   page._nearbyMarkers = [];
   page._nearbyPinsRaw = [];
@@ -171,6 +189,9 @@ function onLoad(page, options = {}) {
   page._searchLinkMarkers = [];
   page._searchLinkPolylines = [];
   page._searchLinkOwner = "";
+  page._centerPinLinkElevationState = null;
+  page._centerPinLinkElevationRequestKey = "";
+  page._pointElevationCache = new Map();
   page._lastMarkerDetail = null;
   page._markerDetailCloseTimer = null;
   page._markerPageCloseTimer = null;
@@ -193,6 +214,8 @@ function onLoad(page, options = {}) {
   page._lastKnownLocation = page._lastKnownLocation || null;
   page._myLocationMarkers = [];
   page._myLocationCircles = [];
+  page._myLocationAvatarIconCacheKey = "";
+  page._myLocationAvatarIconPromise = null;
   page._mapGraphicsSyncTimer = null;
   page._pendingMapGraphicsSync = null;
   page._centerPinFollowActive = false;
@@ -223,6 +246,7 @@ function onLoad(page, options = {}) {
   page._likeHoldFired = { marker: false, markerPage: false };
   page.captureInviteCode(launchOptions);
   page.handleWorkGroupInviteOptions(launchOptions);
+  page.hydrateWeatherFromCache({ center: page._centerOverride || page.data.center });
   const app = typeof getApp === "function" ? getApp() : null;
   const hasPendingMarkerFocus = !!app?.globalData?.pendingMarkerFocus;
   const hasPendingPinPreview = !!app?.globalData?.pendingPinPreview;
@@ -280,6 +304,16 @@ function onLoad(page, options = {}) {
     });
     page.updateScaleBar();
     page.updateCenterPinIndicator();
+    page.scheduleFetchWeather(0, {
+      center: initialViewportCenter,
+      scale: initialViewportScale,
+      force: true
+    });
+    page.scheduleFetchElevation(2000, {
+      center: initialViewportCenter,
+      scale: initialViewportScale,
+      force: true
+    });
   }
   page.autoLoginOnLaunch();
   page.checkPolicyUpdateOnLaunch();
