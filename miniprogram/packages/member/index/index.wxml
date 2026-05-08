@@ -239,6 +239,13 @@
         <text class="member-action-status">{{memberExpireDateText}}</text>
         <text class="member-action-text">{{actionText}}</text>
       </button>
+      <view
+        wx:if="{{showNewbieMemberEntry}}"
+        class="member-newbie-entry"
+        bindtap="onNewbieMemberEntryTap"
+      >
+        新用户领7天高级会员
+      </view>
     </view>
   </view>
 

@@ -55,6 +55,59 @@
   z-index: 1;
 }
 
+.center-pin-bamboo-trail-stage {
+  position: absolute;
+  left: 50%;
+  top: 4rpx;
+  width: 76rpx;
+  height: 24rpx;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.center-pin-bamboo-trail {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 999rpx;
+  border-top: 2rpx solid rgba(173, 255, 243, 0.4);
+  border-bottom: 2rpx solid rgba(173, 255, 243, 0.4);
+  border-left: 2rpx solid transparent;
+  border-right: 2rpx solid transparent;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+  box-sizing: border-box;
+  box-shadow:
+    0 0 4rpx rgba(154, 255, 236, 0.22),
+    0 0 8rpx rgba(95, 229, 211, 0.1);
+  will-change: transform, opacity;
+}
+
+.center-pin-bamboo-trail--outer {
+  width: 76rpx;
+  height: 24rpx;
+  animation: center-pin-bamboo-trail-outer 240ms linear infinite;
+}
+
+.center-pin-bamboo-trail--mid {
+  width: 66rpx;
+  height: 20rpx;
+  border-top-width: 2rpx;
+  border-bottom-width: 2rpx;
+  animation: center-pin-bamboo-trail-mid 240ms linear infinite;
+}
+
+.center-pin-bamboo-trail--inner {
+  width: 56rpx;
+  height: 16rpx;
+  border-top-width: 2rpx;
+  border-bottom-width: 2rpx;
+  opacity: 0.18;
+  animation: center-pin-bamboo-trail-inner 240ms linear infinite;
+}
+
 .center-pin-bamboo-spin-stage {
   position: absolute;
   left: 0;
@@ -66,6 +119,7 @@
   perspective-origin: center center;
   transform: translateZ(0);
   will-change: transform;
+  z-index: 1;
 }
 
 .center-pin-bamboo-spin-rotor {
@@ -78,7 +132,7 @@
   transform-style: preserve-3d;
   transform: translateZ(0);
   will-change: transform;
-  animation: center-pin-bamboo-y-spin 110ms linear infinite;
+  animation: center-pin-bamboo-y-spin 180ms linear infinite;
 }
 
 .center-pin-bamboo-spin-face {
@@ -466,6 +520,43 @@
     transform: rotateY(360deg);
   }
 }
+
+@keyframes center-pin-bamboo-trail-outer {
+  0%,
+  100% {
+    opacity: 0.03;
+    transform: translate(-50%, -50%) scaleX(0.88) scaleY(0.9);
+  }
+  50% {
+    opacity: 0.12;
+    transform: translate(-50%, -50%) scaleX(1.02) scaleY(1.01);
+  }
+}
+
+@keyframes center-pin-bamboo-trail-mid {
+  0%,
+  100% {
+    opacity: 0.04;
+    transform: translate(-50%, -50%) scaleX(0.82) scaleY(0.86);
+  }
+  50% {
+    opacity: 0.16;
+    transform: translate(-50%, -50%) scaleX(1.05) scaleY(1.02);
+  }
+}
+
+@keyframes center-pin-bamboo-trail-inner {
+  0%,
+  100% {
+    opacity: 0.02;
+    transform: translate(-50%, -50%) scaleX(0.72) scaleY(0.84);
+  }
+  50% {
+    opacity: 0.08;
+    transform: translate(-50%, -50%) scaleX(1.01) scaleY(1);
+  }
+}
+
 
 @keyframes center-pin-sheet-up {
   0% {

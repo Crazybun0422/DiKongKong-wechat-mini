@@ -2,7 +2,7 @@ const {
   fetchNewbieTasks,
   closeNewbieTaskPopup,
   completeNewbieTask,
-  claimNewbieTaskReward
+  claimNewbieTaskMemberReward
 } = require("../../../../utils/newbie-tasks");
 const { fetchCheckinDetail } = require("../../../../utils/checkin");
 const { fetchFlpLogs } = require("../../../../utils/flp");
@@ -279,36 +279,15 @@ Component({
         return;
       }
       this._claimingReward = true;
-      claimNewbieTaskReward({ apiBase, token })
-        .then((payload = {}) => {
-          const links = Array.isArray(payload.links) ? payload.links : [];
-          const lines = [];
-          links.forEach((link) => {
-            const name = link && link.name ? String(link.name).trim() : "";
-            const url = link && link.url ? String(link.url).trim() : "";
-            if (name) lines.push(`网盘名称:${name}`);
-            if (url) lines.push(`网盘连接:${url}`);
+      claimNewbieTaskMemberReward({ apiBase, token })
+        .then(() => {
+          this.hidePopup({ persist: false, refresh: false });
+          this.setData({ rewardAvailable: false, showRewardSuccess: true }, () => {
+            this.triggerStateChange();
           });
-          const copyText = lines.join("\n");
-          const afterCopy = () => {
-            this.hidePopup({ persist: false, refresh: false });
-            this.setData({ rewardAvailable: false, showRewardSuccess: true }, () => {
-              this.triggerStateChange();
-            });
-            this.loadTasks({ autoTogglePopup: false });
-            if (typeof wx?.hideToast === "function") {
-              wx.hideToast();
-            }
-          };
-          if (copyText && typeof wx?.setClipboardData === "function") {
-            wx.setClipboardData({
-              data: copyText,
-              showToast: false,
-              success: afterCopy,
-              fail: afterCopy
-            });
-          } else {
-            afterCopy();
+          this.loadTasks({ autoTogglePopup: false });
+          if (typeof wx?.hideToast === "function") {
+            wx.hideToast();
           }
         })
         .catch((err) => {

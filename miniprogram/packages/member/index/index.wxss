@@ -602,6 +602,8 @@
   right: 0;
   bottom: calc(env(safe-area-inset-bottom) + 42rpx);
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   pointer-events: none;
 }
@@ -647,6 +649,16 @@ button.member-action::after {
   font-weight: 800;
   color: #ffffff;
   white-space: nowrap;
+}
+
+.member-newbie-entry {
+  margin-top: 18rpx;
+  color: #f59e0b;
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 40rpx;
+  text-decoration: underline;
+  pointer-events: auto;
 }
 
 .member-loading-mask {

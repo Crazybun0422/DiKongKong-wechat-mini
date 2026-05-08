@@ -11,6 +11,11 @@ const {
   updateMapLayerSettings
 } = require("../../../utils/map-layer-settings");
 const {
+  deriveNewbieTaskState,
+  fetchNewbieTasks,
+  requestNewbieTaskPopupOpen
+} = require("../../../utils/newbie-tasks");
+const {
   clearSelectedVoicePack,
   getSelectedVoicePackDirectoryName,
   isMembershipActive,
@@ -288,6 +293,7 @@ Page({
     nickname: "大友班长呀",
     avatarUrl: "/assets/default-avatar.png",
     isVip: false,
+    showNewbieMemberEntry: false,
     memberExpireDateText: "暂未获得",
     actionText: "优惠开通",
     rechargePopupVisible: false,
@@ -327,6 +333,10 @@ Page({
     this.initPage();
   },
 
+  onShow() {
+    this.loadNewbieTaskEntryState();
+  },
+
   onUnload() {
     setVoicePackAudioEndedHandler(null);
     stopVoicePackAudio();
@@ -336,7 +346,8 @@ Page({
     this.setData({ loading: true, loadingText: "会员资源准备中..." });
     Promise.all([
       this.loadProfile(),
-      this.prepareBackgroundPack()
+      this.prepareBackgroundPack(),
+      this.loadNewbieTaskEntryState()
     ])
       .catch((err) => {
         console.warn("member page init failed", err);
@@ -366,6 +377,23 @@ Page({
         if (err?.message !== "missing-token") {
           console.warn("load member profile failed", err);
         }
+      });
+  },
+
+  loadNewbieTaskEntryState() {
+    const apiBase = resolveApiBase();
+    return fetchNewbieTasks({ apiBase })
+      .then((payload = {}) => {
+        const state = deriveNewbieTaskState(payload);
+        this.setData({ showNewbieMemberEntry: !!state.showGiftEntry });
+        return state;
+      })
+      .catch((err) => {
+        if (err?.message !== "missing-token" && err?.message !== "missing-api-base") {
+          console.warn("load newbie task entry state failed", err);
+        }
+        this.setData({ showNewbieMemberEntry: false });
+        return null;
       });
   },
 
@@ -605,6 +633,13 @@ Page({
     this.setData({ rechargePopupVisible: true });
   },
 
+  onNewbieMemberEntryTap() {
+    requestNewbieTaskPopupOpen();
+    if (typeof wx?.reLaunch === "function") {
+      wx.reLaunch({ url: "/pages/map/map" });
+    }
+  },
+
   onRechargePopupClose() {
     this.setData({ rechargePopupVisible: false });
   },
@@ -613,9 +648,11 @@ Page({
     const profile = e?.detail?.profile;
     if (profile) {
       this.applyProfile(profile);
+      this.loadNewbieTaskEntryState();
       return;
     }
     this.loadProfile();
+    this.loadNewbieTaskEntryState();
   },
 
   loadVoicePacks() {
