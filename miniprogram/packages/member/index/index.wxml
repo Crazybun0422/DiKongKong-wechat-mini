@@ -236,8 +236,10 @@
 
     <view class="member-action-wrap">
       <button class="member-action" bindtap="onRechargeTap">
-        <text class="member-action-status">{{memberExpireDateText}}</text>
-        <text class="member-action-text">{{actionText}}</text>
+        <view class="member-action-content">
+          <text class="member-action-status">{{memberExpireDateText}}</text>
+          <text class="member-action-text">{{actionText}}</text>
+        </view>
       </button>
       <view
         wx:if="{{showNewbieMemberEntry}}"

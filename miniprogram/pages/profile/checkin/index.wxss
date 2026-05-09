@@ -150,6 +150,13 @@ button.checkin-back::after {
   min-height: 120rpx;
 }
 
+.checkin-card-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8rpx;
+}
+
 .checkin-card-title {
   display: flex;
   align-items: center;
@@ -158,6 +165,15 @@ button.checkin-back::after {
   font-weight: 600;
   margin-bottom: 0;
   margin-top: 170rpx;
+  position: relative;
+  z-index: 1;
+}
+
+.checkin-card-quota-tip {
+  margin-top: 2rpx;
+  font-size: 22rpx;
+  line-height: 30rpx;
+  color: rgba(26, 43, 74, 0.66);
   position: relative;
   z-index: 1;
 }
@@ -227,6 +243,7 @@ button.checkin-back::after {
   position: relative;
   width: calc(25% - 18rpx);
   background: #f5f6f9;
+  border: 2rpx solid transparent;
   border-radius: 22rpx;
   padding: 8rpx 4rpx 12rpx;
   display: flex;
@@ -235,6 +252,11 @@ button.checkin-back::after {
   gap: 4rpx;
   left: 20rpx;
   box-sizing: border-box;
+}
+
+.checkin-day-card.is-selected {
+  border-color: rgba(38, 111, 255, 0.65);
+  box-shadow: 0 14rpx 28rpx rgba(24, 42, 82, 0.16);
 }
 
 .checkin-day-card.is-sunday {
@@ -295,7 +317,6 @@ button.checkin-back::after {
 }
 .checkin-day-card.is-actionable {
   box-shadow: 0 12rpx 20rpx rgba(24, 42, 82, 0.12);
-  border: 2rpx solid rgba(38, 111, 255, 0.35);
 }
 
 .checkin-reward {
@@ -317,23 +338,33 @@ button.checkin-back::after {
   height: 84rpx;
 }
 
-.checkin-today-icon {
-  position: relative;
-  width: 84rpx;
-  height: 84rpx;
-}
-
-.checkin-day-check {
-  position: absolute;
-  width: 30rpx;
-  height: 30rpx;
-  right: -2rpx;
-  bottom: -4rpx;
-}
-
 .checkin-weekday {
   font-size: 18rpx;
   color: rgba(26, 43, 74, 0.6);
+}
+
+.checkin-status-mark,
+.checkin-makeup-entry {
+  position: absolute;
+  left: 50%;
+  bottom: 2rpx;
+  transform: translateX(-50%);
+  font-size: 18rpx;
+  line-height: 1.1;
+  color: #111111;
+  font-weight: 600;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.checkin-makeup-entry--active {
+  opacity: 0.68;
+  transform: translateX(-50%) scale(0.92);
+}
+
+.checkin-status-mark {
+  font-size: 22rpx;
+  line-height: 1;
 }
 
 .checkin-bonus {
@@ -538,6 +569,76 @@ button.checkin-back::after {
   font-size: 26rpx;
   color: rgba(26, 43, 74, 0.7);
   text-align: center;
+}
+
+.checkin-share-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(12, 20, 44, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 48rpx;
+  box-sizing: border-box;
+}
+
+.checkin-share-card {
+  width: 100%;
+  padding: 40rpx 36rpx 32rpx;
+  border-radius: 28rpx;
+  background: #ffffff;
+  box-shadow: 0 20rpx 48rpx rgba(15, 23, 42, 0.18);
+  box-sizing: border-box;
+}
+
+.checkin-share-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1a2b4a;
+  text-align: center;
+}
+
+.checkin-share-desc {
+  margin-top: 20rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: rgba(26, 43, 74, 0.74);
+  text-align: center;
+}
+
+.checkin-share-actions {
+  margin-top: 30rpx;
+  display: flex;
+  gap: 18rpx;
+}
+
+.checkin-share-cancel,
+.checkin-share-confirm {
+  flex: 1;
+  height: 76rpx;
+  border-radius: 999rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.checkin-share-cancel {
+  background: #eef2ff;
+  color: #334155;
+}
+
+.checkin-share-confirm {
+  background: #111827;
+  color: #ffffff;
+}
+
+.checkin-share-cancel::after,
+.checkin-share-confirm::after {
+  border: none;
 }
 
 .checkin-lottery-mask {

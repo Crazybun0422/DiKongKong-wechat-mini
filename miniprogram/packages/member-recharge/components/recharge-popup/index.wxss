@@ -13,11 +13,14 @@
 .recharge-success-sheet {
   position: relative;
   width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.recharge-sheet {
   min-height: 760rpx;
   padding: 34rpx 58rpx calc(env(safe-area-inset-bottom) + 44rpx);
   border-radius: 22rpx 22rpx 0 0;
-  background: #ffffff;
-  box-sizing: border-box;
 }
 
 .recharge-title {
@@ -157,24 +160,24 @@
 
 button.recharge-submit,
 button.recharge-success-btn {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: #000000;
+  color: #ffffff;
+  line-height: normal;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+button.recharge-submit {
   position: absolute;
   left: 50%;
   bottom: calc(env(safe-area-inset-bottom) + 42rpx);
   transform: translateX(-50%);
-  width: 560rpx;
+  width: 500rpx;
   height: 84rpx;
-  margin: 0;
-  padding: 0;
-  border: none;
   border-radius: 999rpx;
-  background: #000000;
-  color: #ffffff;
-  line-height: normal;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  box-sizing: border-box;
-  font-family: inherit;
 }
 
 button.recharge-submit::after,
@@ -182,83 +185,202 @@ button.recharge-success-btn::after {
   border: none;
 }
 
+.recharge-submit-content {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
 .recharge-submit-status {
-  width: 44%;
-  flex: 0 0 44%;
-  text-align: center;
+  display: block;
   font-size: 26rpx;
   color: #8da0ad;
+  line-height: 1;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .recharge-submit-text {
-  width: 56%;
-  flex: 0 0 56%;
-  text-align: center;
+  display: block;
   font-size: 32rpx;
   font-weight: 900;
   color: #ffffff;
+  line-height: 1;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 24rpx;
 }
 
 .recharge-success-sheet {
-  min-height: 760rpx;
-  padding-top: 88rpx;
+  min-height: 860rpx;
+  padding: 48rpx 58rpx calc(env(safe-area-inset-bottom) + 46rpx);
+  border-radius: 22rpx 22rpx 0 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-
-.recharge-success-icon {
-  width: 154rpx;
-  height: 154rpx;
-  border-radius: 50%;
-  background: rgba(73, 150, 255, 0.22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.recharge-success-icon-inner {
-  width: 110rpx;
-  height: 110rpx;
-  border-radius: 50%;
-  background: #5aa2ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.recharge-success-check {
-  font-size: 78rpx;
-  line-height: 82rpx;
-  font-weight: 900;
-  color: #ffffff;
-  transform: translateY(-4rpx);
+  justify-content: flex-start;
 }
 
 .recharge-success-title {
-  margin-top: 64rpx;
-  font-size: 30rpx;
-  line-height: 42rpx;
+  font-size: 42rpx;
+  line-height: 58rpx;
   font-weight: 900;
-  color: #111827;
+  color: #101010;
+  text-align: center;
 }
 
 .recharge-success-desc {
-  margin-top: 16rpx;
-  font-size: 26rpx;
-  line-height: 34rpx;
+  margin-top: 18rpx;
+  font-size: 28rpx;
+  line-height: 40rpx;
   font-weight: 700;
-  color: rgba(17, 24, 39, 0.72);
+  color: #333333;
+  text-align: center;
 }
 
-.recharge-success-desc + .recharge-success-desc {
-  margin-top: 4rpx;
+.recharge-success-desc--tight {
+  margin-top: 0;
+}
+
+.recharge-success-qr-section {
+  width: 100%;
+  margin-top: 42rpx;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 340rpx;
+}
+
+.recharge-success-qr-section--loading {
+  min-height: 340rpx;
+}
+
+.recharge-success-side-copy {
+  position: absolute;
+  right: 50%;
+  top: 50%;
+  transform: translate(-160rpx, -50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+}
+
+.recharge-success-side-copy-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.recharge-success-side-copy-char {
+  font-size: 32rpx;
+  line-height: 36rpx;
+  font-weight: 800;
+  color: #d79a27;
+}
+
+.recharge-success-qr-card {
+  border: 2rpx solid rgba(223, 184, 107, 0.9);
+  border-radius: 20rpx;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #fffdf8;
+  margin: 0 auto;
+}
+
+.recharge-success-qr-card--loading {
+  border-color: transparent;
+  background: transparent;
+}
+
+.recharge-success-qr-image,
+.recharge-success-qr-placeholder {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.recharge-success-qr-image {
+  border-radius: 12rpx;
+  background: #ffffff;
+}
+
+.recharge-success-qr-placeholder {
+  border-radius: 12rpx;
+  background: rgba(17, 24, 39, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  line-height: 34rpx;
+  font-weight: 600;
+  color: rgba(17, 24, 39, 0.48);
+  text-align: center;
+}
+
+.recharge-success-qr-placeholder--loading {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.18));
+  border: 2rpx solid rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 10rpx 24rpx rgba(15, 23, 42, 0.06),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(10rpx);
+  -webkit-backdrop-filter: blur(10rpx);
+}
+
+.recharge-success-qr-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  align-items: center;
+}
+
+.recharge-success-qr-skeleton-line {
+  height: 16rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.08),
+    rgba(15, 23, 42, 0.16),
+    rgba(15, 23, 42, 0.08)
+  );
+}
+
+.recharge-success-qr-skeleton-line--sm {
+  width: 120rpx;
+}
+
+.recharge-success-qr-skeleton-line--md {
+  width: 176rpx;
+}
+
+.recharge-success-qr-skeleton-line--lg {
+  width: 220rpx;
 }
 
 button.recharge-success-btn {
+  width: 500rpx;
+  height: 88rpx;
+  margin-top: auto;
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  font-size: 32rpx;
+  font-size: 34rpx;
   font-weight: 900;
+  letter-spacing: 1rpx;
+}
+
+button.recharge-success-btn.is-disabled,
+button.recharge-success-btn[disabled] {
+  opacity: 0.42;
 }

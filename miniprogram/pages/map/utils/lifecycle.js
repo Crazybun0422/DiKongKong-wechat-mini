@@ -53,6 +53,7 @@ function onShow(page) {
     });
   }
   page.scheduleAddMiniAppPopupCheck("show");
+  page.promptPendingCheckinAssist();
 }
 
 function onReady(page) {

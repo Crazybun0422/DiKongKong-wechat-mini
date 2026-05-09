@@ -165,6 +165,47 @@ function extractInviteCodeFromOptions(options = {}) {
   return "";
 }
 
+function extractCheckinAssistPayloadFromOptions(options = {}) {
+  const readAssistFromObject = (source) => {
+    if (!source || typeof source !== "object") return null;
+    const featureCode = decodeParamValue(
+      source.assistFeatureCode ??
+      source.checkinAssistFeatureCode ??
+      source.caf ??
+      ""
+    );
+    const date = decodeParamValue(
+      source.assistDate ??
+      source.checkinAssistDate ??
+      source.cad ??
+      ""
+    );
+    if (!featureCode || !date) return null;
+    return { featureCode, date };
+  };
+  if (!options || typeof options !== "object") {
+    return null;
+  }
+  const direct = readAssistFromObject(options);
+  if (direct) return direct;
+  if (options.query) {
+    const fromQuery = readAssistFromObject(options.query);
+    if (fromQuery) return fromQuery;
+  }
+  const sceneParams = parseSceneParams(options.scene);
+  const fromScene = readAssistFromObject(sceneParams);
+  if (fromScene) return fromScene;
+  if (typeof options.q === "string" && options.q.trim()) {
+    const decoded = decodeParamValue(options.q);
+    const queryIndex = decoded.indexOf("?");
+    const queryString = queryIndex >= 0 ? decoded.slice(queryIndex + 1) : decoded;
+    const qParams = parseSceneParams(queryString);
+    const fromQ = readAssistFromObject(qParams);
+    if (fromQ) return fromQ;
+  }
+  return null;
+}
+
 function createWeappLoginError(reason, detail = {}) {
   const message = typeof reason === "string" ? reason : JSON.stringify(reason || {});
   const error = new Error(message || "weapp-login-failed");
@@ -192,12 +233,14 @@ App({
       pendingMarkerFocus: null,
     pendingPinPreview: null,
     pendingInviteCode: "",
+    pendingCheckinAssist: null,
     subscriptionAcceptedTemplateIds: [],
     subscriptionSettingsReady: false,
     subscriptionMainSwitch: true,
     showSubscribeWaitOverlay: false,
     mapReadyForStartVoice: false,
-    startVoicePlayed: false
+    startVoicePlayed: false,
+    userCreatedAt: ""
   },
 
   onLaunch(options = {}) {
@@ -206,11 +249,7 @@ App({
     if (this.globalData.pendingLaunchOptions === undefined) {
       this.globalData.pendingLaunchOptions = null;
     }
-    const launchInvite = extractInviteCodeFromOptions(options);
-    if (launchInvite) {
-      this.setPendingInviteCode(launchInvite);
-      console.log("Extracted invite code from launch options:", launchInvite);
-    }
+    this.captureLaunchShareState(options);
     try {
       const storedToken = wx.getStorageSync(ACCESS_TOKEN_STORAGE_KEY);
       if (storedToken) this.globalData.token = storedToken;
@@ -228,6 +267,7 @@ App({
         this.globalData.userInviteCode = profile.inviteCode || "";
         this.globalData.userVip = profile.vip === true || profile.member === true;
         this.globalData.userMemberExpireDate = profile.memberExpireDate || "";
+        this.globalData.userCreatedAt = profile.createdAt || "";
         this.globalData.userCheckinQuota = profile.checkinQuota || {};
         this.globalData.userSelectedVoicePackDirectoryName = profile.selectedVoicePackDirectoryName || "";
         if (typeof profile.flpValue === "number") this.globalData.userFlp = profile.flpValue;
@@ -259,6 +299,23 @@ App({
     });
 
     this.initUpdateManager();
+  },
+
+  onShow(options = {}) {
+    this.captureLaunchShareState(options);
+  },
+
+  captureLaunchShareState(options = {}) {
+    const launchInvite = extractInviteCodeFromOptions(options);
+    if (launchInvite) {
+      this.setPendingInviteCode(launchInvite);
+      console.log("Extracted invite code from launch options:", launchInvite);
+    }
+    const assistPayload = extractCheckinAssistPayloadFromOptions(options);
+    if (assistPayload) {
+      this.setPendingCheckinAssist(assistPayload);
+      console.log("Extracted checkin assist payload from launch options:", assistPayload);
+    }
   },
 
   validateStoredToken(token) {
@@ -476,6 +533,18 @@ App({
         console.warn("Failed to cache invite code", err);
       }
     }
+  },
+
+  setPendingCheckinAssist(payload = null) {
+    const featureCode = typeof payload?.featureCode === "string" ? payload.featureCode.trim() : "";
+    const date = typeof payload?.date === "string" ? payload.date.trim() : "";
+    this.globalData.pendingCheckinAssist = featureCode && date ? { featureCode, date } : null;
+  },
+
+  takePendingCheckinAssist() {
+    const payload = this.globalData.pendingCheckinAssist;
+    this.globalData.pendingCheckinAssist = null;
+    return payload && payload.featureCode && payload.date ? payload : null;
   },
 
   getPendingInviteCode() {

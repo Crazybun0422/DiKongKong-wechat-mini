@@ -1,4 +1,5 @@
 ﻿const { fetchCheckinDetail, checkin } = require("../../../utils/checkin");
+const { makeupCheckin } = require("../../../utils/checkin");
 const { playVoicePackEvent } = require("../../../utils/voice-pack");
 const { completeNewbieTask } = require("../../../utils/newbie-tasks");
 const { fetchLotteryConfig, drawLottery, fetchLotteryLogs } = require("../../../utils/lottery");
@@ -6,6 +7,7 @@ const {
   fetchUserProfile,
   normalizeProfileData,
   loadStoredProfile,
+  persistProfileLocally,
   resolveApiBase,
   getAuthToken,
   buildAvatarDownloadUrl
@@ -26,9 +28,12 @@ const {
 const { getLatestFontFileSource } = require("../../../utils/font-config");
 
 const CHECKIN_PAGE_PATH = "/pages/profile/checkin/index";
+const MAP_PAGE_PATH = "/pages/map/map";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
 const ELEME_PATH = "ele-recommend-price/pages/guest/index?inviterId=64e1965&chInfo=ch_wechat_chsub_CopyLink&_ltracker_f=ch_wechat_grzx_cp_tjyj";
 const ELEME_ENV = "release";
+const CHECKIN_ASSIST_DIALOG_TITLE = "本周补签机会已用完";
+const CHECKIN_MAKEUP_REWARDED_AD_UNIT_ID = "adunit-bfc1fcdc1f5cf73f";
 
 const WEEKDAY_LABELS = {
   monday: "周一",
@@ -56,6 +61,7 @@ const DEFAULT_LOTTERY_CONFIG = [
   { level: 7, flp: true, flpCount: 0.0 },
   { level: 8, flp: true, flpCount: 0.0 }
 ];
+let checkinRewardedVideoAd = null;
 
 function pad2(value) {
   return value < 10 ? `0${value}` : `${value}`;
@@ -75,6 +81,73 @@ function parseDate(value) {
   const [year, month, day] = parts;
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day);
+}
+
+function resolveRegisteredDate(profile = {}) {
+  const candidate = `${profile.createdAt || profile.registeredAt || ""}`.trim();
+  if (!candidate) return "";
+  return candidate.slice(0, 10);
+}
+
+function pickLocalizedMessage(value) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return "";
+    if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
+      try {
+        return pickLocalizedMessage(JSON.parse(text)) || text;
+      } catch (err) {
+        return text;
+      }
+    }
+    return text;
+  }
+  if (typeof value === "object") {
+    return (
+      pickLocalizedMessage(value.zh) ||
+      pickLocalizedMessage(value["zh-CN"]) ||
+      pickLocalizedMessage(value.cn) ||
+      pickLocalizedMessage(value.message) ||
+      pickLocalizedMessage(value.error) ||
+      pickLocalizedMessage(value.code) ||
+      pickLocalizedMessage(value.en)
+    );
+  }
+  return `${value}`;
+}
+
+function normalizeCheckinErrorMessage(err, fallback = "操作失败，请稍后重试") {
+  return (
+    pickLocalizedMessage(err?.displayMessage) ||
+    pickLocalizedMessage(err?.response?.message) ||
+    pickLocalizedMessage(err?.response?.data?.message) ||
+    pickLocalizedMessage(err?.message) ||
+    fallback
+  );
+}
+
+function isAssistRequiredError(err) {
+  const raw = [
+    err?.message,
+    err?.displayMessage,
+    err?.response?.message,
+    err?.response?.data?.message
+  ]
+    .map((item) => pickLocalizedMessage(item))
+    .filter(Boolean)
+    .join(" ");
+  if (!raw) return false;
+  const normalized = raw.toUpperCase();
+  return normalized.includes("MAKEUP_SECOND_NEEDS_ASSIST") || /助签/.test(raw);
+}
+
+function buildCheckinAssistSharePath(featureCode = "", date = "", inviteCode = "") {
+  const query = [
+    `assistFeatureCode=${encodeURIComponent(featureCode)}`,
+    `assistDate=${encodeURIComponent(date)}`
+  ].join("&");
+  return appendInviteCodeToPath(`${MAP_PAGE_PATH}?${query}`, { inviteCode });
 }
 
 function addDays(value, offset) {
@@ -202,8 +275,20 @@ Page({
     canCheckinToday: false,
     todaySigned: false,
     todayDate: "",
+    selectedDate: "",
+    registeredDate: "",
+    profileFeatureCode: "",
+    checkinQuota: {
+      remainingMakeupCount: 0,
+      remainingAssistCount: 0
+    },
     checkinSubscriptionLoading: false,
     showCheckinSubscriptionBanner: false,
+    showAssistShareDialog: false,
+    assistShareTargetDate: "",
+    assistShareTargetFeatureCode: "",
+    assistShareTargetWeekday: "",
+    assistShareTitle: CHECKIN_ASSIST_DIALOG_TITLE,
     showLotteryModal: false,
     lotteryPrizes: [],
     lotteryActiveIndex: -1,
@@ -219,6 +304,9 @@ Page({
   },
 
   onLoad() {
+    if (typeof wx !== "undefined" && typeof wx.showShareMenu === "function") {
+      wx.showShareMenu({ menus: ["shareAppMessage", "shareTimeline"] });
+    }
     if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
       let system = "";
       try {
@@ -233,11 +321,10 @@ Page({
     }
     this.setData({ pageLoading: true });
     this.loadCheckinFont();
+    this.initRewardedVideoAd();
     const stored = loadStoredProfile() || {};
     const normalized = normalizeProfileData(stored, { storedProfile: stored, apiBase: resolveApiBase() });
-    this.setData({
-      flpDisplay: normalized.flpDisplay || "--"
-    });
+    this.applyProfileSummary(normalized);
     this.loadLotteryConfig({ fallbackOnly: true });
     this.ensureValidToken()
       .catch((err) => {
@@ -283,6 +370,91 @@ Page({
       });
   },
 
+  initRewardedVideoAd() {
+    if (checkinRewardedVideoAd || typeof wx === "undefined" || typeof wx.createRewardedVideoAd !== "function") {
+      return;
+    }
+    try {
+      checkinRewardedVideoAd = wx.createRewardedVideoAd({
+        adUnitId: CHECKIN_MAKEUP_REWARDED_AD_UNIT_ID
+      });
+      checkinRewardedVideoAd.onLoad(() => { });
+      checkinRewardedVideoAd.onError((err) => {
+        console.error("rewarded video ad load failed", err);
+      });
+      checkinRewardedVideoAd.load().catch(() => { });
+    } catch (err) {
+      console.warn("initRewardedVideoAd failed", err);
+      checkinRewardedVideoAd = null;
+    }
+  },
+
+  showMakeupRewardedVideo() {
+    this.initRewardedVideoAd();
+    if (!checkinRewardedVideoAd) {
+      wx.showToast({ title: "激励视频暂不可用，请稍后重试", icon: "none" });
+      return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const finalize = (watched) => {
+        if (settled) return;
+        settled = true;
+        if (typeof checkinRewardedVideoAd.offClose === "function") {
+          checkinRewardedVideoAd.offClose(handleClose);
+        }
+        if (typeof checkinRewardedVideoAd.offError === "function") {
+          checkinRewardedVideoAd.offError(handleError);
+        }
+        resolve(!!watched);
+      };
+      const handleClose = (res = {}) => {
+        const watched = res && (res.isEnded === undefined || res.isEnded);
+        if (!watched) {
+          wx.showToast({ title: "完整观看视频后才可补签", icon: "none" });
+        }
+        finalize(watched);
+      };
+      const handleError = (err) => {
+        console.error("rewarded video ad show failed", err);
+        wx.showToast({ title: "激励视频加载失败，请稍后重试", icon: "none" });
+        finalize(false);
+      };
+      checkinRewardedVideoAd.onClose(handleClose);
+      checkinRewardedVideoAd.onError(handleError);
+      checkinRewardedVideoAd.show().catch(() =>
+        checkinRewardedVideoAd
+          .load()
+          .then(() => checkinRewardedVideoAd.show())
+          .catch(handleError)
+      );
+    });
+  },
+
+  applyProfileSummary(profile = {}) {
+    const normalizedProfile = profile || {};
+    const nextData = {
+      flpDisplay: normalizedProfile.flpDisplay || "--",
+      registeredDate: resolveRegisteredDate(normalizedProfile),
+      profileFeatureCode: `${normalizedProfile.featureCode || ""}`.trim(),
+      checkinQuota: normalizedProfile.checkinQuota || {
+        remainingMakeupCount: 0,
+        remainingAssistCount: 0
+      }
+    };
+    this.setData(nextData, () => {
+      if (!this._checkinDetail || !this.data.todayDate) return;
+      const selectedDate = this.resolveSelectedDate(
+        this.buildWeekDays(this._checkinDetail, this.data.todayDate),
+        this.data.selectedDate || this.data.todayDate
+      );
+      this.setData({
+        selectedDate,
+        weekDays: this.buildWeekDays(this._checkinDetail, this.data.todayDate, selectedDate)
+      });
+    });
+  },
+
   onBackTap() {
     const pages = typeof getCurrentPages === "function" ? getCurrentPages() : [];
     if (typeof wx.navigateBack === "function" && pages && pages.length > 1) {
@@ -299,11 +471,23 @@ Page({
     if (!apiBase) return Promise.resolve();
     return this.runWithLoginRetry(() => fetchUserProfile({ apiBase }))
       .then((profile) => {
+        const storedProfile = loadStoredProfile() || {};
         const normalized = normalizeProfileData(profile, {
-          storedProfile: loadStoredProfile() || {},
+          storedProfile,
           apiBase
         });
-        this.setData({ flpDisplay: normalized.flpDisplay || "--" });
+        persistProfileLocally({
+          nickname: normalized.nickname,
+          avatarUrl: normalized.avatarFileName || normalized.avatarUrl,
+          featureCode: normalized.featureCode,
+          flpValue: normalized.flpValue,
+          inviteCode: normalized.inviteCode,
+          vip: normalized.vip,
+          memberExpireDate: normalized.memberExpireDate,
+          checkinQuota: normalized.checkinQuota,
+          createdAt: normalized.createdAt
+        });
+        this.applyProfileSummary(normalized);
       })
       .catch((err) => {
         if (err?.message === "missing-token") return;
@@ -371,13 +555,19 @@ Page({
     this.setData({ loading: true, error: "", todayDate });
     return this.runWithLoginRetry(() => fetchCheckinDetail({ apiBase }))
       .then((detail = {}) => {
-        const weekDays = this.buildWeekDays(detail, todayDate);
+        this._checkinDetail = detail;
+        const selectedDate = this.resolveSelectedDate(
+          this.buildWeekDays(detail, todayDate),
+          this.data.selectedDate || todayDate
+        );
+        const weekDays = this.buildWeekDays(detail, todayDate, selectedDate);
         const todaySigned = !!detail.todaySigned;
         const canCheckinToday = !todaySigned && weekDays.some((item) => item.isToday);
         this.setData({
           loading: false,
           continuousDays: Number(detail.continuousDays) || 0,
           weekDays,
+          selectedDate,
           canCheckinToday,
           todaySigned
         });
@@ -387,6 +577,7 @@ Page({
         });
       })
       .catch((err) => {
+        this._checkinDetail = null;
         const message =
           err?.message === "missing-token"
             ? "未登录，暂时无法签到"
@@ -572,20 +763,28 @@ Page({
         this.setCheckinSubscriptionBannerVisibility(false);
       });
   },
-  buildWeekDays(detail, todayDate) {
+  buildWeekDays(detail, todayDate, selectedDateOverride = "") {
     const signedDays = Array.isArray(detail.signedDays) ? detail.signedDays : [];
     const unsignedDays = Array.isArray(detail.unsignedDays) ? detail.unsignedDays : [];
     const signedSet = new Set(signedDays.map((item) => item.date).filter(Boolean));
     const dayMap = new Map();
+    const remainingMakeupCount = Number(this.data.checkinQuota?.remainingMakeupCount);
+    const remainingAssistCount = Number(this.data.checkinQuota?.remainingAssistCount);
+    const normalizedRemainingMakeupCount = Number.isFinite(remainingMakeupCount) ? remainingMakeupCount : 0;
+    const normalizedRemainingAssistCount = Number.isFinite(remainingAssistCount) ? remainingAssistCount : 0;
+    const canUseDirectMakeup = normalizedRemainingMakeupCount > 0;
+    const canUseAssistShare = normalizedRemainingMakeupCount <= 0 && normalizedRemainingAssistCount > 0;
+    const registeredDate = `${this.data.registeredDate || ""}`.trim();
+    const selectedDate = `${selectedDateOverride || ""}`.trim();
 
     signedDays.forEach((item) => {
       if (!item || !item.date) return;
-      dayMap.set(item.date, { date: item.date, weekday: item.weekday, signed: true });
+      dayMap.set(item.date, { date: item.date, weekday: item.weekday, signed: true, makeup: item.makeup === true });
     });
     unsignedDays.forEach((item) => {
       if (!item || !item.date) return;
       if (!dayMap.has(item.date)) {
-        dayMap.set(item.date, { date: item.date, weekday: item.weekday, signed: false });
+        dayMap.set(item.date, { date: item.date, weekday: item.weekday, signed: false, makeup: false });
       }
     });
 
@@ -609,6 +808,19 @@ Page({
       const isSunday = parsedDate ? parsedDate.getDay() === 0 : weekdayLabel === "周日";
       const bonus = !isSunday && isDoubleReward(item.weekday || weekdayLabel);
       const rewardValue = bonus ? 0.2 : 0.1;
+      const eligibleMakeupDate =
+        !signed &&
+        !!date &&
+        date < todayDate &&
+        (!registeredDate || date >= registeredDate);
+      const makeupActionType = eligibleMakeupDate
+        ? canUseDirectMakeup
+          ? "makeup"
+          : canUseAssistShare
+            ? "assist-share"
+            : ""
+        : "";
+      const makeupEntryText = makeupActionType === "assist-share" ? "助签" : "补签";
       let iconType = "unsigned";
       if (signed) {
         iconType = "signed";
@@ -624,18 +836,111 @@ Page({
         isSunday,
         canCheckin: isToday && !detail.todaySigned,
         isBonus: bonus,
-        iconType
+        iconType,
+        showMakeupEntry: !!makeupActionType,
+        makeupActionType,
+        makeupEntryText,
+        makeupSigned: !!item.makeup,
+        isSelected: !!selectedDate && date === selectedDate
       };
     });
+  },
+
+  resolveSelectedDate(weekDays = [], preferredDate = "") {
+    const dates = Array.isArray(weekDays) ? weekDays.map((item) => item.date).filter(Boolean) : [];
+    if (!dates.length) return "";
+    if (preferredDate && dates.includes(preferredDate)) return preferredDate;
+    const todayMatch = weekDays.find((item) => item.isToday);
+    return todayMatch?.date || dates[0] || "";
   },
 
   onCheckinDayTap(e) {
     const date = e.currentTarget?.dataset?.date || "";
     if (!date) return;
+    this.setData({ selectedDate: date });
+    if (this._checkinDetail && this.data.todayDate) {
+      this.setData({
+        weekDays: this.buildWeekDays(this._checkinDetail, this.data.todayDate, date)
+      });
+    }
     if (!this.data.canCheckinToday || date !== this.data.todayDate) {
       return;
     }
     this.onCheckinTap();
+  },
+
+  onMakeupTap(e) {
+    const date = `${e.currentTarget?.dataset?.date || ""}`.trim();
+    const actionType = `${e.currentTarget?.dataset?.actionType || ""}`.trim();
+    const weekdayLabel = `${e.currentTarget?.dataset?.weekday || ""}`.trim();
+    if (!date || !actionType) return;
+    this.onCheckinDayTap({ currentTarget: { dataset: { date } } });
+    if (actionType === "assist-share") {
+      this.openAssistShareDialog({ date, weekdayLabel });
+      return;
+    }
+    if (actionType !== "makeup") return;
+    this.startMakeupCheckin(date, { weekdayLabel });
+  },
+
+  openAssistShareDialog({ date = "", weekdayLabel = "" } = {}) {
+    const featureCode = `${this.data.profileFeatureCode || ""}`.trim();
+    if (!featureCode || !date) {
+      wx.showToast({ title: "分享参数缺失，请稍后重试", icon: "none" });
+      return;
+    }
+    this.setData({
+      showAssistShareDialog: true,
+      assistShareTargetDate: date,
+      assistShareTargetFeatureCode: featureCode,
+      assistShareTargetWeekday: weekdayLabel
+    });
+  },
+
+  closeAssistShareDialog() {
+    this.setData({
+      showAssistShareDialog: false,
+      assistShareTargetDate: "",
+      assistShareTargetFeatureCode: "",
+      assistShareTargetWeekday: ""
+    });
+  },
+
+  startMakeupCheckin(date, { weekdayLabel = "" } = {}) {
+    if (this._makeupSubmitting) return;
+    const apiBase = resolveApiBase();
+    this._makeupSubmitting = true;
+    this.showMakeupRewardedVideo()
+      .then((watched) => {
+        if (!watched) return null;
+        if (typeof wx.showLoading === "function") {
+          wx.showLoading({ title: "补签中...", mask: true });
+        }
+        return makeupCheckin(date, { apiBase })
+          .then((detail = {}) => {
+            this._checkinDetail = detail;
+            this.closeAssistShareDialog();
+            wx.showToast({ title: "补签成功", icon: "success" });
+            return Promise.allSettled([this.refreshFlp(), this.loadCheckinDetail()]);
+          })
+          .catch((err) => {
+            if (isAssistRequiredError(err)) {
+              this.openAssistShareDialog({ date, weekdayLabel });
+              return null;
+            }
+            const message = normalizeCheckinErrorMessage(err, "补签失败，请稍后重试");
+            wx.showToast({ title: message, icon: "none" });
+            return null;
+          })
+          .finally(() => {
+            if (typeof wx.hideLoading === "function") {
+              wx.hideLoading();
+            }
+          });
+      })
+      .finally(() => {
+        this._makeupSubmitting = false;
+      });
   },
 
   onTurntableTap() {
@@ -684,6 +989,17 @@ Page({
 
   onShareAppMessage() {
     const inviteCode = getShareInviteCode();
+    if (this.data.showAssistShareDialog && this.data.assistShareTargetDate && this.data.assistShareTargetFeatureCode) {
+      const weekdayLabel = this.data.assistShareTargetWeekday || "这一天";
+      return {
+        title: `请帮我助签${weekdayLabel}，完成本周签到~`,
+        path: buildCheckinAssistSharePath(
+          this.data.assistShareTargetFeatureCode,
+          this.data.assistShareTargetDate,
+          inviteCode
+        )
+      };
+    }
     return {
       title: "每日签到领FLP，连签还可抽大奖~",
       path: appendInviteCodeToPath(CHECKIN_PAGE_PATH, { inviteCode })
@@ -694,7 +1010,7 @@ Page({
     const inviteCode = getShareInviteCode();
     return {
       title: "每日签到领FLP，连签还可抽大奖~",
-      query: appendInviteCodeToQuery(CHECKIN_PAGE_PATH, { inviteCode })
+      query: appendInviteCodeToQuery("", { inviteCode })
     };
   },
 

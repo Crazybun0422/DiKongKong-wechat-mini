@@ -28,13 +28,16 @@
     <image class="checkin-card-bg" src="/pages/profile/assets/checkin-card-shape.svg" mode="scaleToFill" />
     <view class="checkin-card-content">
     <view class="checkin-card-top">
-      <view class="checkin-card-title">
-        <text class="checkin-card-title-text">已连续签到</text>
-        <view class="checkin-card-ribbon">
-          <image class="checkin-card-ribbon-bg" src="/pages/profile/assets/checkin-days-underline.svg" mode="scaleToFill" />
-          <text class="checkin-card-days">{{continuousDays}}</text>
+      <view class="checkin-card-title-block">
+        <view class="checkin-card-title">
+          <text class="checkin-card-title-text">已连续签到</text>
+          <view class="checkin-card-ribbon">
+            <image class="checkin-card-ribbon-bg" src="/pages/profile/assets/checkin-days-underline.svg" mode="scaleToFill" />
+            <text class="checkin-card-days">{{continuousDays}}</text>
+          </view>
+          <text class="checkin-card-title-text">天</text>
         </view>
-        <text class="checkin-card-title-text">天</text>
+        <text class="checkin-card-quota-tip">每周可补签2次，助签一次</text>
       </view>
       
     </view>
@@ -43,7 +46,7 @@
       <view class="checkin-week-grid">
         <block wx:for="{{weekDays}}" wx:key="date">
           <view
-            class="checkin-day-card {{item.isToday ? 'is-today' : ''}} {{item.isSigned ? 'is-signed' : ''}} {{item.canCheckin ? 'is-actionable' : ''}} {{item.isSunday ? 'is-sunday' : ''}}"
+            class="checkin-day-card {{item.isToday ? 'is-today is-selected' : ''}} {{item.isSigned ? 'is-signed' : ''}} {{item.canCheckin ? 'is-actionable' : ''}} {{item.isSunday ? 'is-sunday' : ''}}"
             data-date="{{item.date}}"
             bindtap="onCheckinDayTap"
           >
@@ -69,9 +72,24 @@
                 src="/pages/profile/assets/not-check-in.png"
                 mode="aspectFit"
               />
-              <view wx:elif="{{item.iconType === 'today'}}" class="checkin-today-icon">
-                <image class="checkin-day-image" src="/pages/profile/assets/not-check-in.png" mode="aspectFit" />
-                <image class="checkin-day-check" src="/assets/check.png" mode="aspectFit" />
+              <image
+                wx:elif="{{item.iconType === 'today'}}"
+                class="checkin-day-image"
+                src="/pages/profile/assets/not-check-in.png"
+                mode="aspectFit"
+              />
+              <text wx:if="{{item.isSigned}}" class="checkin-status-mark">✓</text>
+              <view
+                wx:if="{{!item.isSigned && item.showMakeupEntry}}"
+                class="checkin-makeup-entry"
+                hover-class="checkin-makeup-entry--active"
+                hover-stay-time="90"
+                data-date="{{item.date}}"
+                data-action-type="{{item.makeupActionType}}"
+                data-weekday="{{item.weekdayLabel}}"
+                catchtap="onMakeupTap"
+              >
+                {{item.makeupEntryText}}
               </view>
             </view>
             <text class="checkin-weekday">{{item.weekdayLabel}}</text>
@@ -123,6 +141,17 @@
   </view>
 
   <view wx:if="{{error}}" class="checkin-error">{{error}}</view>
+  </view>
+
+  <view wx:if="{{showAssistShareDialog}}" class="checkin-share-mask" catchtap="closeAssistShareDialog">
+    <view class="checkin-share-card" catchtap="noop">
+      <view class="checkin-share-title">{{assistShareTitle}}</view>
+      <view class="checkin-share-desc">把 {{assistShareTargetDate}} 分享给好友，请对方帮你助签一次。</view>
+      <view class="checkin-share-actions">
+        <button class="checkin-share-cancel" bindtap="closeAssistShareDialog">稍后</button>
+        <button class="checkin-share-confirm" open-type="share">分享助签</button>
+      </view>
+    </view>
   </view>
 
   <view wx:if="{{showLotteryModal}}" class="checkin-lottery-mask" bindtap="onLotteryMaskTap" catchtouchmove="onLotteryMaskTouchMove">

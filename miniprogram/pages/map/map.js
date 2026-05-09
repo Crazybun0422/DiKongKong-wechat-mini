@@ -1,6 +1,7 @@
 ﻿const { SEARCH_COORDINATE_TIPS_TEXT } = require("../../utils/coordinate-search");
 const { composeAvatarLocationIcon } = require("../../utils/avatar-location-icon");
 const { buildAvatarDownloadUrl } = require("../../utils/profile");
+const { assistCheckin } = require("../../utils/checkin");
 const { QQMAP_CUSTOM_STYLE_ID, MAP_DEBUG_PANEL_ENABLED } = require("../../utils/config");
 const { getMapKeySync } = require("../../utils/map-key");
 const cityReportUtils = require("./utils/city-report");
@@ -79,6 +80,56 @@ const MARKER_CERTIFICATION_INFO_ITEMS = [
     description: "主页提供更丰富的案例、产品文档等展示"
   }
 ];
+
+function pickLocalizedMessage(value) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return "";
+    if ((text.startsWith("{") && text.endsWith("}")) || (text.startsWith("[") && text.endsWith("]"))) {
+      try {
+        return pickLocalizedMessage(JSON.parse(text)) || text;
+      } catch (err) {
+        return text;
+      }
+    }
+    return text;
+  }
+  if (typeof value === "object") {
+    return (
+      pickLocalizedMessage(value.zh) ||
+      pickLocalizedMessage(value["zh-CN"]) ||
+      pickLocalizedMessage(value.cn) ||
+      pickLocalizedMessage(value.message) ||
+      pickLocalizedMessage(value.error) ||
+      pickLocalizedMessage(value.code) ||
+      pickLocalizedMessage(value.en)
+    );
+  }
+  return `${value}`;
+}
+
+function normalizeCheckinAssistErrorMessage(err, fallback = "助签失败，请稍后重试") {
+  return (
+    pickLocalizedMessage(err?.displayMessage) ||
+    pickLocalizedMessage(err?.response?.message) ||
+    pickLocalizedMessage(err?.response?.data?.message) ||
+    pickLocalizedMessage(err?.message) ||
+    fallback
+  );
+}
+
+function isCheckinAssistAlreadyCompletedError(err) {
+  const message = normalizeCheckinAssistErrorMessage(err, "");
+  if (!message) return false;
+  return /已被助签|已经助签|好友已被助签|already\s+assist/i.test(message);
+}
+
+function isCheckinAssistQuotaExhaustedError(err) {
+  const message = normalizeCheckinAssistErrorMessage(err, "");
+  if (!message) return false;
+  return /助签次数.*用完|助签次数.*已用尽|本周.*助签.*用完|assist.*quota|assist.*used/i.test(message);
+}
 
 function parseMemberExpireTime(value = "") {
   const text = `${value || ""}`.trim();
@@ -2217,6 +2268,88 @@ Page({
 
   ensureProfileAuthenticated() {
     return pageRuntimeUtils.ensureProfileAuthenticated(this);
+  },
+
+  takePendingCheckinAssist() {
+    const app = typeof getApp === "function" ? getApp() : null;
+    if (!app || typeof app.takePendingCheckinAssist !== "function") {
+      return null;
+    }
+    return app.takePendingCheckinAssist();
+  },
+
+  showCheckinAssistNotice(message = "") {
+    if (!message || typeof wx === "undefined" || typeof wx.showModal !== "function") {
+      return;
+    }
+    wx.showModal({
+      title: "提示",
+      content: message,
+      showCancel: false,
+      confirmText: "我知道了"
+    });
+  },
+
+  promptPendingCheckinAssist() {
+    if (this._checkinAssistPrompting || this._checkinAssistSubmitting) return;
+    const payload = this.takePendingCheckinAssist();
+    if (!payload?.featureCode || !payload?.date) return;
+    const ownFeatureCode = `${this.loadStoredProfile()?.featureCode || ""}`.trim();
+    if (ownFeatureCode && ownFeatureCode === payload.featureCode) {
+      this.showCheckinAssistNotice("不能给自己助签哟~");
+      return;
+    }
+    this._checkinAssistPrompting = true;
+    wx.showModal({
+      title: "助签确认",
+      content: `是否为“${payload.featureCode}”完成助签`,
+      confirmText: "确认助签",
+      cancelText: "暂不",
+      success: (res = {}) => {
+        if (!res.confirm) return;
+        this.confirmPendingCheckinAssist(payload);
+      },
+      complete: () => {
+        this._checkinAssistPrompting = false;
+      }
+    });
+  },
+
+  confirmPendingCheckinAssist(payload = {}) {
+    if (!payload?.featureCode || !payload?.date || this._checkinAssistSubmitting) return;
+    this._checkinAssistSubmitting = true;
+    if (typeof wx !== "undefined" && typeof wx.showLoading === "function") {
+      wx.showLoading({ title: "助签中...", mask: true });
+    }
+    this.ensureProfileAuthenticated()
+      .then(() =>
+        assistCheckin(
+          { featureCode: payload.featureCode, date: payload.date },
+          { apiBase: this.getApiBase(), token: this.getAuthToken() }
+        )
+      )
+      .then(() => {
+        wx.showToast({ title: `已为${payload.featureCode}完成助签`, icon: "success" });
+      })
+      .catch((err) => {
+        console.warn("assist checkin failed", err);
+        if (isCheckinAssistAlreadyCompletedError(err)) {
+          this.showCheckinAssistNotice("好友已被助签了哟~");
+          return;
+        }
+        if (isCheckinAssistQuotaExhaustedError(err)) {
+          this.showCheckinAssistNotice("您本周助签次数已经用完了哟~");
+          return;
+        }
+        const message = normalizeCheckinAssistErrorMessage(err, "助签失败，请稍后重试");
+        this.showCheckinAssistNotice(message);
+      })
+      .finally(() => {
+        if (typeof wx !== "undefined" && typeof wx.hideLoading === "function") {
+          wx.hideLoading();
+        }
+        this._checkinAssistSubmitting = false;
+      });
   },
 
   hasAccessToken() {

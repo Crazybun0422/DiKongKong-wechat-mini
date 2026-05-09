@@ -613,9 +613,9 @@
 }
 
 button.member-action {
-  width: 560rpx;
-  min-width: 480rpx;
-  max-width: 560rpx;
+  width: 520rpx;
+  min-width: 520rpx;
+  max-width: 520rpx;
   height: 84rpx;
   margin: 0;
   padding: 0;
@@ -623,37 +623,45 @@ button.member-action {
   border-radius: 999rpx;
   background: #000000;
   color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
   line-height: normal;
   pointer-events: auto;
   box-sizing: border-box;
   font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button.member-action::after {
   border: none;
 }
 
-.member-action-status {
-  width: 44%;
-  flex: 0 0 44%;
-  text-align: center;
-  font-size: 24rpx;
-  font-weight: 400;
-  color: #8da0ad;
+.member-action-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   white-space: nowrap;
 }
 
+.member-action-status {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 400;
+  color: #8da0ad;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .member-action-text {
-  width: 56%;
-  flex: 0 0 56%;
-  text-align: center;
-  font-size: 30rpx;
+  display: block;
+  font-size: 34rpx;
   font-weight: 800;
   color: #ffffff;
+  line-height: 1;
   white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 24rpx;
 }
 
 .member-newbie-entry {

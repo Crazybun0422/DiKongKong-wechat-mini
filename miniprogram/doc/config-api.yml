@@ -1300,6 +1300,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/member-group-qrcode:
+    get:
+      summary: 获取会员群二维码
+      description: 仅登录会员可调用，读取当前配置的会员群二维码图片地址。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMemberGroupQrcodeResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    post:
+      summary: 上传会员群二维码
+      description: 仅管理员可调用，上传会员群二维码图片并更新配置。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 二维码图片文件。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMemberGroupQrcodeResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
   /api/config/member-no-ads:
     get:
       summary: 获取免播广告 FLP 阈值配置
@@ -2498,6 +2571,23 @@ components:
           type: number
           format: double
           description: 免播广告所需的 会员状态，包含边界。
+    MemberGroupQrcodeResponse:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+          description: 会员群二维码图片 URL。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最近更新时间。
+    ApiResponseMemberGroupQrcodeResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseObject'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MemberGroupQrcodeResponse'
     FlpNoAdsThresholdResponse:
       type: object
       properties:

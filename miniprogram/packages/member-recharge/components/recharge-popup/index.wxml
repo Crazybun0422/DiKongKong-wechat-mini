@@ -1,4 +1,4 @@
-<view wx:if="{{visible}}" class="recharge-overlay" catchtap="onMaskTap">
+<view wx:if="{{visible}}" class="recharge-overlay {{successVisible ? 'is-success' : ''}}" catchtap="onMaskTap">
   <view wx:if="{{!successVisible}}" class="recharge-sheet" catchtap="noop">
     <text class="recharge-title">开通高级会员</text>
 
@@ -43,20 +43,72 @@
       disabled="{{submitting}}"
       bindtap="onConfirmTap"
     >
-      <text class="recharge-submit-status">{{expireText || '暂未获得'}}</text>
-      <text class="recharge-submit-text">立即支付</text>
+      <view class="recharge-submit-content">
+        <text class="recharge-submit-status">{{expireText || '暂未获得'}}</text>
+        <text class="recharge-submit-text">立即支付</text>
+      </view>
     </button>
   </view>
 
   <view wx:else class="recharge-success-sheet" catchtap="noop">
-    <view class="recharge-success-icon">
-      <view class="recharge-success-icon-inner">
-        <text class="recharge-success-check">✓</text>
-      </view>
-    </view>
     <text class="recharge-success-title">开通成功</text>
     <text class="recharge-success-desc">恭喜成为低空星球高级会员</text>
-    <text class="recharge-success-desc">一起探索低空未来</text>
-    <button class="recharge-success-btn" bindtap="onSuccessConfirmTap">立即体验</button>
+    <text class="recharge-success-desc recharge-success-desc--tight">一起探索低空未来</text>
+
+    <view class="recharge-success-qr-section {{memberGroupQrcodeLoading ? 'recharge-success-qr-section--loading' : ''}}">
+      <view wx:if="{{!memberGroupQrcodeLoading}}" class="recharge-success-side-copy">
+        <view class="recharge-success-side-copy-col">
+          <text class="recharge-success-side-copy-char">长</text>
+          <text class="recharge-success-side-copy-char">按</text>
+          <text class="recharge-success-side-copy-char">识</text>
+          <text class="recharge-success-side-copy-char">别</text>
+          <text class="recharge-success-side-copy-char">二</text>
+          <text class="recharge-success-side-copy-char">维</text>
+          <text class="recharge-success-side-copy-char">码</text>
+        </view>
+        <view class="recharge-success-side-copy-col">
+          <text class="recharge-success-side-copy-char">进</text>
+          <text class="recharge-success-side-copy-char">会</text>
+          <text class="recharge-success-side-copy-char">员</text>
+          <text class="recharge-success-side-copy-char">专</text>
+          <text class="recharge-success-side-copy-char">属</text>
+          <text class="recharge-success-side-copy-char">群</text>
+        </view>
+      </view>
+
+      <view class="recharge-success-qr-card {{memberGroupQrcodeLoading ? 'recharge-success-qr-card--loading' : ''}}" style="{{memberGroupQrcodeCardStyle}}">
+        <image
+          wx:if="{{memberGroupQrcodeReady && memberGroupQrcodeUrl}}"
+          class="recharge-success-qr-image"
+          src="{{memberGroupQrcodeUrl}}"
+          style="{{memberGroupQrcodeImageStyle}}"
+          mode="scaleToFill"
+          bindload="onMemberGroupQrcodeLoad"
+          show-menu-by-longpress="true"
+        />
+        <view
+          wx:elif="{{memberGroupQrcodeLoading}}"
+          class="recharge-success-qr-placeholder recharge-success-qr-placeholder--loading"
+          style="{{memberGroupQrcodeImageStyle}}"
+        >
+          <view class="recharge-success-qr-skeleton">
+            <view class="recharge-success-qr-skeleton-line recharge-success-qr-skeleton-line--sm"></view>
+            <view class="recharge-success-qr-skeleton-line recharge-success-qr-skeleton-line--lg"></view>
+            <view class="recharge-success-qr-skeleton-line recharge-success-qr-skeleton-line--md"></view>
+          </view>
+        </view>
+        <view wx:else class="recharge-success-qr-placeholder" style="{{memberGroupQrcodeImageStyle}}">
+          暂无群二维码
+        </view>
+      </view>
+    </view>
+
+    <button
+      class="recharge-success-btn {{memberGroupQrcodeLoading ? 'is-disabled' : ''}}"
+      bindtap="onSuccessConfirmTap"
+      disabled="{{memberGroupQrcodeLoading}}"
+    >
+      立即体验
+    </button>
   </view>
 </view>

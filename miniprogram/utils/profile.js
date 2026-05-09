@@ -375,6 +375,15 @@ function normalizeProfileData(raw = {}, options = {}) {
     nestedProfile.vipExpireDate ||
     stored.memberExpireDate ||
     stored.membershipExpireDate ||
+      ""
+  );
+  const createdAt = normalizeInviteCodeValue(
+    raw.createdAt ||
+    raw.registeredAt ||
+    nestedProfile.createdAt ||
+    nestedProfile.registeredAt ||
+    stored.createdAt ||
+    stored.registeredAt ||
     ""
   );
   const checkinQuota = normalizeCheckinQuota(raw.checkinQuota || nestedProfile.checkinQuota || stored.checkinQuota || {});
@@ -409,6 +418,7 @@ function normalizeProfileData(raw = {}, options = {}) {
     vip,
     member: vip,
     memberExpireDate,
+    createdAt,
     selectedVoicePackDirectoryName,
     checkinQuota,
     policyAccessRecords,
@@ -563,6 +573,13 @@ function persistProfileLocally(profile = {}) {
     profile.vipExpireDate ||
     existing.memberExpireDate ||
     existing.membershipExpireDate ||
+      ""
+  );
+  const createdAt = normalizeInviteCodeValue(
+    profile.createdAt ||
+    profile.registeredAt ||
+    existing.createdAt ||
+    existing.registeredAt ||
     ""
   );
   const checkinQuota = normalizeCheckinQuota(profile.checkinQuota || existing.checkinQuota || {});
@@ -597,6 +614,7 @@ function persistProfileLocally(profile = {}) {
     vip,
     member: vip,
     memberExpireDate,
+    createdAt,
     selectedVoicePackDirectoryName,
     checkinQuota,
     policyAccessRecords,
@@ -610,6 +628,7 @@ function persistProfileLocally(profile = {}) {
     app.globalData.userInviteCode = inviteCode;
     app.globalData.userVip = vip;
     app.globalData.userMemberExpireDate = memberExpireDate;
+    app.globalData.userCreatedAt = createdAt;
     app.globalData.userCheckinQuota = checkinQuota;
     app.globalData.userSelectedVoicePackDirectoryName = selectedVoicePackDirectoryName;
     if (flpValue !== null) app.globalData.userFlp = flpValue;
@@ -641,6 +660,9 @@ function loadStoredProfile() {
   const memberExpireDateFromGlobal = globalData
     ? globalData.userMemberExpireDate || cached.memberExpireDate || cached.membershipExpireDate || cached.vipExpireDate || ""
     : cached.memberExpireDate || cached.membershipExpireDate || cached.vipExpireDate || "";
+  const createdAtFromGlobal = globalData
+    ? globalData.userCreatedAt || cached.createdAt || cached.registeredAt || ""
+    : cached.createdAt || cached.registeredAt || "";
   const selectedVoicePackFromGlobal =
     globalData ? globalData.userSelectedVoicePackDirectoryName || cached.selectedVoicePackDirectoryName || "" : cached.selectedVoicePackDirectoryName || "";
   if (nicknameFromGlobal || avatarFromGlobal || featureFromGlobal) {
@@ -656,6 +678,7 @@ function loadStoredProfile() {
       vip,
       member: vip,
       memberExpireDate: normalizeInviteCodeValue(memberExpireDateFromGlobal),
+      createdAt: normalizeInviteCodeValue(createdAtFromGlobal),
       selectedVoicePackDirectoryName: normalizeInviteCodeValue(selectedVoicePackFromGlobal),
       checkinQuota: normalizeCheckinQuota(globalData?.userCheckinQuota || cached.checkinQuota || {}),
       policyAccessRecords: cached.policyAccessRecords || null,
@@ -676,6 +699,7 @@ function loadStoredProfile() {
     const memberExpireDate = normalizeInviteCodeValue(
       cached.memberExpireDate || cached.membershipExpireDate || cached.vipExpireDate || ""
     );
+    const createdAt = normalizeInviteCodeValue(cached.createdAt || cached.registeredAt || "");
     const selectedVoicePackDirectoryName = normalizeInviteCodeValue(
       cached.selectedVoicePackDirectoryName || cached.voicePackDirectoryName || cached.voicePack || ""
     );
@@ -686,6 +710,7 @@ function loadStoredProfile() {
       app.globalData.userInviteCode = inviteCode;
       app.globalData.userVip = vip;
       app.globalData.userMemberExpireDate = memberExpireDate;
+      app.globalData.userCreatedAt = createdAt;
       app.globalData.userCheckinQuota = checkinQuota;
       app.globalData.userSelectedVoicePackDirectoryName = selectedVoicePackDirectoryName;
       if (flpValue !== null) app.globalData.userFlp = flpValue;
@@ -699,6 +724,7 @@ function loadStoredProfile() {
       vip,
       member: vip,
       memberExpireDate,
+      createdAt,
       selectedVoicePackDirectoryName,
       checkinQuota,
       policyAccessRecords: cached.policyAccessRecords || null,
@@ -716,6 +742,7 @@ function loadStoredProfile() {
     vip: false,
     member: false,
     memberExpireDate: "",
+    createdAt: "",
     selectedVoicePackDirectoryName: "",
     checkinQuota: normalizeCheckinQuota(),
     policyAccessRecords: null,

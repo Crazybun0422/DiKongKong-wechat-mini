@@ -12,6 +12,11 @@ const {
   fetchMemberRechargeConfig,
   rechargeMember
 } = require("../../../../utils/membership");
+const { fetchMemberGroupQrcode } = require("../../../../utils/member-group-qrcode");
+
+const MEMBER_QRCODE_FRAME_LONG_SIDE_RPX = 356;
+const MEMBER_QRCODE_FRAME_MIN_SHORT_SIDE_RPX = 212;
+const MEMBER_QRCODE_FRAME_PADDING_RPX = 8;
 
 const PAYMENT_MODES = [
   { id: MEMBER_PAYMENT_MODES.WECHAT, label: "现金充值" },
@@ -88,6 +93,52 @@ function normalizeRechargeErrorMessage(err, fallback = "支付失败，请稍后
   );
 }
 
+function buildMemberQrcodeFrameStyle(width = 0, height = 0) {
+  const normalizedWidth = Number(width);
+  const normalizedHeight = Number(height);
+  let imageWidth = MEMBER_QRCODE_FRAME_LONG_SIDE_RPX;
+  let imageHeight = MEMBER_QRCODE_FRAME_LONG_SIDE_RPX;
+
+  if (Number.isFinite(normalizedWidth) && Number.isFinite(normalizedHeight) && normalizedWidth > 0 && normalizedHeight > 0) {
+    const ratio = normalizedWidth / normalizedHeight;
+    if (ratio >= 1) {
+      imageWidth = MEMBER_QRCODE_FRAME_LONG_SIDE_RPX;
+      imageHeight = Math.max(
+        MEMBER_QRCODE_FRAME_MIN_SHORT_SIDE_RPX,
+        Math.round(MEMBER_QRCODE_FRAME_LONG_SIDE_RPX / ratio)
+      );
+    } else {
+      imageHeight = MEMBER_QRCODE_FRAME_LONG_SIDE_RPX;
+      imageWidth = Math.max(
+        MEMBER_QRCODE_FRAME_MIN_SHORT_SIDE_RPX,
+        Math.round(MEMBER_QRCODE_FRAME_LONG_SIDE_RPX * ratio)
+      );
+    }
+  }
+
+  const cardWidth = imageWidth + MEMBER_QRCODE_FRAME_PADDING_RPX * 2;
+  const cardHeight = imageHeight + MEMBER_QRCODE_FRAME_PADDING_RPX * 2;
+
+  return {
+    cardStyle: `width: ${cardWidth}rpx; height: ${cardHeight}rpx; padding: ${MEMBER_QRCODE_FRAME_PADDING_RPX}rpx;`,
+    imageStyle: `width: ${imageWidth}rpx; height: ${imageHeight}rpx;`
+  };
+}
+
+function resolveQrcodeImageInfo(src = "") {
+  const target = `${src || ""}`.trim();
+  if (!target || typeof wx === "undefined" || typeof wx.getImageInfo !== "function") {
+    return Promise.reject(new Error("qrcode-image-info-unavailable"));
+  }
+  return new Promise((resolve, reject) => {
+    wx.getImageInfo({
+      src: target,
+      success: (info) => resolve(info || {}),
+      fail: (err) => reject(err || new Error("qrcode-image-info-failed"))
+    });
+  });
+}
+
 Component({
   properties: {
     visible: {
@@ -97,7 +148,15 @@ Component({
         if (value) {
           this.preparePopup();
         } else {
-          this.setData({ successVisible: false });
+          const frameStyle = buildMemberQrcodeFrameStyle();
+          this.setData({
+            successVisible: false,
+            memberGroupQrcodeUrl: "",
+            memberGroupQrcodeLoading: false,
+            memberGroupQrcodeReady: false,
+            memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+            memberGroupQrcodeImageStyle: frameStyle.imageStyle
+          });
         }
       }
     },
@@ -114,7 +173,12 @@ Component({
     rechargeConfig: null,
     plans: [],
     submitting: false,
-    successVisible: false
+    successVisible: false,
+    memberGroupQrcodeUrl: "",
+    memberGroupQrcodeLoading: false,
+    memberGroupQrcodeReady: false,
+    memberGroupQrcodeCardStyle: buildMemberQrcodeFrameStyle().cardStyle,
+    memberGroupQrcodeImageStyle: buildMemberQrcodeFrameStyle().imageStyle
   },
 
   lifetimes: {
@@ -132,8 +196,14 @@ Component({
     preparePopup() {
       const rechargeConfig = this.data.rechargeConfig || {};
       const paymentMode = resolveDefaultPaymentMode(rechargeConfig, this.data.paymentMode);
+      const frameStyle = buildMemberQrcodeFrameStyle();
       this.setData({
         successVisible: false,
+        memberGroupQrcodeUrl: "",
+        memberGroupQrcodeLoading: false,
+        memberGroupQrcodeReady: false,
+        memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+        memberGroupQrcodeImageStyle: frameStyle.imageStyle,
         paymentModes: resolveVisiblePaymentModes(rechargeConfig),
         paymentMode,
         plans: this.buildPlans(rechargeConfig, paymentMode)
@@ -248,7 +318,16 @@ Component({
         .then(() => this.refreshProfile())
         .then((profile) => {
           closeLoading();
-          this.setData({ successVisible: true });
+          const frameStyle = buildMemberQrcodeFrameStyle();
+          this.setData({
+            successVisible: true,
+            memberGroupQrcodeUrl: "",
+            memberGroupQrcodeLoading: true,
+            memberGroupQrcodeReady: false,
+            memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+            memberGroupQrcodeImageStyle: frameStyle.imageStyle
+          });
+          this.loadMemberGroupQrcode();
           this.triggerEvent("success", { profile });
         })
         .catch((err) => {
@@ -348,6 +427,71 @@ Component({
           console.warn("refresh member profile after recharge failed", err);
           return null;
         });
+    },
+
+    loadMemberGroupQrcode() {
+      return fetchMemberGroupQrcode()
+        .then((payload = {}) => {
+          const remoteUrl = `${payload.imageUrl || ""}`.trim();
+          if (!remoteUrl) {
+            const frameStyle = buildMemberQrcodeFrameStyle();
+            this.setData({
+              memberGroupQrcodeUrl: "",
+              memberGroupQrcodeLoading: false,
+              memberGroupQrcodeReady: false,
+              memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+              memberGroupQrcodeImageStyle: frameStyle.imageStyle
+            });
+            return payload;
+          }
+          return resolveQrcodeImageInfo(remoteUrl)
+            .then((info = {}) => {
+              const frameStyle = buildMemberQrcodeFrameStyle(info.width, info.height);
+              this.setData({
+                memberGroupQrcodeUrl: info.path || remoteUrl,
+                memberGroupQrcodeLoading: false,
+                memberGroupQrcodeReady: true,
+                memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+                memberGroupQrcodeImageStyle: frameStyle.imageStyle
+              });
+              return payload;
+            })
+            .catch((err) => {
+              console.warn("resolve member group qrcode image info failed", err);
+              const frameStyle = buildMemberQrcodeFrameStyle();
+              this.setData({
+                memberGroupQrcodeUrl: "",
+                memberGroupQrcodeLoading: false,
+                memberGroupQrcodeReady: false,
+                memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+                memberGroupQrcodeImageStyle: frameStyle.imageStyle
+              });
+              return payload;
+            });
+        })
+        .catch((err) => {
+          console.warn("load member group qrcode failed", err);
+          const frameStyle = buildMemberQrcodeFrameStyle();
+          this.setData({
+            memberGroupQrcodeUrl: "",
+            memberGroupQrcodeLoading: false,
+            memberGroupQrcodeReady: false,
+            memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+            memberGroupQrcodeImageStyle: frameStyle.imageStyle
+          });
+          return null;
+        });
+    },
+
+    onMemberGroupQrcodeLoad(e) {
+      const width = Number(e?.detail?.width);
+      const height = Number(e?.detail?.height);
+      const frameStyle = buildMemberQrcodeFrameStyle(width, height);
+      this.setData({
+        memberGroupQrcodeReady: true,
+        memberGroupQrcodeCardStyle: frameStyle.cardStyle,
+        memberGroupQrcodeImageStyle: frameStyle.imageStyle
+      });
     },
 
     onSuccessConfirmTap() {
