@@ -74,8 +74,7 @@
       <view class="newbie-reward-card" catchtap="noop">
         <text class="newbie-reward-title">您已成功领取会员</text>
         <text class="newbie-reward-sub">7天高级会员已到账</text>
-        <text class="newbie-reward-sub">快去体验会员权益吧</text>
-        <view class="newbie-reward-btn" catchtap="onRewardSuccessClose">我知道了</view>
+        <view class="newbie-reward-btn" catchtap="onRewardSuccessClose">立即体验</view>
       </view>
     </view>
   </view>

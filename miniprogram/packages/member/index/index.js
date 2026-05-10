@@ -299,6 +299,7 @@ Page({
     profile: {},
     nickname: "大友班长呀",
     avatarUrl: "/assets/default-avatar.png",
+    isIOS: false,
     isVip: false,
     showNewbieMemberEntry: false,
     memberExpireDateText: "暂未获得",
@@ -334,6 +335,15 @@ Page({
   onLoad() {
     if (typeof wx !== "undefined" && typeof wx.showShareMenu === "function") {
       wx.showShareMenu({ menus: ["shareAppMessage", "shareTimeline"] });
+    }
+    if (typeof wx !== "undefined" && typeof wx.getDeviceInfo === "function") {
+      let system = "";
+      try {
+        system = `${wx.getDeviceInfo()?.system || ""}`.toLowerCase();
+      } catch (err) {
+        system = "";
+      }
+      this.setData({ isIOS: system.includes("ios") });
     }
     setVoicePackAudioEndedHandler(() => {
       if (this.data.playingVoiceKey) {

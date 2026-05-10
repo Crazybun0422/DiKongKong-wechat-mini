@@ -224,30 +224,44 @@
   line-height: 1.5;
 }
 
-.pin-video-flp-hint {
-  margin-left: 10rpx;
-  font-size: 22rpx;
-  color: #6b7280;
-  font-style: italic;
-  font-weight: 400;
+.field-label--with-hint {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 8rpx;
 }
 
-.pin-video-vip-entry {
-  margin-top: 10rpx;
+.pin-video-vip-inline {
   display: inline-flex;
   align-items: center;
-  gap: 10rpx;
+  gap: 2rpx;
 }
 
 .pin-video-vip-badge {
   width: 92rpx;
   height: 56rpx;
   display: block;
+  margin-right: -6rpx;
+}
+
+.pin-video-vip-badge--inline {
+  width: 72rpx;
+  height: 44rpx;
+  margin-right: -8rpx;
 }
 
 .pin-video-vip-text {
   font-size: 24rpx;
   color: #111827;
+  line-height: 1.2;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.pin-video-vip-text--inline,
+.pin-video-vip-paren {
+  font-size: 22rpx;
+  color: #6b7280;
   line-height: 1.2;
 }
 

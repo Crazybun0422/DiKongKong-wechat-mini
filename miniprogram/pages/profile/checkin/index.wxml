@@ -37,7 +37,7 @@
           </view>
           <text class="checkin-card-title-text">天</text>
         </view>
-        <text class="checkin-card-quota-tip">每周可补签2次，助签一次</text>
+        <text class="checkin-card-quota-tip">每周可补签2次，助签他人1次</text>
       </view>
       
     </view>
@@ -48,6 +48,8 @@
           <view
             class="checkin-day-card {{item.isToday ? 'is-today is-selected' : ''}} {{item.isSigned ? 'is-signed' : ''}} {{item.canCheckin ? 'is-actionable' : ''}} {{item.isSunday ? 'is-sunday' : ''}}"
             data-date="{{item.date}}"
+            data-action-type="{{item.makeupActionType}}"
+            data-weekday="{{item.weekdayLabel}}"
             bindtap="onCheckinDayTap"
           >
             <view
@@ -146,10 +148,10 @@
   <view wx:if="{{showAssistShareDialog}}" class="checkin-share-mask" catchtap="closeAssistShareDialog">
     <view class="checkin-share-card" catchtap="noop">
       <view class="checkin-share-title">{{assistShareTitle}}</view>
-      <view class="checkin-share-desc">把 {{assistShareTargetDate}} 分享给好友，请对方帮你助签一次。</view>
+      <view class="checkin-share-desc">把 {{assistShareTargetDate}} 分享给好友，请对方帮你助签1次。</view>
       <view class="checkin-share-actions">
         <button class="checkin-share-cancel" bindtap="closeAssistShareDialog">稍后</button>
-        <button class="checkin-share-confirm" open-type="share">分享助签</button>
+        <button class="checkin-share-confirm" open-type="share">分享好友</button>
       </view>
     </view>
   </view>

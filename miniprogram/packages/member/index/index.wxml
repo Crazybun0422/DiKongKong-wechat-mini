@@ -6,7 +6,7 @@
     </view>
   </view>
 
-  <view class="member-shell">
+  <view class="member-shell {{isIOS && showNewbieMemberEntry ? 'member-shell--ios-newbie' : ''}}">
     <view class="member-gradient"></view>
     <view class="member-topbar">
       <view class="member-back-hit" bindtap="onBackTap"></view>
@@ -234,7 +234,7 @@
       </block>
     </view>
 
-    <view class="member-action-wrap">
+    <view class="member-action-wrap {{isIOS && showNewbieMemberEntry ? 'member-action-wrap--ios-newbie' : ''}}">
       <button class="member-action" bindtap="onRechargeTap">
         <view class="member-action-content">
           <text class="member-action-status">{{memberExpireDateText}}</text>

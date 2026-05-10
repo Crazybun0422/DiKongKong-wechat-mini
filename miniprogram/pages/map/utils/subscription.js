@@ -176,6 +176,7 @@ function requestProfileSubscriptions(page) {
   const clearSubscribeWait = () => {
     setSubscribeWaitOverlay(false);
   };
+  clearSubscribeWait();
   const checkSubscriptionsNotFound = () =>
     new Promise((resolve) => {
       wx.request({
@@ -186,9 +187,10 @@ function requestProfileSubscriptions(page) {
           Authorization: `Bearer ${token}`
         },
         success: (res) => {
-          if (res && res.statusCode === 404) {
-            setSubscribeWaitOverlay(true);
-          }
+          // Disabled subscribe wait overlay:
+          // if (res && res.statusCode === 404) {
+          //   setSubscribeWaitOverlay(true);
+          // }
           resolve();
         },
         fail: () => resolve()

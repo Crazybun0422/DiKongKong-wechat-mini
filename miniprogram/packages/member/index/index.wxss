@@ -14,6 +14,10 @@
   background: #ffffff;
 }
 
+.member-shell--ios-newbie {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 254rpx);
+}
+
 .member-gradient {
   position: absolute;
   left: 0;
@@ -610,6 +614,10 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+}
+
+.member-action-wrap--ios-newbie {
+  bottom: calc(env(safe-area-inset-bottom) + 12rpx);
 }
 
 button.member-action {

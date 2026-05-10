@@ -78,7 +78,6 @@ const {
   isTencentCosStsValid,
   buildTencentCosSignedUrl
 } = require("../../utils/tencent-cos");
-const { fetchPinVideoUploadFlpLimit } = require("../../utils/pin-video-config");
 const { isMembershipActive } = require("../../utils/voice-pack");
 
 const STATIC_ASSETS = {
@@ -190,8 +189,8 @@ const CREATE_ENTRY_MODE_RENEW = "RENEW";
 const MY_PIN_PAGE_SIZE = 50;
 const PIN_MEDIA_MAX_COUNT = 3;
 const PIN_VIDEO_MAX_COUNT = 1;
-const PIN_VIDEO_LOW_FLP_MAX_SIZE = 200 * 1024 * 1024;
-const PIN_VIDEO_HIGH_FLP_MAX_SIZE = 300 * 1024 * 1024;
+const PIN_VIDEO_DEFAULT_MAX_SIZE = 200 * 1024 * 1024;
+const PIN_VIDEO_VIP_MAX_SIZE = 300 * 1024 * 1024;
 const KML_FILE_SIZE_LIMIT = 1024 * 1024;
 const KML_IMPORT_MAX_COUNT = 10;
 const KML_SHAPE_TYPES = new Set(["KML", "KMZ"]);
@@ -770,8 +769,6 @@ Page({
     joinInviting: false,
     customerServiceSessionFrom: "marker-create-support",
     planetCreationGuideReady: false,
-    pinVideoUploadFlpLimit: null,
-    pinVideoUploadFlpLimitDisplay: "",
     isVip: false
   },
 
@@ -786,7 +783,6 @@ Page({
     this.refreshMarkers({ initial: true });
     this.refreshMerchantEmptyStateContent();
     this.fetchSettlementConfig();
-    this.fetchPinVideoUploadFlpLimit();
     this.prefetchPlanetCreationGuide();
     this.prefetchTencentCosConfig();
     this.ensureTencentCosSts();
@@ -982,26 +978,6 @@ Page({
       })
       .catch((err) => {
         console.warn("获取入驻配置失败", err);
-      });
-  },
-
-  fetchPinVideoUploadFlpLimit() {
-    this.requestWithAuthRetry(() =>
-      fetchPinVideoUploadFlpLimit({
-        apiBase: this.apiBase,
-        token: this.getAuthToken()
-      })
-    )
-      .then((config = {}) => {
-        const threshold = Number(config?.threshold);
-        const normalizedThreshold = Number.isFinite(threshold) ? threshold : null;
-        this.setData({
-          pinVideoUploadFlpLimit: normalizedThreshold,
-          pinVideoUploadFlpLimitDisplay: this.formatFlpThresholdValue(normalizedThreshold)
-        });
-      })
-      .catch((err) => {
-        console.warn("获取 Pin 视频上传 FLP 门槛失败", err);
       });
   },
 
@@ -1209,12 +1185,6 @@ Page({
     if (!Number.isFinite(number)) return "";
     const formatted = number.toFixed(2).replace(/\.00$/, "");
     return `${prefix}${formatted}`;
-  },
-
-  formatFlpThresholdValue(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return "";
-    return number % 1 === 0 ? `${number}` : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   },
 
   initializeProfileInfo() {
@@ -4522,16 +4492,15 @@ Page({
   },
 
   getPinVideoUploadPolicy() {
-    const threshold = Number(this.data.pinVideoUploadFlpLimit);
-    const balance = Number(this.data.flpBalance);
-    const hasThreshold = Number.isFinite(threshold);
-    const highQualityEnabled = hasThreshold && Number.isFinite(balance) && balance > threshold;
-    const sizeLimit = highQualityEnabled ? PIN_VIDEO_HIGH_FLP_MAX_SIZE : PIN_VIDEO_LOW_FLP_MAX_SIZE;
+    const highQualityEnabled = !!this.data.isVip;
+    const sizeLimit = highQualityEnabled ? PIN_VIDEO_VIP_MAX_SIZE : PIN_VIDEO_DEFAULT_MAX_SIZE;
     return {
       highQualityEnabled,
       useCompression: !highQualityEnabled,
       sizeLimit,
-      oversizeMessage: highQualityEnabled ? `视频不能超过${Math.round(sizeLimit / (1024 * 1024))}MB` : "FLP不足哦"
+      oversizeMessage: highQualityEnabled
+        ? `视频不能超过${Math.round(sizeLimit / (1024 * 1024))}MB`
+        : "开通VIP后可上传高清视频"
     };
   },
 
@@ -4981,7 +4950,7 @@ Page({
   validatePinVideoSizes(files = [], uploadPolicy = {}) {
     const list = Array.isArray(files) ? files.filter(Boolean) : [];
     if (!list.length) return Promise.resolve();
-    const sizeLimit = Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_HIGH_FLP_MAX_SIZE;
+    const sizeLimit = Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_VIP_MAX_SIZE;
     const oversizeMessage =
       uploadPolicy?.oversizeMessage || `视频不能超过${Math.round(sizeLimit / (1024 * 1024))}MB`;
     return Promise.all(list.map((item) => this.fetchPinVideoFileSize(item))).then((sizes) => {
@@ -5016,7 +4985,7 @@ Page({
 
   confirmPinVideoCompressionForOversize() {
     const uploadPolicy = this.getPinVideoUploadPolicy();
-    const limitMb = Math.round((Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_HIGH_FLP_MAX_SIZE) / (1024 * 1024));
+    const limitMb = Math.round((Number(uploadPolicy?.sizeLimit) || PIN_VIDEO_VIP_MAX_SIZE) / (1024 * 1024));
     return new Promise((resolve) => {
       wx.showModal({
         title: "视频过大",

@@ -47,6 +47,9 @@ function onShow(page) {
   } else if (page.data.showInviteGuideMap) {
     page.setData({ showInviteGuideMap: false });
   }
+  if (page.getAuthToken() && typeof page.loadMapLayerSettings === "function") {
+    page.loadMapLayerSettings(true);
+  }
   if (page.getAuthToken()) {
     page.loadMapGuideConfigs().catch((err) => {
       console.warn("loadMapGuideConfigs onShow failed", err);

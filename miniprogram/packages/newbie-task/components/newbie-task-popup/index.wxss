@@ -393,7 +393,7 @@
 }
 
 .newbie-reward-card {
-  width: 320rpx;
+  width: 420rpx;
   padding: 76rpx 48rpx 60rpx;
   border-radius: 36rpx;
   background: linear-gradient(180deg, #86b5ff 0%, #b5d1ff 30%, #eef4ff 60%, #f5f5f7 100%);
@@ -413,6 +413,7 @@
   font-size: 40rpx;
   font-weight: 800;
   color: #111111;
+  white-space: nowrap;
 }
 
 .newbie-reward-sub {

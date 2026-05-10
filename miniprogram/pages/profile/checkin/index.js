@@ -32,7 +32,7 @@ const MAP_PAGE_PATH = "/pages/map/map";
 const ELEME_APP_ID = "wxece3a9a4c82f58c9";
 const ELEME_PATH = "ele-recommend-price/pages/guest/index?inviterId=64e1965&chInfo=ch_wechat_chsub_CopyLink&_ltracker_f=ch_wechat_grzx_cp_tjyj";
 const ELEME_ENV = "release";
-const CHECKIN_ASSIST_DIALOG_TITLE = "本周补签机会已用完";
+const CHECKIN_ASSIST_DIALOG_TITLE = "还可邀请好友助力获得一次补签";
 const CHECKIN_MAKEUP_REWARDED_AD_UNIT_ID = "adunit-bfc1fcdc1f5cf73f";
 
 const WEEKDAY_LABELS = {
@@ -769,11 +769,9 @@ Page({
     const signedSet = new Set(signedDays.map((item) => item.date).filter(Boolean));
     const dayMap = new Map();
     const remainingMakeupCount = Number(this.data.checkinQuota?.remainingMakeupCount);
-    const remainingAssistCount = Number(this.data.checkinQuota?.remainingAssistCount);
     const normalizedRemainingMakeupCount = Number.isFinite(remainingMakeupCount) ? remainingMakeupCount : 0;
-    const normalizedRemainingAssistCount = Number.isFinite(remainingAssistCount) ? remainingAssistCount : 0;
-    const canUseDirectMakeup = normalizedRemainingMakeupCount > 0;
-    const canUseAssistShare = normalizedRemainingMakeupCount <= 0 && normalizedRemainingAssistCount > 0;
+    const canUseDirectMakeup = normalizedRemainingMakeupCount >= 2;
+    const canUseAssistShare = normalizedRemainingMakeupCount === 1;
     const registeredDate = `${this.data.registeredDate || ""}`.trim();
     const selectedDate = `${selectedDateOverride || ""}`.trim();
 
@@ -820,7 +818,7 @@ Page({
             ? "assist-share"
             : ""
         : "";
-      const makeupEntryText = makeupActionType === "assist-share" ? "助签" : "补签";
+      const makeupEntryText = "补签";
       let iconType = "unsigned";
       if (signed) {
         iconType = "signed";
@@ -856,12 +854,18 @@ Page({
 
   onCheckinDayTap(e) {
     const date = e.currentTarget?.dataset?.date || "";
+    const actionType = `${e.currentTarget?.dataset?.actionType || ""}`.trim();
+    const weekdayLabel = `${e.currentTarget?.dataset?.weekday || ""}`.trim();
     if (!date) return;
     this.setData({ selectedDate: date });
     if (this._checkinDetail && this.data.todayDate) {
       this.setData({
         weekDays: this.buildWeekDays(this._checkinDetail, this.data.todayDate, date)
       });
+    }
+    if (actionType) {
+      this.handleMakeupAction(date, actionType, weekdayLabel);
+      return;
     }
     if (!this.data.canCheckinToday || date !== this.data.todayDate) {
       return;
@@ -875,6 +879,11 @@ Page({
     const weekdayLabel = `${e.currentTarget?.dataset?.weekday || ""}`.trim();
     if (!date || !actionType) return;
     this.onCheckinDayTap({ currentTarget: { dataset: { date } } });
+    this.handleMakeupAction(date, actionType, weekdayLabel);
+  },
+
+  handleMakeupAction(date, actionType, weekdayLabel = "") {
+    if (!date || !actionType) return;
     if (actionType === "assist-share") {
       this.openAssistShareDialog({ date, weekdayLabel });
       return;
@@ -908,6 +917,15 @@ Page({
 
   startMakeupCheckin(date, { weekdayLabel = "" } = {}) {
     if (this._makeupSubmitting) return;
+    const remainingMakeupCount = Number(this.data.checkinQuota?.remainingMakeupCount);
+    const normalizedRemainingMakeupCount = Number.isFinite(remainingMakeupCount) ? remainingMakeupCount : 0;
+    if (normalizedRemainingMakeupCount <= 0) {
+      return;
+    }
+    if (normalizedRemainingMakeupCount === 1) {
+      this.openAssistShareDialog({ date, weekdayLabel });
+      return;
+    }
     const apiBase = resolveApiBase();
     this._makeupSubmitting = true;
     this.showMakeupRewardedVideo()

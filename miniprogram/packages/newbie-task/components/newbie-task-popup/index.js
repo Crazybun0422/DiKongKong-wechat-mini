@@ -11,7 +11,10 @@ const { buildImageUrl } = require("../../../../utils/images");
 
 const POPUP_DURATION_MS = 30 * 1000;
 const PROGRESS_INTERVAL_MS = 100;
-const VIDEO_FINDER_USER_NAME = "sphW8PwCfzcysHB";
+const TASK_VIDEO_FINDER_USER_NAMES = {
+  3: "sphW8PwCfzcysHB",
+  5: "sphnF2G5BM7gFt0"
+};
 const POPUP_RESTORE_KEY = "newbieTaskPopupVisible";
 
 const getApiBase = () => {
@@ -299,11 +302,19 @@ Component({
         });
     },
     onRewardSuccessClose() {
+      const navigateToMemberPage = () => {
+        if (typeof wx?.navigateTo === "function") {
+          wx.navigateTo({ url: "/packages/member/index/index" });
+        }
+      };
       if (this.data.showRewardSuccess) {
         this.setData({ showRewardSuccess: false }, () => {
           this.triggerStateChange();
+          navigateToMemberPage();
         });
+        return;
       }
+      navigateToMemberPage();
     },
     ensureTaskOneCompleted(tasksOverride) {
       if (this._completingOne) return;
@@ -475,7 +486,11 @@ Component({
           return;
         }
         if (index === 3) {
-          this.startVideoTask();
+          this.startVideoTask(3);
+          return;
+        }
+        if (index === 5) {
+          this.startVideoTask(5);
           return;
         }
         if (index === 4) {
@@ -490,12 +505,13 @@ Component({
     startInviteGuide() {
       this.triggerEvent("inviteguide", { step: "map" });
     },
-    startVideoTask() {
+    startVideoTask(taskIndex = 3) {
       const apiBase = getApiBase();
       const token = getAuthToken();
+      const finderUserName = TASK_VIDEO_FINDER_USER_NAMES[taskIndex] || "";
       const completeTask = () => {
         if (!apiBase || !token) return;
-        completeNewbieTask(3, { apiBase, token })
+        completeNewbieTask(taskIndex, { apiBase, token })
           .then((payload = {}) => {
             this.applyTaskPayload(payload);
             wx.nextTick(() => {
@@ -503,12 +519,12 @@ Component({
             });
           })
           .catch((err) => {
-            console.warn("complete newbie task 3 failed", err);
+            console.warn(`complete newbie task ${taskIndex} failed`, err);
           });
       };
-      if (typeof wx?.openChannelsUserProfile === "function") {
+      if (finderUserName && typeof wx?.openChannelsUserProfile === "function") {
         wx.openChannelsUserProfile({
-          finderUserName: VIDEO_FINDER_USER_NAME,
+          finderUserName,
           success: () => {
             completeTask();
           },

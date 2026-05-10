@@ -1063,13 +1063,14 @@
             </view>
           </view>
           <view class="field-row">
-          <view class="field-label">
+          <view class="field-label field-label--with-hint">
             <text>图片/视频</text>
-            <text wx:if="{{pinVideoUploadFlpLimitDisplay}}" class="pin-video-flp-hint">（FLP>{{pinVideoUploadFlpLimitDisplay}}可上传高清视频）</text>
-          </view>
-          <view class="pin-video-vip-entry" bindtap="onVideoVipHintTap">
-            <image class="pin-video-vip-badge" src="{{assetPaths.vipUser}}" mode="aspectFit" />
-            <text class="pin-video-vip-text">上传解锁超清视频</text>
+            <view class="pin-video-vip-inline" bindtap="onVideoVipHintTap">
+              <text class="pin-video-vip-paren">（</text>
+              <image class="pin-video-vip-badge pin-video-vip-badge--inline" src="{{assetPaths.vipUser}}" mode="aspectFit" />
+              <text class="pin-video-vip-text pin-video-vip-text--inline">上传解锁高清视频</text>
+              <text class="pin-video-vip-paren">）</text>
+            </view>
           </view>
           <view class="my-pin-media-grid">
               <block wx:for="{{myPinForm.images}}" wx:key="fileName">
