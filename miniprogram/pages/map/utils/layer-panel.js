@@ -793,7 +793,7 @@ function applyLayerSettings(page, settings = {}, options = {}) {
             latitude: Number(fallbackPoint.latitude),
             longitude: Number(fallbackPoint.longitude)
           };
-          page.setMyLocationControlPoint(page._lastKnownLocation);
+          page.setMyLocationControlPoint(page._lastKnownLocation, { syncCenter: false });
           afterLocationReady();
           if (page._skipNextApplyLayerInitialSync) {
             page._skipNextApplyLayerInitialSync = false;
@@ -804,7 +804,7 @@ function applyLayerSettings(page, settings = {}, options = {}) {
           afterLocationReady();
           return;
         }
-        page.syncMyLocationPoint({ silent: true }).finally(() => {
+        page.syncMyLocationPoint({ silent: true, syncCenter: false }).finally(() => {
           if (
             !Number.isFinite(Number(fallbackPoint?.latitude)) ||
             !Number.isFinite(Number(fallbackPoint?.longitude))

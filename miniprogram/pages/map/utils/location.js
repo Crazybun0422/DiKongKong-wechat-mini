@@ -78,6 +78,7 @@ function applyCachedMapLocationFallback(page, options = {}) {
 
 function syncMyLocationPoint(page, options = {}) {
   const silent = options.silent === true;
+  const syncCenter = options.syncCenter !== false;
   return new Promise((resolve) => {
     if (typeof wx === "undefined" || typeof wx.getLocation !== "function") {
       resolve(false);
@@ -98,7 +99,7 @@ function syncMyLocationPoint(page, options = {}) {
         const point = { latitude, longitude };
         page._lastKnownLocation = point;
         cacheMapLocation(page, point);
-        page.setMyLocationControlPoint(point);
+        page.setMyLocationControlPoint(point, { syncCenter });
         page.refreshMarkerPageDistance();
         resolve(true);
       },
