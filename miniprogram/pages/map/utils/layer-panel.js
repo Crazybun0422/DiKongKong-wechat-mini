@@ -420,6 +420,7 @@ function onProvinceCityTreeSelectTap(page, event = {}) {
 function onMapElementToggle(page, event = {}) {
   const id = resolveEventDataset(event).id;
   if (!id) return;
+  if (id === "uom") return;
   const flagMap = {
     uom: "uomDivisionEnabled",
     dji: "djiNoFlyZoneEnabled",
@@ -683,7 +684,7 @@ function buildMapLayerSettingsPayload(page) {
 function composeMapElementOptions(flags = {}) {
   const state = Object.assign(
     {
-      uomDivisionEnabled: true,
+      uomDivisionEnabled: false,
       djiNoFlyZoneEnabled: true,
       temporaryNoFlyZoneEnabled: true,
       merchantMarkersEnabled: true,
@@ -696,7 +697,7 @@ function composeMapElementOptions(flags = {}) {
   const djiEnabled = !!state.djiNoFlyZoneEnabled;
   const tempEnabled = !!state.temporaryNoFlyZoneEnabled;
   return [
-    { id: "uom", label: "uom划分", enabled: !!state.uomDivisionEnabled },
+    { id: "uom", label: "uom划分", enabled: false, disabled: true },
     { id: "dji", label: "大疆划分", enabled: djiEnabled },
     { id: "tempNoFly", label: "临时禁飞区", enabled: tempEnabled },
     { id: "service", label: "商户服务", enabled: !!state.merchantMarkersEnabled },
@@ -713,7 +714,7 @@ function applyLayerSettings(page, settings = {}, options = {}) {
       ? "standard"
       : resolvedMapType;
   const airspace = settings.airspaceBoardEnabled !== false;
-  const uom = settings.uomDivisionEnabled !== false;
+  const uom = false;
   const dji = settings.djiNoFlyZoneEnabled !== false;
   const temporary = settings.temporaryNoFlyZoneEnabled !== undefined
     ? settings.temporaryNoFlyZoneEnabled !== false

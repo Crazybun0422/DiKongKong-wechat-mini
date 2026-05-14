@@ -129,6 +129,7 @@ Component({
     },
 
     onMapElementToggle(event = {}) {
+      if (event?.currentTarget?.dataset?.disabled) return;
       this.emitDataset("mapelementtoggle", event);
     }
   }

@@ -15,41 +15,13 @@ function loadMapSubKey(page) {
 }
 
 function ensureUomPluginReady(page, retry = 0) {
-  if (page._uomPlugin && page._uomPluginInitialized) return;
-  if (!page._uomPluginInitLogged) {
-    console.log("[uom-plugin] init check");
-    page._uomPluginInitLogged = true;
-  }
-  const selector = page.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
-  console.log("[uom-plugin] select", { selector, useWeChatUom: page.data.isWeChatRuntime });
-  const plugin = page.selectComponent(selector);
-  if (plugin && typeof plugin.init === "function") {
-    console.log("[uom-plugin] instance ready, init");
-    plugin.init({
-      mapCtx: page.mapCtx,
-      center: page._centerOverride || page.data.center,
-      centerPin: page._centerOverride || page.data.center,
-      scale: page.data.scale,
-      region: page._lastRegion,
-      enabled: page.data.uomDivisionEnabled
-    });
-    page._uomPlugin = plugin;
-    page._uomPluginInitialized = true;
-    return;
-  }
-  if (retry === 0) {
-    console.warn("[uom-plugin] instance not ready, retrying");
-  }
-  if (retry >= 10) {
-    console.warn("[uom-plugin] init retries exhausted");
-    return;
-  }
-  if (page._uomPluginInitTimer) clearTimeout(page._uomPluginInitTimer);
-  const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
-  page._uomPluginInitTimer = setTimeout(() => {
+  void retry;
+  page._uomPlugin = null;
+  page._uomPluginInitialized = false;
+  if (page._uomPluginInitTimer) {
+    clearTimeout(page._uomPluginInitTimer);
     page._uomPluginInitTimer = null;
-    ensureUomPluginReady(page, retry + 1);
-  }, delay);
+  }
 }
 
 function ensureDjiLayerReady(page, retry = 0) {

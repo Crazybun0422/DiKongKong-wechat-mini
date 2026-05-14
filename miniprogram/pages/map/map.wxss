@@ -2681,6 +2681,10 @@ button.panorama-button::after,
   padding: 10rpx 6rpx;
 }
 
+.layer-element-item.is-disabled {
+  opacity: 0.4;
+}
+
 .layer-element-icon {
   width: 48rpx;
   height: 48rpx;

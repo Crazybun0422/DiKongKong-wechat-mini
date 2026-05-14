@@ -80,7 +80,7 @@
               <text class="layer-panel-section-title">地图元素</text>
               <view class="layer-element-grid">
                 <block wx:for="{{mapElementOptions}}" wx:key="id">
-                  <view class="layer-element-item" data-id="{{item.id}}" bindtap="onMapElementToggle">
+                  <view class="layer-element-item {{item.disabled ? 'is-disabled' : ''}}" data-id="{{item.id}}" data-disabled="{{item.disabled}}" bindtap="onMapElementToggle">
                     <image
                       wx:if="{{item.enabled}}"
                       class="layer-element-icon"
