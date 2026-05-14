@@ -142,6 +142,7 @@ Page({
     isWideLayout: false,
     isWeChatRuntime: RUNTIME_IS_WECHAT,
     markers: [],
+    polylines: [],
     polygons: [],
     circles: [],
     showUserLocation: true,
@@ -232,7 +233,8 @@ Page({
     this._temporaryNoFlyLayer = null;
     this._temporaryNoFlyLayerInitialized = false;
     this._temporaryNoFlyLayerInitTimer = null;
-    this._uom2Markers = [];
+    this._uomPolygons = [];
+    this._uomPolylines = [];
     this._djiPolygons = [];
     this._djiCircles = [];
     this._nfzPolygons = [];
@@ -375,8 +377,7 @@ Page({
 
   ensureUomPluginReady(retry = 0) {
     if (this._uomPlugin && this._uomPluginInitialized) return;
-    const selector = this.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
-    const plugin = this.selectComponent(selector);
+    const plugin = this.selectComponent("#uom3-plugin");
     if (plugin && typeof plugin.init === "function") {
       plugin.init({
         mapCtx: this.mapCtx,
@@ -493,27 +494,34 @@ Page({
   },
 
   updateOverlayGraphics() {
+    const polylines = [];
     const polygons = [];
     const circles = [];
+    if (Array.isArray(this._uomPolylines)) polylines.push(...this._uomPolylines);
+    if (Array.isArray(this._uomPolygons)) polygons.push(...this._uomPolygons);
     if (Array.isArray(this._djiPolygons)) polygons.push(...this._djiPolygons);
     if (Array.isArray(this._nfzPolygons)) polygons.push(...this._nfzPolygons);
     if (Array.isArray(this._djiCircles)) circles.push(...this._djiCircles);
     if (Array.isArray(this._nfzCircles)) circles.push(...this._nfzCircles);
-    this.setData({ polygons, circles });
-  },
-
-  syncMapMarkers() {
-    const markers = Array.isArray(this._uom2Markers) ? this._uom2Markers.slice() : [];
-    this.normalizeMapMarkerList(markers);
-    this.setData({ markers });
+    this.setData({ polylines, polygons, circles });
   },
 
   onUomStatusChange() { },
 
-  onUomTilesChanged(event = {}) {
+  onUomGraphicsChange(event = {}) {
     const detail = event?.detail || {};
-    this._uom2Markers = Array.isArray(detail.markers) ? detail.markers : [];
-    this.syncMapMarkers();
+    const nextPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+    const nextPolylines = Array.isArray(detail.polylines) ? detail.polylines : [];
+    const hasNextGraphics = nextPolygons.length > 0 || nextPolylines.length > 0;
+    const hasCurrentGraphics =
+      (Array.isArray(this._uomPolygons) && this._uomPolygons.length > 0) ||
+      (Array.isArray(this._uomPolylines) && this._uomPolylines.length > 0);
+    if (!hasNextGraphics && hasCurrentGraphics) {
+      return;
+    }
+    this._uomPolygons = nextPolygons;
+    this._uomPolylines = nextPolylines;
+    this.updateOverlayGraphics();
   },
 
   onDjiGraphicsChange(event = {}) {
@@ -790,8 +798,7 @@ Page({
           centerPin: { latitude: cl.latitude, longitude: cl.longitude },
           scale,
           rawScale: detail.scale,
-          region: region || this._lastRegion,
-          force: true
+          region: region || this._lastRegion
         });
       }
       return;

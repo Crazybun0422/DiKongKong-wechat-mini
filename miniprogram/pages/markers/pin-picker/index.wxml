@@ -30,12 +30,10 @@
       id="temporary-no-fly-layer"
       bind:graphicschange="onTemporaryNoFlyGraphicsChange"
     />
-    <uom-plugin id="uom-plugin" wx:if="{{isWeChatRuntime === true}}" bind:statuschange="onUomStatusChange" />
-    <uom2-plugin
-      id="uom2-plugin"
-      wx:elif="{{isWeChatRuntime === false}}"
+    <uom3-plugin
+      id="uom3-plugin"
       bind:statuschange="onUomStatusChange"
-      bind:tileschanged="onUomTilesChanged"
+      bind:graphicschange="onUomGraphicsChange"
     />
     <image
       class="center-pin {{selectedType.category === 'POINT' ? 'is-point' : ''}}"

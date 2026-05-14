@@ -1188,8 +1188,7 @@ Page({
 
   ensureUomPluginReady(retry = 0) {
     if (this._uomPlugin && this._uomPluginInitialized) return;
-    const selector = this.data.isWeChatRuntime ? "#uom-plugin" : "#uom2-plugin";
-    const plugin = this.selectComponent(selector);
+    const plugin = this.selectComponent("#uom3-plugin");
     if (plugin && typeof plugin.init === "function") {
       plugin.init({
         mapCtx: this.mapCtx,

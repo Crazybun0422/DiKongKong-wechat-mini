@@ -281,8 +281,7 @@ function onRegionChange(page, e) {
         centerPin: newCenter,
         scale,
         rawScale: detail.scale,
-        region,
-        force: true
+        region
       });
     }
     return;

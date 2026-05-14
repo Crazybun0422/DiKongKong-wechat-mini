@@ -69,6 +69,11 @@
       bind:graphicschange="onTemporaryNoFlyGraphicsChange"
       bind:statuschange="onTemporaryNoFlyStatusChange"
     />
+    <uom3-plugin
+      id="uom3-plugin"
+      bind:statuschange="onUomStatusChange"
+      bind:graphicschange="onUomGraphicsChange"
+    />
     <newbie-task-popup
       id="newbie-task-popup"
       bind:statechange="onNewbieTaskStateChange"
@@ -395,6 +400,7 @@
       province-city-tree="{{provinceCityTree}}"
       province-city-highlight-loading="{{provinceCityHighlightLoading}}"
       province-city-highlight-error="{{provinceCityHighlightError}}"
+      uom-render-color="{{uomRenderColor}}"
       map-element-options="{{mapElementOptions}}"
       user-vip="{{userVip}}"
       user-avatar-url="{{userAvatarUrl}}"
@@ -413,6 +419,7 @@
       bind:provincecityhighlightswitchchange="onProvinceCityHighlightSwitchChange"
       bind:provincecitytreeexpandtap="onProvinceCityTreeExpandTap"
       bind:provincecitytreeselecttap="onProvinceCityTreeSelectTap"
+      bind:uomcolorselect="onUomColorSelect"
       bind:mapelementtoggle="onMapElementToggle"
     />
 

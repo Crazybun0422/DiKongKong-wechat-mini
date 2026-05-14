@@ -35,12 +35,20 @@ function onUomStatusChange(page, event = {}) {
   }
 }
 
-function onUomTilesChanged(page, event = {}) {
+function onUomGraphicsChange(page, event = {}) {
   const detail = event?.detail || {};
-  const markers = Array.isArray(detail.markers) ? detail.markers : [];
-  page._uom2Markers = markers;
-  page.updateDebugPanel({ uom2MarkerCount: `${markers.length}` });
-  page.syncAllMarkers();
+  const nextPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
+  const nextPolylines = Array.isArray(detail.polylines) ? detail.polylines : [];
+  const hasNextGraphics = nextPolygons.length > 0 || nextPolylines.length > 0;
+  const hasCurrentGraphics =
+    (Array.isArray(page._uomPolygons) && page._uomPolygons.length > 0) ||
+    (Array.isArray(page._uomPolylines) && page._uomPolylines.length > 0);
+  if (!hasNextGraphics && hasCurrentGraphics && page.data.uomDivisionEnabled !== false) {
+    return;
+  }
+  page._uomPolygons = nextPolygons;
+  page._uomPolylines = nextPolylines;
+  page.queueMapGraphicsSync({ overlay: true, polylines: true });
 }
 
 function onMapCheckinEntryTap(page) {
@@ -174,7 +182,7 @@ function onPanoramaDemoTap() {
 module.exports = {
   applyCustomMapStyle,
   onUomStatusChange,
-  onUomTilesChanged,
+  onUomGraphicsChange,
   onMapCheckinEntryTap,
   onPanoramaDemoTap
 };

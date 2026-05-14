@@ -2667,6 +2667,60 @@ button.panorama-button::after,
   margin-top: 8rpx;
 }
 
+.uom-color-block {
+  margin-top: 24rpx;
+}
+
+.uom-color-title {
+  display: block;
+  margin-bottom: 16rpx;
+  color: #111827;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.uom-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.uom-color-chip {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-width: 132rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 24rpx;
+  background: #f8fafc;
+  border: 2rpx solid transparent;
+  box-sizing: border-box;
+}
+
+.uom-color-chip.is-selected {
+  border-color: #111827;
+  background: #eef2ff;
+}
+
+.uom-color-swatch {
+  width: 26rpx;
+  height: 26rpx;
+  border-radius: 999rpx;
+  border: 2rpx solid rgba(17, 24, 39, 0.12);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.uom-color-swatch--default {
+  background: #01f4f4;
+}
+
+.uom-color-label {
+  color: #334155;
+  font-size: 24rpx;
+  line-height: 1;
+}
+
 .layer-element-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

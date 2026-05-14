@@ -27,6 +27,9 @@ function queueMapGraphicsSync(page, options = {}) {
 
 function syncAllPolylines(page) {
   const polylines = [];
+  if (page.data.uomDivisionEnabled !== false && Array.isArray(page._uomPolylines)) {
+    polylines.push(...page._uomPolylines);
+  }
   if (Array.isArray(page._searchLinkPolylines)) {
     polylines.push(...page._searchLinkPolylines);
   }
@@ -48,8 +51,6 @@ function syncAllMarkers(page) {
   const manual = Array.isArray(page._manualMarkers) ? page._manualMarkers : [];
   const preview = page._previewMarker ? [page._previewMarker] : [];
   const myLocation = Array.isArray(page._myLocationMarkers) ? page._myLocationMarkers : [];
-  const uom2 = Array.isArray(page._uom2Markers) ? page._uom2Markers : [];
-  page.normalizeMapMarkerList(uom2);
   page.normalizeMapMarkerList(nearby);
   page.normalizeMapMarkerList(pinMarkers);
   page.normalizeMapMarkerList(search);
@@ -59,7 +60,7 @@ function syncAllMarkers(page) {
   page.normalizeMapMarkerList(preview);
   page.normalizeMapMarkerList(myLocation);
   const combined = page.dedupeMapMarkers(
-    uom2.concat(manual, pinMarkers, nearby, search, searchLink, mapTapTarget, preview, myLocation)
+    manual.concat(pinMarkers, nearby, search, searchLink, mapTapTarget, preview, myLocation)
   );
   page.setData({ markers: combined });
 }
@@ -67,36 +68,76 @@ function syncAllMarkers(page) {
 function updateOverlayGraphics(page) {
   const polygons = [];
   const circles = [];
+  const polygonSources = [];
+  const circleSources = [];
+  if (page.data.uomDivisionEnabled !== false && Array.isArray(page._uomPolygons)) {
+    polygonSources.push(page._uomPolygons);
+    polygons.push(...page._uomPolygons);
+  }
   if (page.data.djiNoFlyZoneEnabled !== false && Array.isArray(page._djiPolygons)) {
+    polygonSources.push(page._djiPolygons);
     polygons.push(...page._djiPolygons);
   }
   if (page.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(page._nfzPolygons)) {
+    polygonSources.push(page._nfzPolygons);
     polygons.push(...page._nfzPolygons);
   }
   if (page.data.djiNoFlyZoneEnabled !== false && Array.isArray(page._djiCircles)) {
+    circleSources.push(page._djiCircles);
     circles.push(...page._djiCircles);
   }
   if (page.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(page._nfzCircles)) {
+    circleSources.push(page._nfzCircles);
     circles.push(...page._nfzCircles);
   }
   if (Array.isArray(page._provinceCityHighlightPolygons)) {
+    polygonSources.push(page._provinceCityHighlightPolygons);
     polygons.push(...page._provinceCityHighlightPolygons);
   }
   if (Array.isArray(page._nearbyPinPolygons)) {
+    polygonSources.push(page._nearbyPinPolygons);
     polygons.push(...page._nearbyPinPolygons);
   }
   if (Array.isArray(page._nearbyPinCircles)) {
+    circleSources.push(page._nearbyPinCircles);
     circles.push(...page._nearbyPinCircles);
   }
   if (Array.isArray(page._previewPolygons)) {
+    polygonSources.push(page._previewPolygons);
     polygons.push(...page._previewPolygons);
   }
   if (Array.isArray(page._previewCircles)) {
+    circleSources.push(page._previewCircles);
     circles.push(...page._previewCircles);
   }
   if (Array.isArray(page._myLocationCircles)) {
+    circleSources.push(page._myLocationCircles);
     circles.push(...page._myLocationCircles);
   }
+  const prevPolygonSources = Array.isArray(page._lastOverlayPolygonSources)
+    ? page._lastOverlayPolygonSources
+    : [];
+  const prevCircleSources = Array.isArray(page._lastOverlayCircleSources)
+    ? page._lastOverlayCircleSources
+    : [];
+  const samePolygonSources =
+    prevPolygonSources.length === polygonSources.length &&
+    prevPolygonSources.every((source, index) => source === polygonSources[index]);
+  const sameCircleSources =
+    prevCircleSources.length === circleSources.length &&
+    prevCircleSources.every((source, index) => source === circleSources[index]);
+  if (
+    samePolygonSources &&
+    sameCircleSources &&
+    page._lastOverlayPolygonsCount === polygons.length &&
+    page._lastOverlayCirclesCount === circles.length
+  ) {
+    return;
+  }
+  page._lastOverlayPolygonSources = polygonSources;
+  page._lastOverlayCircleSources = circleSources;
+  page._lastOverlayPolygonsCount = polygons.length;
+  page._lastOverlayCirclesCount = circles.length;
   page.setData({ polygons, circles });
 }
 

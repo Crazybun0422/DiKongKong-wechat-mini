@@ -219,8 +219,8 @@ Page({
     loadingDji: false,
     checkinTodaySigned: false,
     checkinEntryStyle: DEFAULT_MAP_CHECKIN_ENTRY_STYLE,
-    uomStatus: "紧急更新中，暂不可用",
-    uomTone: "warn",
+    uomStatus: "评估中",
+    uomTone: "neutral",
     uomLoading: false,
     djiStatus: "评估中",
     djiTone: "neutral",
@@ -391,6 +391,7 @@ Page({
     airBoardEnabled: true,
     usePlanetCenterPoint: false,
     centerTargetLinkEnabled: true,
+    uomRenderColor: "default",
     provinceCityHighlightEnabled: false,
     provinceCityTree: [],
     provinceCityHighlightLoading: false,
@@ -398,14 +399,14 @@ Page({
     provinceCityHighlightSelectedId: "",
     myLocationModeResolved: false,
     temporaryNoFlyZoneEnabled: true,
-    uomDivisionEnabled: false,
+    uomDivisionEnabled: true,
     djiNoFlyZoneEnabled: true,
     merchantMarkersEnabled: true,
     privateMarkersEnabled: false,
     groupSharingEnabled: false,
     platformCoConstructionEnabled: true,
     mapElementOptions: [
-      { id: "uom", label: "uom划分", enabled: false, disabled: true },
+      { id: "uom", label: "uom划分", enabled: true },
       { id: "dji", label: "大疆划分", enabled: true },
       { id: "tempNoFly", label: "临时禁飞区", enabled: true },
       { id: "service", label: "商户服务", enabled: true },
@@ -1279,8 +1280,8 @@ Page({
     return miscActionsUtils.onUomStatusChange(this, event);
   },
 
-  onUomTilesChanged(event = {}) {
-    return miscActionsUtils.onUomTilesChanged(this, event);
+  onUomGraphicsChange(event = {}) {
+    return miscActionsUtils.onUomGraphicsChange(this, event);
   },
 
   onCheckinGuideStart() {
@@ -1602,6 +1603,10 @@ Page({
     return layerPanelUtils.onCenterTargetLinkSwitchChange(this, event);
   },
 
+  onUomColorSelect(event = {}) {
+    return layerPanelUtils.onUomColorSelect(this, event);
+  },
+
   buildProvinceCityTreeViewData(treeNodes = null) {
     return layerPanelUtils.buildProvinceCityTreeViewData(this, treeNodes);
   },
@@ -1700,6 +1705,10 @@ Page({
 
   resolveCenterPinIconType(settings = {}) {
     return layerPanelUtils.resolveCenterPinIconType(this, settings);
+  },
+
+  resolveUomRenderColor(settings = {}) {
+    return layerPanelUtils.resolveUomRenderColor(this, settings);
   },
 
   resolveCenterPinIconPath(type = "default") {

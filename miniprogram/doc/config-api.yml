@@ -1199,18 +1199,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseObject'
-        '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseObject'
-        '404':
-          description: Not Found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseObject'
     post:
       summary: 上传县级 KML zip 资源包
       description: 仅管理员可调用，上传 zip 资源包并保存版本号。
@@ -1240,6 +1228,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseCountyKmlZipConfigResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+  /api/config/kml-decrypt-aes-key:
+    get:
+      summary: 获取 KML 解密 AES 密钥配置
+      description: 管理员和普通用户均可调用，返回当前用于 KML 解密的 AES 密钥。
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseKmlDecryptAesKeyResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    put:
+      summary: 更新 KML 解密 AES 密钥配置
+      description: 仅管理员可调用，更新用于 KML 解密的 AES 密钥。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KmlDecryptAesKeyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseKmlDecryptAesKeyResponse'
         '400':
           description: Bad Request
           content:
@@ -1303,7 +1352,7 @@ paths:
   /api/config/member-group-qrcode:
     get:
       summary: 获取会员群二维码
-      description: 仅登录会员可调用，读取当前配置的会员群二维码图片地址。
+      description: 管理员、运营或登录会员可调用，读取当前配置的会员群二维码图片地址。
       security:
         - bearerAuth: []
       responses:
@@ -2504,6 +2553,31 @@ components:
             type: string
         data:
           $ref: '#/components/schemas/CountyKmlZipConfigResponse'
+    KmlDecryptAesKeyRequest:
+      type: object
+      required:
+        - aesKey
+      properties:
+        aesKey:
+          type: string
+          description: KML 解密使用的 AES 密钥。
+    KmlDecryptAesKeyResponse:
+      type: object
+      properties:
+        aesKey:
+          type: string
+          description: KML 解密使用的 AES 密钥。
+    ApiResponseKmlDecryptAesKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: object
+          additionalProperties:
+            type: string
+        data:
+          $ref: '#/components/schemas/KmlDecryptAesKeyResponse'
     EasterEggResourceDownloadProgressMessage:
       type: object
       properties:

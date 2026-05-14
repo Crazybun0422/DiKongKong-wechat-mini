@@ -15,13 +15,37 @@ function loadMapSubKey(page) {
 }
 
 function ensureUomPluginReady(page, retry = 0) {
-  void retry;
-  page._uomPlugin = null;
-  page._uomPluginInitialized = false;
-  if (page._uomPluginInitTimer) {
-    clearTimeout(page._uomPluginInitTimer);
-    page._uomPluginInitTimer = null;
+  if (page._uomPlugin && page._uomPluginInitialized) return;
+  const plugin = page.selectComponent("#uom3-plugin");
+  if (
+    plugin &&
+    typeof plugin.init === "function" &&
+    typeof plugin.handleRegionChange === "function" &&
+    typeof plugin.setEnabled === "function"
+  ) {
+    page._uomPlugin = plugin;
+    page._uomPluginInitialized = true;
+    plugin.init({
+      mapCtx: page.mapCtx,
+      center: page._centerOverride || page.data.center,
+      centerPin: page._centerOverride || page.data.center,
+      region: page._lastRegion || null,
+      scale: page.data.scale,
+      enabled: page.data.uomDivisionEnabled !== false,
+      renderColor: page.data.uomRenderColor
+    });
+    return;
   }
+  if (retry >= 10) {
+    console.warn("[uom3] init retries exhausted");
+    return;
+  }
+  if (page._uomPluginInitTimer) clearTimeout(page._uomPluginInitTimer);
+  const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
+  page._uomPluginInitTimer = setTimeout(() => {
+    page._uomPluginInitTimer = null;
+    ensureUomPluginReady(page, retry + 1);
+  }, delay);
 }
 
 function ensureDjiLayerReady(page, retry = 0) {

@@ -61,6 +61,12 @@
       ]
     },
     {
+      "root": "packages/uom3",
+      "pages": [
+        "placeholder/index"
+      ]
+    },
+    {
       "root": "packages/add-mini-app",
       "pages": [
         "placeholder/index"

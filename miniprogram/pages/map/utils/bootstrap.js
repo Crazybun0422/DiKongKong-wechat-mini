@@ -151,7 +151,8 @@ function onLoad(page, options = {}) {
   page._nfzPolygons = [];
   page._nfzCircles = [];
   page._suggestTimer = null;
-  page._uom2Markers = [];
+  page._uomPolygons = [];
+  page._uomPolylines = [];
   page.prefetchSubscriptionLatest();
   page.setData({
     mapElementOptions: page.composeMapElementOptions({

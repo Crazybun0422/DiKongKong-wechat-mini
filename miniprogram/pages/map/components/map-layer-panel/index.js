@@ -16,6 +16,7 @@ Component({
     provinceCityTree: { type: Array, value: [] },
     provinceCityHighlightLoading: { type: Boolean, value: false },
     provinceCityHighlightError: { type: String, value: "" },
+    uomRenderColor: { type: String, value: "default" },
     mapElementOptions: { type: Array, value: [] },
     userVip: { type: Boolean, value: false },
     userAvatarUrl: { type: String, value: "" },
@@ -126,6 +127,10 @@ Component({
 
     onProvinceCityTreeExpandTap(event = {}) {
       this.emitDataset("provincecitytreeexpandtap", event);
+    },
+
+    onUomColorTap(event = {}) {
+      this.emitDataset("uomcolorselect", event);
     },
 
     onMapElementToggle(event = {}) {
