@@ -9,7 +9,7 @@ const CHINA_LAT_MAX = 60;
 const CHINA_LON_MIN = 70;
 const CHINA_LON_MAX = 140;
 const SEARCH_COORDINATE_TIPS_TEXT =
-  "支持中国范围内经纬度搜索：经度在前或纬度在前，十进制度或时分秒格式；输入坐标默认按左下角所选坐标系解析。";
+  "支持中国范围内经纬度搜索：经度在前或纬度在前，十进制度或度分秒格式；输入坐标默认按左下角所选坐标系解析。";
 
 const toAsciiDirection = (value = "") =>
   `${value || ""}`

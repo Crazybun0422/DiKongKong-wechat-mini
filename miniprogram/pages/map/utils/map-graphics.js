@@ -25,6 +25,76 @@ function queueMapGraphicsSync(page, options = {}) {
   }, 0);
 }
 
+function formatGraphicNumber(value, digits = 5) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "";
+  return numeric.toFixed(digits);
+}
+
+function pickSamplePoints(points = []) {
+  if (!Array.isArray(points) || !points.length) return [];
+  const indices = [0, Math.floor(points.length / 2), points.length - 1];
+  const seen = new Set();
+  return indices
+    .filter((index) => index >= 0 && index < points.length && !seen.has(index) && seen.add(index))
+    .map((index) => points[index])
+    .filter(Boolean);
+}
+
+function buildPointSignature(point = {}) {
+  return `${formatGraphicNumber(point.longitude)},${formatGraphicNumber(point.latitude)}`;
+}
+
+function buildPolylineSignature(polyline = {}) {
+  const points = Array.isArray(polyline.points) ? polyline.points : [];
+  const samples = pickSamplePoints(points).map(buildPointSignature).join("|");
+  return [
+    polyline.id || "",
+    points.length,
+    formatGraphicNumber(polyline.width, 2),
+    polyline.color || "",
+    polyline.dottedLine ? 1 : 0,
+    polyline.arrowLine ? 1 : 0,
+    samples
+  ].join("#");
+}
+
+function buildPolygonSignature(polygon = {}) {
+  const points = Array.isArray(polygon.points) ? polygon.points : [];
+  const samples = pickSamplePoints(points).map(buildPointSignature).join("|");
+  return [
+    polygon.id || "",
+    points.length,
+    formatGraphicNumber(polygon.strokeWidth, 2),
+    polygon.strokeColor || "",
+    polygon.fillColor || "",
+    samples
+  ].join("#");
+}
+
+function buildCircleSignature(circle = {}) {
+  return [
+    circle.id || "",
+    formatGraphicNumber(circle.longitude),
+    formatGraphicNumber(circle.latitude),
+    formatGraphicNumber(circle.radius, 2),
+    formatGraphicNumber(circle.strokeWidth, 2),
+    circle.color || "",
+    circle.fillColor || ""
+  ].join("#");
+}
+
+function buildGraphicCollectionSignature(list = [], type = "") {
+  const source = Array.isArray(list) ? list : [];
+  if (!source.length) return `${type}:0`;
+  let builder = null;
+  if (type === "polygon") builder = buildPolygonSignature;
+  if (type === "polyline") builder = buildPolylineSignature;
+  if (type === "circle") builder = buildCircleSignature;
+  if (!builder) return `${type}:${source.length}`;
+  return `${type}:${source.length}:${source.map(builder).join("||")}`;
+}
+
 function syncAllPolylines(page) {
   const polylines = [];
   if (page.data.uomDivisionEnabled !== false && Array.isArray(page._uomPolylines)) {
@@ -36,6 +106,11 @@ function syncAllPolylines(page) {
   if (page.data.temporaryNoFlyZoneEnabled !== false && Array.isArray(page._nfzPolylines)) {
     polylines.push(...page._nfzPolylines);
   }
+  const signature = buildGraphicCollectionSignature(polylines, "polyline");
+  if (page._lastPolylineSignature === signature) {
+    return;
+  }
+  page._lastPolylineSignature = signature;
   page.setData({ polylines });
 }
 
@@ -134,10 +209,24 @@ function updateOverlayGraphics(page) {
   ) {
     return;
   }
+  const polygonSignature = buildGraphicCollectionSignature(polygons, "polygon");
+  const circleSignature = buildGraphicCollectionSignature(circles, "circle");
+  if (
+    page._lastOverlayPolygonSignature === polygonSignature &&
+    page._lastOverlayCircleSignature === circleSignature
+  ) {
+    page._lastOverlayPolygonSources = polygonSources;
+    page._lastOverlayCircleSources = circleSources;
+    page._lastOverlayPolygonsCount = polygons.length;
+    page._lastOverlayCirclesCount = circles.length;
+    return;
+  }
   page._lastOverlayPolygonSources = polygonSources;
   page._lastOverlayCircleSources = circleSources;
   page._lastOverlayPolygonsCount = polygons.length;
   page._lastOverlayCirclesCount = circles.length;
+  page._lastOverlayPolygonSignature = polygonSignature;
+  page._lastOverlayCircleSignature = circleSignature;
   page.setData({ polygons, circles });
 }
 

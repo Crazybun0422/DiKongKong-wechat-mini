@@ -27,6 +27,7 @@ const REFRESH_DEBOUNCE_MS = 180;
 const STATUS_EVAL_DELAY_MS = 60;
 const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
 const UOM_RESOURCE_LRU_LIMIT = 3;
+const GRAPHICS_COVERAGE_EXPAND_RATIO = 0.6;
 
 function describeRuntimeError(err) {
   let rawString = "";
@@ -64,6 +65,85 @@ function resolveExcludedRegionRecord(point) {
   return SPECIAL_REGION_CODE_SET.has(record.provinceCode) ? record : null;
 }
 
+function normalizeRegionBounds(region = null) {
+  const northeast = region?.northeast || null;
+  const southwest = region?.southwest || null;
+  const neLng = Number(northeast?.longitude);
+  const neLat = Number(northeast?.latitude);
+  const swLng = Number(southwest?.longitude);
+  const swLat = Number(southwest?.latitude);
+  if (
+    !Number.isFinite(neLng) ||
+    !Number.isFinite(neLat) ||
+    !Number.isFinite(swLng) ||
+    !Number.isFinite(swLat)
+  ) {
+    return null;
+  }
+  return {
+    minLng: Math.min(neLng, swLng),
+    maxLng: Math.max(neLng, swLng),
+    minLat: Math.min(neLat, swLat),
+    maxLat: Math.max(neLat, swLat)
+  };
+}
+
+function clampBounds(bounds = null) {
+  if (!bounds) return null;
+  return {
+    minLng: Math.max(-180, Math.min(180, Number(bounds.minLng))),
+    maxLng: Math.max(-180, Math.min(180, Number(bounds.maxLng))),
+    minLat: Math.max(-90, Math.min(90, Number(bounds.minLat))),
+    maxLat: Math.max(-90, Math.min(90, Number(bounds.maxLat)))
+  };
+}
+
+function expandRegion(region = null, ratio = GRAPHICS_COVERAGE_EXPAND_RATIO) {
+  const bounds = normalizeRegionBounds(region);
+  if (!bounds) return region || null;
+  const lngSpan = Math.max(1e-6, bounds.maxLng - bounds.minLng);
+  const latSpan = Math.max(1e-6, bounds.maxLat - bounds.minLat);
+  const expandLng = lngSpan * Math.max(0, Number(ratio) || 0);
+  const expandLat = latSpan * Math.max(0, Number(ratio) || 0);
+  const expandedBounds = clampBounds({
+    minLng: bounds.minLng - expandLng,
+    maxLng: bounds.maxLng + expandLng,
+    minLat: bounds.minLat - expandLat,
+    maxLat: bounds.maxLat + expandLat
+  });
+  if (!expandedBounds) return region || null;
+  return {
+    northeast: {
+      longitude: expandedBounds.maxLng,
+      latitude: expandedBounds.maxLat
+    },
+    southwest: {
+      longitude: expandedBounds.minLng,
+      latitude: expandedBounds.minLat
+    }
+  };
+}
+
+function boundsContain(outer = null, inner = null) {
+  if (!outer || !inner) return false;
+  return (
+    outer.minLng <= inner.minLng &&
+    outer.maxLng >= inner.maxLng &&
+    outer.minLat <= inner.minLat &&
+    outer.maxLat >= inner.maxLat
+  );
+}
+
+function buildBoundsKey(bounds = null) {
+  if (!bounds) return "none";
+  return [
+    bounds.minLng.toFixed(4),
+    bounds.maxLng.toFixed(4),
+    bounds.minLat.toFixed(4),
+    bounds.maxLat.toFixed(4)
+  ].join(",");
+}
+
 Component({
   options: {
     virtualHost: true
@@ -93,7 +173,8 @@ Component({
       this._resourceEntries = [];
       this._graphics = { polygons: [], polylines: [] };
       this._lastGraphicsToken = "";
-      this._graphicsViewportKey = "";
+      this._graphicsCoverageBounds = null;
+      this._graphicsClipRegion = null;
       this._renderColor = readStoredRenderColor();
     },
     detached() {
@@ -152,7 +233,7 @@ Component({
     },
 
     scheduleFinalRefresh() {
-      this.rebuildGraphicsIfViewportChanged();
+      this.ensureGraphicsCoverage();
       this.scheduleRefresh(false);
     },
 
@@ -258,37 +339,19 @@ Component({
       }, delay);
     },
 
-    resolveGraphicsViewportKey() {
-      const region = this._region || null;
-      const northeast = region?.northeast || null;
-      const southwest = region?.southwest || null;
-      const neLng = Number(northeast?.longitude);
-      const neLat = Number(northeast?.latitude);
-      const swLng = Number(southwest?.longitude);
-      const swLat = Number(southwest?.latitude);
-      if (
-        !Number.isFinite(neLng) ||
-        !Number.isFinite(neLat) ||
-        !Number.isFinite(swLng) ||
-        !Number.isFinite(swLat)
-      ) {
-        return "none";
-      }
-      return [
-        neLng.toFixed(4),
-        neLat.toFixed(4),
-        swLng.toFixed(4),
-        swLat.toFixed(4)
-      ].join(",");
+    resolveCurrentViewportBounds() {
+      return normalizeRegionBounds(this._region || null);
     },
 
-    rebuildGraphicsIfViewportChanged(force = false) {
-      const nextViewportKey = this.resolveGraphicsViewportKey();
-      if (!force && nextViewportKey === this._graphicsViewportKey) {
-        return;
+    ensureGraphicsCoverage(force = false) {
+      const currentBounds = this.resolveCurrentViewportBounds();
+      if (!force && currentBounds && boundsContain(this._graphicsCoverageBounds, currentBounds)) {
+        return false;
       }
-      this._graphicsViewportKey = nextViewportKey;
+      this._graphicsClipRegion = expandRegion(this._region || null);
+      this._graphicsCoverageBounds = normalizeRegionBounds(this._graphicsClipRegion);
       this.rebuildGraphics(true);
+      return true;
     },
 
     resolveStatus(center) {
@@ -339,7 +402,7 @@ Component({
     },
 
     rebuildGraphics(force = false) {
-      const nextToken = `${this._enabled ? 1 : 0}|${this.resolveGraphicsFileToken()}|${this._renderColor || ""}|${this._graphicsViewportKey || "none"}|${Number(this._scale) || 0}`;
+      const nextToken = `${this._enabled ? 1 : 0}|${this.resolveGraphicsFileToken()}|${this._renderColor || ""}|${buildBoundsKey(this._graphicsCoverageBounds)}|${Number(this._scale) || 0}`;
       if (!force && nextToken === this._lastGraphicsToken) {
         return;
       }
@@ -348,7 +411,7 @@ Component({
         this._graphics = { polygons: [], polylines: [] };
       } else {
         this._graphics = buildGraphicsFromParsedResource(activeResource, this._renderColor, {
-          region: this._region || null,
+          region: this._graphicsClipRegion || this._region || null,
           scale: this._scale
         });
       }
@@ -383,7 +446,8 @@ Component({
         this._currentFileName = "";
         this._resourceEntries = [];
         this._lastGraphicsToken = "";
-        this._graphicsViewportKey = "";
+        this._graphicsCoverageBounds = null;
+        this._graphicsClipRegion = null;
         this.setData({ uomLoading: false });
         this.rebuildGraphics(true);
         this.updateStatusPanel();
@@ -427,7 +491,7 @@ Component({
         this.upsertResourceEntry(loaded.fileName, loaded.resource);
         if (!sameFile || !sameResource) {
           this._lastGraphicsToken = "";
-          this.rebuildGraphicsIfViewportChanged(true);
+          this.ensureGraphicsCoverage(true);
         }
         this.finishLoadingAfterGraphics();
       } catch (err) {
