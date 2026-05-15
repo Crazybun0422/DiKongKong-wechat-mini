@@ -196,14 +196,33 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
     page.ensureDjiLayerReady();
     page.ensureTemporaryNoFlyLayerReady();
     page.ensureTiandituSatelliteLayerReady();
-    if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
-      page._uomPlugin.handleRegionChange({
-        center: point,
-        centerPin: point,
-        scale: targetScale,
-        region: page._lastRegion
-      });
-    }
+    const applyViewportToLayers = (regionOverride = page._lastRegion, options = {}) => {
+      const viewportRegion = regionOverride || null;
+      if (viewportRegion && viewportRegion.northeast && viewportRegion.southwest) {
+        page._lastRegion = viewportRegion;
+      }
+      if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
+        page._uomPlugin.handleRegionChange({
+          center: point,
+          centerPin: point,
+          scale: targetScale,
+          region: viewportRegion,
+          force: options.forceUom === true
+        });
+      }
+      if (options.syncLayerViewport === true) {
+        const viewportOptions = {
+          center: point,
+          region: viewportRegion,
+          scale: targetScale,
+          force: true
+        };
+        page.syncTemporaryNoFlyLayerViewport(viewportOptions);
+        page.syncTiandituSatelliteLayerViewport(viewportOptions);
+        page.syncDjiLayerViewport(viewportOptions);
+      }
+    };
+    applyViewportToLayers(page._lastRegion, { forceUom: true });
     page.updateScaleBar({ scale: targetScale, latitude: point.latitude });
     page.updateCenterPinIndicator();
     if (page._markersFetchTimer) {
@@ -229,12 +248,19 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
     });
     page.syncTemporaryNoFlyLayerViewport(fetchOptions);
     page.syncTiandituSatelliteLayerViewport(fetchOptions);
-    page.syncDjiLayerViewport({
-      center: point,
-      region: page._lastRegion,
-      scale: targetScale,
-      force: true
-    });
+    page.syncDjiLayerViewport(fetchOptions);
+    if (page.mapCtx && typeof page.mapCtx.getRegion === "function") {
+      page.mapCtx.getRegion({
+        success: (res) => {
+          const latestRegion = res?.region || res || null;
+          applyViewportToLayers(latestRegion, {
+            forceUom: true,
+            syncLayerViewport: true
+          });
+        },
+        fail: () => { }
+      });
+    }
   });
 }
 
