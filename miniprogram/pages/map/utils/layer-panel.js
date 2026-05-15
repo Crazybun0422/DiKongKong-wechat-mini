@@ -680,6 +680,11 @@ function resolveUomRenderColor(page, settings = {}) {
 }
 
 function onUomColorSelect(page, event = {}) {
+  const requiresVip = `${resolveEventDataset(event).requiresVip || ""}` === "true";
+  if (requiresVip && !page.data.userVip) {
+    navigateToMemberPage();
+    return;
+  }
   const color = normalizeRenderColor(resolveEventDataset(event).color);
   if (color === page.data.uomRenderColor) return;
   writeStoredRenderColor(color);

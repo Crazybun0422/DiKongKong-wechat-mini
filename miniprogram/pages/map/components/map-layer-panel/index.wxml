@@ -168,51 +168,6 @@
                 </view>
                 <text class="layer-panel-hint layer-panel-hint--tree">省和市总共只允许勾选一个</text>
               </view>
-              <view class="uom-color-block">
-                <text class="uom-color-title">UOM颜色设置</text>
-                <view class="uom-color-grid">
-                  <view
-                    class="uom-color-chip {{uomRenderColor === 'default' ? 'is-selected' : ''}}"
-                    data-color="default"
-                    bindtap="onUomColorTap"
-                  >
-                    <view class="uom-color-swatch uom-color-swatch--default"></view>
-                    <text class="uom-color-label">默认</text>
-                  </view>
-                  <view
-                    class="uom-color-chip {{uomRenderColor === '#01F4F4' ? 'is-selected' : ''}}"
-                    data-color="#01F4F4"
-                    bindtap="onUomColorTap"
-                  >
-                    <view class="uom-color-swatch" style="background:#01F4F4;"></view>
-                    <text class="uom-color-label">青蓝</text>
-                  </view>
-                  <view
-                    class="uom-color-chip {{uomRenderColor === '#34C759' ? 'is-selected' : ''}}"
-                    data-color="#34C759"
-                    bindtap="onUomColorTap"
-                  >
-                    <view class="uom-color-swatch" style="background:#34C759;"></view>
-                    <text class="uom-color-label">绿色</text>
-                  </view>
-                  <view
-                    class="uom-color-chip {{uomRenderColor === '#FFB800' ? 'is-selected' : ''}}"
-                    data-color="#FFB800"
-                    bindtap="onUomColorTap"
-                  >
-                    <view class="uom-color-swatch" style="background:#FFB800;"></view>
-                    <text class="uom-color-label">金黄</text>
-                  </view>
-                  <view
-                    class="uom-color-chip {{uomRenderColor === '#FF5A5F' ? 'is-selected' : ''}}"
-                    data-color="#FF5A5F"
-                    bindtap="onUomColorTap"
-                  >
-                    <view class="uom-color-swatch" style="background:#FF5A5F;"></view>
-                    <text class="uom-color-label">珊红</text>
-                  </view>
-                </view>
-              </view>
             </view>
           </block>
 
@@ -302,6 +257,63 @@
                   <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
                   <image class="layer-center-asset layer-center-asset--bamboo" src="/assets/vip/bamboo-copter-2.png" mode="aspectFit" />
                   <text class="layer-icon-label">竹蜻蜓</text>
+                </view>
+              </view>
+              <view class="uom-member-section">
+                <view class="uom-member-header" bindtap="onUomVipFeatureTap">
+                  <view class="uom-member-title-row">
+                    <text class="uom-color-title uom-color-title--member">UOM适飞区颜色设置</text>
+                  </view>
+                </view>
+                <view class="uom-color-grid uom-color-grid--member">
+                  <view
+                    class="uom-color-chip uom-color-chip--card {{uomRenderColor === 'default' ? 'is-selected' : ''}}"
+                    data-color="default"
+                    data-requires-vip="false"
+                    bindtap="onUomColorTap"
+                  >
+                    <view class="uom-color-swatch uom-color-swatch--default"></view>
+                    <text class="uom-color-label">默认</text>
+                  </view>
+                  <view
+                    class="uom-color-chip uom-color-chip--card {{uomRenderColor === '#01F4F4' ? 'is-selected' : ''}}"
+                    data-color="#01F4F4"
+                    data-requires-vip="false"
+                    bindtap="onUomColorTap"
+                  >
+                    <view class="uom-color-swatch" style="background:#01F4F4;"></view>
+                    <text class="uom-color-label">青蓝</text>
+                  </view>
+                  <view
+                    class="uom-color-chip uom-color-chip--card {{uomRenderColor === '#34C759' ? 'is-selected' : ''}} {{!userVip ? 'is-disabled' : ''}}"
+                    data-color="#34C759"
+                    data-requires-vip="true"
+                    bindtap="onUomColorTap"
+                  >
+                    <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                    <view class="uom-color-swatch" style="background:#34C759;"></view>
+                    <text class="uom-color-label">绿色</text>
+                  </view>
+                  <view
+                    class="uom-color-chip uom-color-chip--card {{uomRenderColor === '#FFB800' ? 'is-selected' : ''}} {{!userVip ? 'is-disabled' : ''}}"
+                    data-color="#FFB800"
+                    data-requires-vip="true"
+                    bindtap="onUomColorTap"
+                  >
+                    <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                    <view class="uom-color-swatch" style="background:#FFB800;"></view>
+                    <text class="uom-color-label">金黄</text>
+                  </view>
+                  <view
+                    class="uom-color-chip uom-color-chip--card {{uomRenderColor === '#FF5A5F' ? 'is-selected' : ''}} {{!userVip ? 'is-disabled' : ''}}"
+                    data-color="#FF5A5F"
+                    data-requires-vip="true"
+                    bindtap="onUomColorTap"
+                  >
+                    <image class="layer-vip-corner" src="/assets/vip/vip-user.png" mode="aspectFit" />
+                    <view class="uom-color-swatch" style="background:#FF5A5F;"></view>
+                    <text class="uom-color-label">珊红</text>
+                  </view>
                 </view>
               </view>
             </view>

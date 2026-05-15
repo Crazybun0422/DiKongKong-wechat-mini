@@ -129,7 +129,18 @@ Component({
       this.emitDataset("provincecitytreeexpandtap", event);
     },
 
+    onUomVipFeatureTap() {
+      if (!this.properties.userVip) {
+        this.navigateToMemberPage();
+      }
+    },
+
     onUomColorTap(event = {}) {
+      const requiresVip = `${event?.currentTarget?.dataset?.requiresVip || ""}` === "true";
+      if (requiresVip && !this.properties.userVip) {
+        this.navigateToMemberPage();
+        return;
+      }
       this.emitDataset("uomcolorselect", event);
     },
 

@@ -2679,32 +2679,55 @@ button.panorama-button::after,
   font-weight: 600;
 }
 
+.uom-color-title--member {
+  margin-bottom: 0;
+}
+
+.uom-member-section {
+  margin-top: 64rpx;
+}
+
+.uom-member-header {
+  margin-bottom: 22rpx;
+}
+
+.uom-member-title-row {
+  display: flex;
+  align-items: center;
+}
+
 .uom-color-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 16rpx;
+  gap: 22rpx 30rpx;
 }
 
 .uom-color-chip {
+  position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12rpx;
-  min-width: 132rpx;
-  padding: 14rpx 18rpx;
-  border-radius: 24rpx;
-  background: #f8fafc;
-  border: 2rpx solid transparent;
+  width: 168rpx;
+  height: 96rpx;
+  background: #f0f0f0;
+  border: none;
   box-sizing: border-box;
 }
 
 .uom-color-chip.is-selected {
-  border-color: #111827;
-  background: #eef2ff;
+  border: 2rpx solid #f59e0b;
+  background: #ffffff;
+  box-shadow: 0 18rpx 28rpx rgba(245, 158, 11, 0.28);
+}
+
+.uom-color-chip.is-disabled {
+  opacity: 0.72;
 }
 
 .uom-color-swatch {
-  width: 26rpx;
-  height: 26rpx;
+  width: 30rpx;
+  height: 30rpx;
   border-radius: 999rpx;
   border: 2rpx solid rgba(17, 24, 39, 0.12);
   box-sizing: border-box;
@@ -2716,9 +2739,12 @@ button.panorama-button::after,
 }
 
 .uom-color-label {
-  color: #334155;
-  font-size: 24rpx;
-  line-height: 1;
+  min-width: 0;
+  font-size: 27rpx;
+  line-height: 34rpx;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
 }
 
 .layer-element-grid {

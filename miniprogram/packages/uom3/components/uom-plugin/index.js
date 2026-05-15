@@ -26,6 +26,7 @@ const STATUS_LOAD_FAILED_TEXT = "空域数据加载失败";
 const REFRESH_DEBOUNCE_MS = 180;
 const STATUS_EVAL_DELAY_MS = 60;
 const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
+const UOM_RESOURCE_LRU_LIMIT = 3;
 
 function describeRuntimeError(err) {
   let rawString = "";
@@ -89,6 +90,7 @@ Component({
       this._lastStatusPayload = null;
       this._parsedResource = null;
       this._currentFileName = "";
+      this._resourceEntries = [];
       this._graphics = { polygons: [], polylines: [] };
       this._lastGraphicsToken = "";
       this._graphicsViewportKey = "";
@@ -196,6 +198,44 @@ Component({
       this.triggerEvent("statuschange", payload);
     },
 
+    upsertResourceEntry(fileName, resource) {
+      const nextFileName = `${fileName || ""}`.trim();
+      if (!nextFileName || !resource) return;
+      const nextEntries = (Array.isArray(this._resourceEntries) ? this._resourceEntries : [])
+        .filter((entry) => entry && entry.fileName !== nextFileName);
+      nextEntries.unshift({ fileName: nextFileName, resource });
+      this._resourceEntries = nextEntries.slice(0, UOM_RESOURCE_LRU_LIMIT);
+    },
+
+    resolveActiveResource() {
+      const entries = Array.isArray(this._resourceEntries)
+        ? this._resourceEntries.filter((entry) => entry && entry.resource)
+        : [];
+      if (!entries.length) return null;
+      if (entries.length === 1) return entries[0].resource;
+      const polygons = [];
+      const polylines = [];
+      entries.forEach((entry) => {
+        const resource = entry.resource || {};
+        if (Array.isArray(resource.polygons) && resource.polygons.length) {
+          polygons.push(...resource.polygons);
+        }
+        if (Array.isArray(resource.polylines) && resource.polylines.length) {
+          polylines.push(...resource.polylines);
+        }
+      });
+      return { polygons, polylines };
+    },
+
+    resolveGraphicsFileToken() {
+      const entries = Array.isArray(this._resourceEntries) ? this._resourceEntries : [];
+      if (!entries.length) return this._currentFileName || "";
+      return entries
+        .map((entry) => `${entry?.fileName || ""}`.trim())
+        .filter(Boolean)
+        .join(",");
+    },
+
     resolveCenter() {
       const center = this._center;
       const latitude = Number(center?.latitude);
@@ -258,13 +298,17 @@ Component({
       if (!center) {
         return { uomStatus: STATUS_PENDING_TEXT, uomTone: "neutral", uomLoading: false };
       }
+      if (this.data.uomLoading === true) {
+        return { uomStatus: STATUS_PENDING_TEXT, uomTone: "neutral", uomLoading: true };
+      }
       if (outOfChina(center.longitude, center.latitude) || resolveExcludedRegionRecord(center)) {
         return { uomStatus: UOM3_NON_RESTRICTED_STATUS_TEXT, uomTone: "safe", uomLoading: false };
       }
-      if (!this._parsedResource) {
+      const activeResource = this.resolveActiveResource();
+      if (!activeResource) {
         return { uomStatus: STATUS_PENDING_TEXT, uomTone: "neutral", uomLoading: this.data.uomLoading === true };
       }
-      const covered = pointCoveredBySuitableZone(center, this._parsedResource);
+      const covered = pointCoveredBySuitableZone(center, activeResource);
       return {
         uomStatus: covered ? UOM3_SAFE_STATUS_TEXT : UOM3_RESTRICTED_STATUS_TEXT,
         uomTone: covered ? "safe" : "alert",
@@ -290,15 +334,20 @@ Component({
       }, STATUS_EVAL_DELAY_MS);
     },
 
+    finishLoadingAfterGraphics() {
+      this.setData({ uomLoading: false }, () => this.updateStatusPanel());
+    },
+
     rebuildGraphics(force = false) {
-      const nextToken = `${this._enabled ? 1 : 0}|${this._currentFileName || ""}|${this._renderColor || ""}|${this._graphicsViewportKey || "none"}|${Number(this._scale) || 0}`;
+      const nextToken = `${this._enabled ? 1 : 0}|${this.resolveGraphicsFileToken()}|${this._renderColor || ""}|${this._graphicsViewportKey || "none"}|${Number(this._scale) || 0}`;
       if (!force && nextToken === this._lastGraphicsToken) {
         return;
       }
-      if (!this._enabled || !this._parsedResource) {
+      const activeResource = this.resolveActiveResource();
+      if (!this._enabled || !activeResource) {
         this._graphics = { polygons: [], polylines: [] };
       } else {
-        this._graphics = buildGraphicsFromParsedResource(this._parsedResource, this._renderColor, {
+        this._graphics = buildGraphicsFromParsedResource(activeResource, this._renderColor, {
           region: this._region || null,
           scale: this._scale
         });
@@ -306,6 +355,7 @@ Component({
       this._lastGraphicsToken = nextToken;
       console.log("[uom3] emitGraphics", {
         fileName: this._currentFileName || "",
+        activeFiles: Array.isArray(this._resourceEntries) ? this._resourceEntries.map((entry) => entry.fileName) : [],
         polygonCount: Array.isArray(this._graphics?.polygons) ? this._graphics.polygons.length : 0,
         firstPolygonPointCount:
           Array.isArray(this._graphics?.polygons) &&
@@ -331,6 +381,7 @@ Component({
       if (!this._enabled) {
         this._parsedResource = null;
         this._currentFileName = "";
+        this._resourceEntries = [];
         this._lastGraphicsToken = "";
         this._graphicsViewportKey = "";
         this.setData({ uomLoading: false });
@@ -358,13 +409,11 @@ Component({
         if (this._destroyed || refreshSeq !== this._refreshSeq) return;
         const resolvedFileName = typeof resolved?.fileName === "string" ? resolved.fileName.trim() : "";
         if (!resolvedFileName) {
-          this.setData({ uomLoading: false });
-          this.updateStatusPanel();
+          this.finishLoadingAfterGraphics();
           return;
         }
         if (resolvedFileName && resolvedFileName === this._currentFileName && this._parsedResource) {
-          this.setData({ uomLoading: false });
-          this.updateStatusPanel();
+          this.finishLoadingAfterGraphics();
           return;
         }
         const loaded = await loadParsedResourceForResolvedFile(resolved, {
@@ -375,12 +424,12 @@ Component({
         const sameResource = loaded.resource === this._parsedResource;
         this._currentFileName = loaded.fileName;
         this._parsedResource = loaded.resource;
-        this.setData({ uomLoading: false });
+        this.upsertResourceEntry(loaded.fileName, loaded.resource);
         if (!sameFile || !sameResource) {
           this._lastGraphicsToken = "";
           this.rebuildGraphicsIfViewportChanged(true);
         }
-        this.updateStatusPanel();
+        this.finishLoadingAfterGraphics();
       } catch (err) {
         if (this._destroyed || refreshSeq !== this._refreshSeq) return;
         const errorDetail = describeRuntimeError(err);

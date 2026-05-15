@@ -12,9 +12,24 @@ const UOM3_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
 const UOM3_NON_RESTRICTED_STATUS_TEXT = "非管制区域";
 const UOM3_RESTRICTED_STATUS_TEXT = "管制空域";
 
+const UOM3_MEMORY_RESOURCE_CACHE_LIMIT = 3;
 const memoryResourceCache = new Map();
 const memoryResourcePromiseCache = new Map();
 let memoryAesKeyPayload = null;
+
+function touchMemoryResourceCacheEntry(fileName = "", resource = null) {
+  const key = `${fileName || ""}`.trim();
+  if (!key || !resource) return;
+  if (memoryResourceCache.has(key)) {
+    memoryResourceCache.delete(key);
+  }
+  memoryResourceCache.set(key, resource);
+  while (memoryResourceCache.size > UOM3_MEMORY_RESOURCE_CACHE_LIMIT) {
+    const oldestKey = memoryResourceCache.keys().next().value;
+    if (!oldestKey) break;
+    memoryResourceCache.delete(oldestKey);
+  }
+}
 
 function describeError(err) {
   let rawString = "";
@@ -246,6 +261,15 @@ function writeTextFile(filePath, data = "") {
   });
 }
 
+function isFileStorageLimitError(err) {
+  const message = `${err?.errMsg || err?.message || err || ""}`.toLowerCase();
+  return (
+    message.includes("maximum size of the file storage limit is exceeded") ||
+    message.includes("file storage limit is exceeded") ||
+    message.includes("storage limit")
+  );
+}
+
 function buildCacheRootPath() {
   const userPath = `${wx?.env?.USER_DATA_PATH || ""}`.trim();
   return userPath ? `${userPath}/${UOM3_CACHE_DIR_NAME}` : "";
@@ -313,6 +337,20 @@ function requestRaw(options = {}) {
   });
 }
 
+function resolveSuitableFlyZoneDownloadBase(explicitBase) {
+  if (explicitBase) return `${explicitBase}`.trim();
+  try {
+    const app = getApp ? getApp() : null;
+    const guideAssetBase = app?.globalData?.guideAssetBase;
+    if (guideAssetBase) {
+      return `${guideAssetBase}`.trim();
+    }
+  } catch (err) {
+    // ignore app lookup failure
+  }
+  return resolveApiBase();
+}
+
 function buildResolveUrl(center = {}, apiBase = resolveApiBase()) {
   if (!apiBase) return "";
   const longitude = Number(center?.longitude);
@@ -321,9 +359,9 @@ function buildResolveUrl(center = {}, apiBase = resolveApiBase()) {
   return `${apiBase}/api/suitable-fly-zone-city-kml/resolve?longitude=${encodeURIComponent(longitude)}&latitude=${encodeURIComponent(latitude)}`;
 }
 
-function buildDownloadUrl(fileName = "", apiBase = resolveApiBase()) {
-  if (!apiBase || !fileName) return "";
-  return `${apiBase}/api/suitable-fly-zone-city-kml/download/${encodeURIComponent(fileName)}`;
+function buildDownloadUrl(fileName = "", downloadBase = resolveSuitableFlyZoneDownloadBase()) {
+  if (!downloadBase || !fileName) return "";
+  return `${downloadBase}/api/suitable-fly-zone-city-kml/download/${encodeURIComponent(fileName)}`;
 }
 
 async function resolveSuitableFlyZoneFile(center = {}, options = {}) {
@@ -1293,6 +1331,7 @@ function pointCoveredBySuitableZone(center = {}, resource = {}) {
 
 async function downloadKmlText(fileName = "", encrypted = false, options = {}) {
   const apiBase = resolveApiBase(options.apiBase);
+  const downloadBase = resolveSuitableFlyZoneDownloadBase(options.downloadBase);
   const token = options.token || getAuthToken();
   if (!apiBase || !token) {
     throw new Error("missing-token");
@@ -1300,11 +1339,12 @@ async function downloadKmlText(fileName = "", encrypted = false, options = {}) {
   logUom3("log", "download suitable fly zone file", {
     fileName,
     encrypted,
-    apiBase
+    apiBase,
+    downloadBase
   });
   try {
     const res = await requestRaw({
-      url: buildDownloadUrl(fileName, apiBase),
+      url: buildDownloadUrl(fileName, downloadBase),
       method: "GET",
       token,
       responseType: "arraybuffer"
@@ -1323,6 +1363,7 @@ async function downloadKmlText(fileName = "", encrypted = false, options = {}) {
       fileName,
       encrypted,
       apiBase,
+      downloadBase,
       error: describeError(err)
     });
     throw err;
@@ -1341,6 +1382,7 @@ async function loadParsedResourceForResolvedFile(resolved = {}, options = {}) {
   }
   const cached = memoryResourceCache.get(fileName);
   if (cached) {
+    touchMemoryResourceCacheEntry(fileName, cached);
     return {
       fileName,
       encrypted,
@@ -1370,15 +1412,46 @@ async function loadParsedResourceForResolvedFile(resolved = {}, options = {}) {
       }
       await ensureDirectory(root);
       const nextPath = buildCachedKmlFilePath(fileName);
-      await writeTextFile(nextPath, kmlText);
-      writeStoredFileCacheMeta({
-        fileName,
-        path: nextPath,
-        encrypted,
-        updatedAt: Date.now()
-      });
-      if (oldPath && oldPath !== nextPath) {
-        await unlinkQuietly(oldPath);
+      let cachedToFile = false;
+      try {
+        await writeTextFile(nextPath, kmlText);
+        cachedToFile = true;
+      } catch (err) {
+        if (!isFileStorageLimitError(err)) {
+          throw err;
+        }
+        if (oldPath && oldPath !== nextPath) {
+          await unlinkQuietly(oldPath);
+          clearStoredFileCacheMeta();
+          try {
+            await writeTextFile(nextPath, kmlText);
+            cachedToFile = true;
+          } catch (retryErr) {
+            if (!isFileStorageLimitError(retryErr)) {
+              throw retryErr;
+            }
+          }
+        }
+        if (!cachedToFile) {
+          dataSource = "download-memory";
+          logUom3("warn", "skip file cache due storage limit", {
+            fileName,
+            encrypted,
+            cacheRoot: root,
+            oldPath
+          });
+        }
+      }
+      if (cachedToFile) {
+        writeStoredFileCacheMeta({
+          fileName,
+          path: nextPath,
+          encrypted,
+          updatedAt: Date.now()
+        });
+        if (oldPath && oldPath !== nextPath) {
+          await unlinkQuietly(oldPath);
+        }
       }
     }
     logUom3("log", "loaded suitable fly zone file", {
@@ -1399,7 +1472,7 @@ async function loadParsedResourceForResolvedFile(resolved = {}, options = {}) {
         : 0,
       polylineCount: Array.isArray(parsed?.polylines) ? parsed.polylines.length : 0
     });
-    memoryResourceCache.set(fileName, parsed);
+    touchMemoryResourceCacheEntry(fileName, parsed);
     return {
       fileName,
       encrypted,
