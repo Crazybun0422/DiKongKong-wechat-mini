@@ -25,6 +25,50 @@ const normalizeMapRotate = (value) => {
   return normalized;
 };
 
+function ensureUomPlugin(page, options = {}) {
+  if (typeof page.ensureUomPluginReady !== "function") {
+    return page._uomPlugin || null;
+  }
+  return page.ensureUomPluginReady(options) || page._uomPlugin || null;
+}
+
+function syncUomViewport(page, options = {}) {
+  const plugin = ensureUomPlugin(page, options);
+  if (!plugin || typeof plugin.handleRegionChange !== "function") {
+    return plugin;
+  }
+  plugin.handleRegionChange(
+    Object.assign({}, options, {
+      apiBase: page.getApiBase()
+    })
+  );
+  return plugin;
+}
+
+function startUomFollow(page, options = {}) {
+  const plugin = ensureUomPlugin(page, options);
+  if (plugin && typeof plugin.startFollow === "function") {
+    plugin.startFollow();
+  }
+  return plugin;
+}
+
+function stopUomFollow(page, options = {}) {
+  const plugin = ensureUomPlugin(page, options);
+  if (plugin && typeof plugin.stopFollow === "function") {
+    plugin.stopFollow();
+  }
+  return plugin;
+}
+
+function scheduleUomFinalRefresh(page, options = {}) {
+  const plugin = ensureUomPlugin(page, options);
+  if (plugin && typeof plugin.scheduleFinalRefresh === "function") {
+    plugin.scheduleFinalRefresh();
+  }
+  return plugin;
+}
+
 function updateMapGestureState(page, detail = {}) {
   const now = Date.now();
   const skew = Number(detail?.skew);
@@ -192,7 +236,12 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
     Object.assign(updates, extraUpdates);
   }
   page.setData(updates, () => {
-    page.ensureUomPluginReady();
+    ensureUomPlugin(page, {
+      center: point,
+      centerPin: point,
+      region: page._lastRegion || null,
+      scale: targetScale
+    });
     page.ensureDjiLayerReady();
     page.ensureTemporaryNoFlyLayerReady();
     page.ensureTiandituSatelliteLayerReady();
@@ -201,15 +250,13 @@ function centerOnPoint(page, point, scale = DEFAULT_MAP_SCALE, silent = false, e
       if (viewportRegion && viewportRegion.northeast && viewportRegion.southwest) {
         page._lastRegion = viewportRegion;
       }
-      if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
-        page._uomPlugin.handleRegionChange({
-          center: point,
-          centerPin: point,
-          scale: targetScale,
-          region: viewportRegion,
-          force: options.forceUom === true
-        });
-      }
+      syncUomViewport(page, {
+        center: point,
+        centerPin: point,
+        scale: targetScale,
+        region: viewportRegion,
+        force: options.forceUom === true
+      });
       if (options.syncLayerViewport === true) {
         const viewportOptions = {
           center: point,
@@ -284,11 +331,9 @@ function onRegionChange(page, e) {
       page.dismissCenterPinWelcomeBubble();
     }
     if (page._markersFetchTimer) clearTimeout(page._markersFetchTimer);
-    if (page._uomPlugin && typeof page._uomPlugin.startFollow === "function") {
-      page._uomPlugin.startFollow();
-    }
+    startUomFollow(page, { scale: detail.scale || page.data.scale });
     const cl = detail && (detail.centerLocation || null);
-    if (cl && page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
+    if (cl) {
       const region = detail.region || {
         northeast: detail.northeast,
         southwest: detail.southwest
@@ -302,7 +347,7 @@ function onRegionChange(page, e) {
         region: page.formatDebugRegion(region),
         regionPhase: "move"
       });
-      page._uomPlugin.handleRegionChange({
+      syncUomViewport(page, {
         center: newCenter,
         centerPin: newCenter,
         scale,
@@ -317,9 +362,7 @@ function onRegionChange(page, e) {
     page._voiceFirstDragPlayed = true;
     playVoicePackEvent("first_drag_map");
   }
-  if (page._uomPlugin && typeof page._uomPlugin.stopFollow === "function") {
-    page._uomPlugin.stopFollow();
-  }
+  stopUomFollow(page, { scale: detail.scale || page.data.scale });
   updateMapGestureState(page, detail);
   if (page.shouldIgnoreRegionSyncForCenterPinFollow(cause)) {
     return;
@@ -394,15 +437,13 @@ function onRegionChange(page, e) {
       page.data.scale = scale;
     }
     const run = (forceRefresh) => {
-      if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
-        page._uomPlugin.handleRegionChange({
-          center: newCenter,
-          centerPin: newCenter,
-          scale,
-          rawScale: detail.scale,
-          region
-        });
-      }
+      syncUomViewport(page, {
+        center: newCenter,
+        centerPin: newCenter,
+        scale,
+        rawScale: detail.scale,
+        region
+      });
       page.syncDjiLayerViewport({
         center: newCenter,
         region,
@@ -469,15 +510,19 @@ function onRegionChange(page, e) {
     } else {
       afterSync();
     }
-    if (page._uomPlugin && typeof page._uomPlugin.scheduleFinalRefresh === "function") {
-      page._uomPlugin.scheduleFinalRefresh();
-    }
+    scheduleUomFinalRefresh(page, {
+      center: newCenter,
+      centerPin: newCenter,
+      scale,
+      region
+    });
     return;
   }
   updateCenterAndRadius(page, detail);
-  if (page._uomPlugin && typeof page._uomPlugin.scheduleFinalRefresh === "function") {
-    page._uomPlugin.scheduleFinalRefresh();
-  }
+  scheduleUomFinalRefresh(page, {
+    scale: detail.scale || page.data.scale,
+    region: detail?.region || page._lastRegion || null
+  });
 }
 
 function updateCenterAndRadius(page, detail) {
@@ -522,14 +567,12 @@ function updateCenterAndRadius(page, detail) {
           scale,
           force: true
         });
-        if (page._uomPlugin && typeof page._uomPlugin.handleRegionChange === "function") {
-          page._uomPlugin.handleRegionChange({
-            center: newCenter,
-            centerPin: newCenter,
-            scale,
-            region
-          });
-        }
+        syncUomViewport(page, {
+          center: newCenter,
+          centerPin: newCenter,
+          scale,
+          region
+        });
         page.scheduleFetchMarkers(0, {
           center: newCenter,
           region,

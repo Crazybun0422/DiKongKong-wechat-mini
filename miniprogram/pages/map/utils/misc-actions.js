@@ -12,7 +12,19 @@ function applyCustomMapStyle(page) {
   }
 }
 
+function resolveUomEventSource(event = {}) {
+  return `${event?.currentTarget?.dataset?.source || event?.target?.dataset?.source || ""}`.trim();
+}
+
+function isActiveUomEvent(page, event = {}) {
+  const source = resolveUomEventSource(event);
+  return !!source && source === page._activeUomPluginSource;
+}
+
 function onUomStatusChange(page, event = {}) {
+  if (!isActiveUomEvent(page, event)) {
+    return;
+  }
   const detail = event?.detail || {};
   const updates = {};
   if (Object.prototype.hasOwnProperty.call(detail, "uomStatus")) {
@@ -36,6 +48,9 @@ function onUomStatusChange(page, event = {}) {
 }
 
 function onUomGraphicsChange(page, event = {}) {
+  if (!isActiveUomEvent(page, event)) {
+    return;
+  }
   const detail = event?.detail || {};
   const nextPolygons = Array.isArray(detail.polygons) ? detail.polygons : [];
   const nextPolylines = Array.isArray(detail.polylines) ? detail.polylines : [];
@@ -49,6 +64,15 @@ function onUomGraphicsChange(page, event = {}) {
   page._uomPolygons = nextPolygons;
   page._uomPolylines = nextPolylines;
   page.queueMapGraphicsSync({ overlay: true, polylines: true });
+}
+
+function onUomTilesChange(page, event = {}) {
+  if (!isActiveUomEvent(page, event)) {
+    return;
+  }
+  const detail = event?.detail || {};
+  page._uomTileMarkers = Array.isArray(detail.markers) ? detail.markers : [];
+  page.queueMapGraphicsSync({ markers: true });
 }
 
 function onMapCheckinEntryTap(page) {
@@ -183,6 +207,7 @@ module.exports = {
   applyCustomMapStyle,
   onUomStatusChange,
   onUomGraphicsChange,
+  onUomTilesChange,
   onMapCheckinEntryTap,
   onPanoramaDemoTap
 };

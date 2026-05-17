@@ -131,6 +131,9 @@ function onLoad(page, options = {}) {
   page._uomPluginInitTimer = null;
   page._uomPluginInitialized = false;
   page._uomPluginInitLogged = false;
+  page._uomPluginRefs = Object.create(null);
+  page._uomPluginInitState = Object.create(null);
+  page._activeUomPluginSource = "";
   page._djiLayer = null;
   page._djiLayerInitTimer = null;
   page._djiLayerInitialized = false;
@@ -153,6 +156,7 @@ function onLoad(page, options = {}) {
   page._suggestTimer = null;
   page._uomPolygons = [];
   page._uomPolylines = [];
+  page._uomTileMarkers = [];
   page.prefetchSubscriptionLatest();
   page.setData({
     mapElementOptions: page.composeMapElementOptions({

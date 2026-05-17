@@ -466,8 +466,8 @@ Page({
     return mapPluginsUtils.loadMapSubKey(this);
   },
 
-  ensureUomPluginReady(retry = 0) {
-    return mapPluginsUtils.ensureUomPluginReady(this, retry);
+  ensureUomPluginReady(optionsOrRetry = {}, retry = 0) {
+    return mapPluginsUtils.ensureUomPluginReady(this, optionsOrRetry, retry);
   },
 
   ensureDjiLayerReady(retry = 0) {
@@ -1282,6 +1282,10 @@ Page({
 
   onUomGraphicsChange(event = {}) {
     return miscActionsUtils.onUomGraphicsChange(this, event);
+  },
+
+  onUomTilesChange(event = {}) {
+    return miscActionsUtils.onUomTilesChange(this, event);
   },
 
   onCheckinGuideStart() {

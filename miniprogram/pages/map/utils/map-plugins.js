@@ -1,6 +1,13 @@
 const { prefetchMapKey } = require("../../../utils/map-key");
+const { shouldUseWeChatUom } = require("../../../utils/runtime");
 
 const DEFAULT_LEVELS_PARAM = "2,6,1,4,3,7,8,10";
+const OFFLINE_UOM_MAX_SCALE = 13;
+const UOM_PLUGIN_SELECTOR_MAP = Object.freeze({
+  uom: "#uom-plugin",
+  uom2: "#uom2-plugin",
+  uom3: "#uom3-plugin"
+});
 
 function loadMapSubKey(page) {
   prefetchMapKey({ apiBase: page.getApiBase() })
@@ -14,38 +21,154 @@ function loadMapSubKey(page) {
     });
 }
 
-function ensureUomPluginReady(page, retry = 0) {
-  if (page._uomPlugin && page._uomPluginInitialized) return;
-  const plugin = page.selectComponent("#uom3-plugin");
-  if (
+function normalizeUomEnsureArgs(optionsOrRetry = {}, retry = 0) {
+  if (typeof optionsOrRetry === "number") {
+    return {
+      options: {},
+      retry: optionsOrRetry
+    };
+  }
+  return {
+    options: optionsOrRetry && typeof optionsOrRetry === "object" ? optionsOrRetry : {},
+    retry: Number.isFinite(Number(retry)) ? Number(retry) : 0
+  };
+}
+
+function resolvePreferredUomPluginSource(page, scale) {
+  const numericScale = Number(scale);
+  const resolvedScale = Number.isFinite(numericScale) ? numericScale : Number(page.data.scale || 0);
+  if (resolvedScale > OFFLINE_UOM_MAX_SCALE) {
+    return "uom3";
+  }
+  return shouldUseWeChatUom() ? "uom" : "uom2";
+}
+
+function getUomPluginSelector(source) {
+  return UOM_PLUGIN_SELECTOR_MAP[source] || "";
+}
+
+function getUomPluginRef(page, source) {
+  if (!page._uomPluginRefs || !source) return null;
+  if (page._uomPluginRefs[source]) {
+    return page._uomPluginRefs[source];
+  }
+  const selector = getUomPluginSelector(source);
+  if (!selector) return null;
+  const plugin = page.selectComponent(selector);
+  if (plugin) {
+    page._uomPluginRefs[source] = plugin;
+  }
+  return plugin || null;
+}
+
+function isUomPluginUsable(plugin) {
+  return !!(
     plugin &&
     typeof plugin.init === "function" &&
     typeof plugin.handleRegionChange === "function" &&
     typeof plugin.setEnabled === "function"
+  );
+}
+
+function buildUomPluginInitOptions(page, options = {}) {
+  return {
+    mapCtx: page.mapCtx,
+    center: options.center || page._centerOverride || page.data.center,
+    centerPin: options.centerPin || options.center || page._centerOverride || page.data.center,
+    region: options.region || page._lastRegion || null,
+    scale: Number.isFinite(Number(options.scale)) ? Number(options.scale) : page.data.scale,
+    enabled: page.data.uomDivisionEnabled !== false,
+    renderColor: page.data.uomRenderColor,
+    apiBase: page.getApiBase()
+  };
+}
+
+function clearInactiveUomGraphics(page) {
+  const hadTileMarkers = Array.isArray(page._uomTileMarkers) && page._uomTileMarkers.length > 0;
+  const hadPolygons = Array.isArray(page._uomPolygons) && page._uomPolygons.length > 0;
+  const hadPolylines = Array.isArray(page._uomPolylines) && page._uomPolylines.length > 0;
+  if (hadTileMarkers) {
+    page._uomTileMarkers = [];
+    page.queueMapGraphicsSync({ markers: true });
+  }
+  if (hadPolygons || hadPolylines) {
+    page._uomPolygons = [];
+    page._uomPolylines = [];
+    page.queueMapGraphicsSync({ overlay: true, polylines: true });
+  }
+}
+
+function deactivateUomPlugin(plugin) {
+  if (!plugin) return;
+  if (typeof plugin.stopFollow === "function") {
+    plugin.stopFollow();
+  }
+  if (typeof plugin.stopScaleWatch === "function") {
+    plugin.stopScaleWatch();
+  }
+  if (typeof plugin.setEnabled === "function") {
+    plugin.setEnabled(false);
+  }
+}
+
+function ensureUomPluginReady(page, optionsOrRetry = {}, explicitRetry = 0) {
+  const { options, retry } = normalizeUomEnsureArgs(optionsOrRetry, explicitRetry);
+  const desiredSource = resolvePreferredUomPluginSource(page, options.scale);
+  const previousSource = page._activeUomPluginSource || "";
+  const sourceChanged = previousSource && previousSource !== desiredSource;
+  page._activeUomPluginSource = desiredSource;
+  if (sourceChanged) {
+    deactivateUomPlugin(page._uomPlugin);
+    clearInactiveUomGraphics(page);
+    page._uomPlugin = null;
+    page._uomPluginInitialized = false;
+  }
+  if (page._uomPlugin && page._uomPluginInitialized && previousSource === desiredSource) {
+    return page._uomPlugin;
+  }
+  const plugin = getUomPluginRef(page, desiredSource);
+  if (
+    isUomPluginUsable(plugin)
   ) {
+    const initOptions = buildUomPluginInitOptions(page, options);
+    const shouldInit = sourceChanged || !page._uomPluginInitState?.[desiredSource];
     page._uomPlugin = plugin;
     page._uomPluginInitialized = true;
-    plugin.init({
-      mapCtx: page.mapCtx,
-      center: page._centerOverride || page.data.center,
-      centerPin: page._centerOverride || page.data.center,
-      region: page._lastRegion || null,
-      scale: page.data.scale,
-      enabled: page.data.uomDivisionEnabled !== false,
-      renderColor: page.data.uomRenderColor
-    });
-    return;
+    if (!page._uomPluginInitState) {
+      page._uomPluginInitState = Object.create(null);
+    }
+    if (shouldInit) {
+      plugin.init(initOptions);
+      page._uomPluginInitState[desiredSource] = true;
+      if (sourceChanged && typeof plugin.handleRegionChange === "function") {
+        plugin.handleRegionChange(
+          Object.assign({}, initOptions, {
+            force: true
+          })
+        );
+      }
+      if (sourceChanged && typeof plugin.scheduleFinalRefresh === "function") {
+        plugin.scheduleFinalRefresh();
+      }
+    } else {
+      plugin.setEnabled(initOptions.enabled);
+      if (typeof plugin.setRenderColor === "function") {
+        plugin.setRenderColor(initOptions.renderColor);
+      }
+    }
+    return plugin;
   }
   if (retry >= 10) {
-    console.warn("[uom3] init retries exhausted");
-    return;
+    console.warn(`[${desiredSource}] init retries exhausted`);
+    return null;
   }
   if (page._uomPluginInitTimer) clearTimeout(page._uomPluginInitTimer);
   const delay = retry === 0 ? 0 : Math.min(500, 80 * (retry + 1));
   page._uomPluginInitTimer = setTimeout(() => {
     page._uomPluginInitTimer = null;
-    ensureUomPluginReady(page, retry + 1);
+    ensureUomPluginReady(page, options, retry + 1);
   }, delay);
+  return null;
 }
 
 function ensureDjiLayerReady(page, retry = 0) {

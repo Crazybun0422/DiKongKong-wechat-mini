@@ -1,4 +1,10 @@
-const { buildWmsOverlay, WMS_MIN_ZOOM, WMS_MAX_ZOOM } = require("../../../../utils/wms");
+const {
+  DEFAULT_MIN_ZOOM: OFFLINE_MIN_ZOOM,
+  DEFAULT_MAX_ZOOM: OFFLINE_MAX_ZOOM,
+  getCachedLayerTileDescriptor,
+  resolveLayerTileDescriptor,
+  buildOfflineLayerTiles
+} = require("../../../../utils/offline-layer-tiles");
 const {
   isWeChatRuntime,
   isDesktopRuntime,
@@ -10,8 +16,6 @@ const {
   findProvinceLayerRecordForPoint
 } = require("../../../../utils/uomProvinceSelector");
 const {
-  gcj02ToWgs84,
-  wgs84ToGcj02,
   lonLatToMercator,
   haversineMeters,
   outOfChina
@@ -35,6 +39,8 @@ const TILE_CACHE_LIMIT = 9;
 const MASK_ALPHA_THRESHOLD = 16;
 
 const FORCE_HTTP_MARKER = true;
+const DEFAULT_RENDER_COLOR = "default";
+const SCALE_UNSUPPORTED_STATUS_TEXT = "当前比例尺下不可见";
 
 const SAFE_STATUS_TEXT = "适飞区域（限高120m）";
 const RESTRICTED_STATUS_TEXT = "管制区域";
@@ -53,6 +59,11 @@ const clampMapScale = (value) => {
   const base = Number.isFinite(numeric) ? numeric : DEFAULT_MAP_SCALE;
   const rounded = Math.round(base);
   return Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, rounded));
+};
+
+const normalizeRenderColor = (value) => {
+  const normalized = `${value || ""}`.trim();
+  return normalized || DEFAULT_RENDER_COLOR;
 };
 
 const sameStatusPayload = (a, b) => {
@@ -204,6 +215,12 @@ Component({
       this._committedMarkers = [];
       this._retainMarkersOnZoom = false;
       this._lastStatusPayload = null;
+      this._renderColor = DEFAULT_RENDER_COLOR;
+      this._apiBase = "";
+      this._offlineDescriptor = null;
+      this._offlineDescriptorLoading = false;
+      this._offlineDescriptorPromise = null;
+      this._offlineDescriptorError = null;
     },
     ready() {
       if (!this._miniApi) {
@@ -231,7 +248,9 @@ Component({
         region,
         enabled,
         coordType,
-        centerCoordType
+        centerCoordType,
+        renderColor,
+        apiBase
       } = options;
       this.mapCtx = mapCtx || this.mapCtx || null;
       if (center || centerPin) {
@@ -254,6 +273,12 @@ Component({
       if (centerCoordType) {
         this._centerCoordType = `${centerCoordType}`.toLowerCase();
       }
+      this._renderColor = normalizeRenderColor(renderColor || this._renderColor);
+      if (typeof apiBase === "string") {
+        this._apiBase = apiBase;
+      }
+      this._offlineDescriptor = getCachedLayerTileDescriptor(this._renderColor, { apiBase: this._apiBase });
+      this._offlineDescriptorError = null;
       if (this._runtimeIsWeChat === null) {
         this._runtimeIsWeChat = shouldUseWeChatUom();
       }
@@ -313,6 +338,17 @@ Component({
       this._lastStatusPayload = null;
     },
 
+    setRenderColor(renderColor) {
+      const nextColor = normalizeRenderColor(renderColor);
+      if (nextColor === this._renderColor) return;
+      this._renderColor = nextColor;
+      this._offlineDescriptor = getCachedLayerTileDescriptor(nextColor, { apiBase: this._apiBase });
+      this._offlineDescriptorError = null;
+      this.clearTileSession();
+      this.clearTiles();
+      this.refreshTiles(true);
+    },
+
     setEnabled(enabled) {
       const next = enabled !== false;
       if (this._enabled === next) return;
@@ -338,7 +374,8 @@ Component({
         region,
         force,
         coordType,
-        centerCoordType
+        centerCoordType,
+        apiBase
       } = options;
       if (center || centerPin) {
         this._center = center || centerPin;
@@ -360,6 +397,11 @@ Component({
       }
       if (centerCoordType) {
         this._centerCoordType = `${centerCoordType}`.toLowerCase();
+      }
+      if (typeof apiBase === "string" && apiBase.trim() && apiBase.trim() !== this._apiBase) {
+        this._apiBase = apiBase.trim();
+        this._offlineDescriptor = null;
+        this._offlineDescriptorError = null;
       }
       this.scheduleRefresh(!!force);
     },
@@ -425,18 +467,12 @@ Component({
       if (!center || !Number.isFinite(center.longitude) || !Number.isFinite(center.latitude)) {
         return null;
       }
-      const coordType = this._coordType || "wgs84";
-      const centerType = this._centerCoordType || coordType;
-      if (coordType === centerType) return center;
-      if (coordType === "wgs84" && centerType === "gcj02") {
-        const wgs = gcj02ToWgs84(center.longitude, center.latitude);
-        return { longitude: wgs.lng, latitude: wgs.lat };
-      }
-      if (coordType === "gcj02" && centerType === "wgs84") {
-        const gcj = wgs84ToGcj02(center.longitude, center.latitude);
-        return { longitude: gcj.lng, latitude: gcj.lat };
-      }
-      return center;
+      // `offline-layer-tiles` now owns source/display coord conversion.
+      // UOM2 should always work with display-space GCJ coordinates here.
+      return {
+        longitude: Number(center.longitude),
+        latitude: Number(center.latitude)
+      };
     },
 
     startFollow() {
@@ -627,7 +663,27 @@ Component({
       }
       const scale = clampMapScale(this._scale);
       const zoom = Number.isFinite(this._pendingZoom) ? this._pendingZoom : scale;
-      if (!Number.isFinite(zoom) || zoom < WMS_MIN_ZOOM || zoom > WMS_MAX_ZOOM) {
+      const descriptor = this.getOfflineLayerDescriptor();
+      if (!descriptor) {
+        this.ensureOfflineLayerDescriptor()
+          .then(() => {
+            if (!this._destroyed) {
+              this.refreshTiles(forceZoomSession);
+            }
+          })
+          .catch(() => {
+            if (!this._destroyed) {
+              this.clearTiles();
+              this.emitTileMarkers([]);
+              this.updateStatusPanel();
+            }
+          });
+        this.clearTiles();
+        this.emitTileMarkers([]);
+        this.updateStatusPanel();
+        return;
+      }
+      if (!Number.isFinite(zoom) || zoom < descriptor.minZoom || zoom > descriptor.maxZoom) {
         this.clearTiles();
         this.emitTileMarkers([]);
         this.updateStatusPanel();
@@ -659,14 +715,16 @@ Component({
         return;
       }
       const viewport = this._viewport;
-      let tiles = buildWmsOverlay(center, zoom, this._region, {
+      let tiles = buildOfflineLayerTiles(center, zoom, this._region, {
+        descriptor,
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,
         viewportPaddingPx: VIEWPORT_PADDING_PX,
-        tileSize: WEB_TILE_SIZE,
+        tileSize: descriptor.tileSize,
         maskSize: TILE_SAMPLE_SIZE,
-        coordType: this._coordType || "gcj02",
-        resolveLayerParams: resolveProvinceLayerParams
+        alpha: TILE_ALPHA_DEFAULT,
+        opacity: TILE_ALPHA_DEFAULT,
+        zIndex: 1
       });
       if (!Array.isArray(tiles)) tiles = [];
       tiles = tiles.filter((tile) => keepIds.has(tile.id));
@@ -730,6 +788,7 @@ Component({
     },
 
     resolveUomLoadingState() {
+      if (this._offlineDescriptorLoading) return true;
       const session = this._tileSession;
       if (!session || !session.tiles || !session.tiles.size) return false;
       for (const entry of session.tiles.values()) {
@@ -738,6 +797,63 @@ Component({
         }
       }
       return false;
+    },
+
+    getOfflineLayerDescriptor() {
+      if (this._offlineDescriptor && this._offlineDescriptor.urlTemplate) {
+        return this._offlineDescriptor;
+      }
+      const cached = getCachedLayerTileDescriptor(this._renderColor, { apiBase: this._apiBase });
+      if (cached && cached.urlTemplate) {
+        this._offlineDescriptor = cached;
+        return cached;
+      }
+      return null;
+    },
+
+    getOfflineZoomRange() {
+      const descriptor = this.getOfflineLayerDescriptor();
+      return {
+        minZoom: Number.isFinite(Number(descriptor?.minZoom)) ? Number(descriptor.minZoom) : OFFLINE_MIN_ZOOM,
+        maxZoom: Number.isFinite(Number(descriptor?.maxZoom)) ? Number(descriptor.maxZoom) : OFFLINE_MAX_ZOOM
+      };
+    },
+
+    isOfflineZoomSupported(scale) {
+      const numeric = clampMapScale(scale);
+      const range = this.getOfflineZoomRange();
+      return numeric >= range.minZoom && numeric <= range.maxZoom;
+    },
+
+    ensureOfflineLayerDescriptor(forceRefresh = false) {
+      if (this._offlineDescriptorLoading) {
+        return this._offlineDescriptorPromise || Promise.resolve(this._offlineDescriptor);
+      }
+      const cached = this.getOfflineLayerDescriptor();
+      if (cached && forceRefresh !== true) {
+        return Promise.resolve(cached);
+      }
+      this._offlineDescriptorLoading = true;
+      this.syncUomLoadingState();
+      this._offlineDescriptorPromise = resolveLayerTileDescriptor(this._renderColor, {
+        apiBase: this._apiBase,
+        forceRefresh
+      })
+        .then((descriptor) => {
+          this._offlineDescriptor = descriptor || null;
+          this._offlineDescriptorError = null;
+          return this._offlineDescriptor;
+        })
+        .catch((err) => {
+          this._offlineDescriptorError = err || new Error("offline-layer-descriptor-failed");
+          throw this._offlineDescriptorError;
+        })
+        .finally(() => {
+          this._offlineDescriptorLoading = false;
+          this._offlineDescriptorPromise = null;
+          this.syncUomLoadingState();
+        });
+      return this._offlineDescriptorPromise;
     },
 
     syncUomLoadingState() {
@@ -1443,6 +1559,20 @@ Component({
       }
       const center = this.resolveCenterForTiles(resolveRegionCenter(this._region) || this._center);
       if (!center) {
+        return { status: "评估中", tone: "neutral" };
+      }
+      if (this._offlineDescriptorError) {
+        return { status: "空域数据加载失败", tone: "warn" };
+      }
+      const currentScale = this._pendingZoom != null ? this._pendingZoom : this._scale;
+      const zoomRange = this.getOfflineZoomRange();
+      if (Number.isFinite(currentScale) && currentScale < zoomRange.minZoom) {
+        return { status: SCALE_UNSUPPORTED_STATUS_TEXT, tone: "warn" };
+      }
+      if (Number.isFinite(currentScale) && currentScale > zoomRange.maxZoom) {
+        return { status: "评估中", tone: "neutral" };
+      }
+      if (this._offlineDescriptorLoading && !this.getOfflineLayerDescriptor()) {
         return { status: "评估中", tone: "neutral" };
       }
       if (outOfChina(center.longitude, center.latitude)) {

@@ -1,4 +1,10 @@
-const { buildWmsOverlay, WMS_MIN_ZOOM, WMS_MAX_ZOOM } = require("../../../../utils/wms");
+const {
+  DEFAULT_MIN_ZOOM: OFFLINE_MIN_ZOOM,
+  DEFAULT_MAX_ZOOM: OFFLINE_MAX_ZOOM,
+  getCachedLayerTileDescriptor,
+  resolveLayerTileDescriptor,
+  buildOfflineLayerTiles
+} = require("../../../../utils/offline-layer-tiles");
 const {
   buildProvinceLayerRecords,
   buildProvinceLayerParams,
@@ -31,6 +37,8 @@ const WMS_OVERLAY_STALE_REMOVE_MS = WMS_FINAL_REFRESH_DELAY_MS * 2;
 const WMS_OVERLAY_SWAP_DELAY_MS = 280;
 const WMS_TILE_LOAD_TIMEOUT_MS = 8000;
 const WMS_TILE_RESOURCE_CACHE_LIMIT = 72;
+const DEFAULT_RENDER_COLOR = "default";
+const SCALE_UNSUPPORTED_STATUS_TEXT = "当前比例尺下不可见";
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
 const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
@@ -167,6 +175,11 @@ const buildWmsTileListKey = (tiles = []) =>
     .sort()
     .join("|");
 
+const normalizeRenderColor = (value) => {
+  const normalized = `${value || ""}`.trim();
+  return normalized || DEFAULT_RENDER_COLOR;
+};
+
 Component({
   options: { virtualHost: true },
   data: {
@@ -196,7 +209,7 @@ Component({
   },
   methods: {
     init(options = {}) {
-      const { mapCtx, center, centerPin, scale, region, enabled } = options;
+      const { mapCtx, center, centerPin, scale, region, enabled, renderColor, apiBase } = options;
       console.log("[uom-plugin] init", { hasMapCtx: !!mapCtx, scale, enabled });
       this.mapCtx = mapCtx || this.mapCtx || null;
       this._centerOverride = center || this.data.center || null;
@@ -232,6 +245,12 @@ Component({
       this._destroyed = false;
       this._currentWmsTileKey = "";
       this._currentWmsTileKeyApplied = "";
+      this._renderColor = normalizeRenderColor(renderColor || this._renderColor);
+      this._apiBase = typeof apiBase === "string" ? apiBase : (this._apiBase || "");
+      this._offlineDescriptor = getCachedLayerTileDescriptor(this._renderColor, { apiBase: this._apiBase });
+      this._offlineDescriptorLoading = false;
+      this._offlineDescriptorPromise = null;
+      this._offlineDescriptorError = null;
 
       const updates = {};
       if (center) {
@@ -296,6 +315,16 @@ Component({
       this._lastStatusPayload = null;
     },
 
+    setRenderColor(renderColor) {
+      const nextColor = normalizeRenderColor(renderColor);
+      if (nextColor === this._renderColor) return;
+      this._renderColor = nextColor;
+      this._offlineDescriptor = getCachedLayerTileDescriptor(nextColor, { apiBase: this._apiBase });
+      this._offlineDescriptorError = null;
+      this.clearMapOverlays();
+      this.refreshWmsOverlay();
+    },
+
     setEnabled(enabled) {
       const next = enabled !== false;
       if (this.data.uomDivisionEnabled === next) return;
@@ -312,7 +341,7 @@ Component({
 
     handleRegionChange(options = {}) {
       if (this._destroyed) return;
-      const { center, centerPin, scale, region, force } = options;
+      const { center, centerPin, scale, region, force, apiBase } = options;
       if (centerPin) {
         this._centerPin = centerPin;
       } else if (center) {
@@ -327,6 +356,11 @@ Component({
       }
       if (region && region.northeast && region.southwest) {
         this._lastRegion = region;
+      }
+      if (typeof apiBase === "string" && apiBase.trim() && apiBase.trim() !== this._apiBase) {
+        this._apiBase = apiBase.trim();
+        this._offlineDescriptor = null;
+        this._offlineDescriptorError = null;
       }
       const updates = {};
       if (center) updates.center = center;
@@ -456,9 +490,66 @@ Component({
 
     syncUomLoadingState() {
       if (this._destroyed) return;
-      const loading = this.isBatchDownloading();
+      const loading = !!this._offlineDescriptorLoading || this.isBatchDownloading();
       if (this.data.uomLoading === loading) return;
       this.setData({ uomLoading: loading }, () => this.emitStatus({ uomLoading: loading }));
+    },
+
+    getOfflineLayerDescriptor() {
+      if (this._offlineDescriptor && this._offlineDescriptor.urlTemplate) {
+        return this._offlineDescriptor;
+      }
+      const cached = getCachedLayerTileDescriptor(this._renderColor, { apiBase: this._apiBase });
+      if (cached && cached.urlTemplate) {
+        this._offlineDescriptor = cached;
+        return cached;
+      }
+      return null;
+    },
+
+    getOfflineZoomRange() {
+      const descriptor = this.getOfflineLayerDescriptor();
+      return {
+        minZoom: Number.isFinite(Number(descriptor?.minZoom)) ? Number(descriptor.minZoom) : OFFLINE_MIN_ZOOM,
+        maxZoom: Number.isFinite(Number(descriptor?.maxZoom)) ? Number(descriptor.maxZoom) : OFFLINE_MAX_ZOOM
+      };
+    },
+
+    isOfflineZoomSupported(scale) {
+      const numeric = clampMapScale(scale);
+      const range = this.getOfflineZoomRange();
+      return numeric >= range.minZoom && numeric <= range.maxZoom;
+    },
+
+    ensureOfflineLayerDescriptor(forceRefresh = false) {
+      if (this._offlineDescriptorLoading) {
+        return this._offlineDescriptorPromise || Promise.resolve(this._offlineDescriptor);
+      }
+      const cached = this.getOfflineLayerDescriptor();
+      if (cached && forceRefresh !== true) {
+        return Promise.resolve(cached);
+      }
+      this._offlineDescriptorLoading = true;
+      this.syncUomLoadingState();
+      this._offlineDescriptorPromise = resolveLayerTileDescriptor(this._renderColor, {
+        apiBase: this._apiBase,
+        forceRefresh
+      })
+        .then((descriptor) => {
+          this._offlineDescriptor = descriptor || null;
+          this._offlineDescriptorError = null;
+          return this._offlineDescriptor;
+        })
+        .catch((err) => {
+          this._offlineDescriptorError = err || new Error("offline-layer-descriptor-failed");
+          throw this._offlineDescriptorError;
+        })
+        .finally(() => {
+          this._offlineDescriptorLoading = false;
+          this._offlineDescriptorPromise = null;
+          this.syncUomLoadingState();
+        });
+      return this._offlineDescriptorPromise;
     },
 
     shouldShowUomTileWarning() {
@@ -467,11 +558,13 @@ Component({
       }
       const tiles = Array.isArray(this._currentWmsTiles) ? this._currentWmsTiles : [];
       const scale = clampMapScale(this.data?.scale);
-      if (!tiles.length || scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
+      const range = this.getOfflineZoomRange();
+      if (!tiles.length || scale < range.minZoom || scale > range.maxZoom) {
         return false;
       }
       const center = this.resolveUomCenter();
       if (!center) return false;
+      if (this._offlineDescriptorLoading && !this.getOfflineLayerDescriptor()) return false;
       const tile = this.findUomTileForPoint(center);
       if (!tile) return false;
       const maskEntry = this._uomTileMasks?.get(tile.id);
@@ -604,6 +697,16 @@ Component({
         return { status: "已禁用", tone: "warn" };
       }
       const currentScale = Number(this.data?.scale);
+      if (this._offlineDescriptorError) {
+        return { status: "空域数据加载失败", tone: "warn" };
+      }
+      const zoomRange = this.getOfflineZoomRange();
+      if (Number.isFinite(currentScale) && currentScale < zoomRange.minZoom) {
+        return { status: SCALE_UNSUPPORTED_STATUS_TEXT, tone: "warn" };
+      }
+      if (Number.isFinite(currentScale) && currentScale > zoomRange.maxZoom) {
+        return { status: "评估中", tone: "neutral" };
+      }
       // if (Number.isFinite(currentScale) && currentScale > 16) {
       //   return { status: "当前比例尺下不可见（请缩小地图）", tone: "warn" };
       // }
@@ -702,21 +805,42 @@ Component({
         this.updateStatusPanel();
         return;
       }
-      if (scale < WMS_MIN_ZOOM || scale > WMS_MAX_ZOOM) {
+      const descriptor = this.getOfflineLayerDescriptor();
+      if (!descriptor) {
+        this.ensureOfflineLayerDescriptor()
+          .then(() => {
+            if (!this._destroyed) {
+              this.refreshWmsOverlay(centerOverride, scaleOverride, regionOverride);
+            }
+          })
+          .catch(() => {
+            if (!this._destroyed) {
+              this._currentWmsTiles = [];
+              this._currentWmsTileKey = "";
+              this.updateStatusPanel();
+            }
+          });
         this.clearMapOverlays();
         this._currentWmsTiles = [];
         this._currentWmsTileKey = "";
         this.updateStatusPanel();
         return;
       }
-      const tileSize = this.resolveUomTileSize(scale);
+      if (scale < descriptor.minZoom || scale > descriptor.maxZoom) {
+        this.clearMapOverlays();
+        this._currentWmsTiles = [];
+        this._currentWmsTileKey = "";
+        this.updateStatusPanel();
+        return;
+      }
       const viewport = this.getMapViewportSize();
-      const overlays = buildWmsOverlay(
+      const overlays = buildOfflineLayerTiles(
         { longitude: center.longitude, latitude: center.latitude },
         scale,
         regionOverride || this._lastRegion || null,
         {
-          tileSize,
+          descriptor,
+          tileSize: descriptor.tileSize,
           maskSize: UOM_MASK_SAMPLE_SIZE,
           paddingTiles: this.resolveUomTilePadding(scale),
           maxSpan: this.resolveUomTileSpan(scale),
@@ -724,7 +848,9 @@ Component({
           viewportWidth: viewport?.width,
           viewportHeight: viewport?.height,
           viewportPaddingPx: UOM_VIEWPORT_PADDING_PX,
-          resolveLayerParams: resolveProvinceLayerParams
+          alpha: 0.65,
+          opacity: 0.65,
+          zIndex: 1
         }
       );
       const overlayKey = buildWmsTileListKey(overlays);

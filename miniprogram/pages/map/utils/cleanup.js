@@ -61,8 +61,22 @@ function onUnload(page) {
   page._centerPinLinkElevationState = null;
   page._centerPinLinkElevationRequestKey = "";
   page._pointElevationCache = null;
-  if (page._uomPlugin && typeof page._uomPlugin.destroy === "function") {
-    page._uomPlugin.destroy();
+  const uomPlugins = page._uomPluginRefs && typeof page._uomPluginRefs === "object"
+    ? Object.values(page._uomPluginRefs)
+    : (page._uomPlugin ? [page._uomPlugin] : []);
+  const visitedUomPlugins = new Set();
+  uomPlugins.forEach((plugin) => {
+    if (!plugin || visitedUomPlugins.has(plugin)) return;
+    visitedUomPlugins.add(plugin);
+    if (typeof plugin.destroy === "function") {
+      plugin.destroy();
+    }
+  });
+  page._uomPluginRefs = Object.create(null);
+  page._uomPluginInitState = Object.create(null);
+  page._activeUomPluginSource = "";
+  if (page._uomPlugin) {
+    page._uomPlugin = null;
   }
   if (page._djiLayer && typeof page._djiLayer.destroy === "function") {
     page._djiLayer.destroy();

@@ -119,6 +119,12 @@ function syncAllMarkers(page) {
     page.data.merchantMarkersEnabled !== false && Array.isArray(page._nearbyMarkers)
       ? page._nearbyMarkers
       : [];
+  const uomTiles =
+    page.data.uomDivisionEnabled !== false &&
+    page._activeUomPluginSource === "uom2" &&
+    Array.isArray(page._uomTileMarkers)
+      ? page._uomTileMarkers
+      : [];
   const pinMarkers = Array.isArray(page._nearbyPinMarkers) ? page._nearbyPinMarkers : [];
   const search = Array.isArray(page._searchMarkers) ? page._searchMarkers : [];
   const searchLink = Array.isArray(page._searchLinkMarkers) ? page._searchLinkMarkers : [];
@@ -127,6 +133,7 @@ function syncAllMarkers(page) {
   const preview = page._previewMarker ? [page._previewMarker] : [];
   const myLocation = Array.isArray(page._myLocationMarkers) ? page._myLocationMarkers : [];
   page.normalizeMapMarkerList(nearby);
+  page.normalizeMapMarkerList(uomTiles);
   page.normalizeMapMarkerList(pinMarkers);
   page.normalizeMapMarkerList(search);
   page.normalizeMapMarkerList(searchLink);
@@ -135,7 +142,7 @@ function syncAllMarkers(page) {
   page.normalizeMapMarkerList(preview);
   page.normalizeMapMarkerList(myLocation);
   const combined = page.dedupeMapMarkers(
-    manual.concat(pinMarkers, nearby, search, searchLink, mapTapTarget, preview, myLocation)
+    manual.concat(pinMarkers, nearby, uomTiles, search, searchLink, mapTapTarget, preview, myLocation)
   );
   page.setData({ markers: combined });
 }

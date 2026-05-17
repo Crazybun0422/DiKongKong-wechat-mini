@@ -69,8 +69,20 @@
       bind:graphicschange="onTemporaryNoFlyGraphicsChange"
       bind:statuschange="onTemporaryNoFlyStatusChange"
     />
+    <uom-plugin
+      id="uom-plugin"
+      data-source="uom"
+      bind:statuschange="onUomStatusChange"
+    />
+    <uom2-plugin
+      id="uom2-plugin"
+      data-source="uom2"
+      bind:statuschange="onUomStatusChange"
+      bind:tileschanged="onUomTilesChange"
+    />
     <uom3-plugin
       id="uom3-plugin"
+      data-source="uom3"
       bind:statuschange="onUomStatusChange"
       bind:graphicschange="onUomGraphicsChange"
     />
