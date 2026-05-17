@@ -8,6 +8,9 @@ const UOM3_FILE_CACHE_STORAGE_KEY = "uom3SuitableFlyZoneFileCache";
 const UOM3_CACHE_DIR_NAME = "uom3-kml-cache";
 const UOM3_DEFAULT_KML_COLOR = "66f4f401";
 const UOM3_DEFAULT_RENDER_COLOR = "default";
+const UOM3_MAX_POLYGON_POINTS = 900;
+const UOM3_MAX_POLYLINE_POINTS = 1200;
+const UOM3_SIMPLIFY_TOLERANCE_STEPS = [0, 1, 2, 4, 8, 16, 32, 64, 128];
 const UOM3_SAFE_STATUS_TEXT = "适飞空域（限高120m）";
 const UOM3_NON_RESTRICTED_STATUS_TEXT = "非管制区域";
 const UOM3_RESTRICTED_STATUS_TEXT = "管制空域";
@@ -902,6 +905,55 @@ function closePolylinePoints(points = []) {
   return next;
 }
 
+function dedupeAdjacentPoints(points = []) {
+  if (!Array.isArray(points) || !points.length) return [];
+  const deduped = [];
+  points.forEach((point) => {
+    const longitude = Number(point?.longitude);
+    const latitude = Number(point?.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
+    const previous = deduped[deduped.length - 1];
+    if (
+      previous &&
+      Math.abs(previous.longitude - longitude) <= 1e-9 &&
+      Math.abs(previous.latitude - latitude) <= 1e-9
+    ) {
+      return;
+    }
+    deduped.push({ longitude, latitude });
+  });
+  return deduped;
+}
+
+function simplifyPointsToLimit(points = [], options = {}) {
+  const limit = Math.max(0, Number(options?.limit) || 0);
+  const type = options?.type === "polyline" ? "polyline" : "polygon";
+  const baseTolerance = Math.max(0, Number(options?.baseTolerance) || 0);
+  const minimumPoints = type === "polyline" ? 2 : 3;
+  const sanitizedPoints = dedupeAdjacentPoints(points);
+  if (sanitizedPoints.length <= minimumPoints) {
+    return sanitizedPoints.length >= minimumPoints
+      ? sanitizedPoints
+      : (Array.isArray(points) ? points.slice() : []);
+  }
+  if (!limit || sanitizedPoints.length <= limit) {
+    return sanitizedPoints;
+  }
+  const simplify = type === "polyline" ? simplifyOpenPoints : simplifyRingPoints;
+  let best = sanitizedPoints;
+  for (let i = 0; i < UOM3_SIMPLIFY_TOLERANCE_STEPS.length; i += 1) {
+    const tolerance = Math.max(baseTolerance, UOM3_SIMPLIFY_TOLERANCE_STEPS[i]);
+    const candidate = dedupeAdjacentPoints(simplify(best, tolerance));
+    if (candidate.length >= minimumPoints && candidate.length < best.length) {
+      best = candidate;
+    }
+    if (best.length <= limit) {
+      break;
+    }
+  }
+  return best.length >= minimumPoints ? best : sanitizedPoints;
+}
+
 function resolveRenderSimplifyToleranceMeters(scale) {
   const numeric = Number(scale);
   if (!Number.isFinite(numeric)) return 0;
@@ -1116,9 +1168,23 @@ function buildGraphicsFromParsedResource(resource = {}, renderColor = UOM3_DEFAU
     const holeMaskFillColor = buildHoleMaskFillColor(fillColor);
     const rawOuterPoints = Array.isArray(polygon.gcjPoints) ? polygon.gcjPoints : [];
     const rawHolePointsList = normalizeHolePointsList(polygon.gcjHolePointsList);
-    const outerPoints = simplifyRingPoints(rawOuterPoints, simplifyToleranceMeters);
+    const outerPoints = simplifyPointsToLimit(
+      simplifyRingPoints(rawOuterPoints, simplifyToleranceMeters),
+      {
+        type: "polygon",
+        limit: UOM3_MAX_POLYGON_POINTS,
+        baseTolerance: simplifyToleranceMeters
+      }
+    );
     const holePointsList = normalizeHolePointsList(
-      rawHolePointsList.map((points) => simplifyRingPoints(points, simplifyToleranceMeters))
+      rawHolePointsList.map((points) => simplifyPointsToLimit(
+        simplifyRingPoints(points, simplifyToleranceMeters),
+        {
+          type: "polygon",
+          limit: UOM3_MAX_POLYGON_POINTS,
+          baseTolerance: simplifyToleranceMeters
+        }
+      ))
     );
     if (outerPoints.length < 3) {
       return;
@@ -1185,9 +1251,16 @@ function buildGraphicsFromParsedResource(resource = {}, renderColor = UOM3_DEFAU
   (Array.isArray(resource?.polylines) ? resource.polylines : [])
     .map((polyline, index) => ({
       id: `uom3-line-${index}`,
-      points: simplifyOpenPoints(
-        Array.isArray(polyline.gcjPoints) ? polyline.gcjPoints : [],
-        simplifyToleranceMeters
+      points: simplifyPointsToLimit(
+        simplifyOpenPoints(
+          Array.isArray(polyline.gcjPoints) ? polyline.gcjPoints : [],
+          simplifyToleranceMeters
+        ),
+        {
+          type: "polyline",
+          limit: UOM3_MAX_POLYLINE_POINTS,
+          baseTolerance: simplifyToleranceMeters
+        }
       ),
       bounds: polyline.gcjBounds || buildBounds(polyline.gcjPoints),
       width: Math.max(1, Math.round(Number(polyline.lineWidth) || 2)),

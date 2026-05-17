@@ -233,7 +233,7 @@ Component({
     },
 
     scheduleFinalRefresh() {
-      this.ensureGraphicsCoverage();
+      this.rebuildGraphics(false);
       this.scheduleRefresh(false);
     },
 
@@ -402,7 +402,7 @@ Component({
     },
 
     rebuildGraphics(force = false) {
-      const nextToken = `${this._enabled ? 1 : 0}|${this.resolveGraphicsFileToken()}|${this._renderColor || ""}|${buildBoundsKey(this._graphicsCoverageBounds)}|${Number(this._scale) || 0}`;
+      const nextToken = `${this._enabled ? 1 : 0}|${this.resolveGraphicsFileToken()}|${this._renderColor || ""}|${Number(this._scale) || 0}`;
       if (!force && nextToken === this._lastGraphicsToken) {
         return;
       }
@@ -411,7 +411,6 @@ Component({
         this._graphics = { polygons: [], polylines: [] };
       } else {
         this._graphics = buildGraphicsFromParsedResource(activeResource, this._renderColor, {
-          region: this._graphicsClipRegion || this._region || null,
           scale: this._scale
         });
       }
@@ -491,7 +490,7 @@ Component({
         this.upsertResourceEntry(loaded.fileName, loaded.resource);
         if (!sameFile || !sameResource) {
           this._lastGraphicsToken = "";
-          this.ensureGraphicsCoverage(true);
+          this.rebuildGraphics(true);
         }
         this.finishLoadingAfterGraphics();
       } catch (err) {
