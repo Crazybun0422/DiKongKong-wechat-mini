@@ -40,6 +40,7 @@ const MASK_ALPHA_THRESHOLD = 16;
 
 const FORCE_HTTP_MARKER = true;
 const DEFAULT_RENDER_COLOR = "default";
+const TILE_RESOURCE_MISSING_SENTINEL = "__uom2_missing_static_resource__";
 const SCALE_UNSUPPORTED_STATUS_TEXT = "当前比例尺下不可见";
 
 const SAFE_STATUS_TEXT = "适飞区域（限高120m）";
@@ -48,6 +49,17 @@ const RESTRICTED_STATUS_TEXT = "管制区域";
 const NON_RESTRICTED_STATUS_TEXT = "非管制区域";
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
 const isLocalPath = (value) => !!value && !isHttpUrl(value);
+const isStaticResourceMissing = (payload = {}) => {
+  const statusCode = Number(payload?.statusCode);
+  const text = `${payload?.errMsg || payload?.message || ""}`.toLowerCase();
+  return (
+    statusCode === 404 ||
+    statusCode === 500 ||
+    text.includes("no static resource") ||
+    text.includes("not found") ||
+    text.includes("not exist")
+  );
+};
 const getMiniApi = () => {
   if (typeof qq !== "undefined") return qq;
   if (typeof wx !== "undefined") return wx;
@@ -349,13 +361,20 @@ Component({
       this.refreshTiles(true);
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled, options = {}) {
       const next = enabled !== false;
-      if (this._enabled === next) return;
+      const onCleared = typeof options.onCleared === "function" ? options.onCleared : null;
+      if (this._enabled === next) {
+        if (!next && onCleared) {
+          onCleared();
+        }
+        return;
+      }
       this._enabled = next;
       this.setData({ uomDivisionEnabled: next });
       if (!next) {
-        this.clearTiles();
+        this.clearTileSession();
+        this.clearTiles({ onCleared });
         this._retainMarkersOnZoom = false;
         this.emitTileMarkers([], { force: true });
         this.updateStatusPanel();
@@ -745,11 +764,18 @@ Component({
       }
     },
 
-    clearTiles() {
+    clearTiles(options = {}) {
+      const onCleared = typeof options === "function"
+        ? options
+        : (typeof options?.onCleared === "function" ? options.onCleared : null);
       this._lastRenderedZoom = null;
       this._lastRenderedTileKey = "";
       if (this.data.tiles && this.data.tiles.length) {
-        this.setData({ tiles: [] });
+        this.setData({ tiles: [] }, () => {
+          if (onCleared) onCleared();
+        });
+      } else if (onCleared) {
+        onCleared();
       }
       if (this._renderMode === "marker") {
         this.emitTileMarkers([]);
@@ -757,16 +783,10 @@ Component({
     },
 
     createTileSession(zoom) {
-      if (
-        this._renderMode === "marker" &&
-        Number.isFinite(this._lastRenderedZoom) &&
-        this._lastRenderedZoom !== zoom &&
-        Array.isArray(this._committedMarkers) &&
-        this._committedMarkers.length
-      ) {
-        this._retainMarkersOnZoom = true;
-      }
+      this._retainMarkersOnZoom = false;
       this.clearTileSession();
+      this.clearTiles();
+      this.emitTileMarkers([], { force: true });
       const sessionId = `${zoom}-${Date.now()}-${this._sessionSeq++}`;
       this._tileSession = {
         id: sessionId,
@@ -915,6 +935,12 @@ Component({
         .then((src) => {
           if (this._destroyed || session !== this._tileSession) return "";
           if (!session.tiles.has(tile.id)) return "";
+          if (src === TILE_RESOURCE_MISSING_SENTINEL) {
+            entry.status = "missing";
+            entry.promise = null;
+            this.syncUomLoadingState();
+            return TILE_RESOURCE_MISSING_SENTINEL;
+          }
           if (!src) {
             entry.status = "error";
             entry.promise = null;
@@ -996,6 +1022,7 @@ Component({
       }
       return new Promise((resolve) => {
         const finalize = (path) => resolve(path || "");
+        const finalizeMissing = () => resolve(TILE_RESOURCE_MISSING_SENTINEL);
         const fallbackSrc = () => (isMarkerRender ? "" : (this._allowHttpMarker ? src : ""));
         const persistIfNeeded = (path) => {
           if (!path) {
@@ -1035,6 +1062,10 @@ Component({
               persistIfNeeded(filePath);
               return;
             }
+            if (isStaticResourceMissing({ statusCode, message: res?.errMsg })) {
+              finalizeMissing();
+              return;
+            }
             console.warn("[uom2] download failed", { statusCode, src });
             finalize(fallbackSrc());
           },
@@ -1042,6 +1073,10 @@ Component({
             if (entry.downloadTimer) {
               clearTimeout(entry.downloadTimer);
               entry.downloadTimer = null;
+            }
+            if (isStaticResourceMissing(err)) {
+              finalizeMissing();
+              return;
             }
             console.warn("[uom2] download error", { src, err });
             finalize(fallbackSrc());
@@ -1086,14 +1121,32 @@ Component({
                 resolve(filePath);
                 return;
               }
+              if (isStaticResourceMissing({ statusCode, message: res?.errMsg })) {
+                resolve(TILE_RESOURCE_MISSING_SENTINEL);
+                return;
+              }
               resolve("");
             },
-            fail: () => resolve("")
+            fail: (err) => {
+              if (isStaticResourceMissing(err)) {
+                resolve(TILE_RESOURCE_MISSING_SENTINEL);
+                return;
+              }
+              resolve("");
+            }
           });
         });
       return tryGetImageInfo()
-        .catch(() => tryDownload())
+        .catch((err) => {
+          if (isStaticResourceMissing(err)) {
+            return TILE_RESOURCE_MISSING_SENTINEL;
+          }
+          return tryDownload();
+        })
         .then((path) => {
+          if (path === TILE_RESOURCE_MISSING_SENTINEL) {
+            return path;
+          }
           if (path && entry) entry.maskSrc = path;
           return path || "";
         });
@@ -1348,6 +1401,9 @@ Component({
         Number.isFinite(this._lastRenderedZoom) ||
         (this.data.tiles && this.data.tiles.length > 0);
       if (isZoomTransition && !sessionSettled && hasPreviousDisplay) {
+        this.clearTiles();
+        this.emitTileMarkers([], { force: true });
+        this._retainMarkersOnZoom = false;
         return;
       }
       if (this._renderMode === "marker") {
@@ -1598,6 +1654,9 @@ Component({
       if (entry.maskStatus === "error") {
         return { status: "空域数据加载失败", tone: "warn" };
       }
+      if (entry.maskStatus === "missing") {
+        return { status: RESTRICTED_STATUS_TEXT, tone: "alert" };
+      }
       if (entry.maskStatus === "unsupported") {
         return { status: "当前环境不支持空域判定", tone: "warn" };
       }
@@ -1655,10 +1714,24 @@ Component({
         ? this.downloadTileForMask(tile.src, entry)
         : this.ensureTileSrc(session, tile);
       maskSrcPromise
-        .then((src) => this.decodeMaskFromSrc(src, tile.maskSize))
+        .then((src) => {
+          if (src === TILE_RESOURCE_MISSING_SENTINEL || entry.status === "missing") {
+            return TILE_RESOURCE_MISSING_SENTINEL;
+          }
+          return this.decodeMaskFromSrc(src, tile.maskSize);
+        })
         .then((mask) => {
           if (this._destroyed || this._tileSession !== sessionRef) return;
           if (!sessionRef.tiles.has(tile.id)) return;
+          if (mask === TILE_RESOURCE_MISSING_SENTINEL) {
+            entry.maskStatus = "missing";
+            entry.maskData = null;
+            entry.maskWidth = 0;
+            entry.maskHeight = 0;
+            this.syncUomLoadingState();
+            this.updateStatusPanel();
+            return;
+          }
           if (!mask) {
             entry.maskStatus = "error";
             this.syncUomLoadingState();

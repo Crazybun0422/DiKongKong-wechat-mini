@@ -40,6 +40,17 @@ const WMS_TILE_RESOURCE_CACHE_LIMIT = 72;
 const DEFAULT_RENDER_COLOR = "default";
 const SCALE_UNSUPPORTED_STATUS_TEXT = "当前比例尺下不可见";
 const isHttpUrl = (value) => /^https?:\/\//.test(value || "");
+const isStaticResourceMissing = (payload = {}) => {
+  const statusCode = Number(payload?.statusCode);
+  const text = `${payload?.errMsg || payload?.message || ""}`.toLowerCase();
+  return (
+    statusCode === 404 ||
+    statusCode === 500 ||
+    text.includes("no static resource") ||
+    text.includes("not found") ||
+    text.includes("not exist")
+  );
+};
 const UOM_PROVINCE_LAYER_RECORDS = buildProvinceLayerRecords(provinceGeojson);
 const UOM_REGION_RECORDS = buildProvinceLayerRecords(provinceGeojson, { includeSpecialRegions: true });
 const UOM_PROVINCE_LAYER_PARAM_CACHE = new Map();
@@ -217,6 +228,7 @@ Component({
       this._lastRegion = region || null;
       this._currentWmsTiles = [];
       this._wmsOverlayMap = new Map();
+      this._wmsKnownOverlayIds = new Set();
       this._wmsOverlaySeed = 0;
       this._wmsOverlayZoom = null;
       this._wmsOverlayEpoch = 0;
@@ -325,13 +337,19 @@ Component({
       this.refreshWmsOverlay();
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled, options = {}) {
       const next = enabled !== false;
-      if (this.data.uomDivisionEnabled === next) return;
+      const onCleared = typeof options.onCleared === "function" ? options.onCleared : null;
+      if (this.data.uomDivisionEnabled === next) {
+        if (!next && onCleared) {
+          onCleared();
+        }
+        return;
+      }
       this.data.uomDivisionEnabled = next;
       this.setData({ uomDivisionEnabled: next });
       if (!next) {
-        this.clearMapOverlays();
+        this.clearMapOverlays({ onCleared });
         this.updateStatusPanel();
         return;
       }
@@ -738,6 +756,9 @@ Component({
       if (maskEntry.status === "unsupported") {
         return { status: "当前环境不支持空域判定", tone: "warn" };
       }
+      if (maskEntry.status === "missing") {
+        return { status: "管制区域", tone: "alert" };
+      }
       if (maskEntry.status !== "ready" || !maskEntry.data) {
         return { status: "管制空域", tone: "alert" };
       }
@@ -967,6 +988,9 @@ Component({
           if (this._wmsOverlayRemovals) {
             this._wmsOverlayRemovals.delete(overlayId);
           }
+          if (this._wmsKnownOverlayIds) {
+            this._wmsKnownOverlayIds.delete(overlayId);
+          }
           if (this._wmsOverlayRemovalQueued) {
             this._wmsOverlayRemovalQueued.delete(overlayId);
           }
@@ -978,6 +1002,9 @@ Component({
           if (this.isWmsOverlayNotFound(err)) {
             if (this._wmsOverlayRemovals) {
               this._wmsOverlayRemovals.delete(overlayId);
+            }
+            if (this._wmsKnownOverlayIds) {
+              this._wmsKnownOverlayIds.delete(overlayId);
             }
             if (this._wmsOverlayRemovalQueued) {
               this._wmsOverlayRemovalQueued.delete(overlayId);
@@ -1300,6 +1327,10 @@ Component({
         additions.forEach(({ tile, signature, src }) => {
           this._wmsOverlaySeed += 1;
           const overlayId = this._wmsOverlaySeed;
+          if (!this._wmsKnownOverlayIds) {
+            this._wmsKnownOverlayIds = new Set();
+          }
+          this._wmsKnownOverlayIds.add(overlayId);
           pendingCount += 1;
           const alpha = tile.alpha != null ? tile.alpha : (tile.opacity != null ? tile.opacity : 0.65);
           ctx.addGroundOverlay({
@@ -1321,6 +1352,9 @@ Component({
             },
             fail: (err) => {
               console.error("addGroundOverlay failed", tile.id, err);
+              if (this._wmsKnownOverlayIds) {
+                this._wmsKnownOverlayIds.delete(overlayId);
+              }
               this._uomOverlayFailed = true;
               this.updateUomTileWarning();
               settleTile();
@@ -1391,6 +1425,11 @@ Component({
         this.clearWmsOverlayHandleTimer(handle);
         if (this.mapCtx) {
           this.queueWmsOverlayRemoval(handle.overlayId);
+        }
+      }
+      if (this.mapCtx && this._wmsKnownOverlayIds && this._wmsKnownOverlayIds.size) {
+        for (const overlayId of Array.from(this._wmsKnownOverlayIds.values())) {
+          this.queueWmsOverlayRemoval(overlayId);
         }
       }
       this._wmsOverlayMap.clear();
@@ -1524,6 +1563,20 @@ Component({
       this.updateStatusPanel();
     },
 
+    markUomMaskMissing(tile, entry) {
+      if (!tile || !tile.id) return;
+      if (!this._uomTileMasks) this._uomTileMasks = new Map();
+      const active = entry || this._uomTileMasks.get(tile.id) || { status: "missing" };
+      if (!entry && !this._uomTileMasks.get(tile.id)) {
+        this._uomTileMasks.set(tile.id, active);
+      }
+      this.clearUomMaskEntryTimeout(active);
+      active.retryCount = 0;
+      active.status = "missing";
+      this.updateStatusPanel();
+      this.updateUomTileWarning();
+    },
+
     loadUomMaskImage(tile, entry, img) {
       if (!tile || !tile.src || !entry || !img) {
         this.markUomMaskError(tile, entry);
@@ -1571,13 +1624,21 @@ Component({
             applySrc(filePath);
             return;
           }
+          if (isStaticResourceMissing({ statusCode, message: res?.errMsg })) {
+            this.markUomMaskMissing(tile, entry);
+            return;
+          }
           this.markUomMaskError(tile, entry);
         },
-        fail: () => {
+        fail: (err) => {
           if (!activeEntry()) return;
           if (entry.downloadTimer) {
             clearTimeout(entry.downloadTimer);
             entry.downloadTimer = null;
+          }
+          if (isStaticResourceMissing(err)) {
+            this.markUomMaskMissing(tile, entry);
+            return;
           }
           this.markUomMaskError(tile, entry);
         }
